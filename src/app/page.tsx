@@ -25,7 +25,7 @@ export default function Home() {
 
   return (
     <div className="space-y-16 pb-16">
-      <section className="bg-card">
+      <section>
         <div className="container mx-auto grid grid-cols-1 items-center gap-12 px-4 py-16 lg:py-24">
           <div className="space-y-6 text-center">
             <h1 className="text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl">
