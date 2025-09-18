@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/card';
 import { services } from '@/lib/data';
 import AddToCartButton from '@/components/cart/AddToCartButton';
-import { CheckCircle, Search } from 'lucide-react';
+import { CheckCircle, Search, Clock } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 
 export default function Home() {
@@ -82,10 +82,14 @@ export default function Home() {
             >
               <CardHeader>
                 <CardTitle>{service.title}</CardTitle>
-                <p className="text-2xl font-bold pt-2">R {service.price.toFixed(2)}</p>
+                <div className="flex items-center text-muted-foreground pt-2">
+                    <Clock className="h-4 w-4 mr-1.5" />
+                    <span className="text-xs font-medium">{service.turnaroundTime}</span>
+                </div>
               </CardHeader>
               <CardContent className="flex-grow">
-                <CardDescription>{service.description}</CardDescription>
+                <p className="text-2xl font-bold">R {service.price.toFixed(2)}</p>
+                <CardDescription className="pt-2">{service.description}</CardDescription>
               </CardContent>
               <CardFooter className="flex justify-between">
                 <AddToCartButton service={service} />
