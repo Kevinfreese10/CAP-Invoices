@@ -136,6 +136,12 @@ export default function AdminOrdersPage() {
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
                           <DropdownMenuItem disabled>View Order</DropdownMenuItem>
                           <DropdownMenuSeparator />
+                           <DropdownMenuItem
+                            onClick={() => handleUpdateStatus(order.id, 'Pending Payment')}
+                             disabled={order.status === 'Pending Payment'}
+                          >
+                            Mark as Pending Payment
+                          </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => handleUpdateStatus(order.id, 'Processing')}
                              disabled={order.status === 'Processing'}
