@@ -49,9 +49,8 @@ export default function CheckoutForm() {
     const orderId = `ORD-${Date.now().toString().slice(-6)}`;
     
     try {
-      const orderData = {
+      const orderData: any = {
         id: orderId,
-        userId: user?.id,
         customerName: values.name,
         customerEmail: values.email,
         customerPhone: values.phone,
@@ -65,6 +64,10 @@ export default function CheckoutForm() {
         status: 'Processing',
         date: Timestamp.now(),
       };
+
+      if (user) {
+        orderData.userId = user.id;
+      }
 
       await setDoc(doc(db, 'orders', orderId), orderData);
       
