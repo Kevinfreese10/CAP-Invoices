@@ -51,16 +51,20 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         (item) => item.service.id === service.id
       );
       if (existingItem) {
-        toast({
-          title: 'Already in cart',
-          description: `${service.title} is already in your cart.`,
-        });
+        setTimeout(() => {
+          toast({
+            title: 'Already in cart',
+            description: `${service.title} is already in your cart.`,
+          });
+        }, 0);
         return prevItems;
       }
-      toast({
-        title: 'Added to cart',
-        description: `${service.title} has been added to your cart.`,
-      });
+      setTimeout(() => {
+        toast({
+          title: 'Added to cart',
+          description: `${service.title} has been added to your cart.`,
+        });
+      }, 0);
       return [...prevItems, { service, quantity: 1 }];
     });
   };
@@ -69,10 +73,12 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     setCartItems((prevItems) =>
       prevItems.filter((item) => item.service.id !== serviceId)
     );
-     toast({
-        title: 'Removed from cart',
-        variant: 'destructive',
-    });
+     setTimeout(() => {
+      toast({
+          title: 'Removed from cart',
+          variant: 'destructive',
+      });
+    }, 0);
   };
 
   const updateQuantity = (serviceId: string, quantity: number) => {
