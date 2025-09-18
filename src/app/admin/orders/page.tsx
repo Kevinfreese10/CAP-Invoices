@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { getFirestore, collection, getDocs, orderBy, query, doc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order } from '@/lib/types';
@@ -134,7 +135,9 @@ export default function AdminOrdersPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem disabled>View Order</DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <Link href={`/dashboard/orders/${order.id}`}>View Order</Link>
+                          </DropdownMenuItem>
                           <DropdownMenuSeparator />
                            <DropdownMenuItem
                             onClick={() => handleUpdateStatus(order.id, 'Pending Payment')}
