@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/card';
 import AddToCartButton from '@/components/cart/AddToCartButton';
 import { Button } from '@/components/ui/button';
+import { Clock } from 'lucide-react';
 
 export default function ServicesPage() {
   const serviceCategories = [
@@ -57,7 +58,11 @@ export default function ServicesPage() {
                   </div>
                   <CardHeader>
                     <CardTitle>{service.title}</CardTitle>
-                    <CardDescription>{service.description}</CardDescription>
+                    <div className="flex items-center text-muted-foreground pt-2">
+                        <Clock className="h-4 w-4 mr-1.5" />
+                        <span className="text-xs font-medium">{service.turnaroundTime}</span>
+                    </div>
+                    <CardDescription className="pt-2">{service.description}</CardDescription>
                   </CardHeader>
                   <CardContent className="flex-grow">
                     <p className="text-2xl font-bold">R {service.price.toFixed(2)}</p>
