@@ -19,12 +19,14 @@ const db = getFirestore(firebaseApp);
 export default function OrderDetailsPage({ params }: { params: { id: string } }) {
   const [order, setOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { id } = params;
 
   useEffect(() => {
     const fetchOrder = async () => {
+      if (!id) return;
       setIsLoading(true);
       try {
-        const docRef = doc(db, 'orders', params.id);
+        const docRef = doc(db, 'orders', id);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           const data = docSnap.data();
@@ -45,7 +47,7 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
     };
 
     fetchOrder();
-  }, [params.id]);
+  }, [id]);
 
   if (isLoading) {
     return (
