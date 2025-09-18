@@ -13,21 +13,37 @@ interface CartContextType {
   clearCart: () => void;
   cartTotal: number;
   itemCount: number;
+  isCartLoaded: boolean;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider = ({ children }: { children: ReactNode }) => {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [isCartLoaded, setIsCartLoaded] = useState(false);
   const { toast } = useToast();
-  const [toastMessage, setToastMessage] = useState<{ title: string; description?: string; variant?: 'default' | 'destructive' } | null>(null);
 
   useEffect(() => {
-    if (toastMessage) {
-      toast(toastMessage);
-      setToastMessage(null);
+    // Load cart from localStorage on initial render
+    try {
+      const storedCart = localStorage.getItem('my-accountant-cart');
+      if (storedCart) {
+        setCartItems(JSON.parse(storedCart));
+      }
+    } catch (error) {
+        console.error("Could not parse cart from localStorage", error);
+    } finally {
+        setIsCartLoaded(true);
     }
-  }, [toastMessage, toast]);
+  }, []);
+
+  useEffect(() => {
+    // Save cart to localStorage whenever it changes
+    if (isCartLoaded) {
+      localStorage.setItem('my-accountant-cart', JSON.stringify(cartItems));
+    }
+  }, [cartItems, isCartLoaded]);
+
 
   const addToCart = (service: Service) => {
     setCartItems((prevItems) => {
@@ -35,13 +51,13 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         (item) => item.service.id === service.id
       );
       if (existingItem) {
-        setToastMessage({
+        toast({
           title: 'Already in cart',
           description: `${service.title} is already in your cart.`,
         });
         return prevItems;
       }
-      setToastMessage({
+      toast({
         title: 'Added to cart',
         description: `${service.title} has been added to your cart.`,
       });
@@ -53,7 +69,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     setCartItems((prevItems) =>
       prevItems.filter((item) => item.service.id !== serviceId)
     );
-     setToastMessage({
+     toast({
         title: 'Removed from cart',
         variant: 'destructive',
     });
@@ -90,6 +106,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         clearCart,
         cartTotal,
         itemCount,
+        isCartLoaded,
       }}
     >
       {children}

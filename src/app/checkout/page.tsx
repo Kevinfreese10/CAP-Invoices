@@ -5,22 +5,26 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import CheckoutForm from '@/components/checkout/CheckoutForm';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 
 export default function CheckoutPage() {
-  const { cartItems, cartTotal } = useCart();
+  const { cartItems, cartTotal, isCartLoaded } = useCart();
   const router = useRouter();
 
   useEffect(() => {
-    // If the cart is empty, redirect to the services page.
-    // This check should happen for all users.
-    if (cartItems.length === 0) {
+    // If the cart is loaded and is empty, redirect to the services page.
+    if (isCartLoaded && cartItems.length === 0) {
       router.push('/services');
     }
-  }, [cartItems, router]);
+  }, [isCartLoaded, cartItems, router]);
   
-  // Render nothing or a loading state while redirecting
-  if (cartItems.length === 0) {
-    return null;
+  // Render a loading state until the cart is loaded.
+  if (!isCartLoaded || (isCartLoaded && cartItems.length === 0)) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
   }
 
   return (
