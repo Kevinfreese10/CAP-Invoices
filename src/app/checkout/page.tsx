@@ -11,13 +11,16 @@ export default function CheckoutPage() {
   const router = useRouter();
 
   useEffect(() => {
+    // If the cart is empty, redirect to the services page.
+    // This check should happen for all users.
     if (cartItems.length === 0) {
       router.push('/services');
     }
   }, [cartItems, router]);
   
+  // Render nothing or a loading state while redirecting
   if (cartItems.length === 0) {
-    return null; // or a loading state
+    return null;
   }
 
   return (
