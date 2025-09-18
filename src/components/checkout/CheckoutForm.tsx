@@ -12,6 +12,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
+import { getFirestore, doc, setDoc, Timestamp, collection } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
+
+const db = getFirestore(firebaseApp);
 
 const formSchema = z.object({
   name: z.string().min(2, 'Name is required.'),
@@ -22,7 +26,7 @@ const formSchema = z.object({
 export default function CheckoutForm() {
   const router = useRouter();
   const { user } = useAuth();
-  const { clearCart } = useCart();
+  const { cartItems, cartTotal, clearCart } = useCart();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -35,23 +39,51 @@ export default function CheckoutForm() {
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     toast({
-      title: 'Processing Payment...',
-      description: 'Please wait while we securely process your payment.',
+      title: 'Processing Order...',
+      description: 'Please wait while we save your order.',
     });
 
-    // Simulate payment processing with PayFast
-    setTimeout(() => {
-      const orderId = `ORD-${Math.floor(Math.random() * 900) + 100}`;
-      console.log('Order placed:', { orderId, ...values });
+    const orderId = `ORD-${Date.now().toString().slice(-6)}`;
+    
+    try {
+      const orderData = {
+        id: orderId,
+        userId: user?.id,
+        customerName: values.name,
+        customerEmail: values.email,
+        customerPhone: values.phone,
+        items: cartItems.map(item => ({ 
+            id: item.service.id, 
+            title: item.service.title, 
+            price: item.service.price,
+            quantity: item.quantity
+        })),
+        total: cartTotal,
+        status: 'Processing',
+        date: Timestamp.now(),
+      };
+
+      await setDoc(doc(db, 'orders', orderId), orderData);
       
-      clearCart();
-      setIsLoading(false);
-      
-      router.push(`/order-confirmation/${orderId}`);
-    }, 2000);
+      // Simulate payment processing
+      setTimeout(() => {
+        clearCart();
+        setIsLoading(false);
+        router.push(`/order-confirmation/${orderId}`);
+      }, 1000);
+
+    } catch (error) {
+        console.error("Error creating order: ", error);
+        toast({
+            title: 'Order Failed',
+            description: 'There was a problem saving your order. Please try again.',
+            variant: 'destructive',
+        });
+        setIsLoading(false);
+    }
   }
 
   return (
