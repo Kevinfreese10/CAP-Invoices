@@ -7,7 +7,7 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 
 export const metadata: Metadata = {
-  title: 'Tax Shop',
+  title: 'My Accountant',
   description: 'Professional Accounting & Tax Services for South Africa.',
 };
 

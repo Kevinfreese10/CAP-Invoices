@@ -81,10 +81,10 @@ export default function Home() {
         </div>
       </section>
 
-      <section>
+      <section className="bg-background">
          <div className="container mx-auto px-4 py-16">
             <div className="text-center mb-12">
-                <h2 className="text-3xl font-bold">Why Choose Tax Shop?</h2>
+                <h2 className="text-3xl font-bold">Why Choose My Accountant?</h2>
                 <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
                     We're committed to providing you with the best service possible.
                 </p>

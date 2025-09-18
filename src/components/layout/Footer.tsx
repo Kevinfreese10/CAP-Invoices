@@ -7,7 +7,7 @@ const Footer = () => {
       <div className="container mx-auto px-4 py-8">
         <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
           <div className="text-center sm:text-left">
-            <Link href="/" className="text-lg font-bold text-primary">Tax Shop</Link>
+            <Link href="/" className="text-lg font-bold text-primary">My Accountant</Link>
             <p className="mt-1 text-sm text-muted-foreground">
               Your trusted partner in accounting and tax services.
             </p>
@@ -28,7 +28,7 @@ const Footer = () => {
           </div>
         </div>
         <div className="mt-8 border-t pt-6 text-center text-sm text-muted-foreground">
-          <p>&copy; {new Date().getFullYear()} Tax Shop. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} My Accountant. All rights reserved.</p>
         </div>
       </div>
     </footer>

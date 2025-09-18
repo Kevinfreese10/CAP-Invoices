@@ -41,7 +41,7 @@ const Header = () => {
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <div className="flex items-center gap-8">
           <Link href="/" className="text-2xl font-bold text-primary">
-            Tax Shop
+            My Accountant
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
             {navLinks.map(link => (
@@ -88,7 +88,7 @@ const Header = () => {
               <SheetContent side="left">
                 <div className="flex flex-col gap-6 pt-8">
                   <Link href="/" className="text-2xl font-bold text-primary" onClick={() => setMobileMenuOpen(false)}>
-                    Tax Shop
+                    My Accountant
                   </Link>
                    {navLinks.map(link => (
                     <Link key={link.href} href={link.href} className="text-lg font-medium text-foreground/80 transition-colors hover:text-foreground" onClick={() => setMobileMenuOpen(false)}>

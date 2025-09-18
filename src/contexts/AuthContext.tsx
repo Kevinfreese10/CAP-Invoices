@@ -26,7 +26,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     // This is a mock persistence check. In a real app, you'd check a token.
     try {
-      const storedUser = localStorage.getItem('tax-shop-user');
+      const storedUser = localStorage.getItem('my-accountant-user');
       if (storedUser) {
         const parsedUser = JSON.parse(storedUser);
         setUser(parsedUser);
@@ -34,16 +34,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Could not parse user from localStorage", error);
     }
-    setIsAuthenticated(!!localStorage.getItem('tax-shop-user'));
+    setIsAuthenticated(!!localStorage.getItem('my-accountant-user'));
   }, []);
   
   const updateUserState = (user: User | null) => {
     setUser(user);
     setIsAuthenticated(!!user);
      if (user) {
-      localStorage.setItem('tax-shop-user', JSON.stringify(user));
+      localStorage.setItem('my-accountant-user', JSON.stringify(user));
     } else {
-      localStorage.removeItem('tax-shop-user');
+      localStorage.removeItem('my-accountant-user');
     }
   }
 
