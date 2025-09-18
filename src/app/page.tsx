@@ -52,12 +52,13 @@ export default function Home() {
             <Input
               type="search"
               placeholder="Search for a service (e.g., 'Company Registration')"
-              className="h-12 w-full rounded-full border-2 border-border bg-card pr-14 shadow-lg"
+              className="h-12 w-full rounded-md border-input bg-background pr-14 text-base"
             />
             <Button
               type="submit"
               size="icon"
-              className="absolute right-2 top-1/2 h-9 w-9 -translate-y-1/2 rounded-full"
+              variant="ghost"
+              className="absolute right-1 top-1/2 h-10 w-10 -translate-y-1/2"
             >
               <Search className="h-5 w-5" />
               <span className="sr-only">Search</span>
