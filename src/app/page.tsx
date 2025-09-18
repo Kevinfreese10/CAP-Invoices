@@ -11,7 +11,8 @@ import {
 } from '@/components/ui/card';
 import { services } from '@/lib/data';
 import AddToCartButton from '@/components/cart/AddToCartButton';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, Search } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 
 export default function Home() {
   const featuredServices = services.slice(0, 3);
@@ -42,6 +43,26 @@ export default function Home() {
               </Button>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="-mt-24">
+        <div className="container mx-auto max-w-2xl px-4">
+          <form className="relative">
+            <Input
+              type="search"
+              placeholder="Search for a service (e.g., 'Company Registration')"
+              className="h-12 w-full rounded-full border-2 border-border bg-card pr-14 shadow-lg"
+            />
+            <Button
+              type="submit"
+              size="icon"
+              className="absolute right-2 top-1/2 h-9 w-9 -translate-y-1/2 rounded-full"
+            >
+              <Search className="h-5 w-5" />
+              <span className="sr-only">Search</span>
+            </Button>
+          </form>
         </div>
       </section>
       
