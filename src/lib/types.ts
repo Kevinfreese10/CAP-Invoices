@@ -1,0 +1,48 @@
+export type Service = {
+  id: string;
+  title: string;
+  description: string;
+  longDescription: string;
+  price: number;
+  imageUrl: string;
+  imageHint: string;
+  category: string;
+};
+
+export type BlogPost = {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string;
+  content: string;
+  imageUrl: string;
+  imageHint: string;
+  author: string;
+  date: string;
+};
+
+export type FAQ = {
+  id:string;
+  question: string;
+  answer: string;
+};
+
+export type CartItem = {
+  service: Service;
+  quantity: number;
+};
+
+export type Order = {
+  id: string;
+  date: string;
+  items: CartItem[];
+  total: number;
+  status: 'Processing' | 'Completed' | 'Cancelled';
+};
+
+export type User = {
+  id: string;
+  name: string;
+  email: string;
+  role: 'client' | 'admin';
+};

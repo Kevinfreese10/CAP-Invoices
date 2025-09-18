@@ -1,3 +1,41 @@
+
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "service-tax-return",
+      "description": "An image representing personal tax returns, perhaps a person working on a laptop with tax forms.",
+      "imageUrl": "https://picsum.photos/seed/101/600/400",
+      "imageHint": "tax forms"
+    },
+    {
+      "id": "service-company-reg",
+      "description": "An image for company registration, like official documents or a handshake sealing a deal.",
+      "imageUrl": "https://picsum.photos/seed/102/600/400",
+      "imageHint": "business documents"
+    },
+    {
+      "id": "service-bookkeeping",
+      "description": "An image for bookkeeping services, showing ledgers, calculators, and organized files.",
+      "imageUrl": "https://picsum.photos/seed/103/600/400",
+      "imageHint": "accounting ledger"
+    },
+    {
+      "id": "blog-tax-tips",
+      "description": "An image for a blog post about tax tips, maybe a lightbulb over a calculator.",
+      "imageUrl": "https://picsum.photos/seed/201/800/400",
+      "imageHint": "financial advice"
+    },
+    {
+      "id": "blog-vat-guide",
+      "description": "An image for a blog post about VAT, perhaps showing shopping receipts or price tags.",
+      "imageUrl": "https://picsum.photos/seed/202/800/400",
+      "imageHint": "shopping receipt"
+    },
+    {
+      "id": "blog-capital-gains",
+      "description": "An image related to capital gains, like property or stock market charts.",
+      "imageUrl": "https://picsum.photos/seed/203/800/400",
+      "imageHint": "stock market"
+    }
+  ]
 }
