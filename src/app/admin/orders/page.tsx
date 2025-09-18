@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getFirestore, collection, getDocs, orderBy, query } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, orderBy, query, doc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order } from '@/lib/types';
 import {
@@ -22,14 +22,17 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { format } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
 
 const db = getFirestore(firebaseApp);
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -55,6 +58,34 @@ export default function AdminOrdersPage() {
     };
     fetchOrders();
   }, []);
+
+  const handleUpdateStatus = async (orderId: string, newStatus: 'Completed' | 'Processing' | 'Cancelled') => {
+    try {
+      const orderRef = doc(db, 'orders', orderId);
+      await updateDoc(orderRef, {
+        status: newStatus,
+      });
+
+      setOrders(prevOrders =>
+        prevOrders.map(order =>
+          order.id === orderId ? { ...order, status: newStatus } : order
+        )
+      );
+
+      toast({
+        title: 'Status Updated',
+        description: `Order ${orderId} has been marked as ${newStatus}.`,
+      });
+    } catch (error) {
+      console.error('Error updating order status: ', error);
+      toast({
+        title: 'Update Failed',
+        description: 'There was a problem updating the order status.',
+        variant: 'destructive',
+      });
+    }
+  };
+
 
   return (
     <div className="space-y-8">
@@ -103,9 +134,27 @@ export default function AdminOrdersPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem>View Order</DropdownMenuItem>
-                          <DropdownMenuItem>Mark as Completed</DropdownMenuItem>
-                          <DropdownMenuItem>Cancel Order</DropdownMenuItem>
+                          <DropdownMenuItem disabled>View Order</DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => handleUpdateStatus(order.id, 'Completed')}
+                            disabled={order.status === 'Completed'}
+                          >
+                            Mark as Completed
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleUpdateStatus(order.id, 'Processing')}
+                             disabled={order.status === 'Processing'}
+                          >
+                            Mark as Processing
+                          </DropdownMenuItem>
+                           <DropdownMenuItem
+                            onClick={() => handleUpdateStatus(order.id, 'Cancelled')}
+                            className="text-destructive"
+                            disabled={order.status === 'Cancelled'}
+                          >
+                            Cancel Order
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
