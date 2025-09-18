@@ -25,8 +25,9 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     // Load cart from localStorage on initial render
+    let storedCart: string | null = null;
     try {
-      const storedCart = localStorage.getItem('my-accountant-cart');
+      storedCart = localStorage.getItem('my-accountant-cart');
       if (storedCart) {
         setCartItems(JSON.parse(storedCart));
       }
@@ -38,7 +39,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
-    // Save cart to localStorage whenever it changes
+    // Save cart to localStorage whenever it changes, but only after initial load
     if (isCartLoaded) {
       localStorage.setItem('my-accountant-cart', JSON.stringify(cartItems));
     }
