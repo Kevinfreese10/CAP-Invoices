@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button';
 export default function CheckoutPage() {
   const { cartItems, cartTotal, isCartLoaded } = useCart();
 
-  // Render a loading state until the cart is loaded from localStorage.
   if (!isCartLoaded) {
     return (
       <div className="flex h-[calc(100vh-20rem)] items-center justify-center">
@@ -17,8 +16,7 @@ export default function CheckoutPage() {
       </div>
     );
   }
-
-  // If the cart is loaded and is empty, show an empty cart message.
+  
   if (isCartLoaded && cartItems.length === 0) {
     return (
       <div className="container mx-auto px-4 py-12">
@@ -34,7 +32,6 @@ export default function CheckoutPage() {
     );
   }
 
-  // If cart is loaded and has items, show the checkout form.
   return (
     <div className="container mx-auto px-4 py-12">
       <h1 className="text-3xl font-bold tracking-tight mb-8">Checkout</h1>
