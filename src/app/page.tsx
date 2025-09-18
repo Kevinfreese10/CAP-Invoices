@@ -26,15 +26,15 @@ export default function Home() {
   return (
     <div className="space-y-16 pb-16">
       <section className="bg-card">
-        <div className="container mx-auto grid grid-cols-1 items-center gap-12 px-4 py-16 md:grid-cols-2 lg:py-24">
-          <div className="space-y-6 text-center md:text-left">
+        <div className="container mx-auto grid grid-cols-1 items-center gap-12 px-4 py-16 lg:py-24">
+          <div className="space-y-6 text-center">
             <h1 className="text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl">
               Stress-Free Tax &amp; Accounting
             </h1>
-            <p className="text-lg text-muted-foreground">
+            <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
               Your trusted partner for professional financial services in South Africa. We simplify your finances so you can focus on what matters.
             </p>
-            <div className="flex flex-col gap-4 sm:flex-row sm:justify-center md:justify-start">
+            <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
               <Button asChild size="lg">
                 <Link href="/services">Explore Services</Link>
               </Button>
@@ -42,15 +42,6 @@ export default function Home() {
                 <Link href="/support">Get Support</Link>
               </Button>
             </div>
-          </div>
-          <div className="relative h-64 w-full md:h-96">
-            <Image
-              src="https://picsum.photos/seed/hero/600/400"
-              alt="Professional accounting services"
-              fill
-              className="rounded-lg object-cover shadow-lg"
-              data-ai-hint="office workspace"
-            />
           </div>
         </div>
       </section>
