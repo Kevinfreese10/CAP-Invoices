@@ -1,6 +1,7 @@
+
 'use client';
 
-import React, { createContext, useState, useContext, ReactNode } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { Service, CartItem } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 
@@ -19,6 +20,14 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export const CartProvider = ({ children }: { children: ReactNode }) => {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const { toast } = useToast();
+  const [toastMessage, setToastMessage] = useState<{ title: string; description?: string; variant?: 'default' | 'destructive' } | null>(null);
+
+  useEffect(() => {
+    if (toastMessage) {
+      toast(toastMessage);
+      setToastMessage(null);
+    }
+  }, [toastMessage, toast]);
 
   const addToCart = (service: Service) => {
     setCartItems((prevItems) => {
@@ -26,15 +35,13 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         (item) => item.service.id === service.id
       );
       if (existingItem) {
-        // Services are unique, so we can't increase quantity.
-        // We can show a toast message instead.
-        toast({
-            title: 'Already in cart',
-            description: `${service.title} is already in your cart.`,
+        setToastMessage({
+          title: 'Already in cart',
+          description: `${service.title} is already in your cart.`,
         });
         return prevItems;
       }
-      toast({
+      setToastMessage({
         title: 'Added to cart',
         description: `${service.title} has been added to your cart.`,
       });
@@ -46,7 +53,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     setCartItems((prevItems) =>
       prevItems.filter((item) => item.service.id !== serviceId)
     );
-    toast({
+     setToastMessage({
         title: 'Removed from cart',
         variant: 'destructive',
     });
