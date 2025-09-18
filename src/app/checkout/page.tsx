@@ -3,30 +3,38 @@ import Link from 'next/link';
 import { useCart } from '@/contexts/CartContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import CheckoutForm from '@/components/checkout/CheckoutForm';
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ShoppingCart } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 export default function CheckoutPage() {
   const { cartItems, cartTotal, isCartLoaded } = useCart();
-  const router = useRouter();
 
-  useEffect(() => {
-    // If the cart is loaded and is empty, redirect to the services page.
-    if (isCartLoaded && cartItems.length === 0) {
-      router.push('/services');
-    }
-  }, [isCartLoaded, cartItems, router]);
-  
-  // Render a loading state until the cart is loaded.
-  if (!isCartLoaded || (isCartLoaded && cartItems.length === 0)) {
+  // Render a loading state until the cart is loaded from localStorage.
+  if (!isCartLoaded) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-[calc(100vh-20rem)] items-center justify-center">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
   }
 
+  // If the cart is loaded and is empty, show an empty cart message.
+  if (isCartLoaded && cartItems.length === 0) {
+    return (
+      <div className="container mx-auto px-4 py-12">
+        <div className="text-center py-16 border-2 border-dashed rounded-lg">
+          <ShoppingCart className="mx-auto h-12 w-12 text-muted-foreground" />
+          <h2 className="mt-4 text-xl font-semibold">Your cart is empty</h2>
+          <p className="mt-2 text-muted-foreground">You can't proceed to checkout without any services.</p>
+          <Button asChild className="mt-6">
+            <Link href="/services">Browse Services</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // If cart is loaded and has items, show the checkout form.
   return (
     <div className="container mx-auto px-4 py-12">
       <h1 className="text-3xl font-bold tracking-tight mb-8">Checkout</h1>
