@@ -23,7 +23,6 @@ const navLinks = [
   { href: '/services', label: 'Services' },
   { href: '/blog', label: 'Blog' },
   { href: '/support', label: 'Support' },
-  { href: '/firestore-test', label: 'Firestore Test' },
 ];
 
 const Header = () => {
