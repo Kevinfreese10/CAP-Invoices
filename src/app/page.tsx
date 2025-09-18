@@ -1,4 +1,3 @@
-import Image from 'next/image';
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
@@ -82,7 +81,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="bg-card">
+      <section>
          <div className="container mx-auto px-4 py-16">
             <div className="text-center mb-12">
                 <h2 className="text-3xl font-bold">Why Choose Tax Shop?</h2>
