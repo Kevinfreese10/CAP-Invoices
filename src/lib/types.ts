@@ -37,13 +37,13 @@ export type CartItem = {
 
 export type Order = {
   id: string;
-  userId: string;
+  userId?: string;
   customerName: string;
   customerEmail: string;
   date: any;
   items: any[];
   total: number;
-  status: 'Processing' | 'Completed' | 'Cancelled';
+  status: 'Pending Payment' | 'Processing' | 'Completed' | 'Cancelled';
 };
 
 export type User = {

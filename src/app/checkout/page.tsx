@@ -63,7 +63,7 @@ export default function CheckoutPage() {
                 <span>R {cartTotal.toFixed(2)}</span>
               </div>
               <p className="text-xs text-muted-foreground mt-4">
-                You will be redirected to PayFast to complete your payment securely.
+                You will be asked to make a manual EFT payment after placing your order.
               </p>
             </CardContent>
           </Card>

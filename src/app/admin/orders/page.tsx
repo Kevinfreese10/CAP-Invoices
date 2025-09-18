@@ -59,7 +59,7 @@ export default function AdminOrdersPage() {
     fetchOrders();
   }, []);
 
-  const handleUpdateStatus = async (orderId: string, newStatus: 'Completed' | 'Processing' | 'Cancelled') => {
+  const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
     try {
       const orderRef = doc(db, 'orders', orderId);
       await updateDoc(orderRef, {
@@ -137,16 +137,16 @@ export default function AdminOrdersPage() {
                           <DropdownMenuItem disabled>View Order</DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
-                            onClick={() => handleUpdateStatus(order.id, 'Completed')}
-                            disabled={order.status === 'Completed'}
-                          >
-                            Mark as Completed
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
                             onClick={() => handleUpdateStatus(order.id, 'Processing')}
                              disabled={order.status === 'Processing'}
                           >
                             Mark as Processing
+                          </DropdownMenuItem>
+                           <DropdownMenuItem
+                            onClick={() => handleUpdateStatus(order.id, 'Completed')}
+                            disabled={order.status === 'Completed'}
+                          >
+                            Mark as Completed
                           </DropdownMenuItem>
                            <DropdownMenuItem
                             onClick={() => handleUpdateStatus(order.id, 'Cancelled')}

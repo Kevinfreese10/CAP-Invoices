@@ -12,8 +12,9 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
-import { getFirestore, doc, setDoc, Timestamp, collection } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
+import { Order } from '@/lib/types';
 
 const db = getFirestore(firebaseApp);
 
@@ -43,17 +44,16 @@ export default function CheckoutForm() {
     setIsLoading(true);
     toast({
       title: 'Processing Order...',
-      description: 'Please wait while we save your order.',
+      description: 'Please wait while we generate your order.',
     });
 
     const orderId = `ORD-${Date.now().toString().slice(-6)}`;
     
     try {
-      const orderData: any = {
+      const orderData: Order = {
         id: orderId,
         customerName: values.name,
         customerEmail: values.email,
-        customerPhone: values.phone,
         items: cartItems.map(item => ({ 
             id: item.service.id, 
             title: item.service.title, 
@@ -61,7 +61,7 @@ export default function CheckoutForm() {
             quantity: item.quantity
         })),
         total: cartTotal,
-        status: 'Processing',
+        status: 'Pending Payment',
         date: Timestamp.now(),
       };
 
@@ -71,12 +71,9 @@ export default function CheckoutForm() {
 
       await setDoc(doc(db, 'orders', orderId), orderData);
       
-      // Simulate payment processing
-      setTimeout(() => {
-        clearCart();
-        setIsLoading(false);
-        router.push(`/order-confirmation/${orderId}`);
-      }, 1000);
+      clearCart();
+      setIsLoading(false);
+      router.push(`/order-confirmation/${orderId}`);
 
     } catch (error) {
         console.error("Error creating order: ", error);
@@ -138,7 +135,7 @@ export default function CheckoutForm() {
             />
             <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isLoading ? 'Processing...' : 'Proceed to PayFast'}
+              {isLoading ? 'Processing...' : 'Place Order'}
             </Button>
           </form>
         </Form>
