@@ -16,10 +16,9 @@ import { format } from 'date-fns';
 
 const db = getFirestore(firebaseApp);
 
-export default function OrderDetailsPage({ params }: { params: { id: string } }) {
+export default function OrderDetailsPage({ params: { id } }: { params: { id: string } }) {
   const [order, setOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const { id } = params;
 
   useEffect(() => {
     const fetchOrder = async () => {
