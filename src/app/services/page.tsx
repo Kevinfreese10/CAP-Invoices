@@ -13,15 +13,19 @@ import AddToCartButton from '@/components/cart/AddToCartButton';
 import { Button } from '@/components/ui/button';
 
 export default function ServicesPage() {
-  const taxServices = services.filter(s => s.category === 'Tax Services');
-  const businessServices = services.filter(s => s.category === 'Business Services');
-  const accountingServices = services.filter(s => s.category === 'Accounting');
+  const serviceCategories = [
+    "SARS & Tax",
+    "Company Registrations",
+    "CIPC",
+    "Payroll",
+    "NCR/COIDA/CIDB",
+  ];
+  
+  const categorizedServices = serviceCategories.map(category => ({
+    name: category,
+    data: services.filter(s => s.category === category)
+  })).filter(c => c.data.length > 0);
 
-  const categories = [
-    { name: 'Tax Services', data: taxServices },
-    { name: 'Business Services', data: businessServices },
-    { name: 'Accounting', data: accountingServices },
-  ]
 
   return (
     <div className="container mx-auto px-4 py-12">
@@ -33,7 +37,7 @@ export default function ServicesPage() {
       </div>
 
       <div className="space-y-12">
-        {categories.map(category => (
+        {categorizedServices.map(category => (
           <section key={category.name}>
             <h2 className="text-2xl font-bold mb-6">{category.name}</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">

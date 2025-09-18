@@ -7,6 +7,9 @@ export type Service = {
   imageUrl: string;
   imageHint: string;
   category: string;
+  whatsIncluded: string[];
+  turnaroundTime: string;
+  requiredDocuments: string[];
 };
 
 export type BlogPost = {

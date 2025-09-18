@@ -3,14 +3,27 @@ import type { Service, BlogPost, FAQ, Order } from './types';
 export const services: Service[] = [
   {
     id: 'personal-tax-return',
-    title: 'Personal Tax Return',
+    title: 'Personal Tax Return (ITR12)',
     description: 'Annual tax filing for individuals and provisional taxpayers.',
     longDescription:
       'Our personal tax return service ensures that your annual tax filings are accurate, compliant, and optimized for maximum returns. We handle everything from gathering your documents to submitting the final return to SARS, providing peace of mind for both standard and provisional taxpayers.',
     price: 750,
     imageUrl: 'https://picsum.photos/seed/101/600/400',
     imageHint: 'tax forms',
-    category: 'Tax Services',
+    category: 'SARS & Tax',
+    whatsIncluded: [
+        'Consultation on tax-deductible expenses',
+        'Preparation of your annual tax return',
+        'Submission of ITR12 to SARS',
+        'Handling of basic SARS queries',
+    ],
+    turnaroundTime: '5-7 working days',
+    requiredDocuments: [
+        'IRP5/IT3(a) certificates',
+        'Medical aid tax certificate',
+        'Retirement annuity fund certificate',
+        'Logbook for travel claims (if applicable)',
+    ]
   },
   {
     id: 'company-registration',
@@ -21,19 +34,85 @@ export const services: Service[] = [
     price: 950,
     imageUrl: 'https://picsum.photos/seed/102/600/400',
     imageHint: 'business documents',
-    category: 'Business Services',
+    category: 'Company Registrations',
+    whatsIncluded: [
+        'Company Name Reservation (COR 9.1)',
+        'Company Registration Certificate (COR 14.3)',
+        'Income Tax Number Registration',
+        'Memorandum of Incorporation (MOI)',
+    ],
+    turnaroundTime: '3-5 working days',
+    requiredDocuments: [
+        'ID copies of all directors (min. 1)',
+        '4 proposed company names',
+        'Proof of address for all directors',
+    ]
   },
   {
     id: 'monthly-bookkeeping',
-    title: 'Monthly Bookkeeping',
-    description: 'Comprehensive bookkeeping services to keep your finances in order.',
+    title: 'Monthly Bookkeeping (Basic)',
+    description: 'Comprehensive bookkeeping for small businesses.',
     longDescription:
       'Focus on growing your business while we handle the numbers. Our monthly bookkeeping service includes transaction recording, bank reconciliations, and financial reporting, ensuring your books are always accurate and up-to-date.',
     price: 1500,
     imageUrl: 'https://picsum.photos/seed/103/600/400',
     imageHint: 'accounting ledger',
-    category: 'Accounting',
+    category: 'Payroll',
+    whatsIncluded: [
+        'Processing of up to 50 monthly transactions',
+        'Bank and credit card reconciliations',
+        'Monthly management reports (Income Statement, Balance Sheet)',
+        'VAT201 submission support',
+    ],
+    turnaroundTime: 'Ongoing monthly service',
+    requiredDocuments: [
+        'Bank statements',
+        'Supplier invoices',
+        'Customer invoices',
+    ]
   },
+  {
+    id: 'cipc-annual-returns',
+    title: 'CIPC Annual Returns',
+    description: 'File your company\'s mandatory annual returns with CIPC.',
+    longDescription: 'Ensure your company remains compliant by filing your CIPC annual returns on time. This is a mandatory requirement for all registered companies and close corporations to keep their registration active.',
+    price: 450,
+    imageUrl: 'https://picsum.photos/seed/104/600/400',
+    imageHint: 'compliance calendar',
+    category: 'CIPC',
+    whatsIncluded: [
+        'Calculation of annual return fee',
+        'Filing of the return with CIPC',
+        'Confirmation of filing certificate',
+    ],
+    turnaroundTime: '1-2 working days',
+    requiredDocuments: [
+        'Company registration number',
+        'Latest Annual Financial Statements (if applicable)',
+    ],
+  },
+  {
+    id: 'coida-registration',
+    title: 'COIDA Registration',
+    description: 'Register for Compensation for Occupational Injuries and Diseases Act.',
+    longDescription: 'Register your business with the Compensation Fund to protect your employees against injuries or diseases sustained at work. This is a legal requirement for all employers in South Africa.',
+    price: 800,
+    imageUrl: 'https://picsum.photos/seed/105/600/400',
+    imageHint: 'health safety',
+    category: 'NCR/COIDA/CIDB',
+    whatsIncluded: [
+        'Preparation of registration documents',
+        'Submission to the Department of Labour',
+        'Confirmation of registration',
+    ],
+    turnaroundTime: '10-15 working days',
+    requiredDocuments: [
+        'Company registration documents',
+        'ID copies of directors',
+        'Proof of business address',
+        'Employee details and total earnings',
+    ]
+  }
 ];
 
 export const blogPosts: BlogPost[] = [
@@ -110,19 +189,20 @@ export const faqs: FAQ[] = [
   },
 ];
 
+const allServices = [...services];
 export const orders: Order[] = [
     {
         id: 'ORD-001',
         date: '2024-07-20',
-        items: [{ service: services[0], quantity: 1 }, { service: services[1], quantity: 1 }],
-        total: services[0].price + services[1].price,
+        items: [{ service: allServices[0], quantity: 1 }, { service: allServices[1], quantity: 1 }],
+        total: allServices[0].price + allServices[1].price,
         status: 'Completed',
     },
     {
         id: 'ORD-002',
         date: '2024-07-22',
-        items: [{ service: services[2], quantity: 1 }],
-        total: services[2].price,
+        items: [{ service: allServices[2], quantity: 1 }],
+        total: allServices[2].price,
         status: 'Processing',
     }
 ];
