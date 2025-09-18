@@ -1,4 +1,4 @@
-import Image from 'next/image';
+
 import Link from 'next/link';
 import { services } from '@/lib/data';
 import {
@@ -47,15 +47,6 @@ export default function ServicesPage() {
                   key={service.id}
                   className="flex flex-col overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
                 >
-                  <div className="relative h-48 w-full">
-                    <Image
-                      src={service.imageUrl}
-                      alt={service.title}
-                      fill
-                      className="object-cover"
-                      data-ai-hint={service.imageHint}
-                    />
-                  </div>
                   <CardHeader>
                     <CardTitle>{service.title}</CardTitle>
                     <div className="flex items-center text-muted-foreground pt-2">
