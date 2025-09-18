@@ -16,16 +16,16 @@ import { format } from 'date-fns';
 
 const db = getFirestore(firebaseApp);
 
-export default function OrderDetailsPage({ params: { id } }: { params: { id: string } }) {
+export default function OrderDetailsPage({ params }: { params: { id: string } }) {
   const [order, setOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchOrder = async () => {
-      if (!id) return;
+      if (!params.id) return;
       setIsLoading(true);
       try {
-        const docRef = doc(db, 'orders', id);
+        const docRef = doc(db, 'orders', params.id);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           const data = docSnap.data();
@@ -46,7 +46,7 @@ export default function OrderDetailsPage({ params: { id } }: { params: { id: str
     };
 
     fetchOrder();
-  }, [id]);
+  }, [params.id]);
 
   if (isLoading) {
     return (
