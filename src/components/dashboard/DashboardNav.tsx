@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   Briefcase,
   Shapes,
+  Users,
 } from 'lucide-react';
 
 import {
@@ -44,6 +45,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/orders', label: 'Manage Orders', icon: ShieldCheck, roles: ['admin', 'staff'] },
     { href: '/admin/services', label: 'Manage Services', icon: Briefcase, roles: ['admin'] },
     { href: '/admin/categories', label: 'Manage Categories', icon: Shapes, roles: ['admin'] },
+    { href: '/admin/staff', label: 'Manage Staff', icon: Users, roles: ['admin'] },
   ];
 
   const visibleNavItems = navItems.filter(item => item.roles.includes(user.role));
