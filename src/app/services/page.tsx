@@ -48,17 +48,17 @@ export default function ServicesPage() {
                 >
                   <CardHeader>
                     <CardTitle>{service.title}</CardTitle>
-                    <div className="flex items-center text-muted-foreground pt-2">
+                     <div className="flex items-center text-muted-foreground pt-2">
                         <Clock className="h-4 w-4 mr-1.5" />
                         <span className="text-xs font-medium">{service.turnaroundTime}</span>
                     </div>
-                    <CardDescription className="pt-2">{service.description}</CardDescription>
                   </CardHeader>
                   <CardContent className="flex-grow">
-                    <p className="text-2xl font-bold">R {service.price.toFixed(2)}</p>
+                    <CardDescription>{service.description}</CardDescription>
                   </CardContent>
-                  <CardFooter>
-                    <Button variant="outline" asChild className="w-full">
+                  <CardFooter className="items-center justify-between">
+                     <p className="text-2xl font-bold text-primary">R {service.price.toFixed(2)}</p>
+                    <Button variant="outline" asChild>
                       <Link href={`/services/${service.id}`}>Learn More</Link>
                     </Button>
                   </CardFooter>

@@ -87,11 +87,11 @@ export default function Home() {
                 </div>
               </CardHeader>
               <CardContent className="flex-grow">
-                <p className="text-2xl font-bold">R {service.price.toFixed(2)}</p>
-                <CardDescription className="pt-2">{service.description}</CardDescription>
+                <CardDescription>{service.description}</CardDescription>
               </CardContent>
-              <CardFooter>
-                <Button variant="outline" asChild className="w-full">
+              <CardFooter className="items-center justify-between">
+                <p className="text-2xl font-bold text-primary">R {service.price.toFixed(2)}</p>
+                <Button variant="outline" asChild>
                   <Link href={`/services/${service.id}`}>Learn More</Link>
                 </Button>
               </CardFooter>
