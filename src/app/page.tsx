@@ -82,7 +82,8 @@ export default function Home() {
             >
               <CardHeader>
                 <CardTitle>{service.title}</CardTitle>
-                <div className="flex items-center text-muted-foreground pt-2">
+                <p className="text-2xl font-bold text-primary pt-2">R {service.price.toFixed(2)}</p>
+                <div className="flex items-center text-muted-foreground pt-1">
                     <Clock className="h-4 w-4 mr-1.5" />
                     <span className="text-xs font-medium">{service.turnaroundTime}</span>
                 </div>
@@ -90,9 +91,8 @@ export default function Home() {
               <CardContent className="flex-grow">
                 <CardDescription>{service.description}</CardDescription>
               </CardContent>
-              <CardFooter className="items-center justify-between">
-                <p className="text-2xl font-bold text-primary">R {service.price.toFixed(2)}</p>
-                <Button asChild>
+              <CardFooter>
+                <Button asChild className="w-full">
                   <Link href={`/services/${service.id}`}>Learn More</Link>
                 </Button>
               </CardFooter>
