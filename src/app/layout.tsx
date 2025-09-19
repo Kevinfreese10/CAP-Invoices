@@ -3,8 +3,7 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { CartProvider } from '@/contexts/CartContext';
 import { AuthProvider } from '@/contexts/AuthContext';
-import Header from '@/components/layout/Header';
-import Footer from '@/components/layout/Footer';
+import AppShell from '@/components/layout/AppShell';
 
 export const metadata: Metadata = {
   title: 'My Accountant',
@@ -23,11 +22,9 @@ export default function RootLayout({
       <body className="font-body antialiased">
         <AuthProvider>
           <CartProvider>
-            <div className="flex min-h-screen flex-col">
-              <Header />
-              <main className="flex-grow bg-background">{children}</main>
-              <Footer />
-            </div>
+            <AppShell>
+              {children}
+            </AppShell>
             <Toaster />
           </CartProvider>
         </AuthProvider>
