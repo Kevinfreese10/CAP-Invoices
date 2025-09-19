@@ -23,6 +23,7 @@ const navLinks = [
   { href: '/services', label: 'Services' },
   { href: '/blog', label: 'Blog' },
   { href: '/support', label: 'Support' },
+  { href: '/contact', label: 'Contact' },
 ];
 
 const Header = () => {
