@@ -10,7 +10,7 @@ export const services: Service[] = [
     price: 750,
     imageUrl: 'https://picsum.photos/seed/101/600/400',
     imageHint: 'tax forms',
-    category: 'SARS & Tax',
+    category: 'SARS Services',
     whatsIncluded: [
         'Consultation on tax-deductible expenses',
         'Preparation of your annual tax return',
@@ -37,7 +37,7 @@ export const services: Service[] = [
     price: 950,
     imageUrl: 'https://picsum.photos/seed/102/600/400',
     imageHint: 'business documents',
-    category: 'Company Registrations',
+    category: 'Entity Registrations',
     whatsIncluded: [
         'Company Name Reservation (COR 9.1)',
         'Company Registration Certificate (COR 14.3)',
@@ -63,7 +63,7 @@ export const services: Service[] = [
     price: 1500,
     imageUrl: 'https://picsum.photos/seed/103/600/400',
     imageHint: 'accounting ledger',
-    category: 'Payroll',
+    category: 'Accounting Services',
     whatsIncluded: [
         'Processing of up to 50 monthly transactions',
         'Bank and credit card reconciliations',
@@ -88,7 +88,7 @@ export const services: Service[] = [
     price: 450,
     imageUrl: 'https://picsum.photos/seed/104/600/400',
     imageHint: 'compliance calendar',
-    category: 'CIPC',
+    category: 'CIPC Services',
     whatsIncluded: [
         'Calculation of annual return fee',
         'Filing of the return with CIPC',
@@ -111,7 +111,7 @@ export const services: Service[] = [
     price: 800,
     imageUrl: 'https://picsum.photos/seed/105/600/400',
     imageHint: 'health safety',
-    category: 'NCR/COIDA/CIDB',
+    category: 'COIDA Services',
     whatsIncluded: [
         'Preparation of registration documents',
         'Submission to the Department of Labour',

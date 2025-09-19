@@ -14,16 +14,39 @@ import { Clock } from 'lucide-react';
 
 export default function ServicesPage() {
   const serviceCategories = [
-    "SARS & Tax",
-    "Company Registrations",
-    "CIPC",
-    "Payroll",
-    "NCR/COIDA/CIDB",
+    {
+      name: "SARS Services",
+      description: "Comprehensive tax services to ensure you are compliant with SARS."
+    },
+    {
+      name: "Entity Registrations",
+      description: "Register your new business entity with all the necessary bodies."
+    },
+    {
+      name: "CIPC Services",
+      description: "All services related to the Companies and Intellectual Property Commission."
+    },
+    {
+      name: "COIDA Services",
+      description: "Services related to the Compensation for Occupational Injuries and Diseases Act."
+    },
+     {
+      name: "NCR Registrations",
+      description: "Registration services for the National Credit Regulator."
+    },
+    {
+      name: "Accounting Services",
+      description: "Professional accounting and bookkeeping to keep your finances in order."
+    },
+    {
+        name: "CIDB Services",
+        description: "Services for the Construction Industry Development Board."
+    }
   ];
   
   const categorizedServices = serviceCategories.map(category => ({
-    name: category,
-    data: services.filter(s => s.category === category)
+    ...category,
+    data: services.filter(s => s.category === category.name)
   })).filter(c => c.data.length > 0);
 
 

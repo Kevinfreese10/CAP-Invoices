@@ -15,13 +15,49 @@ import { CheckCircle, Search, Clock } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 
 export default function Home() {
-  const featuredServices = services.slice(0, 3);
   const whyChooseUs = [
     'Expert & Reliable',
     'Affordable Pricing',
     'Fast Turnaround',
     'SARS Compliant',
   ];
+
+  const serviceCategories = [
+    {
+      name: "SARS Services",
+      description: "Comprehensive tax services to ensure you are compliant with SARS."
+    },
+    {
+      name: "Entity Registrations",
+      description: "Register your new business entity with all the necessary bodies."
+    },
+    {
+      name: "CIPC Services",
+      description: "All services related to the Companies and Intellectual Property Commission."
+    },
+    {
+      name: "COIDA Services",
+      description: "Services related to the Compensation for Occupational Injuries and Diseases Act."
+    },
+     {
+      name: "NCR Registrations",
+      description: "Registration services for the National Credit Regulator."
+    },
+    {
+      name: "Accounting Services",
+      description: "Professional accounting and bookkeeping to keep your finances in order."
+    },
+    {
+        name: "CIDB Services",
+        description: "Services for the Construction Industry Development Board."
+    }
+  ];
+  
+  const categorizedServices = serviceCategories.map(category => ({
+    ...category,
+    data: services.filter(s => s.category === category.name)
+  })).filter(c => c.data.length > 0);
+
 
   return (
     <div className="space-y-16 pb-16">
@@ -67,44 +103,43 @@ export default function Home() {
         </div>
       </section>
       
-      <section id="services" className="container mx-auto px-4">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold">Featured Services</h2>
-          <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
-            Get started with our most popular services for individuals and businesses.
-          </p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {featuredServices.map((service) => (
-            <Card
-              key={service.id}
-              className="flex flex-col overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
-            >
-              <CardHeader>
-                <CardTitle>{service.title}</CardTitle>
-                <p className="text-2xl font-bold text-primary pt-2">R {service.price.toFixed(2)}</p>
-                <div className="flex items-center text-muted-foreground pt-1">
-                    <Clock className="h-4 w-4 mr-1.5" />
-                    <span className="text-xs font-medium">{service.turnaroundTime}</span>
+        <div className="container mx-auto px-4 space-y-12">
+            {categorizedServices.map(category => (
+            <section key={category.name} id={category.name.toLowerCase().replace(/ /g, '-')}>
+                <div className="text-center mb-8">
+                    <h2 className="text-3xl font-bold">{category.name}</h2>
+                    <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
+                        {category.description}
+                    </p>
                 </div>
-              </CardHeader>
-              <CardContent className="flex-grow">
-                <CardDescription>{service.description}</CardDescription>
-              </CardContent>
-              <CardFooter>
-                <Button asChild className="w-full">
-                  <Link href={`/services/${service.id}`}>Learn More</Link>
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
-        <div className="text-center mt-12">
-            <Button asChild variant="secondary">
-                <Link href="/services">View All Services</Link>
-            </Button>
-        </div>
-      </section>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {category.data.map(service => (
+                    <Card
+                    key={service.id}
+                    className="flex flex-col overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
+                    >
+                    <CardHeader>
+                        <CardTitle>{service.title}</CardTitle>
+                        <p className="text-2xl font-bold text-primary pt-2">R {service.price.toFixed(2)}</p>
+                        <div className="flex items-center text-muted-foreground pt-1">
+                            <Clock className="h-4 w-4 mr-1.5" />
+                            <span className="text-xs font-medium">{service.turnaroundTime}</span>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="flex-grow">
+                        <CardDescription>{service.description}</CardDescription>
+                    </CardContent>
+                    <CardFooter>
+                        <Button asChild className="w-full">
+                        <Link href={`/services/${service.id}`}>Learn More</Link>
+                        </Button>
+                    </CardFooter>
+                    </Card>
+                ))}
+                </div>
+            </section>
+            ))}
+      </div>
 
       <section className="bg-background">
          <div className="container mx-auto px-4 py-16">

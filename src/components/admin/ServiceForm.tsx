@@ -36,12 +36,14 @@ type ServiceFormProps = {
 };
 
 const serviceCategories = [
-    "SARS & Tax",
-    "Company Registrations",
-    "CIPC",
-    "Payroll",
-    "NCR/COIDA/CIDB",
-  ];
+    "SARS Services",
+    "Entity Registrations",
+    "CIPC Services",
+    "COIDA Services",
+    "NCR Registrations",
+    "Accounting Services",
+    "CIDB Services",
+];
 
 export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
   const { toast } = useToast();
