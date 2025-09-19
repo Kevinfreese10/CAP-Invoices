@@ -103,7 +103,7 @@ export default function Home() {
             </div>
             <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
                 {whyChooseUs.map(item => (
-                    <div key={item.title} className="flex items-center gap-4">
+                    <div key={item.title} className="flex items-start gap-4">
                         <item.icon className="h-8 w-8 text-primary" />
                         <div>
                             <h3 className="font-semibold">{item.title}</h3>
