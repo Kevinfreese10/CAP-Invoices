@@ -7,6 +7,7 @@ import {
   User,
   LogOut,
   ShieldCheck,
+  Briefcase,
 } from 'lucide-react';
 
 import {
@@ -40,6 +41,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
 
   const adminNavItems = [
     { href: '/admin/orders', label: 'Manage Orders', icon: ShieldCheck },
+    { href: '/admin/services', label: 'Manage Services', icon: Briefcase },
   ];
 
   return (
