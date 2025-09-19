@@ -30,9 +30,9 @@ import Link from 'next/link';
 
 // Mock data
 const initialTasks: Task[] = [
-    { id: 'task-1', title: 'Follow up on ORD-001 documentation', description: 'Client needs to upload their ID copy.', assignedTo: '3', dueDate: new Date(), status: 'In Progress', orderId: 'ORD-001' },
-    { id: 'task-2', title: 'Prepare ORD-002 monthly reports', description: 'Generate and send the income statement and balance sheet.', assignedTo: '3', dueDate: subDays(new Date(), -3), status: 'To Do' },
-    { id: 'task-3', title: 'Review new client onboarding', description: 'Check all new client details from last week.', assignedTo: '2', dueDate: new Date(), status: 'Completed' },
+    { id: 'task-1', title: 'Follow up on ORD-001 documentation', description: 'Client needs to upload their ID copy.', assignedTo: '3', createdBy: '2', dueDate: new Date(), status: 'In Progress', orderId: 'ORD-001' },
+    { id: 'task-2', title: 'Prepare ORD-002 monthly reports', description: 'Generate and send the income statement and balance sheet.', assignedTo: '3', createdBy: '2', dueDate: subDays(new Date(), -3), status: 'To Do' },
+    { id: 'task-3', title: 'Review new client onboarding', description: 'Check all new client details from last week.', assignedTo: '2', createdBy: '2', dueDate: new Date(), status: 'Completed' },
 ];
 
 const allStaff = allUsers.filter(u => u.role === 'staff' || u.role === 'admin');
@@ -71,7 +71,7 @@ function TaskForm({ task, onSubmit, onCancel }: { task: Task | null, onSubmit: (
                 <FormField control={form.control} name="description" render={({ field }) => (<FormItem><FormLabel>Description</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>)} />
                 <div className="grid grid-cols-2 gap-4">
                     <FormField control={form.control} name="assignedTo" render={({ field }) => (<FormItem><FormLabel>Assign To</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select staff..." /></SelectTrigger></FormControl><SelectContent>{allStaff.map(staff => <SelectItem key={staff.id} value={staff.id}>{staff.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
-                    <FormField control={form.control} name="dueDate" render={({ field }) => (<FormItem className="flex flex-col justify-end"><FormLabel>Due Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4 opacity-50" />{field.value ? (format(field.value, "PPP")) : (<span>Pick a date</span>)}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="dueDate" render={({ field }) => (<FormItem className="flex flex-col"><FormLabel>Due Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4 opacity-50" />{field.value ? (format(field.value, "PPP")) : (<span>Pick a date</span>)}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)}/>
                 </div>
                  <FormField control={form.control} name="orderId" render={({ field }) => (<FormItem><FormLabel>Related Order ID (Optional)</FormLabel><FormControl><Input {...field} placeholder="e.g. ORD-12345" /></FormControl><FormMessage /></FormItem>)} />
                 <div className="flex justify-end gap-2">
@@ -127,7 +127,8 @@ export default function AdminTasksPage() {
       });
   };
 
-  const handleFormSubmit = (data: Omit<Task, 'id' | 'status'>) => {
+  const handleFormSubmit = (data: Omit<Task, 'id' | 'status' | 'createdBy'>) => {
+    if (!user) return;
     if (selectedTask) {
       // Update
       setTasks(prev =>
@@ -141,7 +142,7 @@ export default function AdminTasksPage() {
       // Add
       setTasks(prev => [
         ...prev,
-        { ...data, id: `new-task-${Date.now()}`, status: 'To Do' },
+        { ...data, id: `new-task-${Date.now()}`, status: 'To Do', createdBy: user.id },
       ]);
        toast({
         title: 'Task Created',
@@ -293,4 +294,3 @@ export default function AdminTasksPage() {
     </div>
   );
 }
-

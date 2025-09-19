@@ -1,3 +1,4 @@
+
 'use client';
 
 import { ReactNode } from 'react';
@@ -5,11 +6,12 @@ import { ProtectedRoute, useAuth } from '@/contexts/AuthContext';
 import { SidebarProvider, Sidebar, SidebarInset } from '@/components/ui/sidebar';
 import DashboardNav from '@/components/dashboard/DashboardNav';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const { user, isAuthenticated } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   
   if (isAuthenticated === undefined) {
      return (
@@ -24,6 +26,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   if (isAuthenticated && user?.role === 'client') {
+    router.push('/dashboard');
+    return null;
+  }
+  
+  // Also protect the dashboard page from clients
+  if (pathname === '/admin/dashboard' && user?.role === 'client') {
     router.push('/dashboard');
     return null;
   }

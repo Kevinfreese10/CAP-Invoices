@@ -1,3 +1,4 @@
+
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -43,6 +44,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   ];
 
   const adminNavItems = [
+     { href: '/admin/dashboard', label: 'Admin Overview', icon: LayoutDashboard, roles: ['admin', 'staff'] },
     { href: '/admin/orders', label: 'Manage Orders', icon: ShieldCheck, roles: ['admin', 'staff'] },
     { href: '/admin/tasks', label: 'Manage Tasks', icon: ClipboardCheck, roles: ['admin', 'staff'] },
     { href: '/admin/services', label: 'Manage Services', icon: Briefcase, roles: ['admin'] },
@@ -69,18 +71,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
       </SidebarHeader>
 
       <SidebarMenu className="flex-1">
-        {user.role === 'admin' && (
-           <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === '/dashboard'} tooltip={'Admin Overview'}>
-                    <Link href="/dashboard">
-                        <LayoutDashboard />
-                        <span>Admin Overview</span>
-                    </Link>
-                </SidebarMenuButton>
-            </SidebarMenuItem>
-        )}
-
-        {visibleNavItems.map((item) => (
+        {user.role === 'client' && visibleNavItems.map((item) => (
           <SidebarMenuItem key={item.href}>
             <SidebarMenuButton
               asChild
@@ -95,9 +86,8 @@ export default function DashboardNav({ user }: { user: UserType }) {
           </SidebarMenuItem>
         ))}
         
-        {(user.role === 'admin' || user.role === 'staff') && visibleAdminNavItems.length > 0 && (
+        {(user.role === 'admin' || user.role === 'staff') && (
             <>
-                <SidebarSeparator />
                 {visibleAdminNavItems.map((item) => (
                     <SidebarMenuItem key={item.href}>
                         <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
