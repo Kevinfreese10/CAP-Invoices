@@ -32,7 +32,7 @@ const getNextStaffMember = (department: 'Accounting and Tax' | 'Administration')
     const staffInDept = users.filter(u => u.role === 'staff' && u.department === department);
     if (staffInDept.length === 0) return undefined;
 
-    if (!staffCounters[department]) {
+    if (staffCounters[department] === undefined) {
         staffCounters[department] = 0;
     }
 
