@@ -16,6 +16,7 @@ const GenerateServiceDetailsInputSchema = z.object({
 export type GenerateServiceDetailsInput = z.infer<typeof GenerateServiceDetailsInputSchema>;
 
 const GenerateServiceDetailsOutputSchema = z.object({
+  correctedTitle: z.string().describe('The corrected and polished version of the service title.'),
   shortDescription: z.string().describe('A concise, one-sentence description of the service.'),
   longDescription: z.string().describe('A detailed, paragraph-long description of the service, highlighting its benefits and features.'),
   turnaroundTime: z.string().describe('A typical turnaround time for this service (e.g., "5-7 working days").'),
@@ -39,9 +40,11 @@ const prompt = ai.definePrompt({
 
   Your task is to generate compelling and accurate content for a specific service based on its title. The content must be tailored to a South African audience and follow modern SEO best practices for Google Search Console indexing.
 
+  First, review the following service title for any spelling or grammatical errors and provide a corrected, polished version in the 'correctedTitle' field.
+
   Service Title: {{{title}}}
 
-  Please generate the following content based on these strict guidelines:
+  Then, please generate the following content based on these strict guidelines:
 
   - **Short Description**: A concise, one-sentence description of the service.
   - **Long Description**: A detailed long description (one paragraph) explaining what the service is, who it's for, and its benefits.

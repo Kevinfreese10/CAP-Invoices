@@ -101,6 +101,7 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
 
     try {
         const result = await generateServiceDetails({ title });
+        form.setValue('title', result.correctedTitle);
         form.setValue('description', result.shortDescription);
         form.setValue('longDescription', result.longDescription);
         form.setValue('turnaroundTime', result.turnaroundTime);
