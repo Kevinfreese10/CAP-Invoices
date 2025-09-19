@@ -4,25 +4,30 @@ import { useAuth } from '@/contexts/AuthContext';
 import { usePathname } from 'next/navigation';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
+import { ReactNode } from 'react';
 
-export default function AppShell({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+export default function AppShell({ children }: { children: ReactNode }) {
+  const { user, isAuthenticated } = useAuth();
   const pathname = usePathname();
+
+  if (isAuthenticated === undefined) {
+    // While checking auth state, we can return null or a loader
+    // to prevent server-client mismatch.
+    return null;
+  }
 
   const isDashboardPage =
     pathname.startsWith('/admin') ||
     pathname.startsWith('/dashboard') ||
     pathname.startsWith('/reseller');
-  
-  const isNonClientUser = user?.role === 'admin' || user?.role === 'staff' || user?.role === 'reseller';
 
-  const shouldHideHeaderFooter = isDashboardPage && isNonClientUser;
+  const shouldShowHeaderFooter = !(isDashboardPage);
 
   return (
     <div className="flex min-h-screen flex-col">
-      {!shouldHideHeaderFooter && <Header />}
+      {shouldShowHeaderFooter && <Header />}
       <main className="flex-grow bg-background">{children}</main>
-      {!shouldHideHeaderFooter && <Footer />}
+      {shouldShowHeaderFooter && <Footer />}
     </div>
   );
 }
