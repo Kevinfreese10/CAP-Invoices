@@ -335,6 +335,11 @@ export default function AdminDashboardPage() {
         return tasks.filter(task => task.createdBy === user.id && task.assignedTo !== user.id).sort((a,b) => a.dueDate.getTime() - b.dueDate.getTime());
     }, [tasks, user]);
 
+    const handleAdd = () => {
+        setSelectedTask(null);
+        setIsFormOpen(true);
+    };
+
     const handleEdit = (task: Task) => {
         setSelectedTask(task);
         setIsFormOpen(true);
@@ -422,30 +427,29 @@ export default function AdminDashboardPage() {
         <div className="space-y-8">
             <div className="flex items-center justify-between">
                 <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.name}!</h1>
-                <Button asChild>
-                    <Link href="/admin/tasks">
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        Create Task
-                    </Link>
-                </Button>
+                 <Dialog open={isFormOpen} onOpenChange={handleFormClose}>
+                    <DialogTrigger asChild>
+                        <Button onClick={handleAdd}>
+                            <PlusCircle className="mr-2 h-4 w-4" />
+                            Create Task
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[600px]">
+                        <DialogHeader>
+                            <DialogTitle>{selectedTask?.id ? 'Edit Task' : 'Create New Task'}</DialogTitle>
+                            <DialogDescription>
+                                {selectedTask?.id ? 'Update the details of this task.' : 'Fill out the form to add a new task for a staff member.'}
+                            </DialogDescription>
+                        </DialogHeader>
+                        <TaskForm 
+                            task={selectedTask} 
+                            onSubmit={handleFormSubmit}
+                            onCancel={handleFormClose}
+                            onUpdateSubmit={handleUpdateSubmit}
+                        />
+                    </DialogContent>
+                </Dialog>
             </div>
-
-            <Dialog open={isFormOpen} onOpenChange={handleFormClose}>
-                <DialogContent className="sm:max-w-[600px]">
-                    <DialogHeader>
-                        <DialogTitle>{selectedTask?.id ? 'Edit Task' : 'Create New Task'}</DialogTitle>
-                        <DialogDescription>
-                            {selectedTask?.id ? 'Update the details of this task.' : 'Fill out the form to add a new task for a staff member.'}
-                        </DialogDescription>
-                    </DialogHeader>
-                    <TaskForm 
-                        task={selectedTask} 
-                        onSubmit={handleFormSubmit}
-                        onCancel={handleFormClose}
-                        onUpdateSubmit={handleUpdateSubmit}
-                    />
-                </DialogContent>
-            </Dialog>
             
             <div className="space-y-8">
                 <TaskTable 
@@ -470,5 +474,3 @@ export default function AdminDashboardPage() {
         </div>
     );
 }
-
-    
