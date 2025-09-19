@@ -27,6 +27,8 @@ const lineItemSchema = z.object({
   description: z.string().min(1, 'Description is required.'),
   quantity: z.preprocess(val => Number(val), z.number().min(1, 'Quantity must be at least 1.')),
   price: z.preprocess(val => Number(val), z.number().min(0, 'Price cannot be negative.')),
+  discountType: z.enum(['fixed', 'percentage']).default('fixed'),
+  discountValue: z.preprocess(val => Number(val) || 0, z.number().min(0, 'Discount cannot be negative.').optional()),
 });
 
 const formSchema = z.object({
@@ -34,7 +36,6 @@ const formSchema = z.object({
   customerEmail: z.string().email('Invalid email address.'),
   customerPhone: z.string().min(10, 'A valid phone number is required.'),
   items: z.array(lineItemSchema).min(1, 'At least one line item is required.'),
-  discount: z.preprocess(val => Number(val) || 0, z.number().min(0, 'Discount cannot be negative.').optional()),
 });
 
 type CreateOrderFormValues = z.infer<typeof formSchema>;
@@ -43,7 +44,6 @@ export default function CreateOrderForm() {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [subtotal, setSubtotal] = useState(0);
   const [total, setTotal] = useState(0);
 
   const form = useForm<CreateOrderFormValues>({
@@ -52,8 +52,7 @@ export default function CreateOrderForm() {
       customerName: '',
       customerEmail: '',
       customerPhone: '',
-      items: [{ isCustom: false, serviceId: '', description: '', quantity: 1, price: 0 }],
-      discount: 0,
+      items: [{ isCustom: false, serviceId: '', description: '', quantity: 1, price: 0, discountType: 'fixed', discountValue: 0 }],
     },
   });
 
@@ -63,20 +62,26 @@ export default function CreateOrderForm() {
   });
 
   const watchedItems = form.watch('items');
-  const watchedDiscount = form.watch('discount');
 
   useEffect(() => {
-    const newSubtotal = watchedItems.reduce((acc, item) => {
-      const quantity = item.quantity || 0;
-      const price = item.price || 0;
-      return acc + quantity * price;
+    const newTotal = watchedItems.reduce((acc, item) => {
+        const quantity = item.quantity || 0;
+        const price = item.price || 0;
+        const discountValue = item.discountValue || 0;
+        const lineItemTotal = price * quantity;
+
+        let discountAmount = 0;
+        if (item.discountType === 'percentage') {
+            discountAmount = lineItemTotal * (discountValue / 100);
+        } else {
+            discountAmount = discountValue * quantity;
+        }
+
+        return acc + (lineItemTotal - discountAmount);
     }, 0);
-    setSubtotal(newSubtotal);
 
-    const discountAmount = watchedDiscount || 0;
-    setTotal(newSubtotal - discountAmount);
-
-  }, [watchedItems, watchedDiscount]);
+    setTotal(newTotal);
+  }, [watchedItems]);
 
   const handleServiceChange = (serviceId: string, index: number) => {
     const selectedService = allServices.find(s => s.id === serviceId);
@@ -84,6 +89,21 @@ export default function CreateOrderForm() {
         form.setValue(`items.${index}.description`, selectedService.title);
         form.setValue(`items.${index}.price`, selectedService.price);
     }
+  };
+
+  const getLineItemTotal = (item: any) => {
+    const quantity = item.quantity || 0;
+    const price = item.price || 0;
+    const discountValue = item.discountValue || 0;
+    const lineItemTotal = price * quantity;
+
+    let discountAmount = 0;
+    if (item.discountType === 'percentage') {
+        discountAmount = lineItemTotal * (discountValue / 100);
+    } else {
+        discountAmount = discountValue * quantity;
+    }
+    return (lineItemTotal - discountAmount);
   };
 
 
@@ -179,9 +199,10 @@ export default function CreateOrderForm() {
             <div className="space-y-4">
                 {fields.map((field, index) => {
                     const isCustom = form.watch(`items.${index}.isCustom`);
+                    const lineItem = form.watch(`items.${index}`);
                     return (
-                    <div key={field.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 p-3 border rounded-md relative">
-                         <div className="md:col-span-6 space-y-2">
+                    <div key={field.id} className="grid grid-cols-1 md:grid-cols-12 gap-x-3 gap-y-2 p-3 border rounded-md relative">
+                         <div className="md:col-span-4 space-y-2">
                              {isCustom ? (
                                  <FormField
                                     control={form.control}
@@ -227,7 +248,7 @@ export default function CreateOrderForm() {
                                 )}
                             />
                          </div>
-                        <div className="md:col-span-2">
+                        <div className="md:col-span-1">
                              <FormField
                                 control={form.control}
                                 name={`items.${index}.quantity`}
@@ -240,18 +261,55 @@ export default function CreateOrderForm() {
                                 )}
                                 />
                          </div>
-                        <div className="md:col-span-3">
+                        <div className="md:col-span-2">
                              <FormField
                                 control={form.control}
                                 name={`items.${index}.price`}
                                 render={({ field }) => (
                                     <FormItem>
-                                    <FormLabel>Price (R)</FormLabel>
+                                    <FormLabel>Unit Price (R)</FormLabel>
                                     <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
                                     <FormMessage />
                                     </FormItem>
                                 )}
                                 />
+                         </div>
+                         <div className="md:col-span-2">
+                             <FormField
+                                control={form.control}
+                                name={`items.${index}.discountType`}
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Discount</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="fixed">Fixed (R)</SelectItem>
+                                                <SelectItem value="percentage">Percent (%)</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                                />
+                         </div>
+                         <div className="md:col-span-1">
+                             <FormField
+                                control={form.control}
+                                name={`items.${index}.discountValue`}
+                                render={({ field }) => (
+                                    <FormItem>
+                                    <FormLabel>Value</FormLabel>
+                                    <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                                    <FormMessage />
+                                    </FormItem>
+                                )}
+                                />
+                         </div>
+                         <div className="md:col-span-1 flex items-end">
+                            <p className="text-right w-full font-semibold">
+                                R {getLineItemTotal(lineItem).toFixed(2)}
+                            </p>
                          </div>
                          <div className="md:col-span-1 flex items-end">
                             <Button
@@ -273,7 +331,7 @@ export default function CreateOrderForm() {
                 variant="outline"
                 size="sm"
                 className="mt-4"
-                onClick={() => append({ isCustom: false, serviceId: '', description: '', quantity: 1, price: 0 })}
+                onClick={() => append({ isCustom: false, serviceId: '', description: '', quantity: 1, price: 0, discountType: 'fixed', discountValue: 0 })}
             >
                 <Plus className="mr-2 h-4 w-4" /> Add Line Item
             </Button>
@@ -282,21 +340,8 @@ export default function CreateOrderForm() {
         <Separator />
         
         <div className="flex justify-end items-start gap-8">
-            <FormField
-                control={form.control}
-                name="discount"
-                render={({ field }) => (
-                    <FormItem className="max-w-[150px]">
-                    <FormLabel>Discount (R)</FormLabel>
-                    <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-            />
             <div className="text-right">
-                <p className="text-sm text-muted-foreground">Subtotal</p>
-                <p className="text-lg">R {subtotal.toFixed(2)}</p>
-                <p className="text-sm text-muted-foreground mt-2">Total</p>
+                <p className="text-sm text-muted-foreground">Total</p>
                 <p className="text-2xl font-bold">R {total.toFixed(2)}</p>
             </div>
         </div>
@@ -309,3 +354,5 @@ export default function CreateOrderForm() {
     </Form>
   );
 }
+
+    
