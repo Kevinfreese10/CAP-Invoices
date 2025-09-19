@@ -58,7 +58,7 @@ export default function ServicesPage() {
                   </CardContent>
                   <CardFooter className="items-center justify-between">
                      <p className="text-2xl font-bold text-primary">R {service.price.toFixed(2)}</p>
-                    <Button variant="outline" asChild>
+                    <Button asChild>
                       <Link href={`/services/${service.id}`}>Learn More</Link>
                     </Button>
                   </CardFooter>

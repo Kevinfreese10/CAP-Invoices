@@ -1,3 +1,4 @@
+
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
@@ -91,7 +92,7 @@ export default function Home() {
               </CardContent>
               <CardFooter className="items-center justify-between">
                 <p className="text-2xl font-bold text-primary">R {service.price.toFixed(2)}</p>
-                <Button variant="outline" asChild>
+                <Button asChild>
                   <Link href={`/services/${service.id}`}>Learn More</Link>
                 </Button>
               </CardFooter>
