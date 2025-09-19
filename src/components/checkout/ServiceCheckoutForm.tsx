@@ -28,7 +28,7 @@ const formSchema = z.object({
     message: 'You must confirm you have the prerequisites.',
   }),
   agreeRefund: z.boolean().refine(val => val === true, {
-    message: 'You must agree to the refund policy.',
+    message: 'You must agree to the no-refund policy.',
   }),
 });
 
@@ -47,6 +47,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
       agreePrereqs: false,
       agreeRefund: false,
     },
+    mode: 'onChange',
   });
 
   const { reset } = form;
@@ -206,7 +207,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
                     <span className="text-muted-foreground">Total:</span>
                     <p className="text-2xl font-bold">R {service.price.toFixed(2)}</p>
                 </div>
-                <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+                <Button type="submit" className="w-full" size="lg" disabled={isLoading || !form.formState.isValid}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isLoading ? 'Processing...' : 'Place Order & Proceed to Payment'}
                 </Button>
