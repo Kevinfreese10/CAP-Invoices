@@ -19,13 +19,13 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 
-type Client = User & { status: 'Active' | 'Inactive' };
+type Client = User & { status: 'Active' | 'Inactive'; cellNumber?: string };
 
 const initialClients: Client[] = [
-    { id: 'client-1', name: 'Innovate Inc.', email: 'contact@innovate.com', role: 'client', status: 'Active' },
-    { id: 'client-2', name: 'Quantum Leap Corp', email: 'hello@quantum.co.za', role: 'client', status: 'Active' },
-    { id: 'client-3', name: 'Apex Solutions', email: 'support@apex.com', role: 'client', status: 'Inactive' },
-    { id: '1', name: 'John Doe', email: 'client@test.com', role: 'client', status: 'Active' },
+    { id: 'client-1', name: 'Innovate Inc.', email: 'contact@innovate.com', role: 'client', status: 'Active', cellNumber: '0821112222' },
+    { id: 'client-2', name: 'Quantum Leap Corp', email: 'hello@quantum.co.za', role: 'client', status: 'Active', cellNumber: '0833334444' },
+    { id: 'client-3', name: 'Apex Solutions', email: 'support@apex.com', role: 'client', status: 'Inactive', cellNumber: '0845556666' },
+    { id: '1', name: 'John Doe', email: 'client@test.com', role: 'client', status: 'Active', cellNumber: '0817778888' },
 ];
 
 const clientStatuses: Client['status'][] = ['Active', 'Inactive'];
@@ -34,6 +34,7 @@ const formSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(2, 'Name is required.'),
   email: z.string().email('A valid email is required.'),
+  cellNumber: z.string().optional(),
   status: z.enum(clientStatuses),
 });
 
@@ -44,6 +45,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
             id: client?.id || '',
             name: client?.name || '',
             email: client?.email || '',
+            cellNumber: client?.cellNumber || '',
             status: client?.status || 'Active',
         },
     });
@@ -73,6 +75,17 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                         <FormItem>
                             <FormLabel>Email Address</FormLabel>
                             <FormControl><Input {...field} /></FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                 <FormField
+                    control={form.control}
+                    name="cellNumber"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Cell Number</FormLabel>
+                            <FormControl><Input {...field} placeholder="e.g. 0821234567" /></FormControl>
                             <FormMessage />
                         </FormItem>
                     )}
@@ -189,6 +202,7 @@ export default function AdminClientsPage() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Cell Number</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -206,6 +220,7 @@ export default function AdminClientsPage() {
                     </div>
                   </TableCell>
                   <TableCell>{client.email}</TableCell>
+                  <TableCell>{client.cellNumber}</TableCell>
                   <TableCell>
                     <Badge variant={client.status === 'Active' ? 'default' : 'secondary'}>
                         {client.status}
