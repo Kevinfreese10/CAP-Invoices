@@ -2,7 +2,7 @@
 import { notFound } from 'next/navigation';
 import { services } from '@/lib/data';
 import { Badge } from '@/components/ui/badge';
-import { Check, Clock } from 'lucide-react';
+import { Check, Clock, ClipboardCheck } from 'lucide-react';
 import { Service } from '@/lib/types';
 import ClientServiceCheckoutForm from '@/components/checkout/ClientServiceCheckoutForm';
 import { Separator } from '@/components/ui/separator';
@@ -55,7 +55,7 @@ export default function ServiceDetailPage({ params }: { params: { id: string } }
              <ul className="space-y-3">
               {service.requiredDocuments.map((doc, index) => (
                 <li key={index} className="flex items-start">
-                  <Check className="h-5 w-5 text-green-500 mr-3 mt-1 flex-shrink-0" />
+                  <ClipboardCheck className="h-5 w-5 text-primary mr-3 mt-1 flex-shrink-0" />
                   <span>{doc}</span>
                 </li>
               ))}
