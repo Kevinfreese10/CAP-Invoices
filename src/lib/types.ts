@@ -9,7 +9,7 @@ export type Service = {
   category: string;
   whatsIncluded: string[];
   turnaroundTime: string;
-  requiredDocuments: string[];
+  clientRequirements: string[];
   metaTitle?: string;
   metaDescription?: string;
   metaKeywords?: string[];

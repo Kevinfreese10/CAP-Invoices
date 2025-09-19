@@ -24,7 +24,7 @@ const formSchema = z.object({
   category: z.string().min(1, 'Category is required.'),
   turnaroundTime: z.string().min(1, 'Turnaround time is required.'),
   whatsIncluded: z.array(z.object({ value: z.string().min(1, 'This field cannot be empty.') })),
-  requiredDocuments: z.array(z.object({ value: z.string().min(1, 'This field cannot be empty.') })),
+  clientRequirements: z.array(z.object({ value: z.string().min(1, 'This field cannot be empty.') })),
   metaTitle: z.string().optional(),
   metaDescription: z.string().optional(),
   metaKeywords: z.array(z.object({ value: z.string() })).optional(),
@@ -62,7 +62,7 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
       category: service?.category || '',
       turnaroundTime: service?.turnaroundTime || '',
       whatsIncluded: service?.whatsIncluded.map(v => ({ value: v })) || [{ value: '' }],
-      requiredDocuments: service?.requiredDocuments.map(v => ({ value: v })) || [{ value: '' }],
+      clientRequirements: service?.clientRequirements.map(v => ({ value: v })) || [{ value: '' }],
       metaTitle: service?.metaTitle || '',
       metaDescription: service?.metaDescription || '',
       metaKeywords: service?.metaKeywords?.map(v => ({value: v})) || [{ value: '' }],
@@ -76,7 +76,7 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
 
   const { fields: requiredFields, append: appendRequired, remove: removeRequired } = useFieldArray({
     control: form.control,
-    name: 'requiredDocuments',
+    name: 'clientRequirements',
   });
 
   const { fields: keywordFields, append: appendKeyword, remove: removeKeyword } = useFieldArray({
@@ -131,7 +131,7 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
     const serviceData = {
         ...values,
         whatsIncluded: values.whatsIncluded.map(v => v.value),
-        requiredDocuments: values.requiredDocuments.map(v => v.value),
+        clientRequirements: values.clientRequirements.map(v => v.value),
         metaKeywords: values.metaKeywords?.map(v => v.value),
     } as Service
     onSubmit(serviceData);
@@ -239,12 +239,12 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
             <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => appendIncluded({ value: '' })}>Add Item</Button>
         </div>
          <div>
-            <FormLabel>Required Documents</FormLabel>
+            <FormLabel>Client Requirements</FormLabel>
             {requiredFields.map((field, index) => (
                  <FormField
                     key={field.id}
                     control={form.control}
-                    name={`requiredDocuments.${index}.value`}
+                    name={`clientRequirements.${index}.value`}
                     render={({ field }) => (
                         <FormItem className="flex items-center gap-2 mt-2">
                              <FormControl><Input {...field} /></FormControl>
@@ -253,7 +253,7 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
                     )}
                 />
             ))}
-            <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => appendRequired({ value: '' })}>Add Document</Button>
+            <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => appendRequired({ value: '' })}>Add Requirement</Button>
         </div>
 
         <div className="space-y-4 rounded-lg border p-4">

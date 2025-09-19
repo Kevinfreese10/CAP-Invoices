@@ -18,7 +18,7 @@ export const services: Service[] = [
         'Handling of basic SARS queries',
     ],
     turnaroundTime: '5-7 working days',
-    requiredDocuments: [
+    clientRequirements: [
         'IRP5/IT3(a) certificates',
         'Medical aid tax certificate',
         'Retirement annuity fund certificate',
@@ -45,7 +45,7 @@ export const services: Service[] = [
         'Memorandum of Incorporation (MOI)',
     ],
     turnaroundTime: '3-5 working days',
-    requiredDocuments: [
+    clientRequirements: [
         'ID copies of all directors (min. 1)',
         '4 proposed company names',
         'Proof of address for all directors',
@@ -71,7 +71,7 @@ export const services: Service[] = [
         'VAT201 submission support',
     ],
     turnaroundTime: 'Ongoing monthly service',
-    requiredDocuments: [
+    clientRequirements: [
         'Bank statements',
         'Supplier invoices',
         'Customer invoices',
@@ -95,7 +95,7 @@ export const services: Service[] = [
         'Confirmation of filing certificate',
     ],
     turnaroundTime: '1-2 working days',
-    requiredDocuments: [
+    clientRequirements: [
         'Company registration number',
         'Latest Annual Financial Statements (if applicable)',
     ],
@@ -118,7 +118,7 @@ export const services: Service[] = [
         'Confirmation of registration',
     ],
     turnaroundTime: '10-15 working days',
-    requiredDocuments: [
+    clientRequirements: [
         'Company registration documents',
         'ID copies of directors',
         'Proof of business address',

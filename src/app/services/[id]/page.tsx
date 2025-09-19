@@ -53,7 +53,7 @@ export default function ServiceDetailPage({ params }: { params: { id: string } }
             <h2 className="text-xl font-semibold">Prerequisites</h2>
             <Separator className="my-3" />
              <ul className="space-y-3">
-              {service.requiredDocuments.map((doc, index) => (
+              {service.clientRequirements.map((doc, index) => (
                 <li key={index} className="flex items-start">
                   <ClipboardCheck className="h-5 w-5 text-primary mr-3 mt-1 flex-shrink-0" />
                   <span>{doc}</span>
