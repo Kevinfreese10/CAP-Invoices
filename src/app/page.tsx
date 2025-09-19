@@ -82,7 +82,29 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="-mt-24">
+      <section className="bg-background -mt-16 pt-16">
+         <div className="container mx-auto px-4">
+            <div className="text-center mb-12">
+                <h2 className="text-3xl font-bold">Why Choose My Accountant?</h2>
+                <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
+                    We're committed to providing you with the best service possible.
+                </p>
+            </div>
+            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
+                {whyChooseUs.map(item => (
+                    <div key={item} className="flex items-center gap-4">
+                        <CheckCircle className="h-8 w-8 text-primary" />
+                        <div>
+                            <h3 className="font-semibold">{item}</h3>
+                            <p className="text-sm text-muted-foreground">Quality and assurance guaranteed.</p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+      </section>
+
+      <section>
         <div className="container mx-auto max-w-2xl px-4">
           <form className="relative">
             <Input
@@ -140,29 +162,6 @@ export default function Home() {
             </section>
             ))}
       </div>
-
-      <section className="bg-background">
-         <div className="container mx-auto px-4 py-16">
-            <div className="text-center mb-12">
-                <h2 className="text-3xl font-bold">Why Choose My Accountant?</h2>
-                <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
-                    We're committed to providing you with the best service possible.
-                </p>
-            </div>
-            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
-                {whyChooseUs.map(item => (
-                    <div key={item} className="flex items-center gap-4">
-                        <CheckCircle className="h-8 w-8 text-primary" />
-                        <div>
-                            <h3 className="font-semibold">{item}</h3>
-                            <p className="text-sm text-muted-foreground">Quality and assurance guaranteed.</p>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
-      </section>
-
     </div>
   );
 }
