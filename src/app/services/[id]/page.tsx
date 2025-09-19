@@ -1,4 +1,6 @@
 
+'use client';
+
 import { notFound } from 'next/navigation';
 import { services } from '@/lib/data';
 import { Badge } from '@/components/ui/badge';
@@ -21,11 +23,11 @@ export default function ServiceDetailPage({ params }: { params: { id: string } }
           <div className="space-y-3">
             <Badge variant="secondary" className="w-fit">{service.category}</Badge>
             <h1 className="text-3xl md:text-4xl font-bold tracking-tight">{service.title}</h1>
+             <p className="text-3xl font-bold text-primary">R {service.price.toFixed(2)}</p>
             <div className="flex items-center text-muted-foreground">
                 <Clock className="h-4 w-4 mr-1.5" />
                 <span className="text-sm font-medium">{service.turnaroundTime}</span>
             </div>
-             <p className="text-3xl font-bold text-primary">R {service.price.toFixed(2)}</p>
           </div>
           
           <div>
