@@ -10,6 +10,9 @@ export type Service = {
   whatsIncluded: string[];
   turnaroundTime: string;
   requiredDocuments: string[];
+  metaTitle?: string;
+  metaDescription?: string;
+  metaKeywords?: string[];
 };
 
 export type BlogPost = {

@@ -23,7 +23,10 @@ export const services: Service[] = [
         'Medical aid tax certificate',
         'Retirement annuity fund certificate',
         'Logbook for travel claims (if applicable)',
-    ]
+    ],
+    metaTitle: 'Personal Tax Return Filing (ITR12) | My Accountant',
+    metaDescription: 'Expert personal tax return (ITR12) filing services for South African individuals and provisional taxpayers. We ensure compliance and maximize your returns.',
+    metaKeywords: ['personal tax return', 'ITR12', 'SARS eFiling', 'South Africa tax'],
   },
   {
     id: 'company-registration',
@@ -46,7 +49,10 @@ export const services: Service[] = [
         'ID copies of all directors (min. 1)',
         '4 proposed company names',
         'Proof of address for all directors',
-    ]
+    ],
+    metaTitle: 'New Company Registration (Pty Ltd) | My Accountant',
+    metaDescription: 'Fast and reliable Pty (Ltd) company registration services with CIPC in South Africa. Includes name reservation, tax number, and all essential documents.',
+    metaKeywords: ['company registration', 'CIPC', 'Pty Ltd', 'start a business', 'South Africa'],
   },
   {
     id: 'monthly-bookkeeping',
@@ -69,7 +75,10 @@ export const services: Service[] = [
         'Bank statements',
         'Supplier invoices',
         'Customer invoices',
-    ]
+    ],
+    metaTitle: 'Monthly Bookkeeping Services for Small Businesses | My Accountant',
+    metaDescription: 'Affordable monthly bookkeeping and accounting services for small businesses in South Africa. We handle reconciliations, reporting, and more.',
+    metaKeywords: ['bookkeeping services', 'small business accounting', 'monthly bookkeeping', 'accountant South Africa'],
   },
   {
     id: 'cipc-annual-returns',
@@ -90,6 +99,9 @@ export const services: Service[] = [
         'Company registration number',
         'Latest Annual Financial Statements (if applicable)',
     ],
+    metaTitle: 'CIPC Annual Returns Filing | My Accountant',
+    metaDescription: 'Quick and easy CIPC annual return filing service to keep your South African company compliant. Avoid penalties and deregistration.',
+    metaKeywords: ['CIPC annual returns', 'company compliance', 'CIPC filing', 'South Africa'],
   },
   {
     id: 'coida-registration',
@@ -111,7 +123,10 @@ export const services: Service[] = [
         'ID copies of directors',
         'Proof of business address',
         'Employee details and total earnings',
-    ]
+    ],
+    metaTitle: 'COIDA Registration Service | My Accountant',
+    metaDescription: 'COIDA registration service for South African employers. Ensure compliance with the Compensation for Occupational Injuries and Diseases Act.',
+    metaKeywords: ['COIDA registration', 'Compensation Fund', 'Department of Labour', 'workmans compensation'],
   }
 ];
 

@@ -8,7 +8,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash } from 'lucide-react';
+import { Trash, Sparkles, Loader2 } from 'lucide-react';
+import { generateServiceDetails } from '@/ai/flows/generate-service-details';
+import { useToast } from '@/hooks/use-toast';
+import { useState } from 'react';
 
 const formSchema = z.object({
   id: z.string().optional(),
@@ -22,6 +25,9 @@ const formSchema = z.object({
   turnaroundTime: z.string().min(1, 'Turnaround time is required.'),
   whatsIncluded: z.array(z.object({ value: z.string().min(1, 'This field cannot be empty.') })),
   requiredDocuments: z.array(z.object({ value: z.string().min(1, 'This field cannot be empty.') })),
+  metaTitle: z.string().optional(),
+  metaDescription: z.string().optional(),
+  metaKeywords: z.array(z.object({ value: z.string() })).optional(),
 });
 
 type ServiceFormProps = {
@@ -38,6 +44,9 @@ const serviceCategories = [
   ];
 
 export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
+  const { toast } = useToast();
+  const [isAiUpdating, setIsAiUpdating] = useState(false);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -52,6 +61,9 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
       turnaroundTime: service?.turnaroundTime || '',
       whatsIncluded: service?.whatsIncluded.map(v => ({ value: v })) || [{ value: '' }],
       requiredDocuments: service?.requiredDocuments.map(v => ({ value: v })) || [{ value: '' }],
+      metaTitle: service?.metaTitle || '',
+      metaDescription: service?.metaDescription || '',
+      metaKeywords: service?.metaKeywords?.map(v => ({value: v})) || [{ value: '' }],
     },
   });
 
@@ -65,11 +77,59 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
     name: 'requiredDocuments',
   });
 
+  const { fields: keywordFields, append: appendKeyword, remove: removeKeyword } = useFieldArray({
+    control: form.control,
+    name: 'metaKeywords',
+  });
+
+  const handleAiUpdate = async () => {
+    const title = form.getValues('title');
+    if (!title) {
+        toast({
+            title: 'Title is missing',
+            description: 'Please enter a service title before using AI.',
+            variant: 'destructive',
+        });
+        return;
+    }
+    
+    setIsAiUpdating(true);
+    toast({
+        title: 'Generating Content...',
+        description: 'The AI is creating content for your service. Please wait.',
+    });
+
+    try {
+        const result = await generateServiceDetails({ title });
+        form.setValue('description', result.shortDescription);
+        form.setValue('longDescription', result.longDescription);
+        form.setValue('turnaroundTime', result.turnaroundTime);
+        form.setValue('metaTitle', result.metaTitle);
+        form.setValue('metaDescription', result.metaDescription);
+        form.setValue('metaKeywords', result.metaKeywords.map(k => ({ value: k })));
+        toast({
+            title: 'Content Updated',
+            description: 'The service details have been populated by AI.',
+        });
+    } catch (error) {
+        console.error("AI Generation Error: ", error);
+        toast({
+            title: 'AI Update Failed',
+            description: 'There was an error generating content. Please try again.',
+            variant: 'destructive',
+        });
+    } finally {
+        setIsAiUpdating(false);
+    }
+  };
+
+
   const handleSubmit = (values: z.infer<typeof formSchema>) => {
     const serviceData = {
         ...values,
         whatsIncluded: values.whatsIncluded.map(v => v.value),
         requiredDocuments: values.requiredDocuments.map(v => v.value),
+        metaKeywords: values.metaKeywords?.map(v => v.value),
     } as Service
     onSubmit(serviceData);
   };
@@ -77,17 +137,23 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto p-1 pr-4">
-        <FormField
-          control={form.control}
-          name="title"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Service Title</FormLabel>
-              <FormControl><Input {...field} /></FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="flex items-center justify-between gap-4">
+            <FormField
+            control={form.control}
+            name="title"
+            render={({ field }) => (
+                <FormItem className="flex-grow">
+                <FormLabel>Service Title</FormLabel>
+                <FormControl><Input {...field} /></FormControl>
+                <FormMessage />
+                </FormItem>
+            )}
+            />
+            <Button type="button" onClick={handleAiUpdate} disabled={isAiUpdating} className="mt-8">
+              {isAiUpdating ? <Loader2 className="animate-spin" /> : <Sparkles />}
+              <span className="ml-2 hidden sm:inline">Update with AI</span>
+            </Button>
+        </div>
         <div className="grid grid-cols-2 gap-4">
             <FormField
             control={form.control}
@@ -185,6 +251,49 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
                 />
             ))}
             <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => appendRequired({ value: '' })}>Add Document</Button>
+        </div>
+
+        <div className="space-y-4 rounded-lg border p-4">
+            <h3 className="text-lg font-medium">SEO Information</h3>
+            <FormField
+                control={form.control}
+                name="metaTitle"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Meta Title</FormLabel>
+                    <FormControl><Input {...field} /></FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+            />
+            <FormField
+                control={form.control}
+                name="metaDescription"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Meta Description</FormLabel>
+                    <FormControl><Textarea {...field} rows={2} /></FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+            />
+            <div>
+                <FormLabel>Meta Keywords</FormLabel>
+                {keywordFields.map((field, index) => (
+                    <FormField
+                        key={field.id}
+                        control={form.control}
+                        name={`metaKeywords.${index}.value`}
+                        render={({ field }) => (
+                            <FormItem className="flex items-center gap-2 mt-2">
+                                <FormControl><Input {...field} /></FormControl>
+                                <Button type="button" variant="destructive" size="icon" onClick={() => removeKeyword(index)}><Trash className="h-4 w-4"/></Button>
+                            </FormItem>
+                        )}
+                    />
+                ))}
+                <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => appendKeyword({ value: '' })}>Add Keyword</Button>
+            </div>
         </div>
 
         <Button type="submit" className="w-full">Save Service</Button>
