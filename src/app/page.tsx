@@ -11,15 +11,27 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { services } from '@/lib/data';
-import { CheckCircle, Search, Clock } from 'lucide-react';
+import { BadgeCheck, Rocket, Search, ShieldCheck, Wallet, Clock } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 
 export default function Home() {
   const whyChooseUs = [
-    'Expert & Reliable',
-    'Affordable Pricing',
-    'Fast Turnaround',
-    'SARS Compliant',
+    {
+      title: 'Expert & Reliable',
+      icon: ShieldCheck,
+    },
+    {
+      title: 'Affordable Pricing',
+      icon: Wallet,
+    },
+    {
+      title: 'Fast Turnaround',
+      icon: Rocket,
+    },
+    {
+      title: 'SARS Compliant',
+      icon: BadgeCheck,
+    },
   ];
 
   const serviceCategories = [
@@ -92,10 +104,10 @@ export default function Home() {
             </div>
             <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
                 {whyChooseUs.map(item => (
-                    <div key={item} className="flex items-center gap-4">
-                        <CheckCircle className="h-8 w-8 text-primary" />
+                    <div key={item.title} className="flex items-center gap-4">
+                        <item.icon className="h-8 w-8 text-primary" />
                         <div>
-                            <h3 className="font-semibold">{item}</h3>
+                            <h3 className="font-semibold">{item.title}</h3>
                             <p className="text-sm text-muted-foreground">Quality and assurance guaranteed.</p>
                         </div>
                     </div>
