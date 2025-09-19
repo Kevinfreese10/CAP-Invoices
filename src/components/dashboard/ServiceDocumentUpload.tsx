@@ -24,32 +24,47 @@ export default function ServiceDocumentUpload({ service, orderId }: { service: S
   const [submitted, setSubmitted] = useState(false);
   const [conditionalValue, setConditionalValue] = useState(service.conditionalFields?.fieldValues[0] || '1');
 
-  // Dynamically build the form schema based on the service requirements
-  const dynamicSchema = z.object({
-    ...service.informationToUpload.reduce((acc, field) => {
-      acc[field.label.replace(/\s/g, '')] = field.type === 'file' 
+  // Helper function to generate the schema and default values
+  const generateFormConfig = (conditionalCount: number) => {
+    let schema: Record<string, z.ZodType<any, any>> = {};
+    let defaults: Record<string, any> = {};
+
+    service.informationToUpload.forEach(field => {
+      const fieldName = field.label.replace(/\s/g, '');
+      schema[fieldName] = field.type === 'file' 
         ? z.custom<FileList>().refine(files => files?.length > 0, `${field.label} is required.`)
         : z.string().min(1, `${field.label} is required.`);
-      return acc;
-    }, {} as Record<string, any>),
-    
-    ...(service.conditionalFields?.enabled 
-      ? Array.from({ length: parseInt(conditionalValue, 10) }).reduce((acc, _, index) => {
-          service.conditionalFields?.duplicatedDocuments.forEach(doc => {
-            const fieldName = `${doc.label.replace(/\s/g, '')}_${index + 1}`;
-            acc[fieldName] = doc.type === 'file'
-              ? z.custom<FileList>().refine(files => files?.length > 0, `${doc.label} for item ${index + 1} is required.`)
-              : z.string().min(1, `${doc.label} for item ${index + 1} is required.`);
-          });
-          return acc;
-        }, {} as Record<string, any>)
-      : {}),
-  });
+      defaults[fieldName] = field.type === 'file' ? undefined : '';
+    });
+
+    if (service.conditionalFields?.enabled) {
+      Array.from({ length: conditionalCount }).forEach((_, index) => {
+        service.conditionalFields?.duplicatedDocuments.forEach(doc => {
+          const fieldName = `${doc.label.replace(/\s/g, '')}_${index + 1}`;
+          schema[fieldName] = doc.type === 'file'
+            ? z.custom<FileList>().refine(files => files?.length > 0, `${doc.label} for item ${index + 1} is required.`)
+            : z.string().min(1, `${doc.label} for item ${index + 1} is required.`);
+          defaults[fieldName] = doc.type === 'file' ? undefined : '';
+        });
+      });
+    }
+    return { schema: z.object(schema), defaults };
+  };
+
+  const { schema: dynamicSchema, defaults: defaultValues } = generateFormConfig(parseInt(conditionalValue, 10));
 
   const form = useForm<z.infer<typeof dynamicSchema>>({
     resolver: zodResolver(dynamicSchema),
+    defaultValues: defaultValues,
     mode: 'onChange',
   });
+  
+  // Re-initialize form when conditional value changes
+  // This is not ideal, but necessary for dynamic fields with react-hook-form
+  useState(() => {
+    form.reset(generateFormConfig(parseInt(conditionalValue, 10)).defaults);
+  });
+
 
   const onSubmit = (data: z.infer<typeof dynamicSchema>) => {
     setIsUploading(true);
@@ -80,7 +95,7 @@ export default function ServiceDocumentUpload({ service, orderId }: { service: S
               {type === 'file' ? (
                 <Input type="file" onChange={(e) => field.onChange(e.target.files)} />
               ) : (
-                <Input {...field} onChange={(e) => field.onChange(e.target.value)} />
+                <Input {...field} />
               )}
             </FormControl>
             <FormMessage />
@@ -130,7 +145,11 @@ export default function ServiceDocumentUpload({ service, orderId }: { service: S
                     render={() => (
                       <FormItem>
                         <FormLabel>{service.conditionalFields.fieldName}</FormLabel>
-                         <Select onValueChange={setConditionalValue} defaultValue={conditionalValue}>
+                         <Select onValueChange={(value) => {
+                             setConditionalValue(value);
+                             // This is a trick to re-evaluate the form with new fields
+                             setTimeout(() => form.reset(generateFormConfig(parseInt(value, 10)).defaults), 0);
+                         }} defaultValue={conditionalValue}>
                             <FormControl>
                                 <SelectTrigger><SelectValue /></SelectTrigger>
                             </FormControl>
