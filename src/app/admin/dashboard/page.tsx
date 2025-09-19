@@ -101,7 +101,8 @@ const TaskTable = ({ tasks, title, description }: { tasks: Task[], title: string
                                 <Button variant="link" asChild className="p-0 h-auto text-xs">
                                     <Link href={`/admin/orders/${task.orderId}`}>{task.orderId}</Link>
                                 </Button>
-                            ) : <span className="text-muted-foreground text-xs">N/A</span>}
+                            ) : <span className="text-muted-foreground text-xs">N
+/A</span>}
                         </TableCell>
                         </TableRow>
                     )})}

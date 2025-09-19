@@ -92,8 +92,8 @@ function TaskForm({ task, onSubmit, onCancel, onUpdateSubmit }: { task: Task | n
                         control={form.control}
                         name="dueDate"
                         render={({ field }) => (
-                            <FormItem className="flex flex-col">
-                            <FormLabel className="mb-2">Due Date</FormLabel>
+                            <FormItem className="flex flex-col pt-2">
+                            <FormLabel className="mb-1">Due Date</FormLabel>
                             <Popover>
                                 <PopoverTrigger asChild>
                                 <FormControl>
