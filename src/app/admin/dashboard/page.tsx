@@ -27,10 +27,11 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
+import ProductivityStats from '@/components/dashboard/ProductivityStats';
 
 // Using the same mock data as the main tasks page for consistency
 const initialTasks: Task[] = [
-    { id: 'task-1', title: 'Follow up on ORD-001 documentation', description: 'Client needs to upload their ID copy.', assignedTo: '3', createdBy: '2', dueDate: new Date(), status: 'In Progress', orderId: 'ORD-001', updates: [ { text: 'Emailed client for documents', date: subDays(new Date(), 1), authorId: '2' }] },
+    { id: 'task-1', title: 'Follow up on ORD-001 documentation', description: 'Client needs to upload their ID copy.', assignedTo: '3', createdBy: '2', dueDate: new Date(), status: 'In Progress', updates: [ { text: 'Emailed client for documents', date: subDays(new Date(), 1), authorId: '2' }] },
     { id: 'task-2', title: 'Prepare ORD-002 monthly reports', description: 'Generate and send the income statement and balance sheet.', assignedTo: '3', createdBy: '2', dueDate: subDays(new Date(), -3), status: 'To Do', updates: [] },
     { id: 'task-3', title: 'Review new client onboarding', description: 'Check all new client details from last week.', assignedTo: '2', createdBy: '2', dueDate: new Date(), status: 'Completed', updates: [] },
     { id: 'task-4', title: 'Finalize Q2 financial statements', description: 'Final review before sending to the client.', assignedTo: '2', createdBy: '3', dueDate: subDays(new Date(), -5), status: 'In Progress', updates: [] },
@@ -451,6 +452,35 @@ export default function AdminDashboardPage() {
                 </Dialog>
             </div>
             
+             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+                <ProductivityStats tasks={myTasks} className="lg:col-span-3" />
+                <Card className="lg:col-span-4">
+                <CardHeader>
+                    <CardTitle>Task Summary</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-8">
+                     <div className="flex items-center">
+                        <div className="ml-4 space-y-1">
+                            <p className="text-sm font-medium leading-none">My Tasks</p>
+                            <p className="text-sm text-muted-foreground">
+                               {myTasks.length} tasks assigned to you
+                            </p>
+                        </div>
+                        <div className="ml-auto font-medium">{myTasks.filter(t => t.status === 'Completed').length} / {myTasks.length}</div>
+                    </div>
+                     <div className="flex items-center">
+                        <div className="ml-4 space-y-1">
+                            <p className="text-sm font-medium leading-none">Delegated Tasks</p>
+                            <p className="text-sm text-muted-foreground">
+                                {delegatedTasks.length} tasks created by you
+                            </p>
+                        </div>
+                        <div className="ml-auto font-medium">{delegatedTasks.filter(t => t.status === 'Completed').length} / {delegatedTasks.length}</div>
+                    </div>
+                </CardContent>
+                </Card>
+            </div>
+
             <div className="space-y-8">
                 <TaskTable 
                     tasks={myTasks} 
