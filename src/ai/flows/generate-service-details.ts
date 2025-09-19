@@ -19,8 +19,8 @@ const GenerateServiceDetailsOutputSchema = z.object({
   shortDescription: z.string().describe('A concise, one-sentence description of the service.'),
   longDescription: z.string().describe('A detailed, paragraph-long description of the service, highlighting its benefits and features.'),
   turnaroundTime: z.string().describe('A typical turnaround time for this service (e.g., "5-7 working days").'),
-  metaTitle: z.string().describe('An SEO-optimized meta title, under 60 characters. It should be compelling and include the main keyword (service title) and brand name "My Accountant".'),
-  metaDescription: z.string().describe('An SEO-optimized meta description, under 160 characters. It should be a compelling summary that encourages clicks.'),
+  metaTitle: z.string().describe('An SEO-optimized meta title, under 60 characters. It should be compelling, include the main keyword (service title), and end with the brand name "| My Accountant".'),
+  metaDescription: z.string().describe('An SEO-optimized meta description, between 140-160 characters. It should be a compelling, actionable summary that encourages clicks.'),
   metaKeywords: z.array(z.string()).describe('A list of 3-5 relevant SEO keywords or keyphrases.'),
 });
 export type GenerateServiceDetailsOutput = z.infer<typeof GenerateServiceDetailsOutputSchema>;
@@ -37,17 +37,43 @@ const prompt = ai.definePrompt({
   output: {schema: GenerateServiceDetailsOutputSchema},
   prompt: `You are an expert copywriter and SEO specialist for "My Accountant", a financial services company in South Africa.
 
-  Your task is to generate compelling and accurate content for a specific service based on its title. The content must be tailored to a South African audience and follow SEO best practices for Google Search Console indexing.
+  Your task is to generate compelling and accurate content for a specific service based on its title. The content must be tailored to a South African audience and follow modern SEO best practices for Google Search Console indexing.
 
   Service Title: {{{title}}}
 
-  Please generate the following content:
-  - A short, one-sentence description.
-  - A detailed long description (one paragraph) explaining what the service is, who it's for, and its benefits.
-  - A typical turnaround time for this service.
-  - An SEO-optimized meta title (under 60 chars) that includes the service title and "My Accountant".
-  - An SEO-optimized meta description (under 160 chars) that summarizes the service and includes a call-to-action.
-  - A list of 3-5 relevant SEO keywords.
+  Please generate the following content based on these strict guidelines:
+
+  - **Short Description**: A concise, one-sentence description of the service.
+  - **Long Description**: A detailed long description (one paragraph) explaining what the service is, who it's for, and its benefits.
+  - **Turnaround Time**: A typical turnaround time for this service (e.g., "5-7 working days").
+  
+  ---
+  
+  **SEO Information (Strict Guidelines):**
+
+  - **Meta Title (Title Tag)**:
+    - **Purpose**: The main clickable headline shown in search results.
+    - **Rules**:
+      - Must be between 50–60 characters.
+      - Place the primary keyword (from the service title) near the start.
+      - End with the brand name: " | My Accountant".
+      - Must be unique and written in natural language.
+    - **Example**: Tax Clearance Certificate | My Accountant
+
+  - **Meta Description**:
+    - **Purpose**: The snippet below the title in search results.
+    - **Rules**:
+      - Must be between 140–160 characters long.
+      - Include primary and secondary keywords naturally.
+      - Make it actionable and compelling (use verbs like "get", "order", "ensure").
+      - Must accurately match the service content.
+    - **Example**: Get your Tax Clearance Certificate fast and hassle-free. Order online and receive it within 24 hours from My Accountant.
+
+  - **Meta Keywords**:
+    - **Purpose**: For internal reference or other search engines (less impact on Google).
+    - **Rules**:
+      - Provide a list of 3–5 relevant keywords or keyphrases.
+    - **Example**: tax clearance, SARS, compliance certificate, My Accountant
   `,
 });
 
