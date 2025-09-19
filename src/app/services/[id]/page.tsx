@@ -1,3 +1,4 @@
+'use client';
 
 import { notFound } from 'next/navigation';
 import { services } from '@/lib/data';
