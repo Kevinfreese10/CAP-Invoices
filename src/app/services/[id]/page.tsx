@@ -34,6 +34,21 @@ export default function ServiceDetailPage({ params }: { params: { id: string } }
             <p className="text-muted-foreground">{service.longDescription}</p>
           </div>
 
+          {service.whatsIncluded && service.whatsIncluded.length > 0 && (
+            <div>
+              <h2 className="text-xl font-semibold">What's Included</h2>
+              <Separator className="my-3" />
+              <ul className="space-y-3">
+                {service.whatsIncluded.map((item, index) => (
+                  <li key={index} className="flex items-start">
+                    <Check className="h-5 w-5 text-green-500 mr-3 mt-1 flex-shrink-0" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <div>
             <h2 className="text-xl font-semibold">Prerequisites</h2>
             <Separator className="my-3" />
