@@ -18,18 +18,22 @@ export default function Home() {
   const whyChooseUs = [
     {
       title: 'Expert & Reliable',
+      description: 'Our team of seasoned professionals ensures accuracy and dependability.',
       icon: ShieldCheck,
     },
     {
       title: 'Affordable Pricing',
+      description: 'Transparent, competitive rates with no hidden costs.',
       icon: Wallet,
     },
     {
       title: 'Fast Turnaround',
+      description: 'We prioritize efficiency to meet your deadlines without compromising quality.',
       icon: Rocket,
     },
     {
       title: 'SARS Compliant',
+      description: 'Stay fully compliant with the latest South African tax laws and regulations.',
       icon: BadgeCheck,
     },
   ];
@@ -108,7 +112,7 @@ export default function Home() {
                         <item.icon className="h-8 w-8 text-primary" />
                         <div>
                             <h3 className="font-semibold">{item.title}</h3>
-                            <p className="text-sm text-muted-foreground">Quality and assurance guaranteed.</p>
+                            <p className="text-sm text-muted-foreground">{item.description}</p>
                         </div>
                     </div>
                 ))}
