@@ -44,7 +44,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   ];
 
   const adminNavItems = [
-     { href: '/admin/dashboard', label: 'Admin Overview', icon: LayoutDashboard, roles: ['admin', 'staff'] },
+     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'staff'] },
     { href: '/admin/orders', label: 'Manage Orders', icon: ShieldCheck, roles: ['admin', 'staff'] },
     { href: '/admin/tasks', label: 'Manage Tasks', icon: ClipboardCheck, roles: ['admin', 'staff'] },
     { href: '/admin/services', label: 'Manage Services', icon: Briefcase, roles: ['admin'] },

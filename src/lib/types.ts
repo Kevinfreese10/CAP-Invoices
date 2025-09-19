@@ -1,4 +1,5 @@
 
+
 export type Service = {
   id: string;
   title: string;
@@ -74,6 +75,12 @@ export type User = {
   department?: 'Accounting and Tax' | 'Administration';
 };
 
+export type TaskUpdate = {
+  text: string;
+  date: Date;
+  authorId: string;
+};
+
 export type Task = {
   id: string;
   title: string;
@@ -83,4 +90,5 @@ export type Task = {
   dueDate: Date;
   status: 'To Do' | 'In Progress' | 'Completed';
   orderId?: string;
+  updates?: TaskUpdate[];
 };

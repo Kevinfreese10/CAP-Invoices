@@ -15,24 +15,25 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Task, User } from '@/lib/types';
+import { Task, User, TaskUpdate } from '@/lib/types';
 import { users as allUsers } from '@/contexts/AuthContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon } from 'lucide-react';
+import { CalendarIcon, Loader2, MessageSquare } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { format, subDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
+import { Separator } from '@/components/ui/separator';
 
 // Mock data
 const initialTasks: Task[] = [
-    { id: 'task-1', title: 'Follow up on ORD-001 documentation', description: 'Client needs to upload their ID copy.', assignedTo: '3', createdBy: '2', dueDate: new Date(), status: 'In Progress', orderId: 'ORD-001' },
-    { id: 'task-2', title: 'Prepare ORD-002 monthly reports', description: 'Generate and send the income statement and balance sheet.', assignedTo: '3', createdBy: '2', dueDate: subDays(new Date(), -3), status: 'To Do' },
-    { id: 'task-3', title: 'Review new client onboarding', description: 'Check all new client details from last week.', assignedTo: '2', createdBy: '2', dueDate: new Date(), status: 'Completed' },
+    { id: 'task-1', title: 'Follow up on ORD-001 documentation', description: 'Client needs to upload their ID copy.', assignedTo: '3', createdBy: '2', dueDate: new Date(), status: 'In Progress', orderId: 'ORD-001', updates: [] },
+    { id: 'task-2', title: 'Prepare ORD-002 monthly reports', description: 'Generate and send the income statement and balance sheet.', assignedTo: '3', createdBy: '2', dueDate: subDays(new Date(), -3), status: 'To Do', updates: [] },
+    { id: 'task-3', title: 'Review new client onboarding', description: 'Check all new client details from last week.', assignedTo: '2', createdBy: '2', dueDate: new Date(), status: 'Completed', updates: [] },
 ];
 
 const allStaff = allUsers.filter(u => u.role === 'staff' || u.role === 'admin');
@@ -45,9 +46,11 @@ const formSchema = z.object({
   assignedTo: z.string().min(1, 'Please assign a staff member.'),
   dueDate: z.date({ required_error: 'A due date is required.'}),
   orderId: z.string().optional(),
+  newUpdate: z.string().optional(),
 });
 
-function TaskForm({ task, onSubmit, onCancel }: { task: Task | null, onSubmit: (data: any) => void, onCancel: () => void }) {
+function TaskForm({ task, onSubmit, onCancel, onUpdateSubmit }: { task: Task | null, onSubmit: (data: any) => void, onCancel: () => void, onUpdateSubmit: (taskId: string, updateText: string) => void }) {
+    const { user } = useAuth();
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
@@ -57,12 +60,26 @@ function TaskForm({ task, onSubmit, onCancel }: { task: Task | null, onSubmit: (
             assignedTo: task?.assignedTo || '',
             dueDate: task?.dueDate || new Date(),
             orderId: task?.orderId || '',
+            newUpdate: '',
         },
     });
 
     const handleSubmit = (values: z.infer<typeof formSchema>) => {
         onSubmit(values);
     };
+
+    const handleUpdateSubmit = () => {
+        if (!task || !task.id) return;
+        const updateText = form.getValues('newUpdate');
+        if (updateText) {
+            onUpdateSubmit(task.id, updateText);
+            form.setValue('newUpdate', '');
+        }
+    }
+    
+    const getAuthor = (authorId: string): User | undefined => {
+        return allUsers.find(u => u.id === authorId);
+    }
     
     return (
         <Form {...form}>
@@ -71,10 +88,87 @@ function TaskForm({ task, onSubmit, onCancel }: { task: Task | null, onSubmit: (
                 <FormField control={form.control} name="description" render={({ field }) => (<FormItem><FormLabel>Description</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>)} />
                 <div className="grid grid-cols-2 gap-4">
                     <FormField control={form.control} name="assignedTo" render={({ field }) => (<FormItem><FormLabel>Assign To</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select staff..." /></SelectTrigger></FormControl><SelectContent>{allStaff.map(staff => <SelectItem key={staff.id} value={staff.id}>{staff.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
-                    <FormField control={form.control} name="dueDate" render={({ field }) => (<FormItem className="flex flex-col pt-2"><FormLabel className="mb-2">Due Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4 opacity-50" />{field.value ? (format(field.value, "PPP")) : (<span>Pick a date</span>)}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)}/>
+                     <FormField
+                        control={form.control}
+                        name="dueDate"
+                        render={({ field }) => (
+                            <FormItem className="flex flex-col">
+                            <FormLabel className="mb-2">Due Date</FormLabel>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                <FormControl>
+                                    <Button
+                                    variant={"outline"}
+                                    className={cn(
+                                        "w-full pl-3 text-left font-normal",
+                                        !field.value && "text-muted-foreground"
+                                    )}
+                                    >
+                                    {field.value ? (
+                                        format(field.value, "PPP")
+                                    ) : (
+                                        <span>Pick a date</span>
+                                    )}
+                                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                    </Button>
+                                </FormControl>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar
+                                    mode="single"
+                                    selected={field.value}
+                                    onSelect={field.onChange}
+                                    initialFocus
+                                />
+                                </PopoverContent>
+                            </Popover>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                        />
                 </div>
                  <FormField control={form.control} name="orderId" render={({ field }) => (<FormItem><FormLabel>Related Order ID (Optional)</FormLabel><FormControl><Input {...field} placeholder="e.g. ORD-12345" /></FormControl><FormMessage /></FormItem>)} />
-                <div className="flex justify-end gap-2">
+                
+                {task && (
+                    <>
+                        <Separator />
+                        <div className="space-y-4">
+                            <h3 className="text-sm font-medium text-foreground">Updates</h3>
+                            <div className="space-y-4 max-h-40 overflow-y-auto pr-2">
+                                {task.updates && task.updates.length > 0 ? task.updates.slice().reverse().map((update, index) => {
+                                    const author = getAuthor(update.authorId);
+                                    return (
+                                    <div key={index} className="flex items-start gap-3">
+                                         <Avatar className="h-8 w-8 border">
+                                            <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${author?.email}`} />
+                                            <AvatarFallback>{author?.name.charAt(0)}</AvatarFallback>
+                                        </Avatar>
+                                        <div className="bg-muted p-3 rounded-lg w-full">
+                                            <div className="flex justify-between items-center mb-1">
+                                                <p className="text-xs font-semibold">{author?.name}</p>
+                                                <p className="text-xs text-muted-foreground">{format(update.date, 'dd MMM yyyy, HH:mm')}</p>
+                                            </div>
+                                            <p className="text-sm">{update.text}</p>
+                                        </div>
+                                    </div>
+                                )}) : <p className="text-xs text-muted-foreground text-center py-4">No updates posted yet.</p>}
+                            </div>
+                            <FormField 
+                                control={form.control} 
+                                name="newUpdate" 
+                                render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Add an Update</FormLabel>
+                                    <FormControl><Textarea {...field} placeholder="Post a new update..." rows={2}/></FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}/>
+                            <Button type="button" size="sm" onClick={handleUpdateSubmit}>Post Update</Button>
+                        </div>
+                    </>
+                )}
+
+                <div className="flex justify-end gap-2 pt-4">
                     <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
                     <Button type="submit">Save Task</Button>
                 </div>
@@ -142,7 +236,7 @@ export default function AdminTasksPage() {
       // Add
       setTasks(prev => [
         ...prev,
-        { ...data, id: `new-task-${Date.now()}`, status: 'To Do', createdBy: user.id },
+        { ...data, id: `new-task-${Date.now()}`, status: 'To Do', createdBy: user.id, updates: [] },
       ]);
        toast({
         title: 'Task Created',
@@ -153,6 +247,34 @@ export default function AdminTasksPage() {
     setSelectedTask(null);
   };
   
+  const handleUpdateSubmit = (taskId: string, updateText: string) => {
+      if (!user) return;
+      const newUpdate: TaskUpdate = {
+          text: updateText,
+          date: new Date(),
+          authorId: user.id,
+      };
+
+      const updateTask = (taskToUpdate: Task) => {
+        const updatedTask = {
+            ...taskToUpdate,
+            updates: [...(taskToUpdate.updates || []), newUpdate],
+        };
+        // Also update the selected task in the dialog
+        setSelectedTask(updatedTask); 
+        return updatedTask;
+      }
+
+      setTasks(prev =>
+        prev.map(t => t.id === taskId ? updateTask(t) : t)
+      );
+
+      toast({
+        title: 'Update Posted',
+        description: 'Your update has been added to the task.',
+      });
+  }
+
   const getAssignee = (userId?: string): User | undefined => {
     if (!userId) return undefined;
     return allUsers.find(u => u.id === userId);
@@ -162,14 +284,14 @@ export default function AdminTasksPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Manage Tasks</h1>
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+        <Dialog open={isFormOpen} onOpenChange={(isOpen) => { setIsFormOpen(isOpen); if (!isOpen) setSelectedTask(null);}}>
            <DialogTrigger asChild>
                 <Button onClick={handleAdd}>
                     <PlusCircle className="mr-2 h-4 w-4" />
                     Create Task
                 </Button>
            </DialogTrigger>
-           <DialogContent className="sm:max-w-[500px]">
+           <DialogContent className="sm:max-w-[600px]">
                 <DialogHeader>
                     <DialogTitle>{selectedTask ? 'Edit Task' : 'Create New Task'}</DialogTitle>
                     <DialogDescription>
@@ -180,6 +302,7 @@ export default function AdminTasksPage() {
                     task={selectedTask} 
                     onSubmit={handleFormSubmit}
                     onCancel={() => setIsFormOpen(false)}
+                    onUpdateSubmit={handleUpdateSubmit}
                 />
            </DialogContent>
         </Dialog>
@@ -294,5 +417,3 @@ export default function AdminTasksPage() {
     </div>
   );
 }
-
-    
