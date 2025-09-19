@@ -10,6 +10,10 @@ export type Service = {
   whatsIncluded: string[];
   turnaroundTime: string;
   clientRequirements: string[];
+  informationToUpload: {
+    label: string;
+    type: 'text' | 'file';
+  }[];
   metaTitle?: string;
   metaDescription?: string;
   metaKeywords?: string[];

@@ -8,10 +8,11 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash, Sparkles, Loader2 } from 'lucide-react';
+import { Trash, Sparkles, Loader2, Plus } from 'lucide-react';
 import { generateServiceDetails } from '@/ai/flows/generate-service-details';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
+import { Separator } from '../ui/separator';
 
 const formSchema = z.object({
   id: z.string().optional(),
@@ -25,6 +26,10 @@ const formSchema = z.object({
   turnaroundTime: z.string().min(1, 'Turnaround time is required.'),
   whatsIncluded: z.array(z.object({ value: z.string().min(1, 'This field cannot be empty.') })),
   clientRequirements: z.array(z.object({ value: z.string().min(1, 'This field cannot be empty.') })),
+  informationToUpload: z.array(z.object({
+    label: z.string().min(1, 'Label cannot be empty.'),
+    type: z.enum(['text', 'file']),
+  })),
   metaTitle: z.string().optional(),
   metaDescription: z.string().optional(),
   metaKeywords: z.array(z.object({ value: z.string() })).optional(),
@@ -63,6 +68,7 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
       turnaroundTime: service?.turnaroundTime || '',
       whatsIncluded: service?.whatsIncluded.map(v => ({ value: v })) || [{ value: '' }],
       clientRequirements: service?.clientRequirements.map(v => ({ value: v })) || [{ value: '' }],
+      informationToUpload: service?.informationToUpload || [],
       metaTitle: service?.metaTitle || '',
       metaDescription: service?.metaDescription || '',
       metaKeywords: service?.metaKeywords?.map(v => ({value: v})) || [{ value: '' }],
@@ -74,9 +80,14 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
     name: 'whatsIncluded',
   });
 
-  const { fields: requiredFields, append: appendRequired, remove: removeRequired } = useFieldArray({
+  const { fields: prereqFields, append: appendPrereq, remove: removePrereq } = useFieldArray({
     control: form.control,
     name: 'clientRequirements',
+  });
+
+  const { fields: uploadFields, append: appendUpload, remove: removeUpload } = useFieldArray({
+    control: form.control,
+    name: 'informationToUpload',
   });
 
   const { fields: keywordFields, append: appendKeyword, remove: removeKeyword } = useFieldArray({
@@ -132,6 +143,7 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
         ...values,
         whatsIncluded: values.whatsIncluded.map(v => v.value),
         clientRequirements: values.clientRequirements.map(v => v.value),
+        informationToUpload: values.informationToUpload,
         metaKeywords: values.metaKeywords?.map(v => v.value),
     } as Service
     onSubmit(serviceData);
@@ -139,7 +151,7 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto p-1 pr-4">
+      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 max-h-[70vh] overflow-y-auto p-1 pr-4">
         <div className="flex items-center justify-between gap-4">
             <FormField
             control={form.control}
@@ -238,23 +250,69 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
             ))}
             <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => appendIncluded({ value: '' })}>Add Item</Button>
         </div>
-         <div>
-            <FormLabel>Client Requirements</FormLabel>
-            {requiredFields.map((field, index) => (
+         <div className="space-y-2 rounded-lg border p-4">
+            <h3 className="text-sm font-medium">Prerequisites (Shown on public service page)</h3>
+            {prereqFields.map((field, index) => (
                  <FormField
                     key={field.id}
                     control={form.control}
                     name={`clientRequirements.${index}.value`}
                     render={({ field }) => (
-                        <FormItem className="flex items-center gap-2 mt-2">
+                        <FormItem className="flex items-center gap-2">
                              <FormControl><Input {...field} /></FormControl>
-                             <Button type="button" variant="destructive" size="icon" onClick={() => removeRequired(index)}><Trash className="h-4 w-4"/></Button>
+                             <Button type="button" variant="destructive" size="icon" onClick={() => removePrereq(index)}><Trash className="h-4 w-4"/></Button>
                         </FormItem>
                     )}
                 />
             ))}
-            <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => appendRequired({ value: '' })}>Add Requirement</Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => appendPrereq({ value: '' })}>Add Prerequisite</Button>
         </div>
+        
+        <div className="space-y-2 rounded-lg border p-4">
+            <h3 className="text-sm font-medium">Information to be Uploaded (Post-Purchase)</h3>
+            {uploadFields.map((field, index) => (
+              <div key={field.id} className="flex items-end gap-2 p-2 border rounded-md">
+                 <FormField
+                    control={form.control}
+                    name={`informationToUpload.${index}.label`}
+                    render={({ field }) => (
+                        <FormItem className="flex-grow">
+                          <FormLabel>Field Label</FormLabel>
+                          <FormControl><Input {...field} /></FormControl>
+                          <FormMessage/>
+                        </FormItem>
+                    )}
+                />
+                 <FormField
+                    control={form.control}
+                    name={`informationToUpload.${index}.type`}
+                    render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Field Type</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                  <SelectTrigger><SelectValue placeholder="Select a type" /></SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                  <SelectItem value="text">Text Input</SelectItem>
+                                  <SelectItem value="file">Document Upload</SelectItem>
+                              </SelectContent>
+                          </Select>
+                          <FormMessage/>
+                        </FormItem>
+                    )}
+                />
+                <Button type="button" variant="destructive" size="icon" onClick={() => removeUpload(index)}><Trash className="h-4 w-4"/></Button>
+              </div>
+            ))}
+            <Button type="button" variant="outline" size="sm" onClick={() => appendUpload({ label: '', type: 'text' })}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Upload Field
+            </Button>
+        </div>
+
+
+        <Separator />
 
         <div className="space-y-4 rounded-lg border p-4">
             <h3 className="text-lg font-medium">SEO Information</h3>

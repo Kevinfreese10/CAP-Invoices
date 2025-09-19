@@ -24,6 +24,11 @@ export const services: Service[] = [
         'Retirement annuity fund certificate',
         'Logbook for travel claims (if applicable)',
     ],
+    informationToUpload: [
+      { label: 'Copy of ID Document', type: 'file' },
+      { label: 'Proof of Address', type: 'file' },
+      { label: 'SARS eFiling Login Details', type: 'text' },
+    ],
     metaTitle: 'Personal Tax Return Filing (ITR12) | My Accountant',
     metaDescription: 'Expert personal tax return (ITR12) filing services for South African individuals and provisional taxpayers. We ensure compliance and maximize your returns.',
     metaKeywords: ['personal tax return', 'ITR12', 'SARS eFiling', 'South Africa tax'],
@@ -49,6 +54,10 @@ export const services: Service[] = [
         'ID copies of all directors (min. 1)',
         '4 proposed company names',
         'Proof of address for all directors',
+    ],
+    informationToUpload: [
+      { label: 'Certified ID Copy of each Director', type: 'file' },
+      { label: 'Proof of Address for each Director', type: 'file' },
     ],
     metaTitle: 'New Company Registration (Pty Ltd) | My Accountant',
     metaDescription: 'Fast and reliable Pty (Ltd) company registration services with CIPC in South Africa. Includes name reservation, tax number, and all essential documents.',
@@ -76,6 +85,11 @@ export const services: Service[] = [
         'Supplier invoices',
         'Customer invoices',
     ],
+    informationToUpload: [
+      { label: 'Monthly Bank Statements (PDF)', type: 'file' },
+      { label: 'All Sales Invoices for the month', type: 'file' },
+      { label: 'All Purchase Invoices/Slips for the month', type: 'file' },
+    ],
     metaTitle: 'Monthly Bookkeeping Services for Small Businesses | My Accountant',
     metaDescription: 'Affordable monthly bookkeeping and accounting services for small businesses in South Africa. We handle reconciliations, reporting, and more.',
     metaKeywords: ['bookkeeping services', 'small business accounting', 'monthly bookkeeping', 'accountant South Africa'],
@@ -98,6 +112,9 @@ export const services: Service[] = [
     clientRequirements: [
         'Company registration number',
         'Latest Annual Financial Statements (if applicable)',
+    ],
+    informationToUpload: [
+       { label: 'Company Registration Number', type: 'text' },
     ],
     metaTitle: 'CIPC Annual Returns Filing | My Accountant',
     metaDescription: 'Quick and easy CIPC annual return filing service to keep your South African company compliant. Avoid penalties and deregistration.',
@@ -123,6 +140,11 @@ export const services: Service[] = [
         'ID copies of directors',
         'Proof of business address',
         'Employee details and total earnings',
+    ],
+    informationToUpload: [
+       { label: 'Nature of Business', type: 'text' },
+       { label: 'Estimated Annual Employee Earnings', type: 'text' },
+       { label: 'Company Registration Certificate', type: 'file' },
     ],
     metaTitle: 'COIDA Registration Service | My Accountant',
     metaDescription: 'COIDA registration service for South African employers. Ensure compliance with the Compensation for Occupational Injuries and Diseases Act.',
@@ -194,13 +216,13 @@ export const faqs: FAQ[] = [
     id: 'faq3',
     question: 'Can I purchase a service online?',
     answer:
-      'Yes, you can add any of our services to your cart and complete the purchase securely through our website using PayFast. You will receive an order confirmation via email.',
+      'Yes, you can add any of our services to your cart and complete the purchase securely through our website. You will receive an order confirmation and further instructions via email.',
   },
   {
     id: 'faq4',
     question: 'How do I upload my documents securely?',
     answer:
-      'Once you have created an account and purchased a service, you can log in to your client portal. There, you will find a secure document upload section for each of your orders.',
+      'Once you have created an account and purchased a service, you can log in to your client portal. There, you will find a secure section for each of your orders where you can upload the required information.',
   },
 ];
 
