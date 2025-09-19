@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -25,6 +26,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
 } from '@/components/ui/dropdown-menu';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -38,6 +42,8 @@ import {
 } from '@/components/ui/tooltip';
 
 const db = getFirestore(firebaseApp);
+
+const allStaff = allUsers.filter(u => u.role === 'staff');
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -79,6 +85,33 @@ export default function AdminOrdersPage() {
         fetchOrders();
     }
   }, [user]);
+
+   const handleAssignment = async (orderId: string, staffId: string) => {
+    try {
+      const orderRef = doc(db, 'orders', orderId);
+      await updateDoc(orderRef, {
+        assignedTo: staffId,
+      });
+
+      setOrders(prevOrders =>
+        prevOrders.map(order =>
+          order.id === orderId ? { ...order, assignedTo: staffId } : order
+        )
+      );
+
+      toast({
+        title: 'Order Assigned',
+        description: `Order has been successfully assigned.`,
+      });
+    } catch (error) {
+      console.error('Error assigning order: ', error);
+      toast({
+        title: 'Assignment Failed',
+        description: 'There was a problem assigning the order.',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
     try {
@@ -199,6 +232,25 @@ export default function AdminOrdersPage() {
                             <Link href={`/admin/orders/${order.id}`}>Review Documents</Link>
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
+                          {user?.role === 'admin' && (
+                             <>
+                                <DropdownMenuSub>
+                                  <DropdownMenuSubTrigger>Assign To</DropdownMenuSubTrigger>
+                                  <DropdownMenuSubContent>
+                                    {allStaff.map(staff => (
+                                      <DropdownMenuItem 
+                                        key={staff.id} 
+                                        onClick={() => handleAssignment(order.id, staff.id)}
+                                        disabled={order.assignedTo === staff.id}
+                                      >
+                                        {staff.name}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                                <DropdownMenuSeparator />
+                             </>
+                          )}
                            <DropdownMenuItem
                             onClick={() => handleUpdateStatus(order.id, 'Pending Payment')}
                              disabled={order.status === 'Pending Payment'}
