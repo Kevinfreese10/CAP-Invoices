@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { services } from '@/lib/data';
-import { BadgeCheck, Rocket, Search, ShieldCheck, Wallet, Clock } from 'lucide-react';
+import { Rocket, ShieldCheck, Wallet, Clock, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 
 export default function Home() {
@@ -30,11 +30,6 @@ export default function Home() {
       title: 'Fast Turnaround',
       description: 'We prioritize efficiency to meet your deadlines without compromising quality.',
       icon: Rocket,
-    },
-    {
-      title: 'SARS Compliant',
-      description: 'Stay fully compliant with the latest South African tax laws and regulations.',
-      icon: BadgeCheck,
     },
   ];
 
@@ -106,7 +101,7 @@ export default function Home() {
                     We're committed to providing you with the best service possible.
                 </p>
             </div>
-            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
                 {whyChooseUs.map(item => (
                     <div key={item.title} className="flex items-center gap-4">
                         <item.icon className="h-8 w-8 text-primary" />
