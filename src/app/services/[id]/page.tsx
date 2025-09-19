@@ -1,11 +1,10 @@
-'use client';
 
 import { notFound } from 'next/navigation';
 import { services } from '@/lib/data';
 import { Badge } from '@/components/ui/badge';
 import { Check, Clock } from 'lucide-react';
 import { Service } from '@/lib/types';
-import ServiceCheckoutForm from '@/components/checkout/ServiceCheckoutForm';
+import ClientServiceCheckoutForm from '@/components/checkout/ClientServiceCheckoutForm';
 import { Separator } from '@/components/ui/separator';
 
 export default function ServiceDetailPage({ params }: { params: { id: string } }) {
@@ -51,7 +50,7 @@ export default function ServiceDetailPage({ params }: { params: { id: string } }
         </div>
 
         <div className="md:col-span-1">
-          <ServiceCheckoutForm service={service} />
+          <ClientServiceCheckoutForm service={service} />
         </div>
       </div>
     </div>
