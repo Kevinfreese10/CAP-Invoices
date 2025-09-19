@@ -9,13 +9,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const pathname = usePathname();
 
-  const isNonClientSection = user?.role === 'admin' || user?.role === 'staff';
+  const isDashboardPage =
+    pathname.startsWith('/admin') ||
+    pathname.startsWith('/dashboard') ||
+    pathname.startsWith('/reseller');
+  
+  const isNonClientUser = user?.role === 'admin' || user?.role === 'staff' || user?.role === 'reseller';
+
+  const shouldHideHeaderFooter = isDashboardPage && isNonClientUser;
 
   return (
     <div className="flex min-h-screen flex-col">
-      {!isNonClientSection && <Header />}
+      {!shouldHideHeaderFooter && <Header />}
       <main className="flex-grow bg-background">{children}</main>
-      {!isNonClientSection && <Footer />}
+      {!shouldHideHeaderFooter && <Footer />}
     </div>
   );
 }
