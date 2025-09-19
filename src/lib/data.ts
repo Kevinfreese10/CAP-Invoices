@@ -57,9 +57,7 @@ export const services: Service[] = [
     ],
     turnaroundTime: '3-5 working days',
     clientRequirements: [
-        'ID copies of all directors (min. 1)',
         '4 proposed company names',
-        'Proof of address for all directors',
     ],
     informationToUpload: [],
     conditionalFields: {

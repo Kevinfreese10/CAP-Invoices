@@ -31,7 +31,7 @@ export default function DocumentUpload({ orderId }: { orderId: string }) {
       const newFiles = Array.from(data.documents);
       setUploadedFiles(prev => [...prev, ...newFiles]);
       setIsUploading(false);
-      form.reset();
+      form.reset({ documents: new FileList() });
       toast({
         title: 'Files Uploaded',
         description: `${newFiles.length} file(s) have been successfully uploaded for order ${orderId}.`,
@@ -47,7 +47,7 @@ export default function DocumentUpload({ orderId }: { orderId: string }) {
     <Card>
       <CardHeader>
         <CardTitle>Upload Documents</CardTitle>
-        <CardDescription>Securely upload required documents for your order.</CardDescription>
+        <CardDescription>Securely upload any additional documents for your order here.</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -55,7 +55,7 @@ export default function DocumentUpload({ orderId }: { orderId: string }) {
             <FormField
               control={form.control}
               name="documents"
-              render={({ field }) => (
+              render={({ field: { onChange, ...fieldProps} }) => (
                 <FormItem>
                   <FormLabel>Select Files</FormLabel>
                   <FormControl>
@@ -63,7 +63,8 @@ export default function DocumentUpload({ orderId }: { orderId: string }) {
                       type="file" 
                       multiple
                       className="cursor-pointer"
-                      onChange={(e) => field.onChange(e.target.files)}
+                      {...fieldProps}
+                      onChange={(e) => onChange(e.target.files)}
                     />
                   </FormControl>
                   <FormMessage />

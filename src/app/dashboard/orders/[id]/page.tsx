@@ -4,11 +4,12 @@ import { useState, useEffect } from 'react';
 import { notFound, useParams } from 'next/navigation';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order } from '@/lib/types';
+import { Order, Service } from '@/lib/types';
+import { services } from '@/lib/data';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import DocumentUpload from '@/components/dashboard/DocumentUpload';
+import ServiceDocumentUpload from '@/components/dashboard/ServiceDocumentUpload';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Loader2 } from 'lucide-react';
@@ -16,8 +17,17 @@ import { format } from 'date-fns';
 
 const db = getFirestore(firebaseApp);
 
+type OrderItemWithService = {
+  id: string;
+  title: string;
+  price: number;
+  quantity: number;
+  service: Service;
+};
+
 export default function OrderDetailsPage() {
   const [order, setOrder] = useState<Order | null>(null);
+  const [orderItemsWithServices, setOrderItemsWithServices] = useState<OrderItemWithService[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const params = useParams();
   const id = params.id as string;
@@ -31,11 +41,26 @@ export default function OrderDetailsPage() {
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           const data = docSnap.data();
-          setOrder({
+          const fetchedOrder = {
             ...data,
             id: docSnap.id,
             date: data.date.toDate(),
-          } as Order);
+          } as Order;
+          setOrder(fetchedOrder);
+
+          // Now, map order items to full service details
+          const itemsWithServices = fetchedOrder.items.map(item => {
+            const serviceDetails = services.find(s => s.id === item.id);
+            if (!serviceDetails) {
+              // This case should ideally not happen if data is consistent
+              console.warn(`Service with id ${item.id} not found in local data.`);
+              return { ...item, service: null };
+            }
+            return { ...item, service: serviceDetails };
+          }).filter(item => item.service !== null) as OrderItemWithService[];
+
+          setOrderItemsWithServices(itemsWithServices);
+
         } else {
           notFound();
         }
@@ -99,7 +124,12 @@ export default function OrderDetailsPage() {
             </CardContent>
         </Card>
 
-        <DocumentUpload orderId={order.id} />
+        <div className="space-y-6">
+          {orderItemsWithServices.map(item => (
+            <ServiceDocumentUpload key={item.id} service={item.service} orderId={order.id} />
+          ))}
+        </div>
+
     </div>
   );
 }
