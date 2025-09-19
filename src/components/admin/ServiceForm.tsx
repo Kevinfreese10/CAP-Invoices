@@ -8,11 +8,13 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash, Sparkles, Loader2, Plus } from 'lucide-react';
+import { Trash, Sparkles, Loader2, Plus, Info } from 'lucide-react';
 import { generateServiceDetails } from '@/ai/flows/generate-service-details';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
 import { Separator } from '../ui/separator';
+import { Checkbox } from '../ui/checkbox';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 const formSchema = z.object({
   id: z.string().optional(),
@@ -30,6 +32,15 @@ const formSchema = z.object({
     label: z.string().min(1, 'Label cannot be empty.'),
     type: z.enum(['text', 'file']),
   })),
+  conditionalFields: z.object({
+    enabled: z.boolean(),
+    fieldName: z.string(),
+    fieldValues: z.array(z.object({ value: z.string().min(1, 'Value cannot be empty.') })),
+    duplicatedDocuments: z.array(z.object({
+      label: z.string().min(1, 'Label cannot be empty.'),
+      type: z.enum(['text', 'file']),
+    })),
+  }).optional(),
   metaTitle: z.string().optional(),
   metaDescription: z.string().optional(),
   metaKeywords: z.array(z.object({ value: z.string() })).optional(),
@@ -69,6 +80,12 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
       whatsIncluded: service?.whatsIncluded.map(v => ({ value: v })) || [{ value: '' }],
       clientRequirements: service?.clientRequirements.map(v => ({ value: v })) || [{ value: '' }],
       informationToUpload: service?.informationToUpload || [],
+      conditionalFields: {
+        enabled: service?.conditionalFields?.enabled || false,
+        fieldName: service?.conditionalFields?.fieldName || '',
+        fieldValues: service?.conditionalFields?.fieldValues.map(v => ({ value: v })) || [{ value: '' }],
+        duplicatedDocuments: service?.conditionalFields?.duplicatedDocuments || [],
+      },
       metaTitle: service?.metaTitle || '',
       metaDescription: service?.metaDescription || '',
       metaKeywords: service?.metaKeywords?.map(v => ({value: v})) || [{ value: '' }],
@@ -89,11 +106,23 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
     control: form.control,
     name: 'informationToUpload',
   });
+  
+  const { fields: conditionalValueFields, append: appendConditionalValue, remove: removeConditionalValue } = useFieldArray({
+    control: form.control,
+    name: 'conditionalFields.fieldValues',
+  });
+
+  const { fields: duplicatedDocFields, append: appendDuplicatedDoc, remove: removeDuplicatedDoc } = useFieldArray({
+    control: form.control,
+    name: 'conditionalFields.duplicatedDocuments',
+  });
 
   const { fields: keywordFields, append: appendKeyword, remove: removeKeyword } = useFieldArray({
     control: form.control,
     name: 'metaKeywords',
   });
+  
+  const conditionalFieldsEnabled = form.watch('conditionalFields.enabled');
 
   const handleAiUpdate = async () => {
     const title = form.getValues('title');
@@ -144,6 +173,11 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
         whatsIncluded: values.whatsIncluded.map(v => v.value),
         clientRequirements: values.clientRequirements.map(v => v.value),
         informationToUpload: values.informationToUpload,
+        conditionalFields: {
+          ...values.conditionalFields,
+          fieldValues: values.conditionalFields?.fieldValues.map(v => v.value),
+          duplicatedDocuments: values.conditionalFields?.duplicatedDocuments,
+        },
         metaKeywords: values.metaKeywords?.map(v => v.value),
     } as Service
     onSubmit(serviceData);
@@ -309,6 +343,118 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
               <Plus className="mr-2 h-4 w-4" />
               Add Upload Field
             </Button>
+        </div>
+        
+        <div className="space-y-4 rounded-lg border p-4">
+          <FormField
+              control={form.control}
+              name="conditionalFields.enabled"
+              render={({ field }) => (
+                  <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                      <FormControl>
+                          <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                      <div className="space-y-1 leading-none flex items-center gap-2">
+                          <FormLabel className="font-semibold text-base">Conditional Fields</FormLabel>
+                           <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  <Info className="h-4 w-4 text-muted-foreground" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="max-w-xs">Use this to dynamically ask for documents based on user input. For example, ask for the number of directors, then request an ID for each one.</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                      </div>
+                  </FormItem>
+              )}
+          />
+
+          {conditionalFieldsEnabled && (
+            <div className="space-y-4 pl-6 pt-4 border-l-2">
+              <FormField
+                control={form.control}
+                name="conditionalFields.fieldName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Conditional Field Name</FormLabel>
+                    <FormControl><Input {...field} placeholder="e.g., Number of Directors" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div>
+                <FormLabel>Dropdown Values</FormLabel>
+                <div className="space-y-2 mt-2">
+                  {conditionalValueFields.map((field, index) => (
+                    <FormField
+                      key={field.id}
+                      control={form.control}
+                      name={`conditionalFields.fieldValues.${index}.value`}
+                      render={({ field }) => (
+                        <FormItem className="flex items-center gap-2">
+                          <FormControl><Input {...field} placeholder="e.g., 1 Director" /></FormControl>
+                          <Button type="button" variant="destructive" size="icon" onClick={() => removeConditionalValue(index)}><Trash className="h-4 w-4" /></Button>
+                        </FormItem>
+                      )}
+                    />
+                  ))}
+                </div>
+                <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => appendConditionalValue({ value: '' })}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Dropdown Value
+                </Button>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-medium mb-2">Documents That Will Be Duplicated</h3>
+                <div className="space-y-2">
+                  {duplicatedDocFields.map((field, index) => (
+                    <div key={field.id} className="flex items-end gap-2 p-2 border rounded-md">
+                      <FormField
+                          control={form.control}
+                          name={`conditionalFields.duplicatedDocuments.${index}.label`}
+                          render={({ field }) => (
+                              <FormItem className="flex-grow">
+                                <FormLabel>Document name</FormLabel>
+                                <FormControl><Input {...field} /></FormControl>
+                                <FormMessage/>
+                              </FormItem>
+                          )}
+                      />
+                      <FormField
+                          control={form.control}
+                          name={`conditionalFields.duplicatedDocuments.${index}.type`}
+                          render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Field Type</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="text">Text Input</SelectItem>
+                                        <SelectItem value="file">Upload</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage/>
+                              </FormItem>
+                          )}
+                      />
+                      <Button type="button" variant="destructive" size="icon" onClick={() => removeDuplicatedDoc(index)}><Trash className="h-4 w-4"/></Button>
+                    </div>
+                  ))}
+                  <p className="text-xs text-muted-foreground">These documents will be repeated for each dropdown value (e.g., for each director).</p>
+                </div>
+                <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => appendDuplicatedDoc({ label: '', type: 'file' })}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Duplicated Document
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
 

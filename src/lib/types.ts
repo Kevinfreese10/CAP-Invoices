@@ -14,6 +14,15 @@ export type Service = {
     label: string;
     type: 'text' | 'file';
   }[];
+  conditionalFields?: {
+    enabled: boolean;
+    fieldName: string;
+    fieldValues: string[];
+    duplicatedDocuments: {
+      label: string;
+      type: 'text' | 'file';
+    }[];
+  };
   metaTitle?: string;
   metaDescription?: string;
   metaKeywords?: string[];
