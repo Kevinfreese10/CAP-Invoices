@@ -1,9 +1,8 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { Toaster } from '@/components/ui/toaster';
-import { CartProvider } from '@/contexts/CartContext';
 import { AuthProvider } from '@/contexts/AuthContext';
 import AppShell from '@/components/layout/AppShell';
+import ClientProviders from '@/contexts/ClientProviders';
 
 export const metadata: Metadata = {
   title: 'My Accountant',
@@ -21,12 +20,11 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <AuthProvider>
-          <CartProvider>
-            <AppShell>
-              {children}
-            </AppShell>
-            <Toaster />
-          </CartProvider>
+            <ClientProviders>
+                <AppShell>
+                {children}
+                </AppShell>
+            </ClientProviders>
         </AuthProvider>
       </body>
     </html>

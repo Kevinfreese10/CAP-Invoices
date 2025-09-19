@@ -7,14 +7,8 @@ import Footer from '@/components/layout/Footer';
 import { ReactNode } from 'react';
 
 export default function AppShell({ children }: { children: ReactNode }) {
-  const { user, isAuthenticated } = useAuth();
+  const { user } = useAuth();
   const pathname = usePathname();
-
-  if (isAuthenticated === undefined) {
-    // While checking auth state, we can return null or a loader
-    // to prevent server-client mismatch.
-    return null;
-  }
 
   const isDashboardPage =
     pathname.startsWith('/admin') ||
