@@ -158,7 +158,7 @@ export const blogPosts: BlogPost[] = [
     slug: '5-essential-tax-tips-for-sa-freelancers',
     title: '5 Essential Tax Tips for South African Freelancers',
     excerpt:
-      'Navigating the world of tax as a freelancer can be daunting. Here are five essential tips to help you stay compliant and maximize your earnings.',
+      'Navigating the world of tax as a freelancer can be daunting. Here are five essential tips to help you stay compliant and a a freelancer can be daunting. Here are five essential tips to help you stay compliant and maximize your earnings.',
     content: `
       <p>Being a freelancer in South Africa offers incredible flexibility, but it also comes with the responsibility of managing your own taxes. Here are five tips to keep you on the right track:</p>
       <h3 class="font-headline text-xl font-semibold mt-4 mb-2">1. Register as a Provisional Taxpayer</h3>
@@ -243,3 +243,5 @@ export const orders: Order[] = [
         status: 'Processing',
     }
 ];
+
+    
