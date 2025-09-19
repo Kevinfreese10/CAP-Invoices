@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth, users } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -13,9 +13,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/componen
 import { Loader2 } from 'lucide-react';
 import { getFirestore, doc, setDoc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service } from '@/lib/types';
+import { Order, Service, User } from '@/lib/types';
 import { Checkbox } from '../ui/checkbox';
-import { Label } from '../ui/label';
 import { Separator } from '../ui/separator';
 
 const db = getFirestore(firebaseApp);
@@ -31,6 +30,24 @@ const formSchema = z.object({
     message: 'You must agree to the no-refund policy.',
   }),
 });
+
+// Simple round-robin counter for staff assignment
+let staffCounters: { [key: string]: number } = {};
+
+const getNextStaffMember = (department: 'Accounting and Tax' | 'Administration'): User | undefined => {
+    const staffInDept = users.filter(u => u.role === 'staff' && u.department === department);
+    if (staffInDept.length === 0) return undefined;
+
+    if (!staffCounters[department]) {
+        staffCounters[department] = 0;
+    }
+
+    const staffMember = staffInDept[staffCounters[department]];
+    staffCounters[department] = (staffCounters[department] + 1) % staffInDept.length;
+    
+    return staffMember;
+};
+
 
 export default function ServiceCheckoutForm({ service }: { service: Service }) {
   const router = useRouter();
@@ -74,6 +91,12 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
     const orderId = `ORD-${Date.now().toString().slice(-6)}`;
     
     try {
+      const department = service.department as 'Accounting and Tax' | 'Administration' | undefined;
+      let assignedStaff: User | undefined;
+      if (department) {
+        assignedStaff = getNextStaffMember(department);
+      }
+
       const orderData: Order = {
         id: orderId,
         customerName: values.name,
@@ -87,6 +110,8 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
         total: service.price,
         status: 'Pending Payment',
         date: Timestamp.now(),
+        department: department,
+        assignedTo: assignedStaff?.id,
       };
 
       if (user) {

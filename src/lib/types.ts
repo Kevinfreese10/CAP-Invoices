@@ -7,6 +7,7 @@ export type Service = {
   imageUrl: string;
   imageHint: string;
   category: string;
+  department?: string;
   whatsIncluded: string[];
   turnaroundTime: string;
   clientRequirements: string[];
@@ -60,6 +61,8 @@ export type Order = {
   items: any[];
   total: number;
   status: 'Pending Payment' | 'Processing' | 'Completed' | 'Cancelled';
+  assignedTo?: string;
+  department?: string;
 };
 
 export type User = {
@@ -67,4 +70,5 @@ export type User = {
   name: string;
   email: string;
   role: 'client' | 'admin' | 'staff';
+  department?: 'Accounting and Tax' | 'Administration';
 };

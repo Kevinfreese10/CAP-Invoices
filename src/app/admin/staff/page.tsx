@@ -16,16 +16,19 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { User } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const initialStaff: User[] = [
-    { id: '3', name: 'Staff Member', email: 'staff@test.com', role: 'staff' },
+    { id: '3', name: 'Staff Member', email: 'staff@test.com', role: 'staff', department: 'Accounting and Tax' },
 ];
+
+const departments = ['Accounting and Tax', 'Administration'] as const;
 
 const formSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(2, 'Name is required.'),
   email: z.string().email('A valid email is required.'),
+  department: z.enum(departments),
 });
 
 function StaffForm({ staffMember, onSubmit, onCancel }: { staffMember: User | null, onSubmit: (data: any) => void, onCancel: () => void }) {
@@ -35,6 +38,7 @@ function StaffForm({ staffMember, onSubmit, onCancel }: { staffMember: User | nu
             id: staffMember?.id || '',
             name: staffMember?.name || '',
             email: staffMember?.email || '',
+            department: staffMember?.department || 'Administration',
         },
     });
 
@@ -64,6 +68,24 @@ function StaffForm({ staffMember, onSubmit, onCancel }: { staffMember: User | nu
                             <FormLabel>Email Address</FormLabel>
                             <FormControl><Input {...field} /></FormControl>
                             <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                 <FormField
+                    control={form.control}
+                    name="department"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Department</FormLabel>
+                         <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                                <SelectTrigger><SelectValue placeholder="Select a department" /></SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                {departments.map(dep => <SelectItem key={dep} value={dep}>{dep}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
                         </FormItem>
                     )}
                 />
@@ -161,6 +183,7 @@ export default function AdminStaffPage() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Department</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -178,6 +201,7 @@ export default function AdminStaffPage() {
                     </div>
                   </TableCell>
                   <TableCell>{staffMember.email}</TableCell>
+                  <TableCell>{staffMember.department}</TableCell>
                   <TableCell className="capitalize">
                     <span className="bg-secondary text-secondary-foreground px-2 py-1 text-xs rounded-full">
                         {staffMember.role}

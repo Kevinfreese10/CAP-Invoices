@@ -16,6 +16,8 @@ import { Separator } from '../ui/separator';
 import { Checkbox } from '../ui/checkbox';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
+const departments = ['Accounting and Tax', 'Administration'] as const;
+
 const formSchema = z.object({
   id: z.string().optional(),
   title: z.string().min(3, 'Title is required.'),
@@ -25,6 +27,7 @@ const formSchema = z.object({
   imageUrl: z.string().url('Must be a valid URL.'),
   imageHint: z.string().min(1, 'Image hint is required.'),
   category: z.string().min(1, 'Category is required.'),
+  department: z.enum(departments),
   turnaroundTime: z.string().min(1, 'Turnaround time is required.'),
   whatsIncluded: z.array(z.object({ value: z.string().min(1, 'This field cannot be empty.') })),
   clientRequirements: z.array(z.object({ value: z.string().min(1, 'This field cannot be empty.') })),
@@ -76,6 +79,7 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
       imageUrl: service?.imageUrl || 'https://picsum.photos/seed/new/600/400',
       imageHint: service?.imageHint || 'abstract',
       category: service?.category || '',
+      department: service?.department || 'Administration',
       turnaroundTime: service?.turnaroundTime || '',
       whatsIncluded: service?.whatsIncluded.map(v => ({ value: v })) || [{ value: '' }],
       clientRequirements: service?.clientRequirements.map(v => ({ value: v })) || [{ value: '' }],
@@ -234,6 +238,24 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
             )}
             />
         </div>
+         <FormField
+            control={form.control}
+            name="department"
+            render={({ field }) => (
+                <FormItem>
+                <FormLabel>Responsible Department</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                        <SelectTrigger><SelectValue placeholder="Select a department" /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                        {departments.map(dep => <SelectItem key={dep} value={dep}>{dep}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+                <FormMessage />
+                </FormItem>
+            )}
+        />
         <FormField
           control={form.control}
           name="description"
@@ -508,5 +530,3 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
     </Form>
   );
 }
-
-    

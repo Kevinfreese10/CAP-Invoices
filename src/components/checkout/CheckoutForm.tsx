@@ -14,7 +14,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 import { getFirestore, doc, setDoc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order } from '@/lib/types';
+import { Order, User, Service } from '@/lib/types';
+import { users } from '@/contexts/AuthContext';
 
 const db = getFirestore(firebaseApp);
 
@@ -23,6 +24,24 @@ const formSchema = z.object({
   email: z.string().email('Invalid email address.'),
   phone: z.string().min(10, 'A valid phone number is required.'),
 });
+
+// Simple round-robin counter for staff assignment
+let staffCounters: { [key: string]: number } = {};
+
+const getNextStaffMember = (department: 'Accounting and Tax' | 'Administration'): User | undefined => {
+    const staffInDept = users.filter(u => u.role === 'staff' && u.department === department);
+    if (staffInDept.length === 0) return undefined;
+
+    if (!staffCounters[department]) {
+        staffCounters[department] = 0;
+    }
+
+    const staffMember = staffInDept[staffCounters[department]];
+    staffCounters[department] = (staffCounters[department] + 1) % staffInDept.length;
+    
+    return staffMember;
+};
+
 
 export default function CheckoutForm() {
   const router = useRouter();
@@ -50,6 +69,13 @@ export default function CheckoutForm() {
     const orderId = `ORD-${Date.now().toString().slice(-6)}`;
     
     try {
+      const firstService = cartItems[0]?.service;
+      const department = firstService?.department as 'Accounting and Tax' | 'Administration' | undefined;
+      let assignedStaff: User | undefined;
+      if (department) {
+        assignedStaff = getNextStaffMember(department);
+      }
+      
       const orderData: Order = {
         id: orderId,
         customerName: values.name,
@@ -63,6 +89,8 @@ export default function CheckoutForm() {
         total: cartTotal,
         status: 'Pending Payment',
         date: Timestamp.now(),
+        department: department,
+        assignedTo: assignedStaff?.id,
       };
 
       if (user) {

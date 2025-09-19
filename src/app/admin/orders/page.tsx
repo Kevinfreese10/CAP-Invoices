@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { getFirestore, collection, getDocs, orderBy, query, doc, updateDoc } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order } from '@/lib/types';
+import { Order, User } from '@/lib/types';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Table,
   TableBody,
@@ -27,6 +28,14 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
+import { users as allUsers } from '@/contexts/AuthContext';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 const db = getFirestore(firebaseApp);
 
@@ -34,13 +43,21 @@ export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
     const fetchOrders = async () => {
       setIsLoading(true);
       try {
         const ordersRef = collection(db, 'orders');
-        const q = query(ordersRef, orderBy('date', 'desc'));
+        let q;
+
+        if (user?.role === 'staff') {
+          q = query(ordersRef, where('assignedTo', '==', user.id), orderBy('date', 'desc'));
+        } else {
+          q = query(ordersRef, orderBy('date', 'desc'));
+        }
+
         const querySnapshot = await getDocs(q);
         const allOrders = querySnapshot.docs.map(doc => {
           const data = doc.data();
@@ -57,8 +74,11 @@ export default function AdminOrdersPage() {
         setIsLoading(false);
       }
     };
-    fetchOrders();
-  }, []);
+
+    if (user) {
+        fetchOrders();
+    }
+  }, [user]);
 
   const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
     try {
@@ -87,6 +107,11 @@ export default function AdminOrdersPage() {
     }
   };
 
+  const getAssignee = (userId?: string): User | undefined => {
+    if (!userId) return undefined;
+    return allUsers.find(u => u.id === userId);
+  }
+
 
   return (
     <div className="space-y-8">
@@ -102,7 +127,9 @@ export default function AdminOrdersPage() {
       <Card>
         <CardHeader>
           <CardTitle>All Client Orders</CardTitle>
-          <CardDescription>View and manage all orders in the system.</CardDescription>
+          <CardDescription>
+            {user?.role === 'staff' ? 'Showing all orders assigned to you.' : 'View and manage all orders in the system.'}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -116,17 +143,39 @@ export default function AdminOrdersPage() {
                   <TableHead>Order ID</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Customer</TableHead>
+                  <TableHead>Assigned To</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {orders.map((order) => (
+                {orders.map((order) => {
+                  const assignee = getAssignee(order.assignedTo);
+                  return (
                   <TableRow key={order.id}>
                     <TableCell className="font-medium">{order.id}</TableCell>
                     <TableCell>{format(new Date(order.date), 'dd MMM yyyy')}</TableCell>
                     <TableCell>{order.customerName}</TableCell>
+                    <TableCell>
+                      {assignee ? (
+                         <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Avatar className="h-8 w-8">
+                                <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${assignee.email}`} alt={assignee.name} />
+                                <AvatarFallback>{assignee.name.charAt(0)}</AvatarFallback>
+                              </Avatar>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{assignee.name}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : (
+                        <span className="text-muted-foreground">N/A</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Badge variant={order.status === 'Completed' ? 'default' : 'secondary'}>
                         {order.status}
@@ -144,7 +193,10 @@ export default function AdminOrdersPage() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
                           <DropdownMenuItem asChild>
-                            <Link href={`/dashboard/orders/${order.id}`}>View Order</Link>
+                            <Link href={`/dashboard/orders/${order.id}`}>View as Client</Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <Link href={`/admin/orders/${order.id}`}>Review Documents</Link>
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                            <DropdownMenuItem
@@ -176,7 +228,7 @@ export default function AdminOrdersPage() {
                       </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                ))}
+                )})}
               </TableBody>
             </Table>
           )}

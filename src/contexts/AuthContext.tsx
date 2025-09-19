@@ -4,10 +4,10 @@ import type { User } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 
 // Mock users for demonstration
-const users: User[] = [
+export const users: User[] = [
   { id: '1', name: 'John Doe', email: 'client@test.com', role: 'client' },
   { id: '2', name: 'Jane Admin', email: 'admin@test.com', role: 'admin' },
-  { id: '3', name: 'Staff Member', email: 'staff@test.com', role: 'staff' },
+  { id: '3', name: 'Staff Member', email: 'staff@test.com', role: 'staff', department: 'Accounting and Tax' },
 ];
 
 interface AuthContextType {
@@ -54,7 +54,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       updateUserState(foundUser);
       return foundUser;
     }
-    const newUser: User = { id: '4', name: 'New Client', email, role: 'client'};
+    // For this demo, non-staff/admin emails will create/login as a client
+    const newUser: User = { id: Date.now().toString(), name: 'New Client', email, role: 'client'};
     updateUserState(newUser);
     return newUser;
   };
