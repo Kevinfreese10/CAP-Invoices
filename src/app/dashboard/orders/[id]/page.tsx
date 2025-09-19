@@ -14,7 +14,7 @@ import { Separator } from '@/components/ui/separator';
 import ServiceDocumentUpload from '@/components/dashboard/ServiceDocumentUpload';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, User as UserIcon } from 'lucide-react';
+import { ArrowLeft, Loader2, User as UserIcon, Mail, Phone } from 'lucide-react';
 import { format } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
@@ -149,14 +149,27 @@ export default function OrderDetailsPage() {
                            <UserIcon className="h-5 w-5 text-muted-foreground"/>
                            <CardTitle className="text-lg">Assigned Consultant</CardTitle>
                         </CardHeader>
-                        <CardContent className="flex items-center gap-4">
-                            <Avatar className="h-12 w-12">
-                                <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${assignee.email}`} alt={assignee.name} />
-                                <AvatarFallback>{assignee.name.charAt(0)}</AvatarFallback>
-                            </Avatar>
-                            <div>
-                                <p className="font-semibold">{assignee.name}</p>
-                                <p className="text-sm text-muted-foreground">{assignee.department}</p>
+                        <CardContent className="space-y-4">
+                            <div className="flex items-center gap-4">
+                                <Avatar className="h-12 w-12">
+                                    <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${assignee.email}`} alt={assignee.name} />
+                                    <AvatarFallback>{assignee.name.charAt(0)}</AvatarFallback>
+                                </Avatar>
+                                <div>
+                                    <p className="font-semibold">{assignee.name}</p>
+                                    <p className="text-sm text-muted-foreground">{assignee.department}</p>
+                                </div>
+                            </div>
+                            <Separator />
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-2 text-sm">
+                                    <Mail className="h-4 w-4 text-muted-foreground" />
+                                    <a href={`mailto:${assignee.email}`} className="text-primary hover:underline">{assignee.email}</a>
+                                </div>
+                                <div className="flex items-center gap-2 text-sm">
+                                    <Phone className="h-4 w-4 text-muted-foreground" />
+                                    <span>010 109 1625</span>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
