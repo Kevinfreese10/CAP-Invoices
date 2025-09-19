@@ -23,7 +23,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
      );
   }
 
-  if (isAuthenticated && user?.role !== 'admin') {
+  if (isAuthenticated && user?.role === 'client') {
     router.push('/dashboard');
     return null;
   }

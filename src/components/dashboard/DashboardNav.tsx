@@ -35,16 +35,19 @@ export default function DashboardNav({ user }: { user: UserType }) {
   };
 
   const navItems = [
-    { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
-    { href: '/dashboard/orders', label: 'My Orders', icon: FileText },
-    { href: '/dashboard/profile', label: 'My Profile', icon: User },
+    { href: '/dashboard', label: 'Overview', icon: LayoutDashboard, roles: ['client'] },
+    { href: '/dashboard/orders', label: 'My Orders', icon: FileText, roles: ['client'] },
+    { href: '/dashboard/profile', label: 'My Profile', icon: User, roles: ['client', 'staff'] },
   ];
 
   const adminNavItems = [
-    { href: '/admin/orders', label: 'Manage Orders', icon: ShieldCheck },
-    { href: '/admin/services', label: 'Manage Services', icon: Briefcase },
-    { href: '/admin/categories', label: 'Manage Categories', icon: Shapes },
+    { href: '/admin/orders', label: 'Manage Orders', icon: ShieldCheck, roles: ['admin', 'staff'] },
+    { href: '/admin/services', label: 'Manage Services', icon: Briefcase, roles: ['admin'] },
+    { href: '/admin/categories', label: 'Manage Categories', icon: Shapes, roles: ['admin'] },
   ];
+
+  const visibleNavItems = navItems.filter(item => item.roles.includes(user.role));
+  const visibleAdminNavItems = adminNavItems.filter(item => item.roles.includes(user.role));
 
   return (
     <>
@@ -62,7 +65,18 @@ export default function DashboardNav({ user }: { user: UserType }) {
       </SidebarHeader>
 
       <SidebarMenu className="flex-1">
-        {navItems.map((item) => (
+        {user.role === 'admin' && (
+           <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === '/dashboard'} tooltip={'Admin Overview'}>
+                    <Link href="/dashboard">
+                        <LayoutDashboard />
+                        <span>Admin Overview</span>
+                    </Link>
+                </SidebarMenuButton>
+            </SidebarMenuItem>
+        )}
+
+        {visibleNavItems.map((item) => (
           <SidebarMenuItem key={item.href}>
             <SidebarMenuButton
               asChild
@@ -76,10 +90,11 @@ export default function DashboardNav({ user }: { user: UserType }) {
             </SidebarMenuButton>
           </SidebarMenuItem>
         ))}
-        {user.role === 'admin' && (
+        
+        {(user.role === 'admin' || user.role === 'staff') && visibleAdminNavItems.length > 0 && (
             <>
                 <SidebarSeparator />
-                {adminNavItems.map((item) => (
+                {visibleAdminNavItems.map((item) => (
                     <SidebarMenuItem key={item.href}>
                         <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
                             <Link href={item.href}>

@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 const users: User[] = [
   { id: '1', name: 'John Doe', email: 'client@test.com', role: 'client' },
   { id: '2', name: 'Jane Admin', email: 'admin@test.com', role: 'admin' },
+  { id: '3', name: 'Staff Member', email: 'staff@test.com', role: 'staff' },
 ];
 
 interface AuthContextType {
@@ -53,7 +54,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       updateUserState(foundUser);
       return foundUser;
     }
-    const newUser: User = { id: '3', name: 'New Client', email, role: 'client'};
+    const newUser: User = { id: '4', name: 'New Client', email, role: 'client'};
     updateUserState(newUser);
     return newUser;
   };

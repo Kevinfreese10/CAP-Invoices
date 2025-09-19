@@ -9,13 +9,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const pathname = usePathname();
 
-  const isAdminSection = user?.role === 'admin';
+  const isNonClientSection = user?.role === 'admin' || user?.role === 'staff';
 
   return (
     <div className="flex min-h-screen flex-col">
-      {!isAdminSection && <Header />}
+      {!isNonClientSection && <Header />}
       <main className="flex-grow bg-background">{children}</main>
-      {!isAdminSection && <Footer />}
+      {!isNonClientSection && <Footer />}
     </div>
   );
 }
