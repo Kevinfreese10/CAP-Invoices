@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Separator } from '../ui/separator';
 import { useAuth } from '@/contexts/AuthContext';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../ui/alert-dialog';
+import { Textarea } from '../ui/textarea';
 
 const formSchema = z.object({
   // We will build the schema dynamically
@@ -218,7 +219,7 @@ export default function ServiceDocumentUpload({ service, orderId }: { service: S
                                 <ThumbsUp className="mr-2 h-4 w-4" /> Approve
                             </Button>
                             <AlertDialogTrigger asChild>
-                                <Button variant="destructive" size="sm" onClick={() => handleStatusChange('declined')} disabled={status === 'declined'}>
+                                <Button variant="destructive" size="sm" disabled={status === 'declined'}>
                                     <ThumbsDown className="mr-2 h-4 w-4" /> Decline
                                 </Button>
                             </AlertDialogTrigger>
