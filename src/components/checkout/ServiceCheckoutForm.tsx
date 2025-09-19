@@ -41,8 +41,8 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: user?.name || '',
-      email: user?.email || '',
+      name: '',
+      email: '',
       phone: '',
       agreePrereqs: false,
       agreeRefund: false,
