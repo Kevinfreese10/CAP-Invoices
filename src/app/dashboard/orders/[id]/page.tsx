@@ -9,12 +9,12 @@ import { Order, Service, User } from '@/lib/types';
 import { services } from '@/lib/data';
 import { users } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import ServiceDocumentUpload from '@/components/dashboard/ServiceDocumentUpload';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, User as UserIcon, Mail, Phone } from 'lucide-react';
+import { ArrowLeft, Loader2, User as UserIcon, Mail, Phone, MessageSquare } from 'lucide-react';
 import { format } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
@@ -172,6 +172,14 @@ export default function OrderDetailsPage() {
                                 </div>
                             </div>
                         </CardContent>
+                        <CardFooter>
+                           <Button asChild className="w-full">
+                                <a href={`mailto:${assignee.email}?subject=Regarding Order #${order.id}`}>
+                                    <MessageSquare className="mr-2 h-4 w-4" />
+                                    Contact my consultant
+                                </a>
+                            </Button>
+                        </CardFooter>
                     </Card>
                  )}
             </div>
