@@ -8,6 +8,33 @@ export const users: User[] = [
   { id: '1', name: 'John Doe', email: 'client@test.com', role: 'client' },
   { id: '2', name: 'Jane Admin', email: 'admin@test.com', role: 'admin' },
   { id: '3', name: 'Staff Member', email: 'staff@test.com', role: 'staff', department: 'Accounting and Tax' },
+  { 
+    id: '4', 
+    name: 'Reseller Pro', 
+    email: 'reseller@test.com', 
+    role: 'reseller',
+    companyName: 'Reseller Pro (Pty) Ltd',
+    contactPerson: 'Alex King',
+    contactNumber: '0721234567',
+    address: {
+        street: '123 Reseller Road',
+        city: 'Johannesburg',
+        province: 'Gauteng',
+        zip: '2196',
+    },
+    bankingDetails: {
+        bankName: 'Capitec',
+        accountHolder: 'Reseller Pro (Pty) Ltd',
+        accountNumber: '1234567890',
+        branchCode: '470010',
+    },
+    smtpDetails: {
+        host: 'smtp.reseller.com',
+        port: '587',
+        user: 'user@reseller.com',
+        pass: 'password123',
+    }
+  },
 ];
 
 interface AuthContextType {

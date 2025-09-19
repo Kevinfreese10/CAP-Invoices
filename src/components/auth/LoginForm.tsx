@@ -9,6 +9,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { User } from '@/lib/types';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email.' }),
@@ -28,11 +29,27 @@ export default function LoginForm() {
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     const user = login(values.email);
+    if (!user) {
+        toast({
+            title: 'Login Failed',
+            description: 'No user found with that email address.',
+            variant: 'destructive',
+        });
+        return;
+    }
+    
     toast({
       title: 'Logged in successfully',
       description: `Welcome back, ${user?.name}! Redirecting...`,
     });
-    router.push('/dashboard');
+    
+    if (user.role === 'admin' || user.role === 'staff') {
+        router.push('/admin/dashboard');
+    } else if (user.role === 'reseller') {
+        router.push('/reseller/dashboard');
+    } else {
+        router.push('/dashboard');
+    }
   }
 
   return (

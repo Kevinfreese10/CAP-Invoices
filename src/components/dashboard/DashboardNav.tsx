@@ -13,6 +13,7 @@ import {
   Users,
   ClipboardCheck,
   BookUser,
+  Settings,
 } from 'lucide-react';
 
 import {
@@ -54,8 +55,16 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/staff', label: 'Manage Staff', icon: Users, roles: ['admin'] },
   ];
 
+  const resellerNavItems = [
+    { href: '/reseller/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['reseller'] },
+    { href: '/reseller/orders', label: 'Manage Orders', icon: ShieldCheck, roles: ['reseller'] },
+    { href: '/reseller/profile', label: 'My Profile', icon: User, roles: ['reseller'] },
+    { href: '/reseller/settings', label: 'API & Branding', icon: Settings, roles: ['reseller'] },
+  ];
+
   const visibleNavItems = navItems.filter(item => item.roles.includes(user.role));
   const visibleAdminNavItems = adminNavItems.filter(item => item.roles.includes(user.role));
+  const visibleResellerNavItems = resellerNavItems.filter(item => item.roles.includes(user.role));
 
   return (
     <>
@@ -66,7 +75,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
                 <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
             </Avatar>
             <div className="flex flex-col overflow-hidden">
-                <span className="font-semibold text-sm truncate">{user.name}</span>
+                <span className="font-semibold text-sm truncate">{user.companyName || user.name}</span>
                 <span className="text-xs text-muted-foreground capitalize truncate">{user.role}</span>
             </div>
         </div>
@@ -91,6 +100,21 @@ export default function DashboardNav({ user }: { user: UserType }) {
         {(user.role === 'admin' || user.role === 'staff') && (
             <>
                 {visibleAdminNavItems.map((item) => (
+                    <SidebarMenuItem key={item.href}>
+                        <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
+                            <Link href={item.href}>
+                                <item.icon />
+                                <span>{item.label}</span>
+                            </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                ))}
+            </>
+        )}
+
+        {user.role === 'reseller' && (
+            <>
+                {visibleResellerNavItems.map((item) => (
                     <SidebarMenuItem key={item.href}>
                         <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
                             <Link href={item.href}>

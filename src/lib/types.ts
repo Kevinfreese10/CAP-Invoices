@@ -1,6 +1,4 @@
 
-
-
 export type Service = {
   id: string;
   title: string;
@@ -58,6 +56,7 @@ export type CartItem = {
 export type Order = {
   id: string;
   userId?: string;
+  resellerId?: string;
   customerName: string;
   customerEmail: string;
   date: any;
@@ -72,9 +71,31 @@ export type User = {
   id: string;
   name: string;
   email: string;
-  role: 'client' | 'admin' | 'staff';
+  role: 'client' | 'admin' | 'staff' | 'reseller';
   department?: 'Accounting and Tax' | 'Administration';
   status?: 'Active' | 'Inactive';
+  // Reseller specific fields
+  companyName?: string;
+  contactPerson?: string;
+  contactNumber?: string;
+  address?: {
+    street: string;
+    city: string;
+    province: string;
+    zip: string;
+  },
+  bankingDetails?: {
+    bankName: string;
+    accountHolder: string;
+    accountNumber: string;
+    branchCode: string;
+  },
+  smtpDetails?: {
+    host: string;
+    port: string;
+    user: string;
+    pass: string;
+  }
 };
 
 export type TaskUpdate = {
