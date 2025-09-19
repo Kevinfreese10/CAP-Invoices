@@ -19,12 +19,12 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 
-type Client = User & { status: 'Active' | 'Inactive'; cellNumber?: string };
+type Client = User & { status: 'Active' | 'Inactive'; cellNumber?: string; contactPerson?: string; };
 
 const initialClients: Client[] = [
-    { id: 'client-1', name: 'Innovate Inc.', email: 'contact@innovate.com', role: 'client', status: 'Active', cellNumber: '0821112222' },
-    { id: 'client-2', name: 'Quantum Leap Corp', email: 'hello@quantum.co.za', role: 'client', status: 'Active', cellNumber: '0833334444' },
-    { id: 'client-3', name: 'Apex Solutions', email: 'support@apex.com', role: 'client', status: 'Inactive', cellNumber: '0845556666' },
+    { id: 'client-1', name: 'Innovate Inc.', email: 'contact@innovate.com', role: 'client', status: 'Active', cellNumber: '0821112222', contactPerson: 'Sarah Jones' },
+    { id: 'client-2', name: 'Quantum Leap Corp', email: 'hello@quantum.co.za', role: 'client', status: 'Active', cellNumber: '0833334444', contactPerson: 'Mike Brown' },
+    { id: 'client-3', name: 'Apex Solutions', email: 'support@apex.com', role: 'client', status: 'Inactive', cellNumber: '0845556666', contactPerson: 'Lisa Ray' },
     { id: '1', name: 'John Doe', email: 'client@test.com', role: 'client', status: 'Active', cellNumber: '0817778888' },
 ];
 
@@ -33,6 +33,7 @@ const clientStatuses: Client['status'][] = ['Active', 'Inactive'];
 const formSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(2, 'Name is required.'),
+  contactPerson: z.string().optional(),
   email: z.string().email('A valid email is required.'),
   cellNumber: z.string().optional(),
   status: z.enum(clientStatuses),
@@ -44,6 +45,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
         defaultValues: {
             id: client?.id || '',
             name: client?.name || '',
+            contactPerson: client?.contactPerson || '',
             email: client?.email || '',
             cellNumber: client?.cellNumber || '',
             status: client?.status || 'Active',
@@ -62,7 +64,18 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                     name="name"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Client Name</FormLabel>
+                            <FormLabel>Client / Company Name</FormLabel>
+                            <FormControl><Input {...field} /></FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                 <FormField
+                    control={form.control}
+                    name="contactPerson"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Contact Person Name (Optional)</FormLabel>
                             <FormControl><Input {...field} /></FormControl>
                             <FormMessage />
                         </FormItem>
@@ -200,7 +213,7 @@ export default function AdminClientsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
+                <TableHead>Client</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Cell Number</TableHead>
                 <TableHead>Status</TableHead>
@@ -216,7 +229,10 @@ export default function AdminClientsPage() {
                             <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${client.email}`} alt={client.name} />
                             <AvatarFallback>{client.name.charAt(0)}</AvatarFallback>
                         </Avatar>
-                        <span>{client.name}</span>
+                        <div>
+                            <span>{client.name}</span>
+                            {client.contactPerson && <p className="text-xs text-muted-foreground">{client.contactPerson}</p>}
+                        </div>
                     </div>
                   </TableCell>
                   <TableCell>{client.email}</TableCell>
@@ -274,3 +290,5 @@ export default function AdminClientsPage() {
     </div>
   );
 }
+
+    
