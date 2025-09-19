@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -5,23 +6,27 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Service } from '@/lib/types';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, Loader2, FileText, File as FileIcon, X } from 'lucide-react';
+import { Upload, Loader2, FileText, File as FileIcon, X, Check, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Separator } from '../ui/separator';
+import { useAuth } from '@/contexts/AuthContext';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../ui/alert-dialog';
 
 const formSchema = z.object({
   // We will build the schema dynamically
 });
 
 export default function ServiceDocumentUpload({ service, orderId }: { service: Service; orderId: string }) {
+  const { user } = useAuth();
   const { toast } = useToast();
   const [isUploading, setIsUploading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [status, setStatus] = useState<'pending' | 'approved' | 'declined'>('pending');
   const [conditionalValue, setConditionalValue] = useState(service.conditionalFields?.fieldValues[0] || '1');
 
   // Helper function to generate the schema and default values
@@ -82,6 +87,14 @@ export default function ServiceDocumentUpload({ service, orderId }: { service: S
     }, 2000);
   };
 
+  const handleStatusChange = (newStatus: 'approved' | 'declined') => {
+    setStatus(newStatus);
+    toast({
+        title: `Documents ${newStatus}`,
+        description: `The documents for "${service.title}" have been marked as ${newStatus}.`
+    })
+  }
+
   const renderField = (label: string, type: 'text' | 'file', fieldName: string) => {
     return (
       <FormField
@@ -105,7 +118,7 @@ export default function ServiceDocumentUpload({ service, orderId }: { service: S
     );
   };
   
-  if (submitted) {
+  if (user?.role === 'client' && submitted) {
     return (
         <Card className="bg-muted/40">
             <CardHeader>
@@ -128,7 +141,9 @@ export default function ServiceDocumentUpload({ service, orderId }: { service: S
     <Card>
       <CardHeader>
         <CardTitle>Required Information for: {service.title}</CardTitle>
-        <CardDescription>Please complete the form below to proceed with your order.</CardDescription>
+        <CardDescription>
+            {user?.role === 'client' ? 'Please complete the form below to proceed with your order.' : 'Review the information submitted by the client.'}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -176,14 +191,58 @@ export default function ServiceDocumentUpload({ service, orderId }: { service: S
                 ))}
               </div>
             )}
-
-            <Button type="submit" disabled={isUploading || !form.formState.isValid}>
-              {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-              {isUploading ? 'Submitting...' : 'Submit Information'}
-            </Button>
+            
+            {user?.role === 'client' && (
+                <Button type="submit" disabled={isUploading || !form.formState.isValid}>
+                {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                {isUploading ? 'Submitting...' : 'Submit Information'}
+                </Button>
+            )}
           </form>
         </Form>
       </CardContent>
+      {(user?.role === 'admin' || user?.role === 'staff') && (
+        <>
+            <Separator />
+            <CardFooter className="bg-muted/30 px-6 py-4">
+                <div className="flex w-full items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium">Admin Actions:</p>
+                        {status === 'approved' && <div className="flex items-center gap-2 text-green-600"><Check className="h-5 w-5" /><span className="text-sm font-semibold">Approved</span></div>}
+                        {status === 'declined' && <div className="flex items-center gap-2 text-red-600"><X className="h-5 w-5" /><span className="text-sm font-semibold">Declined</span></div>}
+                    </div>
+
+                    <AlertDialog>
+                        <div className="flex gap-2">
+                            <Button variant="outline" size="sm" onClick={() => handleStatusChange('approved')} disabled={status === 'approved'}>
+                                <ThumbsUp className="mr-2 h-4 w-4" /> Approve
+                            </Button>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="destructive" size="sm" onClick={() => handleStatusChange('declined')} disabled={status === 'declined'}>
+                                    <ThumbsDown className="mr-2 h-4 w-4" /> Decline
+                                </Button>
+                            </AlertDialogTrigger>
+                        </div>
+                         <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Are you sure you want to decline?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                This will notify the client that their submitted documents have been declined and require re-submission. Please provide a reason.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                             <Textarea placeholder="Enter reason for declining..." className="my-4" />
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleStatusChange('declined')}>
+                                    Confirm Decline
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </div>
+            </CardFooter>
+        </>
+      )}
     </Card>
   );
 }
