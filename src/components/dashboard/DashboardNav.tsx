@@ -12,6 +12,7 @@ import {
   Shapes,
   Users,
   ClipboardCheck,
+  BookUser,
 } from 'lucide-react';
 
 import {
@@ -47,6 +48,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
      { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'staff'] },
     { href: '/admin/orders', label: 'Manage Orders', icon: ShieldCheck, roles: ['admin', 'staff'] },
     { href: '/admin/tasks', label: 'Manage Tasks', icon: ClipboardCheck, roles: ['admin', 'staff'] },
+    { href: '/admin/clients', label: 'Manage Clients', icon: BookUser, roles: ['admin'] },
     { href: '/admin/services', label: 'Manage Services', icon: Briefcase, roles: ['admin'] },
     { href: '/admin/categories', label: 'Manage Categories', icon: Shapes, roles: ['admin'] },
     { href: '/admin/staff', label: 'Manage Staff', icon: Users, roles: ['admin'] },

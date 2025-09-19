@@ -1,5 +1,6 @@
 
 
+
 export type Service = {
   id: string;
   title: string;
@@ -73,6 +74,7 @@ export type User = {
   email: string;
   role: 'client' | 'admin' | 'staff';
   department?: 'Accounting and Tax' | 'Administration';
+  status?: 'Active' | 'Inactive';
 };
 
 export type TaskUpdate = {
