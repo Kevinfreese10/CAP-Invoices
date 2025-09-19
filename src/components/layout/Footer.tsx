@@ -1,3 +1,4 @@
+
 import Link from 'next/link';
 import { Facebook, Twitter, Linkedin, MapPin, Mail, Phone } from 'lucide-react';
 
@@ -53,6 +54,7 @@ const Footer = () => {
                     <li><Link href="/blog" className="text-muted-foreground hover:text-primary">Blog</Link></li>
                     <li><Link href="/support" className="text-muted-foreground hover:text-primary">Support</Link></li>
                     <li><Link href="/contact" className="text-muted-foreground hover:text-primary">Contact</Link></li>
+                    <li><Link href="/reseller-signup" className="text-muted-foreground hover:text-primary">Reseller Program</Link></li>
                 </ul>
             </div>
 
