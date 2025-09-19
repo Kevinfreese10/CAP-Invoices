@@ -9,7 +9,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import AddToCartButton from '@/components/cart/AddToCartButton';
 import { Button } from '@/components/ui/button';
 import { Clock } from 'lucide-react';
 
@@ -58,9 +57,8 @@ export default function ServicesPage() {
                   <CardContent className="flex-grow">
                     <p className="text-2xl font-bold">R {service.price.toFixed(2)}</p>
                   </CardContent>
-                  <CardFooter className="flex justify-between">
-                    <AddToCartButton service={service} />
-                    <Button variant="outline" asChild>
+                  <CardFooter>
+                    <Button variant="outline" asChild className="w-full">
                       <Link href={`/services/${service.id}`}>Learn More</Link>
                     </Button>
                   </CardFooter>
