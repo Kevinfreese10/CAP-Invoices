@@ -31,9 +31,9 @@ import { Separator } from '@/components/ui/separator';
 
 // Mock data
 const initialTasks: Task[] = [
-    { id: 'task-1', title: 'Follow up on ORD-001 documentation', description: 'Client needs to upload their ID copy.', assignedTo: '3', createdBy: '2', dueDate: new Date(), status: 'In Progress', orderId: 'ORD-001', updates: [] },
+    { id: 'task-1', title: 'Follow up on ORD-001 documentation', description: 'Client needs to upload their ID copy.', assignedTo: '3', createdBy: '2', dueDate: subDays(new Date(), 0), status: 'In Progress', orderId: 'ORD-001', updates: [] },
     { id: 'task-2', title: 'Prepare ORD-002 monthly reports', description: 'Generate and send the income statement and balance sheet.', assignedTo: '3', createdBy: '2', dueDate: subDays(new Date(), -3), status: 'To Do', updates: [] },
-    { id: 'task-3', title: 'Review new client onboarding', description: 'Check all new client details from last week.', assignedTo: '2', createdBy: '2', dueDate: new Date(), status: 'Completed', updates: [] },
+    { id: 'task-3', title: 'Review new client onboarding', description: 'Check all new client details from last week.', assignedTo: '2', createdBy: '2', dueDate: subDays(new Date(), 0), status: 'Completed', updates: [] },
 ];
 
 const allStaff = allUsers.filter(u => u.role === 'staff' || u.role === 'admin');
