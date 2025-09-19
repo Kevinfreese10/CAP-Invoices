@@ -59,13 +59,13 @@ export default function AdminOrdersPage() {
         let q;
 
         if (user?.role === 'staff') {
-          q = query(ordersRef, where('assignedTo', '==', user.id), orderBy('date', 'desc'));
+          q = query(ordersRef, where('assignedTo', '==', user.id), orderBy('assignedTo'));
         } else {
           q = query(ordersRef, orderBy('date', 'desc'));
         }
 
         const querySnapshot = await getDocs(q);
-        const allOrders = querySnapshot.docs.map(doc => {
+        let allOrders = querySnapshot.docs.map(doc => {
           const data = doc.data();
           return {
             ...data,
@@ -73,6 +73,12 @@ export default function AdminOrdersPage() {
             date: data.date.toDate(),
           } as Order;
         });
+
+        // For staff, sort by date client-side
+        if (user?.role === 'staff') {
+          allOrders.sort((a, b) => b.date.getTime() - a.date.getTime());
+        }
+        
         setOrders(allOrders);
       } catch (error) {
         console.error("Error fetching orders: ", error);
