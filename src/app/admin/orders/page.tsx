@@ -232,10 +232,7 @@ export default function AdminOrdersPage() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
                           <DropdownMenuItem asChild>
-                            <Link href={`/dashboard/orders/${order.id}`}>View as Client</Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem asChild>
-                            <Link href={`/admin/orders/${order.id}`}>Review Documents</Link>
+                            <Link href={`/admin/orders/${order.id}`}>View Order</Link>
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           {user?.role === 'admin' && (
