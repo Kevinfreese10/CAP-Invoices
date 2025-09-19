@@ -12,6 +12,7 @@ import { users as allUsers } from '@/contexts/AuthContext';
 import { subDays } from 'date-fns';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { PlusCircle } from 'lucide-react';
 
 // Using the same mock data as the main tasks page for consistency
 const initialTasks: Task[] = [
@@ -117,7 +118,15 @@ export default function AdminDashboardPage() {
 
     return (
         <div className="space-y-8">
-            <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.name}!</h1>
+            <div className="flex items-center justify-between">
+                <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.name}!</h1>
+                <Button asChild>
+                    <Link href="/admin/tasks">
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Create Task
+                    </Link>
+                </Button>
+            </div>
             
             <div className="space-y-8">
                 <TaskTable tasks={myTasks} title="My Tasks" description="These are tasks that are assigned to you."/>
