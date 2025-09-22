@@ -1,4 +1,5 @@
 
+
 export type Service = {
   id: string;
   title: string;
@@ -20,6 +21,7 @@ export type Service = {
   conditionalFields?: {
     enabled: boolean;
     fieldName: string;
+
     fieldValues: string[];
     duplicatedDocuments: {
       label: string;
@@ -63,6 +65,7 @@ export type Order = {
   date: any;
   items: any[];
   total: number;
+  clientTotal?: number;
   status: 'Pending Payment' | 'Processing' | 'Completed' | 'Cancelled';
   assignedTo?: string | null;
   department?: string;

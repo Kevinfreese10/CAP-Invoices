@@ -1,4 +1,5 @@
 
+
 import { notFound } from 'next/navigation';
 import { services } from '@/lib/data';
 import { Badge } from '@/components/ui/badge';
@@ -6,6 +7,15 @@ import { Check, Clock, ClipboardCheck } from 'lucide-react';
 import { Service } from '@/lib/types';
 import ClientServiceCheckoutForm from '@/components/checkout/ClientServiceCheckoutForm';
 import { Separator } from '@/components/ui/separator';
+
+const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
+      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(price);
+};
 
 export default function ServiceDetailPage({ params }: { params: { id: string } }) {
   const service = services.find(s => s.id === params.id) as Service;
@@ -21,7 +31,7 @@ export default function ServiceDetailPage({ params }: { params: { id: string } }
           <div className="space-y-3">
             <Badge variant="secondary" className="w-fit">{service.category}</Badge>
             <h1 className="text-3xl md:text-4xl font-bold tracking-tight">{service.title}</h1>
-             <p className="text-3xl font-bold text-primary">R {service.price.toFixed(2)}</p>
+             <p className="text-3xl font-bold text-primary">{formatPrice(service.price)}</p>
             <div className="flex items-center text-muted-foreground">
                 <Clock className="h-4 w-4 mr-1.5" />
                 <span className="text-sm font-medium">{service.turnaroundTime}</span>

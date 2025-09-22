@@ -48,6 +48,15 @@ const getNextStaffMember = (department: 'Accounting and Tax' | 'Administration')
     return staffMember;
 };
 
+const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
+      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(price);
+};
+
 
 export default function ServiceCheckoutForm({ service }: { service: Service }) {
   const router = useRouter();
@@ -230,7 +239,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
             <CardFooter className="flex flex-col items-start gap-4">
                 <div className="flex justify-between items-center w-full">
                     <span className="text-muted-foreground">Total:</span>
-                    <p className="text-2xl font-bold">R {service.price.toFixed(2)}</p>
+                    <p className="text-2xl font-bold">{formatPrice(service.price)}</p>
                 </div>
                 <Button type="submit" className="w-full" size="lg" disabled={isLoading || !form.formState.isValid}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

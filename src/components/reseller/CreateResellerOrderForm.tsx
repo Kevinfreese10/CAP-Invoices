@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -30,7 +31,11 @@ const lineItemSchema = z.object({
   quantity: z.preprocess(val => Number(val), z.number().min(1, 'Quantity must be at least 1.')),
   resellerPrice: z.preprocess(val => Number(val), z.number().min(0, 'Price cannot be negative.')),
   clientPrice: z.preprocess(val => Number(val), z.number().min(0, 'Client price cannot be negative.')),
-}).refine(data => data.clientPrice >= data.resellerPrice, {
+}).refine(data => {
+    if (data.isCustom) return true;
+    if (data.serviceId) return data.clientPrice >= data.resellerPrice;
+    return true;
+}, {
   message: "Your selling price cannot be less than the outsourcing cost.",
   path: ["clientPrice"],
 });
@@ -103,41 +108,13 @@ export default function CreateResellerOrderForm() {
     return (clientPrice - resellerPrice) * quantity;
   }
 
-  const generateEmailHtml = (values: CreateOrderFormValues, orderId: string) => {
-    const clientTotal = values.items.reduce((acc, item) => acc + (item.clientPrice * item.quantity), 0);
-    return `
-      <h1>Your Order #${orderId} has been confirmed!</h1>
-      <p>Hi ${values.customerName},</p>
-      <p>Thank you for your order. Please see the details below:</p>
-      <table border="1" cellpadding="5" cellspacing="0">
-        <thead>
-          <tr>
-            <th>Service</th>
-            <th>Quantity</th>
-            <th>Price</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${values.items.map(item => `
-            <tr>
-              <td>${item.description}</td>
-              <td>${item.quantity}</td>
-              <td>R ${item.clientPrice.toFixed(2)}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-      <h2>Total: R ${clientTotal.toFixed(2)}</h2>
-      <p>Please make an EFT payment to the following account to complete your order:</p>
-      <p>
-        <strong>Bank:</strong> ${reseller?.bankingDetails?.bankName}<br>
-        <strong>Account Holder:</strong> ${reseller?.bankingDetails?.accountHolder}<br>
-        <strong>Account Number:</strong> ${reseller?.bankingDetails?.accountNumber}<br>
-        <strong>Branch Code:</strong> ${reseller?.bankingDetails?.branchCode}<br>
-        <strong>Reference:</strong> ${orderId}
-      </p>
-      <p>Regards,<br>${reseller?.companyName}</p>
-    `;
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
+      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(price);
   };
 
 
@@ -152,10 +129,11 @@ export default function CreateResellerOrderForm() {
       description: 'Please wait while we generate the new order.',
     });
 
-    const orderId = `ORD-${Date.now().toString().slice(-6)}`;
+    const orderId = `RES-${Date.now().toString().slice(-6)}`;
     
     try {
       const resellerTotalCost = values.items.reduce((acc, item) => acc + (item.resellerPrice * item.quantity), 0);
+      const clientTotal = values.items.reduce((acc, item) => acc + (item.clientPrice * item.quantity), 0);
 
       const orderData: Order = {
         id: orderId,
@@ -166,24 +144,26 @@ export default function CreateResellerOrderForm() {
             id: item.serviceId || item.description.toLowerCase().replace(/\s/g, '-'),
             title: item.description, 
             price: item.resellerPrice, // The price the reseller pays
+            clientPrice: item.clientPrice, // The price the client pays
             quantity: item.quantity
         })),
         total: resellerTotalCost, // The total cost for the reseller
+        clientTotal: clientTotal,
         status: 'Pending Payment',
         date: Timestamp.now(),
       };
 
       await setDoc(doc(db, 'orders', orderId), orderData);
 
-      // // Send email to client
-      // if(reseller.smtpDetails?.user && reseller.companyName) {
-      //   await sendEmail({
-      //     to: values.customerEmail,
-      //     from: `${reseller.companyName} <${reseller.smtpDetails.user}>`,
-      //     subject: `Your Order Confirmation: #${orderId}`,
-      //     html: generateEmailHtml(values, orderId),
-      //   });
-      // }
+    //   // Email sending is disabled for now
+    //   if(reseller.smtpDetails?.user && reseller.companyName) {
+    //     await sendEmail({
+    //       to: values.customerEmail,
+    //       from: `${reseller.companyName} <${reseller.smtpDetails.user}>`,
+    //       subject: `Your Order Confirmation: #${orderId}`,
+    //       html: 'Email content here...',
+    //     });
+    //   }
       
       toast({
         title: 'Order Created Successfully',
@@ -326,7 +306,7 @@ export default function CreateResellerOrderForm() {
                                         )}
                                     />
                                 ) : (
-                                    <span>R {resellerPrice.toFixed(2)}</span>
+                                    <span>{formatPrice(resellerPrice)}</span>
                                 )}
                                 </div>
                              </FormItem>
@@ -344,7 +324,7 @@ export default function CreateResellerOrderForm() {
                              <FormItem>
                                 <FormLabel>Profit</FormLabel>
                                 <div className="flex items-center h-10 px-3 py-2 text-sm font-semibold rounded-md border bg-muted">
-                                    R {getLineItemProfit(lineItem).toFixed(2)}
+                                    {formatPrice(getLineItemProfit(lineItem))}
                                 </div>
                              </FormItem>
                             <div className="flex items-end">
@@ -369,7 +349,7 @@ export default function CreateResellerOrderForm() {
                     variant="outline"
                     size="sm"
                     className="mt-4"
-                    onClick={() => append({ isCustom: true, serviceId: '', description: '', quantity: 1, resellerPrice: 0, clientPrice: 0 })}
+                    onClick={() => append({ isCustom: false, serviceId: '', description: '', quantity: 1, resellerPrice: 0, clientPrice: 0 })}
                 >
                     <Plus className="mr-2 h-4 w-4" /> Add Line Item
                 </Button>
@@ -390,7 +370,7 @@ export default function CreateResellerOrderForm() {
         <div className="flex justify-end items-start gap-8">
             <div className="text-right">
                 <p className="text-sm text-muted-foreground">Total order price</p>
-                <p className="text-2xl font-bold">R {total.toFixed(2)}</p>
+                <p className="text-2xl font-bold">{formatPrice(total)}</p>
             </div>
         </div>
 
@@ -402,5 +382,3 @@ export default function CreateResellerOrderForm() {
     </Form>
   );
 }
-
-    

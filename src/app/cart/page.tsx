@@ -6,6 +6,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Trash2, ShoppingCart } from 'lucide-react';
 
+const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
+      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(price);
+};
+
 export default function CartPage() {
   const { cartItems, removeFromCart, cartTotal, itemCount } = useCart();
 
@@ -31,7 +40,7 @@ export default function CartPage() {
                   <p className="text-sm text-muted-foreground">{item.service.category}</p>
                 </div>
                 <div className="flex items-center gap-4">
-                    <p className="font-semibold">R {item.service.price.toFixed(2)}</p>
+                    <p className="font-semibold">{formatPrice(item.service.price)}</p>
                     <Button variant="ghost" size="icon" onClick={() => removeFromCart(item.service.id)}>
                         <Trash2 className="h-5 w-5 text-destructive" />
                         <span className="sr-only">Remove item</span>
@@ -48,11 +57,11 @@ export default function CartPage() {
               <CardContent className="space-y-4">
                 <div className="flex justify-between">
                   <span>Subtotal</span>
-                  <span>R {cartTotal.toFixed(2)}</span>
+                  <span>{formatPrice(cartTotal)}</span>
                 </div>
                 <div className="flex justify-between font-bold text-lg">
                   <span>Total</span>
-                  <span>R {cartTotal.toFixed(2)}</span>
+                  <span>{formatPrice(cartTotal)}</span>
                 </div>
               </CardContent>
               <CardFooter>

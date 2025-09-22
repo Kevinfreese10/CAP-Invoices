@@ -1,4 +1,5 @@
 
+
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,15 @@ import {
 import { services } from '@/lib/data';
 import { Rocket, ShieldCheck, Wallet, Clock, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+
+const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
+      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(price);
+};
 
 export default function Home() {
   const whyChooseUs = [
@@ -153,7 +163,7 @@ export default function Home() {
                     >
                     <CardHeader>
                         <CardTitle>{service.title}</CardTitle>
-                        <p className="text-2xl font-bold text-primary pt-2">R {service.price.toFixed(2)}</p>
+                        <p className="text-2xl font-bold text-primary pt-2">{formatPrice(service.price)}</p>
                         <div className="flex items-center text-muted-foreground pt-1">
                             <Clock className="h-4 w-4 mr-1.5" />
                             <span className="text-xs font-medium">{service.turnaroundTime}</span>

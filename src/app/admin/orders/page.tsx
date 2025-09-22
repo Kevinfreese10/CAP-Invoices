@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -44,6 +45,15 @@ import {
 const db = getFirestore(firebaseApp);
 
 const allStaff = allUsers.filter(u => u.role === 'staff');
+
+const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
+      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(price);
+};
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -151,6 +161,21 @@ export default function AdminOrdersPage() {
     return allUsers.find(u => u.id === userId);
   }
 
+  const getStatusVariant = (status: Order['status']) => {
+    switch (status) {
+      case 'Completed':
+        return 'success';
+      case 'Processing':
+        return 'info';
+      case 'Pending Payment':
+        return 'warning';
+      case 'Cancelled':
+        return 'destructive';
+      default:
+        return 'secondary';
+    }
+  };
+
 
   return (
     <div className="space-y-8">
@@ -216,11 +241,11 @@ export default function AdminOrdersPage() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={order.status === 'Completed' ? 'default' : 'secondary'}>
+                      <Badge variant={getStatusVariant(order.status)}>
                         {order.status}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">R {order.total.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">{formatPrice(order.total)}</TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

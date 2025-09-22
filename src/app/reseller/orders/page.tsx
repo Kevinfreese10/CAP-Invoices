@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -49,6 +50,15 @@ const getNextStaffMember = (department: 'Accounting and Tax' | 'Administration')
     staffCounters[department] = (staffCounters[department] + 1) % staffInDept.length;
     
     return staffMember;
+};
+
+const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
+      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(price);
 };
 
 
@@ -176,6 +186,21 @@ export default function ResellerOrdersPage() {
     }
   };
 
+  const getStatusVariant = (status: Order['status']) => {
+    switch (status) {
+      case 'Completed':
+        return 'success';
+      case 'Processing':
+        return 'info';
+      case 'Pending Payment':
+        return 'warning';
+      case 'Cancelled':
+        return 'destructive';
+      default:
+        return 'secondary';
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -208,6 +233,7 @@ export default function ResellerOrdersPage() {
                   <TableHead>Customer</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Outsourcing Cost</TableHead>
+                  <TableHead>Selling Price</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -218,11 +244,12 @@ export default function ResellerOrdersPage() {
                     <TableCell>{format(new Date(order.date), 'dd MMM yyyy')}</TableCell>
                     <TableCell>{order.customerName}</TableCell>
                     <TableCell>
-                      <Badge variant={order.status === 'Completed' ? 'default' : 'secondary'}>
+                      <Badge variant={getStatusVariant(order.status)}>
                         {order.status}
                       </Badge>
                     </TableCell>
-                    <TableCell className="font-semibold">R {order.total.toFixed(2)}</TableCell>
+                    <TableCell className="font-semibold">{formatPrice(order.total)}</TableCell>
+                    <TableCell className="font-semibold">{formatPrice(order.clientTotal || 0)}</TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

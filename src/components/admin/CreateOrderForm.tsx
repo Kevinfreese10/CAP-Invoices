@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -39,6 +40,15 @@ const formSchema = z.object({
 });
 
 type CreateOrderFormValues = z.infer<typeof formSchema>;
+
+const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
+      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(price);
+};
 
 export default function CreateOrderForm() {
   const router = useRouter();
@@ -308,7 +318,7 @@ export default function CreateOrderForm() {
                          </div>
                          <div className="md:col-span-1 flex items-end">
                             <p className="text-right w-full font-semibold">
-                                R {getLineItemTotal(lineItem).toFixed(2)}
+                                {formatPrice(getLineItemTotal(lineItem))}
                             </p>
                          </div>
                          <div className="md:col-span-1 flex items-end">
@@ -342,7 +352,7 @@ export default function CreateOrderForm() {
         <div className="flex justify-end items-start gap-8">
             <div className="text-right">
                 <p className="text-sm text-muted-foreground">Total</p>
-                <p className="text-2xl font-bold">R {total.toFixed(2)}</p>
+                <p className="text-2xl font-bold">{formatPrice(total)}</p>
             </div>
         </div>
 

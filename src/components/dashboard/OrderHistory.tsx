@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -22,6 +23,15 @@ import { ArrowRight, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 
 const db = getFirestore(firebaseApp);
+
+const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
+      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(price);
+};
 
 export default function OrderHistory() {
   const { user } = useAuth();
@@ -54,6 +64,21 @@ export default function OrderHistory() {
 
     fetchOrders();
   }, [user]);
+
+  const getStatusVariant = (status: Order['status']) => {
+    switch (status) {
+      case 'Completed':
+        return 'success';
+      case 'Processing':
+        return 'info';
+      case 'Pending Payment':
+        return 'warning';
+      case 'Cancelled':
+        return 'destructive';
+      default:
+        return 'secondary';
+    }
+  };
 
 
   return (
@@ -91,11 +116,11 @@ export default function OrderHistory() {
                             <TableCell className="font-medium">{order.id}</TableCell>
                             <TableCell>{format(new Date(order.date), 'dd MMM yyyy')}</TableCell>
                             <TableCell>
-                                <Badge variant={order.status === 'Completed' ? 'default' : 'secondary'}>
+                                <Badge variant={getStatusVariant(order.status)}>
                                     {order.status}
                                 </Badge>
                             </TableCell>
-                            <TableCell className="text-right">R {order.total.toFixed(2)}</TableCell>
+                            <TableCell className="text-right">{formatPrice(order.total)}</TableCell>
                             <TableCell className="text-right">
                                 <Button variant="ghost" size="icon" asChild>
                                     <Link href={`/dashboard/orders/${order.id}`}>

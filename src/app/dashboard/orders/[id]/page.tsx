@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -26,6 +27,15 @@ type OrderItemWithService = {
   price: number;
   quantity: number;
   service: Service;
+};
+
+const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
+      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(price);
 };
 
 export default function OrderDetailsPage() {
@@ -95,6 +105,21 @@ export default function OrderDetailsPage() {
   if (!order) {
     return notFound();
   }
+  
+  const getStatusVariant = (status: Order['status']) => {
+    switch (status) {
+      case 'Completed':
+        return 'success';
+      case 'Processing':
+        return 'info';
+      case 'Pending Payment':
+        return 'warning';
+      case 'Cancelled':
+        return 'destructive';
+      default:
+        return 'secondary';
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -113,7 +138,7 @@ export default function OrderDetailsPage() {
                     <CardHeader>
                         <CardTitle>Order {order.id}</CardTitle>
                         <CardDescription>
-                        Date: {format(new Date(order.date), 'dd MMMM yyyy')} | Status: <Badge variant={order.status === 'Completed' ? 'default' : 'secondary'}>{order.status}</Badge>
+                        Date: {format(new Date(order.date), 'dd MMMM yyyy')} | Status: <Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -124,14 +149,14 @@ export default function OrderDetailsPage() {
                                 <p className="font-semibold">{item.title}</p>
                                 <p className="text-sm text-muted-foreground">Quantity: {item.quantity}</p>
                             </div>
-                            <p>R {item.price.toFixed(2)}</p>
+                            <p>{formatPrice(item.price)}</p>
                             </div>
                         ))}
                         </div>
                         <Separator className="my-4" />
                         <div className="flex justify-between font-bold text-lg">
                         <span>Total</span>
-                        <span>R {order.total.toFixed(2)}</span>
+                        <span>{formatPrice(order.total)}</span>
                         </div>
                     </CardContent>
                 </Card>
