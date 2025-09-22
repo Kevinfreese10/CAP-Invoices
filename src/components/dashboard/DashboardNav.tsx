@@ -15,6 +15,7 @@ import {
   BookUser,
   Settings,
   ArrowRightLeft,
+  Search,
 } from 'lucide-react';
 
 import {
@@ -54,6 +55,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/services', label: 'Manage Services', icon: Briefcase, roles: ['admin'] },
     { href: '/admin/categories', label: 'Manage Categories', icon: Shapes, roles: ['admin'] },
     { href: '/admin/staff', label: 'Manage Staff', icon: Users, roles: ['admin'] },
+    { href: '/admin/seo', label: 'SEO Management', icon: Search, roles: ['admin'] },
   ];
 
   const resellerNavItems = [

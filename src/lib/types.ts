@@ -43,6 +43,9 @@ export type BlogPost = {
   imageHint: string;
   author: string;
   date: string;
+  metaTitle?: string;
+  metaDescription?: string;
+  metaKeywords?: string[];
 };
 
 export type FAQ = {
