@@ -30,10 +30,14 @@ const lineItemSchema = z.object({
   quantity: z.preprocess(val => Number(val), z.number().min(1, 'Quantity must be at least 1.')),
   resellerPrice: z.preprocess(val => Number(val), z.number().min(0, 'Price cannot be negative.')),
   clientPrice: z.preprocess(val => Number(val), z.number().min(0, 'Client price cannot be negative.')),
+}).refine(data => data.isCustom ? !!data.description : !!data.serviceId, {
+  message: 'Please either select a service or enter a custom description.',
+  path: ['description'],
 }).refine(data => data.clientPrice >= data.resellerPrice, {
   message: "Your selling price cannot be less than the outsourcing cost.",
   path: ["clientPrice"],
 });
+
 
 const formSchema = z.object({
   customerName: z.string().min(2, 'Customer name is required.'),
@@ -66,8 +70,6 @@ export default function CreateResellerOrderForm() {
     control: form.control,
     name: 'items',
   });
-
-  const watchedItems = form.watch('items');
 
   useEffect(() => {
     const subscription = form.watch((value) => {
@@ -386,3 +388,5 @@ export default function CreateResellerOrderForm() {
     </Form>
   );
 }
+
+    
