@@ -122,7 +122,7 @@ export default function ResellerOrdersPage() {
             })),
             total: orderToOutsource.total,
             status: 'Processing', // The new order for the admin is 'Processing'
-            assignedTo: assignedStaff?.id,
+            assignedTo: assignedStaff?.id || null, // Ensure not undefined
             department: department,
             resellerId: user.id, // Link back to the reseller
             originalOrderId: orderToOutsource.id, // Link to the original order

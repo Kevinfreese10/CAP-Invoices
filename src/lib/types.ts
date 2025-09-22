@@ -64,7 +64,7 @@ export type Order = {
   items: any[];
   total: number;
   status: 'Pending Payment' | 'Processing' | 'Completed' | 'Cancelled';
-  assignedTo?: string;
+  assignedTo?: string | null;
   department?: string;
   originalOrderId?: string;
 };
