@@ -159,7 +159,7 @@ export default function ResellerOrdersPage() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
                           <DropdownMenuItem asChild>
-                            <Link href={`/admin/orders/${order.id}`}>Review Order</Link>
+                            <Link href={`/reseller/orders/${order.id}`}>Review Order</Link>
                           </DropdownMenuItem>
                            <DropdownMenuItem
                             onClick={() => handleUpdateStatus(order.id, 'Cancelled')}
