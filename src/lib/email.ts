@@ -2,8 +2,6 @@
 
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 type EmailPayload = {
     to: string | string[];
     subject: string;
@@ -12,6 +10,7 @@ type EmailPayload = {
 }
 
 export async function sendEmail({ to, subject, html, from = 'onboarding@resend.dev' }: EmailPayload) {
+  const resend = new Resend(process.env.RESEND_API_KEY);
   try {
     const { data, error } = await resend.emails.send({
       from: from,
