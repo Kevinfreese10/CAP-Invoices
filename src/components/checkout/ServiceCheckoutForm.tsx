@@ -22,6 +22,7 @@ import { Separator } from '../ui/separator';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
+import Link from 'next/link';
 
 const db = getFirestore(firebaseApp);
 
@@ -210,7 +211,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
                             </FormControl>
                             <div className="space-y-1 leading-none">
                                 <FormLabel>
-                                 I understand and agree to the no-refund policy. All services are non-refundable once work has begun.
+                                 I understand and agree to the <Link href="/refund-policy" className="underline hover:text-primary" target="_blank">no-refund policy</Link>.
                                 </FormLabel>
                                 <FormMessage />
                             </div>
