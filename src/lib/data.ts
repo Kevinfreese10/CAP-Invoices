@@ -8,6 +8,7 @@ export const services: Service[] = [
     longDescription:
       'Our personal tax return service ensures that your annual tax filings are accurate, compliant, and optimized for maximum returns. We handle everything from gathering your documents to submitting the final return to SARS, providing peace of mind for both standard and provisional taxpayers.',
     price: 750,
+    resellerPrice: 500,
     imageUrl: 'https://picsum.photos/seed/101/600/400',
     imageHint: 'tax forms',
     category: 'SARS Services',
@@ -46,6 +47,7 @@ export const services: Service[] = [
     longDescription:
       'Start your business journey on the right foot. We manage the entire company registration process with CIPC, including name reservation and all necessary documentation, to get your Pty (Ltd) established quickly and correctly.',
     price: 950,
+    resellerPrice: 650,
     imageUrl: 'https://picsum.photos/seed/102/600/400',
     imageHint: 'business documents',
     category: 'Entity Registrations',
@@ -80,6 +82,7 @@ export const services: Service[] = [
     longDescription:
       'Focus on growing your business while we handle the numbers. Our monthly bookkeeping service includes transaction recording, bank reconciliations, and financial reporting, ensuring your books are always accurate and up-to-date.',
     price: 1500,
+    resellerPrice: 1200,
     imageUrl: 'https://picsum.photos/seed/103/600/400',
     imageHint: 'accounting ledger',
     category: 'Accounting Services',
@@ -116,6 +119,7 @@ export const services: Service[] = [
     description: 'File your company\'s mandatory annual returns with CIPC.',
     longDescription: 'Ensure your company remains compliant by filing your CIPC annual returns on time. This is a mandatory requirement for all registered companies and close corporations to keep their registration active.',
     price: 450,
+    resellerPrice: 300,
     imageUrl: 'https://picsum.photos/seed/104/600/400',
     imageHint: 'compliance calendar',
     category: 'CIPC Services',
@@ -148,6 +152,7 @@ export const services: Service[] = [
     description: 'Register for Compensation for Occupational Injuries and Diseases Act.',
     longDescription: 'Register your business with the Compensation Fund to protect your employees against injuries or diseases sustained at work. This is a legal requirement for all employers in South Africa.',
     price: 800,
+    resellerPrice: 550,
     imageUrl: 'https://picsum.photos/seed/105/600/400',
     imageHint: 'health safety',
     category: 'COIDA Services',

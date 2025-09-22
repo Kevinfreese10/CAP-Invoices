@@ -24,6 +24,7 @@ const formSchema = z.object({
   description: z.string().min(10, 'Short description is required.'),
   longDescription: z.string().min(20, 'Long description is required.'),
   price: z.preprocess(val => Number(val), z.number().min(0, 'Price must be a positive number.')),
+  resellerPrice: z.preprocess(val => Number(val), z.number().min(0, 'Reseller price must be a positive number.').optional()),
   imageUrl: z.string().url('Must be a valid URL.'),
   imageHint: z.string().min(1, 'Image hint is required.'),
   category: z.string().min(1, 'Category is required.'),
@@ -76,6 +77,7 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
       description: service?.description || '',
       longDescription: service?.longDescription || '',
       price: service?.price || 0,
+      resellerPrice: service?.resellerPrice || 0,
       imageUrl: service?.imageUrl || 'https://picsum.photos/seed/new/600/400',
       imageHint: service?.imageHint || 'abstract',
       category: service?.category || '',
@@ -207,13 +209,24 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
               <span className="ml-2 hidden sm:inline">Update with AI</span>
             </Button>
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <FormField
             control={form.control}
             name="price"
             render={({ field }) => (
                 <FormItem>
-                <FormLabel>Price (R)</FormLabel>
+                <FormLabel>Public Price (R)</FormLabel>
+                <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                <FormMessage />
+                </FormItem>
+            )}
+            />
+             <FormField
+            control={form.control}
+            name="resellerPrice"
+            render={({ field }) => (
+                <FormItem>
+                <FormLabel>Reseller Price (R)</FormLabel>
                 <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
                 <FormMessage />
                 </FormItem>

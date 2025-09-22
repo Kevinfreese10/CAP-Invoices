@@ -5,6 +5,7 @@ export type Service = {
   description: string;
   longDescription: string;
   price: number;
+  resellerPrice?: number;
   imageUrl: string;
   imageHint: string;
   category: string;

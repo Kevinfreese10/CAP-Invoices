@@ -89,7 +89,7 @@ export default function CreateResellerOrderForm() {
     const selectedService = allServices.find(s => s.id === serviceId);
     if (selectedService) {
         form.setValue(`items.${index}.description`, selectedService.title);
-        form.setValue(`items.${index}.price`, selectedService.price);
+        form.setValue(`items.${index}.price`, selectedService.resellerPrice || selectedService.price);
     }
   };
 
@@ -248,7 +248,7 @@ export default function CreateResellerOrderForm() {
                                 render={({ field }) => (
                                     <FormItem className="flex flex-row items-center space-x-2 pt-2">
                                         <FormControl>
-                                            <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                                            <Checkbox checked={field.value} onCheckedChange={field.onChange} suppressHydrationWarning />
                                         </FormControl>
                                         <FormLabel className="text-xs !mt-0">Enter custom item</FormLabel>
                                     </FormItem>
