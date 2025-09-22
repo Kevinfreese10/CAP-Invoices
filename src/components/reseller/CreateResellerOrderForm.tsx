@@ -18,7 +18,7 @@ import { services as allServices } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
 import { useAuth } from '@/contexts/AuthContext';
-import { sendEmail } from '@/lib/email';
+// import { sendEmail } from '@/lib/email';
 
 const db = getFirestore(firebaseApp);
 
@@ -164,19 +164,19 @@ export default function CreateResellerOrderForm() {
 
       await setDoc(doc(db, 'orders', orderId), orderData);
 
-      // Send email to client
-      if(reseller.smtpDetails?.user && reseller.companyName) {
-        await sendEmail({
-          to: values.customerEmail,
-          from: `${reseller.companyName} <${reseller.smtpDetails.user}>`,
-          subject: `Your Order Confirmation: #${orderId}`,
-          html: generateEmailHtml(values, orderId),
-        });
-      }
+      // // Send email to client
+      // if(reseller.smtpDetails?.user && reseller.companyName) {
+      //   await sendEmail({
+      //     to: values.customerEmail,
+      //     from: `${reseller.companyName} <${reseller.smtpDetails.user}>`,
+      //     subject: `Your Order Confirmation: #${orderId}`,
+      //     html: generateEmailHtml(values, orderId),
+      //   });
+      // }
       
       toast({
         title: 'Order Created Successfully',
-        description: `Order ${orderId} has been created and an email has been sent to your client.`,
+        description: `Order ${orderId} has been created.`,
       });
       
       setIsLoading(false);
@@ -325,14 +325,7 @@ export default function CreateResellerOrderForm() {
                                 render={({ field }) => (
                                     <FormItem>
                                     <FormLabel>Your selling price</FormLabel>
-                                    <FormControl>
-                                        <Input
-                                            type="number"
-                                            step="0.01"
-                                            min={resellerPrice}
-                                            {...field}
-                                        />
-                                    </FormControl>
+                                    <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
                                     <FormMessage />
                                     </FormItem>
                                 )}
