@@ -19,6 +19,9 @@ import { Separator } from '../ui/separator';
 import { services as allServices } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
+import { sendEmail } from '@/lib/email';
+import { render } from 'resend';
+import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 
 const db = getFirestore(firebaseApp);
 
@@ -144,6 +147,14 @@ export default function CreateOrderForm() {
 
       await setDoc(doc(db, 'orders', orderId), orderData);
       
+      // Send confirmation email
+      const emailHtml = render(<OrderConfirmationEmail order={orderData} />);
+      await sendEmail({
+        to: values.customerEmail,
+        subject: `Your My Accountant Order Confirmation: #${orderId}`,
+        html: emailHtml,
+      });
+
       toast({
         title: 'Order Created Successfully',
         description: `Order ${orderId} has been created.`,

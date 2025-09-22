@@ -20,7 +20,10 @@ import { services as allServices } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
 import { useAuth } from '@/contexts/AuthContext';
-// import { sendEmail } from '@/lib/email';
+import { sendEmail } from '@/lib/email';
+import { render } from 'resend';
+import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
+
 
 const db = getFirestore(firebaseApp);
 
@@ -155,15 +158,25 @@ export default function CreateResellerOrderForm() {
 
       await setDoc(doc(db, 'orders', orderId), orderData);
 
-    //   // Email sending is disabled for now
-    //   if(reseller.smtpDetails?.user && reseller.companyName) {
-    //     await sendEmail({
-    //       to: values.customerEmail,
-    //       from: `${reseller.companyName} <${reseller.smtpDetails.user}>`,
-    //       subject: `Your Order Confirmation: #${orderId}`,
-    //       html: 'Email content here...',
-    //     });
-    //   }
+      if (reseller.smtpDetails?.host) {
+        try {
+          const emailHtml = render(<OrderConfirmationEmail order={orderData} reseller={reseller} />);
+          await sendEmail({
+            to: values.customerEmail,
+            from: `${reseller.companyName} <${reseller.smtpDetails.user}>`,
+            subject: `Your Order Confirmation: #${orderId}`,
+            html: emailHtml,
+            resellerId: reseller.id,
+          });
+        } catch (emailError) {
+          console.error("Failed to send reseller email:", emailError);
+          toast({
+            title: 'Order Created, But Email Failed',
+            description: 'The order was saved, but the confirmation email could not be sent. Check your SMTP settings.',
+            variant: 'destructive',
+          });
+        }
+      }
       
       toast({
         title: 'Order Created Successfully',

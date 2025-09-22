@@ -18,6 +18,9 @@ import { firebaseApp } from '@/lib/firebase';
 import { Order, Service, User } from '@/lib/types';
 import { Checkbox } from '../ui/checkbox';
 import { Separator } from '../ui/separator';
+import { sendEmail } from '@/lib/email';
+import { render } from 'resend';
+import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 
 const db = getFirestore(firebaseApp);
 
@@ -134,6 +137,14 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
 
       await setDoc(doc(db, 'orders', orderId), orderData);
       
+      // Send confirmation email
+      const emailHtml = render(<OrderConfirmationEmail order={orderData} />);
+      await sendEmail({
+          to: values.email,
+          subject: `Your My Accountant Order Confirmation: #${orderId}`,
+          html: emailHtml,
+      });
+
       setIsLoading(false);
       router.push(`/order-confirmation/${orderId}`);
 
