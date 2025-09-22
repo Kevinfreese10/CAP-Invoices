@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Loader2, Plus, Trash } from 'lucide-react';
+import { Loader2, Plus, Trash, RefreshCw } from 'lucide-react';
 import { getFirestore, doc, setDoc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service } from '@/lib/types';
@@ -67,6 +67,7 @@ export default function CreateOrderForm() {
       customerPhone: '',
       items: [{ isCustom: false, serviceId: '', description: '', quantity: 1, price: 0, discountType: 'fixed', discountValue: 0 }],
     },
+    mode: 'onChange',
   });
 
   const { fields, append, remove } = useFieldArray({
@@ -74,13 +75,11 @@ export default function CreateOrderForm() {
     name: 'items',
   });
 
-  const watchedItems = form.watch('items');
-
-  useEffect(() => {
-    const newTotal = watchedItems.reduce((acc, item) => {
-        const quantity = item.quantity || 0;
-        const price = item.price || 0;
-        const discountValue = item.discountValue || 0;
+  const calculateTotal = (items: any[]) => {
+     return (items || []).reduce((acc, item) => {
+        const quantity = item?.quantity || 0;
+        const price = item?.price || 0;
+        const discountValue = item?.discountValue || 0;
         const lineItemTotal = price * quantity;
 
         let discountAmount = 0;
@@ -92,15 +91,25 @@ export default function CreateOrderForm() {
 
         return acc + (lineItemTotal - discountAmount);
     }, 0);
+  }
 
-    setTotal(newTotal);
-  }, [watchedItems]);
+  useEffect(() => {
+    const subscription = form.watch((value) => {
+        setTotal(calculateTotal(value.items || []));
+    });
+    return () => subscription.unsubscribe();
+  }, [form]);
+  
+  useEffect(() => {
+    setTotal(calculateTotal(form.getValues('items')));
+  }, []);
 
   const handleServiceChange = (serviceId: string, index: number) => {
     const selectedService = allServices.find(s => s.id === serviceId);
     if (selectedService) {
         form.setValue(`items.${index}.description`, selectedService.title);
         form.setValue(`items.${index}.price`, selectedService.price);
+        form.trigger(`items.${index}`);
     }
   };
 
@@ -347,15 +356,26 @@ export default function CreateOrderForm() {
                     </div>
                 )})}
             </div>
-             <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="mt-4"
-                onClick={() => append({ isCustom: false, serviceId: '', description: '', quantity: 1, price: 0, discountType: 'fixed', discountValue: 0 })}
-            >
-                <Plus className="mr-2 h-4 w-4" /> Add Line Item
-            </Button>
+            <div className="flex gap-2">
+                 <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-4"
+                    onClick={() => append({ isCustom: false, serviceId: '', description: '', quantity: 1, price: 0, discountType: 'fixed', discountValue: 0 })}
+                >
+                    <Plus className="mr-2 h-4 w-4" /> Add Line Item
+                </Button>
+                 <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="mt-4"
+                    onClick={() => form.trigger()}
+                >
+                    <RefreshCw className="mr-2 h-4 w-4" /> Update Totals & Validate
+                </Button>
+            </div>
         </div>
 
         <Separator />
@@ -367,7 +387,7 @@ export default function CreateOrderForm() {
             </div>
         </div>
 
-        <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+        <Button type="submit" className="w-full" size="lg" disabled={isLoading || !form.formState.isValid || total === 0}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isLoading ? 'Creating Order...' : 'Create Order'}
         </Button>
