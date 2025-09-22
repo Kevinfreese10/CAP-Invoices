@@ -177,7 +177,7 @@ export default function AdminOrdersPage() {
       const orderRef = doc(db, 'orders', orderId);
       await updateDoc(orderRef, {
         status: newStatus,
-        assignedTo: assignedStaffId, // Update assignment in Firestore
+        assignedTo: assignedStaffId || null, // Update assignment in Firestore
       });
 
       // Update local state
