@@ -13,6 +13,7 @@ import { Form, FormControl, FormField, FormItem, FormMessage } from '@/component
 import { Loader2, Sparkles, History } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
+import Link from 'next/link';
 
 const formSchema = z.object({
   question: z.string().min(10, 'Please ask a more detailed question.'),
@@ -148,9 +149,12 @@ export default function WebsiteAIWidget() {
                 </div>
             )}
           </CardContent>
-          <CardFooter className="justify-center">
+          <CardFooter className="justify-center gap-2">
             <Button type="submit" disabled={isLoading}>
               Ask Question
+            </Button>
+            <Button variant="outline" asChild>
+                <Link href="/support">Contact Support</Link>
             </Button>
           </CardFooter>
         </form>
