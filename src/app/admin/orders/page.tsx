@@ -66,30 +66,34 @@ export default function AdminOrdersPage() {
       setIsLoading(true);
       try {
         const ordersRef = collection(db, 'orders');
-        let q;
+        let filteredOrders: Order[] = [];
 
         if (user?.role === 'staff') {
-          q = query(ordersRef, where('assignedTo', '==', user.id), orderBy('assignedTo'));
+          // Staff view: only see orders assigned to them
+          const q = query(ordersRef, where('assignedTo', '==', user.id), orderBy('date', 'desc'));
+          const querySnapshot = await getDocs(q);
+          filteredOrders = querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+              ...data,
+              id: doc.id,
+              date: data.date.toDate(),
+            } as Order;
+          });
         } else {
-          q = query(ordersRef, orderBy('date', 'desc'));
-        }
-
-        const querySnapshot = await getDocs(q);
-        let allOrders = querySnapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            ...data,
-            id: doc.id,
-            date: data.date.toDate(),
-          } as Order;
-        });
-
-        // For staff, sort by date client-side
-        if (user?.role === 'staff') {
-          allOrders.sort((a, b) => b.date.getTime() - a.date.getTime());
+          // Admin view: See main store orders OR outsourced reseller orders
+          const allOrdersSnapshot = await getDocs(query(ordersRef, orderBy('date', 'desc')));
+          filteredOrders = allOrdersSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+              ...data,
+              id: doc.id,
+              date: data.date.toDate(),
+            } as Order;
+          }).filter(order => !order.resellerId || (order.resellerId && order.originalOrderId));
         }
         
-        setOrders(allOrders);
+        setOrders(filteredOrders);
       } catch (error) {
         console.error("Error fetching orders: ", error);
       } finally {
@@ -317,3 +321,5 @@ export default function AdminOrdersPage() {
     </div>
   );
 }
+
+    
