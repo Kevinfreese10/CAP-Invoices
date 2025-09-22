@@ -56,6 +56,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/blog', label: 'Manage Blog', icon: BookMarked, roles: ['admin'] },
     { href: '/admin/staff', label: 'Manage Staff', icon: Users, roles: ['admin'] },
     { href: '/admin/knowledge-base', label: 'Knowledge Base', icon: BrainCircuit, roles: ['admin'] },
+    { href: '/admin/ai-training', label: 'AI Training', icon: BrainCircuit, roles: ['admin'] },
     { href: '/admin/seo', label: 'SEO Management', icon: Search, roles: ['admin'] },
     { href: '/admin/settings', label: 'Settings', icon: Settings, roles: ['admin'] },
   ];

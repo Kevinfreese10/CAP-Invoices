@@ -14,6 +14,10 @@ import { services } from '@/lib/data';
 import { blogPosts } from '@/lib/data';
 import { faqs } from '@/lib/data';
 import { knowledgeBaseItems } from '@/lib/knowledge-base';
+import { getFirestore, collection, addDoc, Timestamp } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
+
+const db = getFirestore(firebaseApp);
 
 const WebsiteQAndAInputSchema = z.object({
   question: z.string().describe('The user\'s question.'),
@@ -87,6 +91,18 @@ const websiteQAndAFlow = ai.defineFlow(
   },
   async input => {
     const {output} = await prompt(input);
+    
+    if (output && output.confidence < 15) {
+        try {
+            await addDoc(collection(db, 'unansweredQuestions'), {
+                question: input.question,
+                timestamp: Timestamp.now(),
+            });
+        } catch (error) {
+            console.error("Error logging unanswered question:", error);
+        }
+    }
+    
     return output!;
   }
 );
