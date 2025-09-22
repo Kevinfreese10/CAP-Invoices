@@ -27,9 +27,8 @@ const lineItemSchema = z.object({
   serviceId: z.string().optional(),
   description: z.string().min(1, 'Description is required.'),
   quantity: z.preprocess(val => Number(val), z.number().min(1, 'Quantity must be at least 1.')),
-  price: z.preprocess(val => Number(val), z.number().min(0, 'Price cannot be negative.')),
-  discountType: z.enum(['fixed', 'percentage']).default('fixed'),
-  discountValue: z.preprocess(val => Number(val) || 0, z.number().min(0, 'Discount cannot be negative.').optional()),
+  resellerPrice: z.preprocess(val => Number(val), z.number().min(0, 'Price cannot be negative.')),
+  clientPrice: z.preprocess(val => Number(val), z.number().min(0, 'Client price cannot be negative.')),
 });
 
 const formSchema = z.object({
@@ -54,7 +53,7 @@ export default function CreateResellerOrderForm() {
       customerName: '',
       customerEmail: '',
       customerPhone: '',
-      items: [{ isCustom: false, serviceId: '', description: '', quantity: 1, price: 0, discountType: 'fixed', discountValue: 0 }],
+      items: [{ isCustom: false, serviceId: '', description: '', quantity: 1, resellerPrice: 0, clientPrice: 0 }],
     },
   });
 
@@ -68,18 +67,8 @@ export default function CreateResellerOrderForm() {
   useEffect(() => {
     const newTotal = watchedItems.reduce((acc, item) => {
         const quantity = item.quantity || 0;
-        const price = item.price || 0;
-        const discountValue = item.discountValue || 0;
-        const lineItemTotal = price * quantity;
-
-        let discountAmount = 0;
-        if (item.discountType === 'percentage') {
-            discountAmount = lineItemTotal * (discountValue / 100);
-        } else {
-            discountAmount = discountValue * quantity;
-        }
-
-        return acc + (lineItemTotal - discountAmount);
+        const resellerPrice = item.resellerPrice || 0;
+        return acc + (resellerPrice * quantity);
     }, 0);
 
     setTotal(newTotal);
@@ -89,24 +78,17 @@ export default function CreateResellerOrderForm() {
     const selectedService = allServices.find(s => s.id === serviceId);
     if (selectedService) {
         form.setValue(`items.${index}.description`, selectedService.title);
-        form.setValue(`items.${index}.price`, selectedService.resellerPrice || selectedService.price);
+        form.setValue(`items.${index}.resellerPrice`, selectedService.resellerPrice || selectedService.price);
+        form.setValue(`items.${index}.clientPrice`, selectedService.price); // Default client price to public price
     }
   };
 
-  const getLineItemTotal = (item: any) => {
+  const getLineItemProfit = (item: any) => {
     const quantity = item.quantity || 0;
-    const price = item.price || 0;
-    const discountValue = item.discountValue || 0;
-    const lineItemTotal = price * quantity;
-
-    let discountAmount = 0;
-    if (item.discountType === 'percentage') {
-        discountAmount = lineItemTotal * (discountValue / 100);
-    } else {
-        discountAmount = discountValue * quantity;
-    }
-    return (lineItemTotal - discountAmount);
-  };
+    const resellerPrice = item.resellerPrice || 0;
+    const clientPrice = item.clientPrice || 0;
+    return (clientPrice - resellerPrice) * quantity;
+  }
 
 
   async function onSubmit(values: CreateOrderFormValues) {
@@ -131,7 +113,7 @@ export default function CreateResellerOrderForm() {
         items: values.items.map(item => ({ 
             id: item.serviceId || item.description.toLowerCase().replace(/\s/g, '-'),
             title: item.description, 
-            price: item.price,
+            price: item.resellerPrice, // The price the reseller pays
             quantity: item.quantity
         })),
         total: total,
@@ -169,7 +151,7 @@ export default function CreateResellerOrderForm() {
             name="customerName"
             render={({ field }) => (
                 <FormItem>
-                <FormLabel>Customer Full Name</FormLabel>
+                <FormLabel>Your Client's Full Name</FormLabel>
                 <FormControl><Input placeholder="John Doe" {...field} /></FormControl>
                 <FormMessage />
                 </FormItem>
@@ -180,7 +162,7 @@ export default function CreateResellerOrderForm() {
             name="customerEmail"
             render={({ field }) => (
                 <FormItem>
-                <FormLabel>Customer Email</FormLabel>
+                <FormLabel>Your Client's Email</FormLabel>
                 <FormControl><Input placeholder="name@example.com" {...field} /></FormControl>
                 <FormMessage />
                 </FormItem>
@@ -191,7 +173,7 @@ export default function CreateResellerOrderForm() {
             name="customerPhone"
             render={({ field }) => (
                 <FormItem>
-                <FormLabel>Customer Phone</FormLabel>
+                <FormLabel>Your Client's Phone</FormLabel>
                 <FormControl><Input placeholder="0821234567" {...field} /></FormControl>
                 <FormMessage />
                 </FormItem>
@@ -208,54 +190,56 @@ export default function CreateResellerOrderForm() {
                     const isCustom = form.watch(`items.${index}.isCustom`);
                     const lineItem = form.watch(`items.${index}`);
                     return (
-                    <div key={field.id} className="grid grid-cols-1 md:grid-cols-12 gap-x-3 gap-y-2 p-3 border rounded-md relative">
-                         <div className="md:col-span-4 space-y-2">
-                             {isCustom ? (
-                                 <FormField
-                                    control={form.control}
-                                    name={`items.${index}.description`}
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Custom Description</FormLabel>
-                                            <FormControl><Input {...field} /></FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                             ) : (
+                    <div key={field.id} className="p-3 border rounded-md space-y-3">
+                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="md:col-span-3 space-y-2">
+                                {isCustom ? (
+                                    <FormField
+                                        control={form.control}
+                                        name={`items.${index}.description`}
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Custom Item Description</FormLabel>
+                                                <FormControl><Input {...field} /></FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                ) : (
+                                    <FormField
+                                        control={form.control}
+                                        name={`items.${index}.serviceId`}
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Service</FormLabel>
+                                                <Select onValueChange={(value) => { field.onChange(value); handleServiceChange(value, index);}} defaultValue={field.value}>
+                                                    <FormControl><SelectTrigger><SelectValue placeholder="Select a service" /></SelectTrigger></FormControl>
+                                                    <SelectContent>
+                                                        {allServices.map(service => (
+                                                            <SelectItem key={service.id} value={service.id}>{service.title}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                )}
                                 <FormField
                                     control={form.control}
-                                    name={`items.${index}.serviceId`}
+                                    name={`items.${index}.isCustom`}
                                     render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Service</FormLabel>
-                                            <Select onValueChange={(value) => { field.onChange(value); handleServiceChange(value, index);}} defaultValue={field.value}>
-                                                <FormControl><SelectTrigger><SelectValue placeholder="Select a service" /></SelectTrigger></FormControl>
-                                                <SelectContent>
-                                                    {allServices.map(service => (
-                                                        <SelectItem key={service.id} value={service.id}>{service.title}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                            <FormMessage />
+                                        <FormItem className="flex flex-row items-center space-x-2 pt-2">
+                                            <FormControl>
+                                                <Checkbox checked={field.value} onCheckedChange={field.onChange} suppressHydrationWarning />
+                                            </FormControl>
+                                            <FormLabel className="text-xs !mt-0">Enter custom item</FormLabel>
                                         </FormItem>
                                     )}
                                 />
-                             )}
-                             <FormField
-                                control={form.control}
-                                name={`items.${index}.isCustom`}
-                                render={({ field }) => (
-                                    <FormItem className="flex flex-row items-center space-x-2 pt-2">
-                                        <FormControl>
-                                            <Checkbox checked={field.value} onCheckedChange={field.onChange} suppressHydrationWarning />
-                                        </FormControl>
-                                        <FormLabel className="text-xs !mt-0">Enter custom item</FormLabel>
-                                    </FormItem>
-                                )}
-                            />
+                            </div>
                          </div>
-                        <div className="md:col-span-1">
+                         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                              <FormField
                                 control={form.control}
                                 name={`items.${index}.quantity`}
@@ -267,68 +251,46 @@ export default function CreateResellerOrderForm() {
                                     </FormItem>
                                 )}
                                 />
-                         </div>
-                        <div className="md:col-span-2">
                              <FormField
                                 control={form.control}
-                                name={`items.${index}.price`}
+                                name={`items.${index}.resellerPrice`}
                                 render={({ field }) => (
                                     <FormItem>
-                                    <FormLabel>Unit Price (R)</FormLabel>
+                                    <FormLabel>Your Cost (R)</FormLabel>
                                     <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
                                     <FormMessage />
                                     </FormItem>
                                 )}
                                 />
-                         </div>
-                         <div className="md:col-span-2">
                              <FormField
                                 control={form.control}
-                                name={`items.${index}.discountType`}
+                                name={`items.${index}.clientPrice`}
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Discount</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                            <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                                            <SelectContent>
-                                                <SelectItem value="fixed">Fixed (R)</SelectItem>
-                                                <SelectItem value="percentage">Percent (%)</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                                />
-                         </div>
-                         <div className="md:col-span-1">
-                             <FormField
-                                control={form.control}
-                                name={`items.${index}.discountValue`}
-                                render={({ field }) => (
-                                    <FormItem>
-                                    <FormLabel>Value</FormLabel>
+                                    <FormLabel>Client Price (R)</FormLabel>
                                     <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
                                     <FormMessage />
                                     </FormItem>
                                 )}
                                 />
-                         </div>
-                         <div className="md:col-span-1 flex items-end">
-                            <p className="text-right w-full font-semibold">
-                                R {getLineItemTotal(lineItem).toFixed(2)}
-                            </p>
-                         </div>
-                         <div className="md:col-span-1 flex items-end">
-                            <Button
-                                type="button"
-                                variant="destructive"
-                                size="icon"
-                                onClick={() => remove(index)}
-                                className="w-full"
-                                disabled={fields.length === 1}
-                            >
-                                <Trash className="h-4 w-4" />
-                            </Button>
+                            <div className="flex flex-col justify-end">
+                                <FormLabel>Profit</FormLabel>
+                                <div className="flex items-center h-10 px-3 py-2 text-sm font-semibold rounded-md border bg-muted">
+                                    R {getLineItemProfit(lineItem).toFixed(2)}
+                                </div>
+                            </div>
+                            <div className="flex items-end">
+                                <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="icon"
+                                    onClick={() => remove(index)}
+                                    className="w-full"
+                                    disabled={fields.length === 1}
+                                >
+                                    <Trash className="h-4 w-4" />
+                                </Button>
+                             </div>
                          </div>
                     </div>
                 )})}
@@ -338,7 +300,7 @@ export default function CreateResellerOrderForm() {
                 variant="outline"
                 size="sm"
                 className="mt-4"
-                onClick={() => append({ isCustom: false, serviceId: '', description: '', quantity: 1, price: 0, discountType: 'fixed', discountValue: 0 })}
+                onClick={() => append({ isCustom: true, serviceId: '', description: '', quantity: 1, resellerPrice: 0, clientPrice: 0 })}
             >
                 <Plus className="mr-2 h-4 w-4" /> Add Line Item
             </Button>
@@ -348,7 +310,7 @@ export default function CreateResellerOrderForm() {
         
         <div className="flex justify-end items-start gap-8">
             <div className="text-right">
-                <p className="text-sm text-muted-foreground">Total</p>
+                <p className="text-sm text-muted-foreground">Total Cost To You</p>
                 <p className="text-2xl font-bold">R {total.toFixed(2)}</p>
             </div>
         </div>
@@ -361,3 +323,5 @@ export default function CreateResellerOrderForm() {
     </Form>
   );
 }
+
+    
