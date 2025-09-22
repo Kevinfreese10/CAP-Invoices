@@ -86,7 +86,7 @@ export default function ResellerOrdersPage() {
           } as Order;
         });
         
-        setOrders(allOrders);
+        setOrders(allOrders.filter(order => order.status !== 'Cancelled'));
       } catch (error) {
         console.error("Error fetching orders: ", error);
         toast({
@@ -117,7 +117,6 @@ export default function ResellerOrdersPage() {
         const firstServiceId = orderToOutsource.items[0]?.id;
         const serviceDetails = allServices.find(s => s.id === firstServiceId);
         const department = serviceDetails?.department;
-        const assignedStaff = department ? getNextStaffMember(department) : undefined;
         
         const newOrderData: Partial<Order> = {
             id: newOrderId,
@@ -132,13 +131,16 @@ export default function ResellerOrdersPage() {
             })),
             total: orderToOutsource.total,
             status: 'Processing', // The new order for the admin is 'Processing'
-            assignedTo: assignedStaff?.id || null,
             resellerId: user.id, // Link back to the reseller
             originalOrderId: orderToOutsource.id, // Link to the original order
         };
         
         if (department) {
+          const assignedStaff = getNextStaffMember(department);
           newOrderData.department = department;
+          newOrderData.assignedTo = assignedStaff?.id || null;
+        } else {
+            newOrderData.assignedTo = null;
         }
         
         await setDoc(doc(db, 'orders', newOrderId), newOrderData);
@@ -179,6 +181,13 @@ export default function ResellerOrdersPage() {
         title: 'Status Updated',
         description: `Order ${orderId} has been marked as ${newStatus}.`,
       });
+
+      if (newStatus === 'Cancelled') {
+        // If an order is cancelled, we remove it from the list after a brief moment
+        setTimeout(() => {
+          setOrders(prevOrders => prevOrders.filter(order => order.id !== orderId));
+        }, 500);
+      }
     } catch (error) {
       console.error('Error updating order status: ', error);
       toast({

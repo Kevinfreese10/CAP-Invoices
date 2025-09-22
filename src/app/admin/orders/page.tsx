@@ -93,7 +93,7 @@ export default function AdminOrdersPage() {
           }).filter(order => !order.resellerId || (order.resellerId && order.originalOrderId));
         }
         
-        setOrders(filteredOrders);
+        setOrders(filteredOrders.filter(order => order.status !== 'Cancelled'));
       } catch (error) {
         console.error("Error fetching orders: ", error);
       } finally {
@@ -150,6 +150,13 @@ export default function AdminOrdersPage() {
         title: 'Status Updated',
         description: `Order ${orderId} has been marked as ${newStatus}.`,
       });
+
+       if (newStatus === 'Cancelled') {
+        // If an order is cancelled, we remove it from the list after a brief moment
+        setTimeout(() => {
+          setOrders(prevOrders => prevOrders.filter(order => order.id !== orderId));
+        }, 500);
+      }
     } catch (error) {
       console.error('Error updating order status: ', error);
       toast({

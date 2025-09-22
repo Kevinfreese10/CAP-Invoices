@@ -54,7 +54,7 @@ export default function OrderHistory() {
                 date: data.date.toDate(), // Convert Firestore Timestamp to JS Date
             } as Order;
         });
-        setOrders(userOrders);
+        setOrders(userOrders.filter(order => order.status !== 'Cancelled'));
       } catch (error) {
         console.error("Error fetching orders: ", error);
       } finally {

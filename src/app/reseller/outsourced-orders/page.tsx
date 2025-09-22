@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -69,7 +70,7 @@ export default function OutsourcedOrdersPage() {
           } as Order;
         });
         
-        setOrders(allOrders);
+        setOrders(allOrders.filter(order => order.status !== 'Cancelled'));
       } catch (error) {
         console.error("Error fetching orders: ", error);
         toast({
