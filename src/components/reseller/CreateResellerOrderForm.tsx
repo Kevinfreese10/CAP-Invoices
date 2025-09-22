@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -29,6 +28,9 @@ const lineItemSchema = z.object({
   quantity: z.preprocess(val => Number(val), z.number().min(1, 'Quantity must be at least 1.')),
   resellerPrice: z.preprocess(val => Number(val), z.number().min(0, 'Price cannot be negative.')),
   clientPrice: z.preprocess(val => Number(val), z.number().min(0, 'Client price cannot be negative.')),
+}).refine(data => data.clientPrice >= data.resellerPrice, {
+  message: "Client price cannot be less than your cost",
+  path: ["clientPrice"],
 });
 
 const formSchema = z.object({
@@ -55,6 +57,7 @@ export default function CreateResellerOrderForm() {
       customerPhone: '',
       items: [{ isCustom: false, serviceId: '', description: '', quantity: 1, resellerPrice: 0, clientPrice: 0 }],
     },
+    mode: 'onChange',
   });
 
   const { fields, append, remove } = useFieldArray({
@@ -241,7 +244,7 @@ export default function CreateResellerOrderForm() {
                             </div>
                          </div>
                          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                             <FormField
+                            <FormField
                                 control={form.control}
                                 name={`items.${index}.quantity`}
                                 render={({ field }) => (
@@ -252,39 +255,45 @@ export default function CreateResellerOrderForm() {
                                     </FormItem>
                                 )}
                                 />
-                            <FormItem>
+                             <FormItem>
                                 <FormLabel>Your Cost (R)</FormLabel>
                                 <div className="flex items-center h-10 px-3 py-2 text-sm font-semibold rounded-md border bg-muted">
-                                    {isCustom ? (
-                                        <FormField
-                                            control={form.control}
-                                            name={`items.${index}.resellerPrice`}
-                                            render={({ field }) => (
-                                                <FormControl><Input type="number" step="0.01" {...field} className="m-0 p-0 h-auto border-none bg-transparent" /></FormControl>
-                                            )}
-                                        />
-                                    ) : (
-                                        <span>R {resellerPrice.toFixed(2)}</span>
-                                    )}
+                                {isCustom ? (
+                                    <FormField
+                                        control={form.control}
+                                        name={`items.${index}.resellerPrice`}
+                                        render={({ field }) => (
+                                            <FormControl><Input type="number" step="0.01" {...field} className="m-0 p-0 h-auto border-none bg-transparent" /></FormControl>
+                                        )}
+                                    />
+                                ) : (
+                                    <span>R {resellerPrice.toFixed(2)}</span>
+                                )}
                                 </div>
-                            </FormItem>
+                             </FormItem>
                              <FormField
                                 control={form.control}
                                 name={`items.${index}.clientPrice`}
                                 render={({ field }) => (
                                     <FormItem>
                                     <FormLabel>Client Price (R)</FormLabel>
-                                    <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                                    <FormControl>
+                                        <Input
+                                            type="number"
+                                            step="0.01"
+                                            {...field}
+                                        />
+                                    </FormControl>
                                     <FormMessage />
                                     </FormItem>
                                 )}
                                 />
-                            <FormItem>
+                             <FormItem>
                                 <FormLabel>Profit</FormLabel>
                                 <div className="flex items-center h-10 px-3 py-2 text-sm font-semibold rounded-md border bg-muted">
                                     R {getLineItemProfit(lineItem).toFixed(2)}
                                 </div>
-                            </FormItem>
+                             </FormItem>
                             <div className="flex items-end">
                                 <Button
                                     type="button"
@@ -321,7 +330,7 @@ export default function CreateResellerOrderForm() {
             </div>
         </div>
 
-        <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+        <Button type="submit" className="w-full" size="lg" disabled={isLoading || !form.formState.isValid}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isLoading ? 'Creating Order...' : 'Create Order'}
         </Button>
