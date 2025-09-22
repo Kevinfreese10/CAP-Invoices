@@ -20,8 +20,8 @@ import { generateBlogPostSeo } from '@/ai/flows/generate-blog-post-seo';
 const seoSchema = z.object({
   id: z.string(),
   path: z.string(),
-  title: z.string().max(60, "Title should be under 60 characters"),
-  description: z.string().max(160, "Description should be under 160 characters"),
+  title: z.string().max(60, "Title must be 60 characters or less."),
+  description: z.string().max(160, "Description must be 160 characters or less."),
   keywords: z.array(z.object({ value: z.string() })).optional(),
 });
 
@@ -63,6 +63,7 @@ export default function SeoManagementPage() {
     defaultValues: {
       pages: initialSeoData,
     },
+    mode: 'onChange',
   });
 
   const { fields, update } = useFieldArray({
@@ -175,7 +176,7 @@ export default function SeoManagementPage() {
                   <AccordionItem key={groupName} value={groupName}>
                     <div className="flex items-center">
                       <AccordionTrigger className="text-xl font-semibold flex-grow">{groupName} ({pages.length})</AccordionTrigger>
-                      <Button type="button" onClick={() => handleAiUpdate(groupName)} size="sm" variant="ghost" disabled={isAiUpdating === groupName}>
+                      <Button type="button" onClick={() => handleAiUpdate(groupName)} size="sm" variant="ghost" disabled={!!isAiUpdating}>
                         {isAiUpdating === groupName ? <Loader2 className="animate-spin mr-2"/> : <Sparkles className="mr-2" />}
                         Update with AI
                       </Button>
@@ -256,3 +257,5 @@ export default function SeoManagementPage() {
     </div>
   );
 }
+
+    
