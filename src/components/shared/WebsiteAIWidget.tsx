@@ -154,7 +154,7 @@ export default function WebsiteAIWidget() {
               Ask Question
             </Button>
             <Button variant="outline" asChild>
-                <Link href="/support">Contact Support</Link>
+                <Link href="/contact">Contact Support</Link>
             </Button>
           </CardFooter>
         </form>

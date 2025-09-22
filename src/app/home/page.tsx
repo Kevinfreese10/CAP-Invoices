@@ -94,10 +94,10 @@ export default function Home() {
             </p>
             <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
               <Button asChild size="lg">
-                <Link href="/services">Explore Services</Link>
+                <Link href="#services">Explore Services</Link>
               </Button>
               <Button asChild size="lg" variant="outline">
-                <Link href="/support">Get Support</Link>
+                <Link href="/contact">Get Support</Link>
               </Button>
             </div>
           </div>
@@ -151,7 +151,7 @@ export default function Home() {
         </div>
       </section>
       
-        <div className="container mx-auto px-4 space-y-12">
+        <div id="services" className="container mx-auto px-4 space-y-12 scroll-m-20">
             {categorizedServices.map(category => (
             <section key={category.name} id={category.name.toLowerCase().replace(/ /g, '-')}>
                 <div className="text-center mb-8">
