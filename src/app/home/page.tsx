@@ -14,6 +14,7 @@ import {
 import { services } from '@/lib/data';
 import { Rocket, ShieldCheck, Wallet, Clock, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import WebsiteAIWidget from '@/components/shared/WebsiteAIWidget';
 
 const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -103,7 +104,11 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="bg-background -mt-16 pt-16">
+      <section className="container mx-auto px-4">
+        <WebsiteAIWidget />
+      </section>
+
+      <section className="bg-background pt-16">
          <div className="container mx-auto px-4">
             <div className="text-center mb-12">
                 <h2 className="text-3xl font-bold">Why Choose My Accountant?</h2>
