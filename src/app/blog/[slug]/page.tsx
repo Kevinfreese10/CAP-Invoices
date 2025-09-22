@@ -12,7 +12,8 @@ export default function BlogPostPage({ params }: { params: { slug: string } }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const foundPost = blogPosts.find(p => p.slug === params.slug);
+    const slug = params.slug;
+    const foundPost = blogPosts.find(p => p.slug === slug);
     setPost(foundPost);
     setIsLoading(false);
   }, [blogPosts, params.slug]);
