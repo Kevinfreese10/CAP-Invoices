@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,7 +13,7 @@ import { users } from '@/lib/data';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { MessageSquare, PlusCircle, MoreHorizontal, CalendarIcon, Loader2 } from 'lucide-react';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
@@ -31,7 +32,7 @@ import ProductivityStats from '@/components/dashboard/ProductivityStats';
 
 // Using the same mock data as the main tasks page for consistency
 const initialTasks: Task[] = [
-    { id: 'task-1', title: 'Follow up on ORD-001 documentation', description: 'Client needs to upload their ID copy.', assignedTo: '3', createdBy: '2', dueDate: subDays(new Date(), 0), status: 'In Progress', updates: [ { text: 'Emailed client for documents', date: subDays(new Date(), 1), authorId: '2' }] },
+    { id: 'task-1', title: 'Follow up on ORD-001 documentation', description: 'Client needs to upload their ID copy.', assignedTo: '3', createdBy: '2', dueDate: subDays(new Date(), 0), status: 'In Progress', updates: [ { text: 'Emailed client for documents', date: new Date(subDays(new Date(), 1)), authorId: '2' }] },
     { id: 'task-2', title: 'Prepare ORD-002 monthly reports', description: 'Generate and send the income statement and balance sheet.', assignedTo: '3', createdBy: '2', dueDate: subDays(new Date(), -3), status: 'To Do', updates: [] },
     { id: 'task-3', title: 'Review new client onboarding', description: 'Check all new client details from last week.', assignedTo: '2', createdBy: '2', dueDate: subDays(new Date(), 0), status: 'Completed', updates: [] },
     { id: 'task-4', title: 'Finalize Q2 financial statements', description: 'Final review before sending to the client.', assignedTo: '2', createdBy: '3', dueDate: subDays(new Date(), -5), status: 'In Progress', updates: [] },
@@ -147,7 +148,7 @@ function TaskForm({ task, onSubmit, onCancel, onUpdateSubmit }: { task: Task | n
                                         <div className="bg-muted p-3 rounded-lg w-full">
                                             <div className="flex justify-between items-center mb-1">
                                                 <p className="text-xs font-semibold">{author?.name}</p>
-                                                <p className="text-xs text-muted-foreground">{format(update.date, 'dd MMM yyyy, HH:mm')}</p>
+                                                <p className="text-xs text-muted-foreground">{format(new Date(update.date), 'dd MMM yyyy, HH:mm')}</p>
                                             </div>
                                             <p className="text-sm">{update.text}</p>
                                         </div>
@@ -515,5 +516,3 @@ export default function AdminDashboardPage() {
         </div>
     );
 }
-
-    

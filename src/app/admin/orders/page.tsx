@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { MoreHorizontal, Loader2, PlusCircle } from 'lucide-react';
+import { MoreHorizontal, Loader2, PlusCircle, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -101,6 +101,7 @@ export default function AdminOrdersPage() {
               ...data,
               id: doc.id,
               date: data.date.toDate(),
+              notes: (data.notes || []).map((note: any) => ({...note, date: note.date.toDate()})),
             } as Order;
           });
         } else {
@@ -112,6 +113,7 @@ export default function AdminOrdersPage() {
               ...data,
               id: doc.id,
               date: data.date.toDate(),
+              notes: (data.notes || []).map((note: any) => ({...note, date: note.date.toDate()})),
             } as Order;
           }).filter(order => !order.resellerId || (order.resellerId && order.originalOrderId));
         }
@@ -299,9 +301,9 @@ export default function AdminOrdersPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Order ID</TableHead>
-                  <TableHead>Date</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Assigned To</TableHead>
+                  <TableHead>Last Update</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -310,10 +312,14 @@ export default function AdminOrdersPage() {
               <TableBody>
                 {orders.map((order) => {
                   const assignee = getAssignee(order.assignedTo);
+                  const lastNote = order.notes && order.notes.length > 0 ? order.notes[order.notes.length - 1] : null;
+                  const lastNoteAuthor = lastNote ? getAssignee(lastNote.authorId) : null;
                   return (
                   <TableRow key={order.id}>
-                    <TableCell className="font-medium">{order.id}</TableCell>
-                    <TableCell>{format(new Date(order.date), 'dd MMM yyyy')}</TableCell>
+                    <TableCell className="font-medium">
+                        <p>{order.id}</p>
+                        <p className="text-xs text-muted-foreground">{format(new Date(order.date), 'dd MMM yyyy')}</p>
+                    </TableCell>
                     <TableCell>{order.customerName}</TableCell>
                     <TableCell>
                       {assignee ? (
@@ -333,6 +339,19 @@ export default function AdminOrdersPage() {
                       ) : (
                         <span className="text-muted-foreground">N/A</span>
                       )}
+                    </TableCell>
+                    <TableCell className="max-w-[250px] truncate">
+                        {lastNote && lastNoteAuthor ? (
+                            <div className="flex items-start gap-2">
+                                <MessageSquare className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                                <div className="text-xs">
+                                    <span className="font-semibold">{lastNoteAuthor.name}:</span>
+                                    <span className="text-muted-foreground ml-1">"{lastNote.subject || lastNote.text}"</span>
+                                </div>
+                            </div>
+                        ) : (
+                            <span className="text-muted-foreground text-xs">No updates</span>
+                        )}
                     </TableCell>
                     <TableCell>
                       <Badge variant={getStatusVariant(order.status)}>

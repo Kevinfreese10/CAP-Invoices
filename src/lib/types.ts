@@ -1,6 +1,7 @@
 
 
 
+
 export type Service = {
   id: string;
   title: string;
@@ -113,7 +114,7 @@ export type User = {
 
 export type TaskUpdate = {
   text: string;
-  date: Date;
+  date: any;
   authorId: string;
 };
 
@@ -128,5 +129,3 @@ export type Task = {
   orderId?: string;
   updates?: TaskUpdate[];
 };
-
-    
