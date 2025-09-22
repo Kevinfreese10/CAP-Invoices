@@ -119,7 +119,7 @@ export default function ResellerOrdersPage() {
         const department = serviceDetails?.department;
         const assignedStaff = department ? getNextStaffMember(department) : undefined;
         
-        const newOrderData: Order = {
+        const newOrderData: Partial<Order> = {
             id: newOrderId,
             customerName: user.companyName || user.name, // The customer is the reseller
             customerEmail: user.email,
@@ -132,11 +132,14 @@ export default function ResellerOrdersPage() {
             })),
             total: orderToOutsource.total,
             status: 'Processing', // The new order for the admin is 'Processing'
-            assignedTo: assignedStaff?.id || null, // Ensure not undefined
-            department: department,
+            assignedTo: assignedStaff?.id || null,
             resellerId: user.id, // Link back to the reseller
             originalOrderId: orderToOutsource.id, // Link to the original order
         };
+        
+        if (department) {
+          newOrderData.department = department;
+        }
         
         await setDoc(doc(db, 'orders', newOrderId), newOrderData);
 
