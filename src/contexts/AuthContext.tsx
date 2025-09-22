@@ -29,10 +29,10 @@ export const users: User[] = [
         branchCode: '470010',
     },
     smtpDetails: {
-        host: 'smtp.reseller.com',
-        port: '587',
-        user: 'user@reseller.com',
-        pass: 'password123',
+        host: 'mail.thinkestry.co.za',
+        port: '465',
+        user: 'no-reply@thinkestry.co.za',
+        pass: 'Thinkestry10$',
     }
   },
 ];

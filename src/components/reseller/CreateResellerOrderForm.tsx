@@ -18,6 +18,7 @@ import { services as allServices } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
 import { useAuth } from '@/contexts/AuthContext';
+import { sendEmail } from '@/lib/email';
 
 const db = getFirestore(firebaseApp);
 
@@ -29,7 +30,7 @@ const lineItemSchema = z.object({
   resellerPrice: z.preprocess(val => Number(val), z.number().min(0, 'Price cannot be negative.')),
   clientPrice: z.preprocess(val => Number(val), z.number().min(0, 'Client price cannot be negative.')),
 }).refine(data => data.clientPrice >= data.resellerPrice, {
-  message: "Client price cannot be less than your cost",
+  message: "Your selling price cannot be less than the outsourcing cost.",
   path: ["clientPrice"],
 });
 
@@ -93,6 +94,43 @@ export default function CreateResellerOrderForm() {
     return (clientPrice - resellerPrice) * quantity;
   }
 
+  const generateEmailHtml = (values: CreateOrderFormValues, orderId: string) => {
+    const clientTotal = values.items.reduce((acc, item) => acc + (item.clientPrice * item.quantity), 0);
+    return `
+      <h1>Your Order #${orderId} has been confirmed!</h1>
+      <p>Hi ${values.customerName},</p>
+      <p>Thank you for your order. Please see the details below:</p>
+      <table border="1" cellpadding="5" cellspacing="0">
+        <thead>
+          <tr>
+            <th>Service</th>
+            <th>Quantity</th>
+            <th>Price</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${values.items.map(item => `
+            <tr>
+              <td>${item.description}</td>
+              <td>${item.quantity}</td>
+              <td>R ${item.clientPrice.toFixed(2)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <h2>Total: R ${clientTotal.toFixed(2)}</h2>
+      <p>Please make an EFT payment to the following account to complete your order:</p>
+      <p>
+        <strong>Bank:</strong> ${reseller?.bankingDetails?.bankName}<br>
+        <strong>Account Holder:</strong> ${reseller?.bankingDetails?.accountHolder}<br>
+        <strong>Account Number:</strong> ${reseller?.bankingDetails?.accountNumber}<br>
+        <strong>Branch Code:</strong> ${reseller?.bankingDetails?.branchCode}<br>
+        <strong>Reference:</strong> ${orderId}
+      </p>
+      <p>Regards,<br>${reseller?.companyName}</p>
+    `;
+  };
+
 
   async function onSubmit(values: CreateOrderFormValues) {
     if (!reseller) {
@@ -125,10 +163,20 @@ export default function CreateResellerOrderForm() {
       };
 
       await setDoc(doc(db, 'orders', orderId), orderData);
+
+      // Send email to client
+      if(reseller.smtpDetails) {
+        await sendEmail({
+          to: values.customerEmail,
+          from: `${reseller.companyName} <${reseller.smtpDetails.user}>`,
+          subject: `Your Order Confirmation: #${orderId}`,
+          html: generateEmailHtml(values, orderId),
+        });
+      }
       
       toast({
         title: 'Order Created Successfully',
-        description: `Order ${orderId} has been created.`,
+        description: `Order ${orderId} has been created and an email has been sent to your client.`,
       });
       
       setIsLoading(false);
@@ -243,7 +291,7 @@ export default function CreateResellerOrderForm() {
                                 />
                             </div>
                          </div>
-                         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 items-end">
                             <FormField
                                 control={form.control}
                                 name={`items.${index}.quantity`}
@@ -256,7 +304,7 @@ export default function CreateResellerOrderForm() {
                                 )}
                                 />
                              <FormItem>
-                                <FormLabel>Your Cost (R)</FormLabel>
+                                <FormLabel>Outsourcing cost</FormLabel>
                                 <div className="flex items-center h-10 px-3 py-2 text-sm font-semibold rounded-md border bg-muted">
                                 {isCustom ? (
                                     <FormField
@@ -276,11 +324,12 @@ export default function CreateResellerOrderForm() {
                                 name={`items.${index}.clientPrice`}
                                 render={({ field }) => (
                                     <FormItem>
-                                    <FormLabel>Client Price (R)</FormLabel>
+                                    <FormLabel>Your selling price</FormLabel>
                                     <FormControl>
                                         <Input
                                             type="number"
                                             step="0.01"
+                                            min={resellerPrice}
                                             {...field}
                                         />
                                     </FormControl>
@@ -325,7 +374,7 @@ export default function CreateResellerOrderForm() {
         
         <div className="flex justify-end items-start gap-8">
             <div className="text-right">
-                <p className="text-sm text-muted-foreground">Total Cost To You</p>
+                <p className="text-sm text-muted-foreground">Total order price</p>
                 <p className="text-2xl font-bold">R {total.toFixed(2)}</p>
             </div>
         </div>
