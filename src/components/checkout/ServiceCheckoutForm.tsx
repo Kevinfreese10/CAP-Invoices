@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -19,7 +20,7 @@ import { Order, Service, User } from '@/lib/types';
 import { Checkbox } from '../ui/checkbox';
 import { Separator } from '../ui/separator';
 import { sendEmail } from '@/lib/email';
-import { render } from 'resend';
+import { render } from '@react-email/components';
 import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 
 const db = getFirestore(firebaseApp);
@@ -270,3 +271,5 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
     </Card>
   );
 }
+
+    

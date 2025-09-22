@@ -21,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Checkbox } from '../ui/checkbox';
 import { useAuth } from '@/contexts/AuthContext';
 import { sendEmail } from '@/lib/email';
-import { render } from 'resend';
+import { render } from '@react-email/components';
 import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 
 
@@ -395,3 +395,5 @@ export default function CreateResellerOrderForm() {
     </Form>
   );
 }
+
+    

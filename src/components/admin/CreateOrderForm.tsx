@@ -20,7 +20,7 @@ import { services as allServices } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
 import { sendEmail } from '@/lib/email';
-import { render } from 'resend';
+import { render } from '@react-email/components';
 import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 
 const db = getFirestore(firebaseApp);
@@ -375,5 +375,7 @@ export default function CreateOrderForm() {
     </Form>
   );
 }
+
+    
 
     

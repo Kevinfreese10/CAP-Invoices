@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -19,7 +20,7 @@ import { Order, User, Service } from '@/lib/types';
 import { users } from '@/lib/data';
 import { sendEmail } from '@/lib/email';
 import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
-import { render } from 'resend';
+import { render } from '@react-email/components';
 
 const db = getFirestore(firebaseApp);
 
@@ -186,3 +187,5 @@ export default function CheckoutForm() {
     </Card>
   );
 }
+
+    
