@@ -1,5 +1,6 @@
 
 
+
 export type Service = {
   id: string;
   title: string;
@@ -54,6 +55,12 @@ export type CartItem = {
   quantity: number;
 };
 
+export type OrderNote = {
+  text: string;
+  date: any;
+  authorId: string;
+};
+
 export type Order = {
   id: string;
   userId?: string;
@@ -68,6 +75,7 @@ export type Order = {
   assignedTo?: string | null;
   department?: 'Accounting and Tax' | 'Administration' | null;
   originalOrderId?: string;
+  notes?: OrderNote[];
 };
 
 export type User = {

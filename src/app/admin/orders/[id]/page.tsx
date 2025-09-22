@@ -4,9 +4,9 @@
 
 import { useState, useEffect } from 'react';
 import { notFound, useParams } from 'next/navigation';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service, User } from '@/lib/types';
+import { Order, Service, User, OrderNote } from '@/lib/types';
 import { services } from '@/lib/data';
 import { users } from '@/lib/data';
 import { Badge } from '@/components/ui/badge';
@@ -14,7 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, User as UserIcon, Mail, Phone } from 'lucide-react';
+import { ArrowLeft, Loader2, User as UserIcon, Mail, Phone, Send, FileText, Star, MessageSquare } from 'lucide-react';
 import { format } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
@@ -29,6 +29,8 @@ import { useToast } from '@/hooks/use-toast';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
+import ReviewRequestEmail from '@/components/emails/ReviewRequestEmail';
+import PaymentFollowUpEmail from '@/components/emails/PaymentFollowUpEmail';
 
 
 const db = getFirestore(firebaseApp);
@@ -57,7 +59,6 @@ const emailFormSchema = z.object({
 
 function EmailClientDialog({ order, user }: { order: Order, user: User | null }) {
     const { toast } = useToast();
-    const { user: adminUser } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
     const [isSending, setIsSending] = useState(false);
 
@@ -95,43 +96,6 @@ function EmailClientDialog({ order, user }: { order: Order, user: User | null })
         }
     };
     
-     const handleRequestDocuments = async () => {
-        if (!user || !adminUser) return;
-        setIsSending(true);
-
-        const itemsWithServices = order.items.map(item => {
-            const service = services.find(s => s.id === item.id);
-            return { ...item, service };
-        }).filter(item => item.service) as { service: Service }[];
-
-        try {
-            const emailHtml = render(<DocumentRequestEmail order={order} items={itemsWithServices} assignedToEmail={adminUser.email} />);
-            
-            await sendEmail({
-                to: order.customerEmail,
-                subject: `Action Required: Documents needed for your order #${order.id}`,
-                html: emailHtml,
-            });
-
-            toast({
-                title: 'Document Request Sent',
-                description: 'An email has been sent to the client requesting necessary documents.'
-            });
-            setIsOpen(false);
-
-        } catch (error) {
-            console.error("Failed to send document request email:", error);
-            toast({
-                title: 'Error',
-                description: 'Failed to send the document request email.',
-                variant: 'destructive',
-            });
-        } finally {
-            setIsSending(false);
-        }
-    };
-
-
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
@@ -171,11 +135,7 @@ function EmailClientDialog({ order, user }: { order: Order, user: User | null })
                                 </FormItem>
                             )}
                         />
-                         <div className="flex justify-between items-center pt-4">
-                            <Button type="button" variant="secondary" onClick={handleRequestDocuments} disabled={isSending}>
-                               {isSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
-                                Resend Document Request
-                            </Button>
+                         <div className="flex justify-end items-center pt-4">
                             <div className="flex gap-2">
                                 <Button type="button" variant="ghost" onClick={() => setIsOpen(false)}>Cancel</Button>
                                 <Button type="submit" disabled={isSending}>
@@ -191,6 +151,10 @@ function EmailClientDialog({ order, user }: { order: Order, user: User | null })
     );
 }
 
+const noteFormSchema = z.object({
+  noteText: z.string().min(3, "Note must be at least 3 characters."),
+});
+
 
 export default function AdminOrderDetailsPage() {
   const [order, setOrder] = useState<Order | null>(null);
@@ -201,9 +165,14 @@ export default function AdminOrderDetailsPage() {
   const [assignee, setAssignee] = useState<User | null>(null);
   const [customer, setCustomer] = useState<User | null>(null);
   const { user: currentUser } = useAuth();
+  const { toast } = useToast();
+  
+  const noteForm = useForm<z.infer<typeof noteFormSchema>>({
+    resolver: zodResolver(noteFormSchema),
+    defaultValues: { noteText: "" },
+  });
 
-  useEffect(() => {
-    const fetchOrder = async () => {
+  const fetchOrder = async () => {
       if (!id) return;
       setIsLoading(true);
       try {
@@ -215,6 +184,7 @@ export default function AdminOrderDetailsPage() {
             ...data,
             id: docSnap.id,
             date: data.date.toDate(),
+            notes: (data.notes || []).map((note: any) => ({...note, date: note.date.toDate()})),
           } as Order;
           setOrder(fetchedOrder);
           
@@ -250,8 +220,33 @@ export default function AdminOrderDetailsPage() {
       }
     };
 
+  useEffect(() => {
     fetchOrder();
   }, [id]);
+
+   const onNoteSubmit = async (values: z.infer<typeof noteFormSchema>) => {
+    if (!currentUser || !order) return;
+
+    const newNote: OrderNote = {
+      text: values.noteText,
+      authorId: currentUser.id,
+      date: Timestamp.now(),
+    };
+
+    try {
+      const orderRef = doc(db, 'orders', order.id);
+      await updateDoc(orderRef, {
+        notes: arrayUnion(newNote),
+      });
+
+      toast({ title: "Note Added", description: "Your note has been saved." });
+      noteForm.reset();
+      await fetchOrder(); // Re-fetch to display the new note
+    } catch (error) {
+      console.error("Error adding note:", error);
+      toast({ title: "Error", description: "Failed to add note.", variant: "destructive" });
+    }
+  };
 
   const getStatusVariant = (status: Order['status']) => {
     switch (status) {
@@ -267,6 +262,43 @@ export default function AdminOrderDetailsPage() {
         return 'secondary';
     }
   };
+  
+  const getAuthor = (authorId: string): User | undefined => {
+    return users.find(u => u.id === authorId);
+  }
+
+  const handleQuickActionEmail = async (type: 'docs' | 'payment' | 'review') => {
+      if (!order || !currentUser) return;
+
+      let emailHtml = '';
+      let subject = '';
+
+      if (type === 'docs') {
+         const itemsWithServices = order.items.map(item => {
+            const service = services.find(s => s.id === item.id);
+            return { ...item, service };
+        }).filter(item => item.service) as { service: Service }[];
+
+        emailHtml = render(<DocumentRequestEmail order={order} items={itemsWithServices} assignedToEmail={currentUser.email} />);
+        subject = `Action Required: Documents needed for your order #${order.id}`;
+      } else if (type === 'payment') {
+         emailHtml = render(<PaymentFollowUpEmail order={order} />);
+         subject = `Payment Reminder for Your Order: #${order.id}`;
+      } else if (type === 'review') {
+         emailHtml = render(<ReviewRequestEmail order={order} />);
+         subject = `We'd love your feedback on order #${order.id}`;
+      }
+
+      toast({ title: 'Sending email...', description: 'Please wait a moment.' });
+      
+       try {
+            await sendEmail({ to: order.customerEmail, subject, html: emailHtml });
+            toast({ title: 'Email Sent!', description: 'The email has been successfully sent to the client.' });
+        } catch (error) {
+            console.error(`Failed to send ${type} email:`, error);
+            toast({ title: 'Error', description: 'Failed to send the email.', variant: 'destructive' });
+        }
+    };
   
   if (currentUser && currentUser.role === 'client') {
       return (
@@ -328,6 +360,58 @@ export default function AdminOrderDetailsPage() {
                     </CardContent>
                 </Card>
 
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Order Notes</CardTitle>
+                        <CardDescription>Internal notes for this order.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                         <div className="space-y-4 max-h-64 overflow-y-auto pr-2">
+                            {order.notes && order.notes.length > 0 ? (
+                                order.notes.slice().reverse().map((note, index) => {
+                                    const author = getAuthor(note.authorId);
+                                    return (
+                                        <div key={index} className="flex items-start gap-3">
+                                            <Avatar className="h-8 w-8 border">
+                                                <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${author?.email}`} />
+                                                <AvatarFallback>{author?.name.charAt(0)}</AvatarFallback>
+                                            </Avatar>
+                                            <div className="bg-muted p-3 rounded-lg w-full">
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <p className="text-xs font-semibold">{author?.name}</p>
+                                                    <p className="text-xs text-muted-foreground">{format(new Date(note.date), 'dd MMM yyyy, HH:mm')}</p>
+                                                </div>
+                                                <p className="text-sm">{note.text}</p>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            ) : (
+                                <p className="text-xs text-muted-foreground text-center py-4">No notes for this order yet.</p>
+                            )}
+                        </div>
+                         <Form {...noteForm}>
+                          <form onSubmit={noteForm.handleSubmit(onNoteSubmit)} className="flex items-start gap-2 pt-4">
+                            <FormField
+                              control={noteForm.control}
+                              name="noteText"
+                              render={({ field }) => (
+                                <FormItem className="flex-grow">
+                                  <FormControl>
+                                    <Textarea placeholder="Add a new note..." {...field} rows={2} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <Button type="submit" size="icon" className="flex-shrink-0 mt-1">
+                              <Send className="h-4 w-4" />
+                            </Button>
+                          </form>
+                        </Form>
+                    </CardContent>
+                </Card>
+
             </div>
             <div className="lg:col-span-1 space-y-6 sticky top-24">
                  <Card>
@@ -370,6 +454,23 @@ export default function AdminOrderDetailsPage() {
                         </CardContent>
                     </Card>
                  )}
+                  <Card>
+                    <CardHeader>
+                        <CardTitle>Quick Actions</CardTitle>
+                        <CardDescription>Send pre-made emails to the client.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                        <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickActionEmail('docs')}>
+                            <FileText className="mr-2 h-4 w-4" /> Request Documents
+                        </Button>
+                        <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickActionEmail('payment')}>
+                            <Phone className="mr-2 h-4 w-4" /> Follow Up On Payment
+                        </Button>
+                        <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickActionEmail('review')}>
+                            <Star className="mr-2 h-4 w-4" /> Request a Review
+                        </Button>
+                    </CardContent>
+                 </Card>
             </div>
         </div>
     </div>
