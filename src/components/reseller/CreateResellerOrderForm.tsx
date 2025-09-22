@@ -32,7 +32,7 @@ const lineItemSchema = z.object({
   clientPrice: z.preprocess(val => Number(val), z.number().min(0, 'Client price cannot be negative.')),
 }).refine(data => data.isCustom ? !!data.description : !!data.serviceId, {
   message: 'Please either select a service or enter a custom description.',
-  path: ['description'],
+  path: ['serviceId'], // Point error to the service dropdown for non-custom items
 }).refine(data => data.clientPrice >= data.resellerPrice, {
   message: "Your selling price cannot be less than the outsourcing cost.",
   path: ["clientPrice"],
@@ -71,7 +71,7 @@ export default function CreateResellerOrderForm() {
     name: 'items',
   });
 
-  useEffect(() => {
+   useEffect(() => {
     const subscription = form.watch((value) => {
         const newTotal = (value.items || []).reduce((acc, item) => {
             const quantity = item?.quantity || 0;
