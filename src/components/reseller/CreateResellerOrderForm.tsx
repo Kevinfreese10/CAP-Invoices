@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -69,14 +70,17 @@ export default function CreateResellerOrderForm() {
   const watchedItems = form.watch('items');
 
   useEffect(() => {
-    const newTotal = watchedItems.reduce((acc, item) => {
-        const quantity = item.quantity || 0;
-        const resellerPrice = item.resellerPrice || 0;
-        return acc + (resellerPrice * quantity);
-    }, 0);
+    const subscription = form.watch((value) => {
+        const newTotal = (value.items || []).reduce((acc, item) => {
+            const quantity = item?.quantity || 0;
+            const resellerPrice = item?.resellerPrice || 0;
+            return acc + (resellerPrice * quantity);
+        }, 0);
+        setTotal(newTotal);
+    });
+    return () => subscription.unsubscribe();
+  }, [form]);
 
-    setTotal(newTotal);
-  }, [watchedItems]);
 
   const handleServiceChange = (serviceId: string, index: number) => {
     const selectedService = allServices.find(s => s.id === serviceId);
@@ -324,9 +328,9 @@ export default function CreateResellerOrderForm() {
                                 name={`items.${index}.clientPrice`}
                                 render={({ field }) => (
                                     <FormItem>
-                                    <FormLabel>Your selling price</FormLabel>
-                                    <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
-                                    <FormMessage />
+                                        <FormLabel>Your selling price</FormLabel>
+                                        <FormControl><Input type="number" step="0.01" min={resellerPrice} {...field} /></FormControl>
+                                        <FormMessage />
                                     </FormItem>
                                 )}
                                 />
