@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, User } from '@/lib/types';
+import { Order, User, Service } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   Table,
@@ -33,7 +33,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { users } from '@/lib/data';
+import { users, services as allServices } from '@/lib/data';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Tooltip,
@@ -41,6 +41,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { sendEmail } from '@/lib/email';
+import { render } from '@react-email/components';
+import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
+
 
 const db = getFirestore(firebaseApp);
 
@@ -134,6 +138,9 @@ export default function AdminOrdersPage() {
   };
 
   const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
+    const orderToUpdate = orders.find(o => o.id === orderId);
+    if (!orderToUpdate) return;
+    
     try {
       const orderRef = doc(db, 'orders', orderId);
       await updateDoc(orderRef, {
@@ -150,6 +157,26 @@ export default function AdminOrdersPage() {
         title: 'Status Updated',
         description: `Order ${orderId} has been marked as ${newStatus}.`,
       });
+
+      if (newStatus === 'Processing') {
+        const itemsWithServices = orderToUpdate.items.map(item => {
+            const service = allServices.find(s => s.id === item.id);
+            return { ...item, service };
+        }).filter(item => item.service) as { service: Service }[];
+
+        const emailHtml = render(<DocumentRequestEmail order={orderToUpdate} items={itemsWithServices} />);
+        
+        await sendEmail({
+            to: orderToUpdate.customerEmail,
+            subject: `Action Required: Documents needed for your order #${orderId}`,
+            html: emailHtml,
+        });
+
+        toast({
+            title: 'Document Request Sent',
+            description: 'An email has been sent to the client requesting the necessary documents.'
+        });
+      }
 
        if (newStatus === 'Cancelled') {
         // If an order is cancelled, we remove it from the list after a brief moment
