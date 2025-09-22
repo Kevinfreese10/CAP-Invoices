@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Loader2, Plus, Trash } from 'lucide-react';
+import { Loader2, Plus, Trash, RefreshCw } from 'lucide-react';
 import { getFirestore, doc, setDoc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service } from '@/lib/types';
@@ -30,9 +30,6 @@ const lineItemSchema = z.object({
   quantity: z.preprocess(val => Number(val), z.number().min(1, 'Quantity must be at least 1.')),
   resellerPrice: z.preprocess(val => Number(val), z.number().min(0, 'Price cannot be negative.')),
   clientPrice: z.preprocess(val => Number(val), z.number().min(0, 'Client price cannot be negative.')),
-}).refine(data => data.isCustom ? !!data.description : !!data.serviceId, {
-  message: 'Please either select a service or enter a custom description.',
-  path: ['serviceId'], // Point error to the service dropdown for non-custom items
 }).refine(data => data.clientPrice >= data.resellerPrice, {
   message: "Your selling price cannot be less than the outsourcing cost.",
   path: ["clientPrice"],
@@ -71,14 +68,19 @@ export default function CreateResellerOrderForm() {
     name: 'items',
   });
 
-   useEffect(() => {
+  const watchedItems = form.watch('items');
+
+  const calculateTotal = (items: any[]) => {
+    return (items || []).reduce((acc, item) => {
+        const quantity = item?.quantity || 0;
+        const clientPrice = item?.clientPrice || 0;
+        return acc + (clientPrice * quantity);
+    }, 0);
+  }
+
+  useEffect(() => {
     const subscription = form.watch((value) => {
-        const newTotal = (value.items || []).reduce((acc, item) => {
-            const quantity = item?.quantity || 0;
-            const clientPrice = item?.clientPrice || 0;
-            return acc + (clientPrice * quantity);
-        }, 0);
-        setTotal(newTotal);
+        setTotal(calculateTotal(value.items || []));
     });
     return () => subscription.unsubscribe();
   }, [form]);
@@ -90,6 +92,7 @@ export default function CreateResellerOrderForm() {
         form.setValue(`items.${index}.description`, selectedService.title);
         form.setValue(`items.${index}.resellerPrice`, selectedService.resellerPrice || selectedService.price);
         form.setValue(`items.${index}.clientPrice`, selectedService.price); // Default client price to public price
+        form.trigger(`items.${index}`);
     }
   };
 
@@ -360,15 +363,26 @@ export default function CreateResellerOrderForm() {
                     </div>
                 )})}
             </div>
-             <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="mt-4"
-                onClick={() => append({ isCustom: true, serviceId: '', description: '', quantity: 1, resellerPrice: 0, clientPrice: 0 })}
-            >
-                <Plus className="mr-2 h-4 w-4" /> Add Line Item
-            </Button>
+            <div className="flex gap-2">
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-4"
+                    onClick={() => append({ isCustom: true, serviceId: '', description: '', quantity: 1, resellerPrice: 0, clientPrice: 0 })}
+                >
+                    <Plus className="mr-2 h-4 w-4" /> Add Line Item
+                </Button>
+                <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="mt-4"
+                    onClick={() => form.trigger()}
+                >
+                    <RefreshCw className="mr-2 h-4 w-4" /> Update Totals & Validate
+                </Button>
+            </div>
         </div>
 
         <Separator />
@@ -380,7 +394,7 @@ export default function CreateResellerOrderForm() {
             </div>
         </div>
 
-        <Button type="submit" className="w-full" size="lg" disabled={isLoading || !form.formState.isValid}>
+        <Button type="submit" className="w-full" size="lg" disabled={isLoading || !form.formState.isValid || total === 0}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isLoading ? 'Creating Order...' : 'Create Order'}
         </Button>
