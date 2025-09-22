@@ -66,7 +66,7 @@ export type Order = {
   clientTotal?: number;
   status: 'Pending Payment' | 'Processing' | 'Completed' | 'Cancelled';
   assignedTo?: string | null;
-  department?: string;
+  department?: 'Accounting and Tax' | 'Administration' | null;
   originalOrderId?: string;
 };
 

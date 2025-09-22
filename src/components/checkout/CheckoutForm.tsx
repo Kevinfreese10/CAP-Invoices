@@ -90,7 +90,7 @@ export default function CheckoutForm() {
         total: cartTotal,
         status: 'Pending Payment',
         date: Timestamp.now(),
-        department: department,
+        department: department || null,
         assignedTo: null,
       };
 

@@ -139,6 +139,9 @@ export default function CreateOrderForm() {
     const orderId = `ORD-${Date.now().toString().slice(-6)}`;
     
     try {
+        const firstService = allServices.find(s => s.id === values.items[0]?.serviceId);
+        const department = firstService?.department;
+
       const orderData: Order = {
         id: orderId,
         customerName: values.customerName,
@@ -152,6 +155,7 @@ export default function CreateOrderForm() {
         total: total,
         status: 'Pending Payment',
         date: Timestamp.now(),
+        department: department || null,
         assignedTo: null,
       };
 

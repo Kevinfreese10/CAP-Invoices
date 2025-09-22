@@ -92,7 +92,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
         total: service.price,
         status: 'Pending Payment',
         date: Timestamp.now(),
-        department: department,
+        department: department || null,
         assignedTo: null,
       };
 

@@ -140,6 +140,7 @@ export default function ResellerOrdersPage() {
           newOrderData.department = department;
           newOrderData.assignedTo = assignedStaff?.id || null;
         } else {
+            newOrderData.department = null;
             newOrderData.assignedTo = null;
         }
         
