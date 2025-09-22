@@ -244,7 +244,7 @@ export default function CreateResellerOrderForm() {
                                 control={form.control}
                                 name={`items.${index}.quantity`}
                                 render={({ field }) => (
-                                    <FormItem>
+                                    <FormItem className="flex-grow">
                                     <FormLabel>Qty</FormLabel>
                                     <FormControl><Input type="number" {...field} /></FormControl>
                                     <FormMessage />
@@ -255,7 +255,7 @@ export default function CreateResellerOrderForm() {
                                 control={form.control}
                                 name={`items.${index}.resellerPrice`}
                                 render={({ field }) => (
-                                    <FormItem>
+                                    <FormItem className="flex-grow">
                                     <FormLabel>Your Cost (R)</FormLabel>
                                     <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
                                     <FormMessage />
@@ -266,14 +266,14 @@ export default function CreateResellerOrderForm() {
                                 control={form.control}
                                 name={`items.${index}.clientPrice`}
                                 render={({ field }) => (
-                                    <FormItem>
+                                    <FormItem className="flex-grow">
                                     <FormLabel>Client Price (R)</FormLabel>
                                     <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
                                     <FormMessage />
                                     </FormItem>
                                 )}
                                 />
-                            <div className="flex flex-col justify-end">
+                            <div className="flex flex-col justify-end flex-grow">
                                 <FormLabel>Profit</FormLabel>
                                 <div className="flex items-center h-10 px-3 py-2 text-sm font-semibold rounded-md border bg-muted">
                                     R {getLineItemProfit(lineItem).toFixed(2)}
