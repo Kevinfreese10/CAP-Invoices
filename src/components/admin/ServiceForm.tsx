@@ -32,9 +32,8 @@ const formSchema = z.object({
   turnaroundTime: z.string().min(1, 'Turnaround time is required.'),
   whatsIncluded: z.array(z.object({ value: z.string().min(1, 'This field cannot be empty.') })),
   clientRequirements: z.array(z.object({ value: z.string().min(1, 'This field cannot be empty.') })),
-  informationToUpload: z.array(z.object({
+  informationToProvide: z.array(z.object({
     label: z.string().min(1, 'Label cannot be empty.'),
-    type: z.enum(['text', 'file']),
   })),
   conditionalFields: z.object({
     enabled: z.boolean(),
@@ -85,7 +84,7 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
       turnaroundTime: service?.turnaroundTime || '',
       whatsIncluded: service?.whatsIncluded.map(v => ({ value: v })) || [{ value: '' }],
       clientRequirements: service?.clientRequirements.map(v => ({ value: v })) || [{ value: '' }],
-      informationToUpload: service?.informationToUpload || [],
+      informationToProvide: service?.informationToProvide || [],
       conditionalFields: {
         enabled: service?.conditionalFields?.enabled || false,
         fieldName: service?.conditionalFields?.fieldName || '',
@@ -108,9 +107,9 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
     name: 'clientRequirements',
   });
 
-  const { fields: uploadFields, append: appendUpload, remove: removeUpload } = useFieldArray({
+  const { fields: infoFields, append: appendInfo, remove: removeInfo } = useFieldArray({
     control: form.control,
-    name: 'informationToUpload',
+    name: 'informationToProvide',
   });
   
   const { fields: conditionalValueFields, append: appendConditionalValue, remove: removeConditionalValue } = useFieldArray({
@@ -178,7 +177,7 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
         ...values,
         whatsIncluded: values.whatsIncluded.map(v => v.value),
         clientRequirements: values.clientRequirements.map(v => v.value),
-        informationToUpload: values.informationToUpload,
+        informationToProvide: values.informationToProvide,
         conditionalFields: {
           ...values.conditionalFields,
           fieldValues: values.conditionalFields?.fieldValues.map(v => v.value),
@@ -338,12 +337,12 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
         </div>
         
         <div className="space-y-2 rounded-lg border p-4">
-            <h3 className="text-sm font-medium">Information to be Uploaded (Post-Purchase)</h3>
-            {uploadFields.map((field, index) => (
+            <h3 className="text-sm font-medium">Information to be provided by the client</h3>
+            {infoFields.map((field, index) => (
               <div key={field.id} className="flex items-end gap-2 p-2 border rounded-md">
                  <FormField
                     control={form.control}
-                    name={`informationToUpload.${index}.label`}
+                    name={`informationToProvide.${index}.label`}
                     render={({ field }) => (
                         <FormItem className="flex-grow">
                           <FormLabel>Field Label</FormLabel>
@@ -352,31 +351,12 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
                         </FormItem>
                     )}
                 />
-                 <FormField
-                    control={form.control}
-                    name={`informationToUpload.${index}.type`}
-                    render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Field Type</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                              <FormControl>
-                                  <SelectTrigger><SelectValue placeholder="Select a type" /></SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                  <SelectItem value="text">Text Input</SelectItem>
-                                  <SelectItem value="file">Document Upload</SelectItem>
-                              </SelectContent>
-                          </Select>
-                          <FormMessage/>
-                        </FormItem>
-                    )}
-                />
-                <Button type="button" variant="destructive" size="icon" onClick={() => removeUpload(index)}><Trash className="h-4 w-4"/></Button>
+                <Button type="button" variant="destructive" size="icon" onClick={() => removeInfo(index)}><Trash className="h-4 w-4"/></Button>
               </div>
             ))}
-            <Button type="button" variant="outline" size="sm" onClick={() => appendUpload({ label: '', type: 'text' })}>
+            <Button type="button" variant="outline" size="sm" onClick={() => appendInfo({ label: '' })}>
               <Plus className="mr-2 h-4 w-4" />
-              Add Upload Field
+              Add Information Field
             </Button>
         </div>
         
@@ -543,3 +523,5 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
     </Form>
   );
 }
+
+    

@@ -14,9 +14,8 @@ export type Service = {
   whatsIncluded: string[];
   turnaroundTime: string;
   clientRequirements: string[];
-  informationToUpload: {
+  informationToProvide: {
     label: string;
-    type: 'text' | 'file';
   }[];
   conditionalFields?: {
     enabled: boolean;
@@ -123,3 +122,5 @@ export type Task = {
   orderId?: string;
   updates?: TaskUpdate[];
 };
+
+    

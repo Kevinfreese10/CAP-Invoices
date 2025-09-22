@@ -69,10 +69,10 @@ export const services: Service[] = [
         'Retirement annuity fund certificate',
         'Logbook for travel claims (if applicable)',
     ],
-    informationToUpload: [
-      { label: 'Copy of ID Document', type: 'file' },
-      { label: 'Proof of Address', type: 'file' },
-      { label: 'SARS eFiling Login Details', type: 'text' },
+    informationToProvide: [
+      { label: 'Copy of ID Document' },
+      { label: 'Proof of Address' },
+      { label: 'SARS eFiling Login Details' },
     ],
      conditionalFields: {
       enabled: false,
@@ -105,7 +105,7 @@ export const services: Service[] = [
     clientRequirements: [
         '4 proposed company names',
     ],
-    informationToUpload: [],
+    informationToProvide: [],
     conditionalFields: {
       enabled: true,
       fieldName: 'Number of Directors',
@@ -142,10 +142,10 @@ export const services: Service[] = [
         'Supplier invoices',
         'Customer invoices',
     ],
-    informationToUpload: [
-      { label: 'Monthly Bank Statements (PDF)', type: 'file' },
-      { label: 'All Sales Invoices for the month', type: 'file' },
-      { label: 'All Purchase Invoices/Slips for the month', type: 'file' },
+    informationToProvide: [
+      { label: 'Monthly Bank Statements (PDF)' },
+      { label: 'All Sales Invoices for the month' },
+      { label: 'All Purchase Invoices/Slips for the month' },
     ],
      conditionalFields: {
       enabled: false,
@@ -177,8 +177,8 @@ export const services: Service[] = [
         'Company registration number',
         'Latest Annual Financial Statements (if applicable)',
     ],
-    informationToUpload: [
-       { label: 'Company Registration Number', type: 'text' },
+    informationToProvide: [
+       { label: 'Company Registration Number' },
     ],
      conditionalFields: {
       enabled: false,
@@ -212,10 +212,10 @@ export const services: Service[] = [
         'Proof of business address',
         'Employee details and total earnings',
     ],
-    informationToUpload: [
-       { label: 'Nature of Business', type: 'text' },
-       { label: 'Estimated Annual Employee Earnings', type: 'text' },
-       { label: 'Company Registration Certificate', type: 'file' },
+    informationToProvide: [
+       { label: 'Nature of Business' },
+       { label: 'Estimated Annual Employee Earnings' },
+       { label: 'Company Registration Certificate' },
     ],
      conditionalFields: {
       enabled: false,
@@ -320,5 +320,7 @@ export const orders: Order[] = [
         status: 'Processing',
     }
 ];
+
+    
 
     
