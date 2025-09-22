@@ -1,3 +1,4 @@
+
 'use client';
 import { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import type { User } from '@/lib/types';
@@ -12,9 +13,9 @@ export const users: User[] = [
     email: 'admin@test.com', 
     role: 'admin',
     smtpDetails: {
-        host: 'mail.thinkestry.co.za',
+        host: 'mail.myacc.co.za',
         port: '465',
-        user: 'no-reply@thinkestry.co.za',
+        user: 'no_reply@myacc.co.za',
         pass: 'Thinkestry10$',
     }
   },
