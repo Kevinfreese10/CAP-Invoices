@@ -474,7 +474,7 @@ export default function AdminOrderDetailsPage() {
                 </Card>
 
             </div>
-            <div className="lg:col-span-1 space-y-6 sticky top-24">
+            <div className="lg:col-span-1 space-y-6">
                  {assignee && (
                     <Card>
                         <CardHeader className="flex flex-row items-center gap-3 space-y-0">
