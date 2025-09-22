@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2, Banknote } from 'lucide-react';
+import { CheckCircle2, Banknote, Clock, Building } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 
@@ -21,14 +21,11 @@ export default function OrderConfirmationPage({ params }: { params: { orderId: s
                     </CardHeader>
                     <CardContent>
                         <p className="text-muted-foreground">
-                            Your order is pending payment. Please follow the EFT instructions to complete your purchase. To upload documents or track your order status, please visit your dashboard.
+                            Your order is pending payment. Please follow the EFT instructions to complete your purchase. An email has also been sent to you with these details.
                         </p>
                     </CardContent>
                     <CardFooter>
                         <div className="w-full flex flex-col sm:flex-row justify-center gap-4">
-                            <Button asChild>
-                                <Link href="/dashboard/orders">View My Orders</Link>
-                            </Button>
                             <Button variant="outline" asChild>
                                 <Link href="/services">Continue Shopping</Link>
                             </Button>
@@ -69,9 +66,23 @@ export default function OrderConfirmationPage({ params }: { params: { orderId: s
                             <p className="text-sm font-medium">Reference:</p>
                             <p className="text-lg font-semibold p-2 bg-destructive/10 text-destructive rounded-md">{params.orderId}</p>
                         </div>
+                        <Separator />
+                        <div>
+                             <div className="flex items-center gap-3 mb-2">
+                                <Building className="h-6 w-6 text-primary" />
+                                <h3 className="text-base font-semibold">Cash Payments</h3>
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                                We also accept cash payments at our offices: <strong>369 Oak Avenue, Ferndale, Randburg</strong>.
+                            </p>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2">
+                                <Clock className="h-4 w-4" />
+                                <span>Office Hours: Mon - Fri, 8:00 AM - 5:00 PM</span>
+                            </div>
+                        </div>
                     </CardContent>
                      <CardFooter>
-                        <p className="text-xs text-muted-foreground">Please use your Order ID as the payment reference. Your order will be processed once payment is confirmed.</p>
+                        <p className="text-xs text-muted-foreground">Please use your Order ID as the payment reference for EFTs. Your order will be processed once payment is confirmed.</p>
                     </CardFooter>
                 </Card>
             </div>
