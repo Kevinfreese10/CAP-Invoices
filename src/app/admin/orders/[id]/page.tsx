@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -371,21 +370,42 @@ export default function AdminOrderDetailsPage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <div className="space-y-4">
-                        {order.items.map((item: any) => (
-                            <div key={item.id} className="flex justify-between items-center">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <p className="font-semibold">{item.title}</p>
-                                <p className="text-sm text-muted-foreground">Quantity: {item.quantity}</p>
+                                <h3 className="font-semibold text-muted-foreground mb-2">Order Items</h3>
+                                <div className="space-y-4">
+                                {order.items.map((item: any) => (
+                                    <div key={item.id} className="flex justify-between items-center">
+                                    <div>
+                                        <p className="font-semibold">{item.title}</p>
+                                        <p className="text-sm text-muted-foreground">Quantity: {item.quantity}</p>
+                                    </div>
+                                    <p>{formatPrice(item.price)}</p>
+                                    </div>
+                                ))}
+                                </div>
+                                <Separator className="my-4" />
+                                <div className="flex justify-between font-bold text-lg">
+                                <span>Total</span>
+                                <span>{formatPrice(order.total)}</span>
+                                </div>
                             </div>
-                            <p>{formatPrice(item.price)}</p>
+                            <div>
+                                <h3 className="font-semibold text-muted-foreground mb-2">Customer Details</h3>
+                                <div className="space-y-3">
+                                    <p className="font-semibold text-lg">{order.customerName}</p>
+                                    <div className="flex items-center gap-2 text-sm">
+                                        <Mail className="h-4 w-4 text-muted-foreground" />
+                                        <a href={`mailto:${order.customerEmail}`} className="text-primary hover:underline">{order.customerEmail}</a>
+                                    </div>
+                                    {customer && (
+                                        <div className="flex items-center gap-2 text-sm">
+                                            <Phone className="h-4 w-4 text-muted-foreground" />
+                                            <span>{customer.contactNumber || 'N/A'}</span>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                        ))}
-                        </div>
-                        <Separator className="my-4" />
-                        <div className="flex justify-between font-bold text-lg">
-                        <span>Total</span>
-                        <span>{formatPrice(order.total)}</span>
                         </div>
                     </CardContent>
                 </Card>
@@ -455,25 +475,6 @@ export default function AdminOrderDetailsPage() {
 
             </div>
             <div className="lg:col-span-1 space-y-6 sticky top-24">
-                 <Card>
-                    <CardHeader className="flex flex-row items-center gap-3 space-y-0">
-                        <UserIcon className="h-5 w-5 text-muted-foreground"/>
-                        <CardTitle className="text-lg">Customer</CardTitle>
-                    </CardHeader>
-                     <CardContent className="space-y-4">
-                        <p className="font-semibold">{order.customerName}</p>
-                        <div className="flex items-center gap-2 text-sm">
-                            <Mail className="h-4 w-4 text-muted-foreground" />
-                            <a href={`mailto:${order.customerEmail}`} className="text-primary hover:underline">{order.customerEmail}</a>
-                        </div>
-                        {customer && (
-                            <div className="flex items-center gap-2 text-sm">
-                                <Phone className="h-4 w-4 text-muted-foreground" />
-                                <span>{customer.contactNumber || 'N/A'}</span>
-                            </div>
-                        )}
-                    </CardContent>
-                 </Card>
                  {assignee && (
                     <Card>
                         <CardHeader className="flex flex-row items-center gap-3 space-y-0">
@@ -518,3 +519,5 @@ export default function AdminOrderDetailsPage() {
     </div>
   );
 }
+
+    
