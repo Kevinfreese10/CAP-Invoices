@@ -189,6 +189,7 @@ export default function CreateResellerOrderForm() {
                 {fields.map((field, index) => {
                     const isCustom = form.watch(`items.${index}.isCustom`);
                     const lineItem = form.watch(`items.${index}`);
+                    const resellerPrice = form.watch(`items.${index}.resellerPrice`);
                     return (
                     <div key={field.id} className="p-3 border rounded-md space-y-3">
                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -251,17 +252,24 @@ export default function CreateResellerOrderForm() {
                                     </FormItem>
                                 )}
                                 />
-                             <FormField
-                                control={form.control}
-                                name={`items.${index}.resellerPrice`}
-                                render={({ field }) => (
-                                    <FormItem className="flex-grow">
-                                    <FormLabel>Your Cost (R)</FormLabel>
-                                    <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
-                                    <FormMessage />
-                                    </FormItem>
-                                )}
-                                />
+                             <div className="flex flex-col justify-end flex-grow">
+                                <FormLabel>Your Cost (R)</FormLabel>
+                                <div className="flex items-center h-10 px-3 py-2 text-sm font-semibold rounded-md border bg-muted">
+                                    {isCustom ? (
+                                        <FormField
+                                            control={form.control}
+                                            name={`items.${index}.resellerPrice`}
+                                            render={({ field }) => (
+                                                <FormItem className="w-full">
+                                                    <FormControl><Input type="number" step="0.01" {...field} className="m-0 p-0 h-auto border-none bg-transparent" /></FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    ) : (
+                                        <span>R {resellerPrice.toFixed(2)}</span>
+                                    )}
+                                </div>
+                            </div>
                              <FormField
                                 control={form.control}
                                 name={`items.${index}.clientPrice`}
@@ -323,5 +331,7 @@ export default function CreateResellerOrderForm() {
     </Form>
   );
 }
+
+    
 
     
