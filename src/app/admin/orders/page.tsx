@@ -48,7 +48,25 @@ import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
 
 const db = getFirestore(firebaseApp);
 
-const allStaff = users.filter(u => u.role === 'staff');
+const allStaff = users.filter(u => u.role === 'staff' || u.role === 'admin');
+
+// Simple round-robin counter for staff assignment
+let staffCounters: { [key: string]: number } = {};
+
+const getNextStaffMember = (department: 'Accounting and Tax' | 'Administration'): User | undefined => {
+    const staffInDept = users.filter(u => u.role === 'staff' && u.department === department);
+    if (staffInDept.length === 0) return undefined;
+
+    if (staffCounters[department] === undefined) {
+        staffCounters[department] = 0;
+    }
+
+    const staffMember = staffInDept[staffCounters[department]];
+    staffCounters[department] = (staffCounters[department] + 1) % staffInDept.length;
+    
+    return staffMember;
+};
+
 
 const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -140,16 +158,32 @@ export default function AdminOrdersPage() {
   const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
     const orderToUpdate = orders.find(o => o.id === orderId);
     if (!orderToUpdate) return;
+
+    let assignedStaffId = orderToUpdate.assignedTo;
+    let assignedStaffMember = allStaff.find(s => s.id === assignedStaffId);
+
+    // New Logic: Assign staff only when moving to "Processing"
+    if (newStatus === 'Processing' && !assignedStaffId) {
+        const department = orderToUpdate.department as 'Accounting and Tax' | 'Administration' | undefined;
+        if (department) {
+            assignedStaffMember = getNextStaffMember(department);
+            if (assignedStaffMember) {
+                assignedStaffId = assignedStaffMember.id;
+            }
+        }
+    }
     
     try {
       const orderRef = doc(db, 'orders', orderId);
       await updateDoc(orderRef, {
         status: newStatus,
+        assignedTo: assignedStaffId, // Update assignment in Firestore
       });
 
+      // Update local state
       setOrders(prevOrders =>
         prevOrders.map(order =>
-          order.id === orderId ? { ...order, status: newStatus } : order
+          order.id === orderId ? { ...order, status: newStatus, assignedTo: assignedStaffId } : order
         )
       );
 
@@ -157,14 +191,20 @@ export default function AdminOrdersPage() {
         title: 'Status Updated',
         description: `Order ${orderId} has been marked as ${newStatus}.`,
       });
+      
+      // New Logic: Send email after assignment on "Processing"
+      if (newStatus === 'Processing' && assignedStaffMember) {
+        toast({
+            title: 'Order Assigned',
+            description: `Order has been assigned to ${assignedStaffMember.name}.`
+        });
 
-      if (newStatus === 'Processing') {
         const itemsWithServices = orderToUpdate.items.map(item => {
             const service = allServices.find(s => s.id === item.id);
             return { ...item, service };
         }).filter(item => item.service) as { service: Service }[];
 
-        const emailHtml = render(<DocumentRequestEmail order={orderToUpdate} items={itemsWithServices} />);
+        const emailHtml = render(<DocumentRequestEmail order={orderToUpdate} items={itemsWithServices} assignedToEmail={assignedStaffMember.email} />);
         
         await sendEmail({
             to: orderToUpdate.customerEmail,
@@ -174,9 +214,10 @@ export default function AdminOrdersPage() {
 
         toast({
             title: 'Document Request Sent',
-            description: 'An email has been sent to the client requesting the necessary documents.'
+            description: `An email has been sent to the client requesting the necessary documents.`
         });
       }
+
 
        if (newStatus === 'Cancelled') {
         // If an order is cancelled, we remove it from the list after a brief moment
@@ -355,5 +396,3 @@ export default function AdminOrdersPage() {
     </div>
   );
 }
-
-    

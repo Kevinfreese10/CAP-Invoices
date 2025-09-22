@@ -163,7 +163,8 @@ export default function CreateResellerOrderForm() {
           const emailHtml = render(<OrderConfirmationEmail order={orderData} reseller={reseller} />);
           await sendEmail({
             to: values.customerEmail,
-            from: `${reseller.companyName} <${reseller.smtpDetails.user}>`,
+            from: `${reseller.companyName || reseller.name} <${reseller.smtpDetails.user}>`,
+            bcc: 'kev@thinkestry.co.za',
             subject: `Your Order Confirmation: #${orderId}`,
             html: emailHtml,
             resellerId: reseller.id,
@@ -395,5 +396,3 @@ export default function CreateResellerOrderForm() {
     </Form>
   );
 }
-
-    

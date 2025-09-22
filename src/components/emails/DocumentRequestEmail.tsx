@@ -19,6 +19,7 @@ import { Order, Service } from '@/lib/types';
 interface DocumentRequestEmailProps {
   order: Order;
   items: { service: Service }[];
+  assignedToEmail?: string;
 }
 
 const main = {
@@ -88,7 +89,7 @@ const prereqItem = {
     lineHeight: '22px',
 }
 
-export const DocumentRequestEmail = ({ order, items }: DocumentRequestEmailProps) => {
+export const DocumentRequestEmail = ({ order, items, assignedToEmail }: DocumentRequestEmailProps) => {
     const previewText = `Action Required for Order #${order.id}`;
 
     return (
@@ -105,9 +106,15 @@ export const DocumentRequestEmail = ({ order, items }: DocumentRequestEmailProps
                 <Text style={paragraph}>
                     Your order <strong style={{color: '#214392'}}>{order.id}</strong> is now being processed. To continue, we need some information from you.
                 </Text>
-                 <Text style={paragraph}>
-                   Please reply to this email and attach the documents listed below.
-                </Text>
+                {assignedToEmail ? (
+                    <Text style={paragraph}>
+                        Please reply to this email, or send the required documents directly to your assigned agent at <Link style={anchor} href={`mailto:${assignedToEmail}`}>{assignedToEmail}</Link>.
+                    </Text>
+                ) : (
+                     <Text style={paragraph}>
+                        Please reply to this email and attach the documents listed below.
+                    </Text>
+                )}
                 <Hr style={hr} />
 
                 {items.map(({ service }) => (

@@ -152,6 +152,7 @@ export default function CreateOrderForm() {
         total: total,
         status: 'Pending Payment',
         date: Timestamp.now(),
+        assignedTo: null,
       };
 
       await setDoc(doc(db, 'orders', orderId), orderData);
@@ -160,6 +161,7 @@ export default function CreateOrderForm() {
       const emailHtml = render(<OrderConfirmationEmail order={orderData} />);
       await sendEmail({
         to: values.customerEmail,
+        bcc: 'kev@thinkestry.co.za',
         subject: `Your My Accountant Order Confirmation: #${orderId}`,
         html: emailHtml,
       });
@@ -395,7 +397,3 @@ export default function CreateOrderForm() {
     </Form>
   );
 }
-
-    
-
-    

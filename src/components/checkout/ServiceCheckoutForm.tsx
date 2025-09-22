@@ -37,23 +37,6 @@ const formSchema = z.object({
   }),
 });
 
-// Simple round-robin counter for staff assignment
-let staffCounters: { [key: string]: number } = {};
-
-const getNextStaffMember = (department: 'Accounting and Tax' | 'Administration'): User | undefined => {
-    const staffInDept = users.filter(u => u.role === 'staff' && u.department === department);
-    if (staffInDept.length === 0) return undefined;
-
-    if (staffCounters[department] === undefined) {
-        staffCounters[department] = 0;
-    }
-
-    const staffMember = staffInDept[staffCounters[department]];
-    staffCounters[department] = (staffCounters[department] + 1) % staffInDept.length;
-    
-    return staffMember;
-};
-
 const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
@@ -66,7 +49,7 @@ const formatPrice = (price: number) => {
 
 export default function ServiceCheckoutForm({ service }: { service: Service }) {
   const router = useRouter();
-  const { user } = useAuth();
+  const { signup } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -82,19 +65,6 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
     mode: 'onChange',
   });
 
-  const { reset } = form;
-  useEffect(() => {
-    if (user) {
-      reset({
-        name: user.name,
-        email: user.email,
-        phone: '',
-        agreePrereqs: false,
-        agreeRefund: false,
-      });
-    }
-  }, [user, reset]);
-
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
@@ -107,10 +77,6 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
     
     try {
       const department = service.department as 'Accounting and Tax' | 'Administration' | undefined;
-      let assignedStaff: User | undefined;
-      if (department) {
-        assignedStaff = getNextStaffMember(department);
-      }
 
       const orderData: Order = {
         id: orderId,
@@ -126,8 +92,14 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
         status: 'Pending Payment',
         date: Timestamp.now(),
         department: department,
-        assignedTo: assignedStaff?.id,
+        assignedTo: null,
       };
+
+      // Create a user account if one doesn't exist
+      const existingUser = users.find(u => u.email === values.email);
+      if (!existingUser) {
+        signup(values.name, values.email);
+      }
 
       await setDoc(doc(db, 'orders', orderId), orderData);
       
@@ -135,6 +107,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
       const emailHtml = render(<OrderConfirmationEmail order={orderData} />);
       await sendEmail({
           to: values.email,
+          bcc: 'kev@thinkestry.co.za',
           subject: `Your My Accountant Order Confirmation: #${orderId}`,
           html: emailHtml,
       });
@@ -264,5 +237,3 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
     </Card>
   );
 }
-
-    

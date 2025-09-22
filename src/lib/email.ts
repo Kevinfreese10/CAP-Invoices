@@ -10,17 +10,27 @@ type EmailPayload = {
     subject: string;
     html: string;
     from?: string;
+    bcc?: string | string[];
     resellerId?: string;
 }
 
-export async function sendEmail({ to, subject, html, from, resellerId }: EmailPayload) {
+export async function sendEmail({ to, subject, html, from, bcc, resellerId }: EmailPayload) {
   
   // Logic to decide which email service to use
   const reseller = users.find(u => u.id === resellerId && u.role === 'reseller');
   const admin = users.find(u => u.role === 'admin');
 
   const smtpConfig = reseller?.smtpDetails || admin?.smtpDetails;
-  const fromAddress = from || smtpConfig?.user || 'onboarding@resend.dev';
+  
+  // Construct the 'from' address with a name
+  let fromAddress: string;
+  if (from) {
+    fromAddress = from;
+  } else if (reseller) {
+    fromAddress = `"${reseller.companyName || reseller.name}" <${smtpConfig?.user}>`;
+  } else {
+    fromAddress = `"My Accountant" <${smtpConfig?.user || 'onboarding@resend.dev'}>`;
+  }
   
   if (smtpConfig && smtpConfig.host && smtpConfig.pass) {
     // Use Nodemailer with SMTP
@@ -38,6 +48,7 @@ export async function sendEmail({ to, subject, html, from, resellerId }: EmailPa
         const info = await transporter.sendMail({
             from: fromAddress,
             to: Array.isArray(to) ? to.join(', ') : to,
+            bcc: bcc,
             subject: subject,
             html: html,
         });
@@ -56,8 +67,9 @@ export async function sendEmail({ to, subject, html, from, resellerId }: EmailPa
     const resend = new Resend(process.env.RESEND_API_KEY);
     try {
         const { data, error } = await resend.emails.send({
-        from: from || 'onboarding@resend.dev',
+        from: fromAddress,
         to: to,
+        bcc: bcc,
         subject: subject,
         html: html,
         });

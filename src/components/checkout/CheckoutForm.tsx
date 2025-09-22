@@ -50,7 +50,7 @@ const getNextStaffMember = (department: 'Accounting and Tax' | 'Administration')
 
 export default function CheckoutForm() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { signup } = useAuth();
   const { cartItems, cartTotal, clearCart } = useCart();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -58,8 +58,8 @@ export default function CheckoutForm() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: user?.name || '',
-      email: user?.email || '',
+      name: '',
+      email: '',
       phone: '',
     },
   });
@@ -76,10 +76,6 @@ export default function CheckoutForm() {
     try {
       const firstService = cartItems[0]?.service;
       const department = firstService?.department as 'Accounting and Tax' | 'Administration' | undefined;
-      let assignedStaff: User | undefined;
-      if (department) {
-        assignedStaff = getNextStaffMember(department);
-      }
       
       const orderData: Order = {
         id: orderId,
@@ -95,15 +91,22 @@ export default function CheckoutForm() {
         status: 'Pending Payment',
         date: Timestamp.now(),
         department: department,
-        assignedTo: assignedStaff?.id,
+        assignedTo: null,
       };
 
+      // Create a user account if one doesn't exist
+      const existingUser = users.find(u => u.email === values.email);
+      if (!existingUser) {
+        signup(values.name, values.email);
+      }
+      
       await setDoc(doc(db, 'orders', orderId), orderData);
       
       // Send confirmation email
       const emailHtml = render(<OrderConfirmationEmail order={orderData} />);
       await sendEmail({
           to: values.email,
+          bcc: 'kev@thinkestry.co.za',
           subject: `Your My Accountant Order Confirmation: #${orderId}`,
           html: emailHtml,
       });
