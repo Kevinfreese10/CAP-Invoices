@@ -184,6 +184,15 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
         return allUsers.find(u => u.id === userId);
     }
     
+    const getStatusVariant = (status: Task['status']) => {
+        switch (status) {
+            case 'Completed': return 'success';
+            case 'In Progress': return 'info';
+            case 'To Do': return 'warning';
+            default: return 'secondary';
+        }
+    };
+
     if (tasks.length === 0) {
         return (
              <Card>
@@ -249,7 +258,7 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                         </TableCell>
                         <TableCell className="align-top">{format(task.dueDate, 'dd MMM yyyy')}</TableCell>
                         <TableCell className="align-top">
-                            <Badge variant={task.status === 'Completed' ? 'default' : 'secondary'}>
+                            <Badge variant={getStatusVariant(task.status)}>
                                 {task.status}
                             </Badge>
                         </TableCell>

@@ -280,6 +280,15 @@ export default function AdminTasksPage() {
     return allUsers.find(u => u.id === userId);
   }
 
+  const getStatusVariant = (status: Task['status']) => {
+    switch (status) {
+        case 'Completed': return 'success';
+        case 'In Progress': return 'info';
+        case 'To Do': return 'warning';
+        default: return 'secondary';
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -348,7 +357,7 @@ export default function AdminTasksPage() {
                   </TableCell>
                    <TableCell>{format(task.dueDate, 'dd MMM yyyy')}</TableCell>
                   <TableCell>
-                    <Badge variant={task.status === 'Completed' ? 'default' : 'secondary'}>
+                    <Badge variant={getStatusVariant(task.status)}>
                         {task.status}
                     </Badge>
                   </TableCell>
