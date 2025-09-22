@@ -76,11 +76,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signup = (name: string, email: string) => {
-    // This function is now effectively disabled for clients
-    // but might be used for other roles in the future.
-    const newUser: User = { id: `new-user-${Date.now()}`, name, email, role: 'staff' };
-    (users as User[]).push(newUser); 
-    updateUserState(newUser);
+    const newUser: User = { id: `new-user-${Date.now()}`, name, email, role: 'client' };
+    (users as User[]).push(newUser);
+    // We don't log in the new client, just create their record.
     return newUser;
   };
   
