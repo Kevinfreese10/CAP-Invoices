@@ -44,6 +44,7 @@ import {
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
+import ReviewRequestEmail from '@/components/emails/ReviewRequestEmail';
 
 
 const db = getFirestore(firebaseApp);
@@ -197,14 +198,15 @@ export default function AdminOrdersPage() {
         description: `Order ${orderId} has been marked as ${newStatus}.`,
       });
       
-      // Corrected Logic: Send email if status is "Processing" and a staff member is assigned
-      if (newStatus === 'Processing' && assignedStaffMember) {
+      const currentStaff = assignedStaffId ? allStaff.find(s => s.id === assignedStaffId) : undefined;
+      
+      if (newStatus === 'Processing' && currentStaff) {
         const itemsWithServices = orderToUpdate.items.map(item => {
             const service = allServices.find(s => s.id === item.id);
             return { ...item, service };
         }).filter(item => item.service) as { service: Service }[];
 
-        const emailHtml = render(<DocumentRequestEmail order={orderToUpdate} items={itemsWithServices} assignedToEmail={assignedStaffMember.email} />);
+        const emailHtml = render(<DocumentRequestEmail order={orderToUpdate} items={itemsWithServices} assignedToEmail={currentStaff.email} />);
         
         await sendEmail({
             to: orderToUpdate.customerEmail,
@@ -215,6 +217,19 @@ export default function AdminOrdersPage() {
         toast({
             title: 'Document Request Sent',
             description: `An email has been sent to the client requesting the necessary documents.`
+        });
+      }
+
+      if (newStatus === 'Completed') {
+        const emailHtml = render(<ReviewRequestEmail order={orderToUpdate} />);
+        await sendEmail({
+            to: orderToUpdate.customerEmail,
+            subject: `We'd love your feedback on order #${orderId}`,
+            html: emailHtml,
+        });
+        toast({
+            title: 'Review Request Sent',
+            description: `An email has been sent to the client requesting a review.`
         });
       }
 
