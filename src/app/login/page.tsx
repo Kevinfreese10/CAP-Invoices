@@ -1,3 +1,4 @@
+
 import LoginForm from '@/components/auth/LoginForm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
@@ -8,7 +9,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Welcome Back</CardTitle>
-          <CardDescription>Enter your email to log in to your account. For demo, try `client@test.com` or `admin@test.com`.</CardDescription>
+          <CardDescription>Enter your email to log in. For this demo, no password is needed. Try `client@test.com` or `admin@test.com`.</CardDescription>
         </CardHeader>
         <CardContent>
           <LoginForm />

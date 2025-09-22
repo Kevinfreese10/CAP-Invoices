@@ -7,7 +7,7 @@ import { users } from '@/lib/data';
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string) => User | undefined;
+  login: (email: string, name?: string) => User | undefined;
   logout: () => void;
   signup: (name: string, email: string) => User;
   isAuthenticated: boolean | undefined;
@@ -43,16 +43,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
-  const login = (email: string) => {
+  const login = (email: string, name?: string) => {
     const foundUser = users.find(u => u.email === email);
     if (foundUser) {
-      updateUserState(foundUser);
+      if (user?.id !== foundUser.id) { // Only update state if it's a new login
+        updateUserState(foundUser);
+      }
       return foundUser;
     }
-    // For this demo, non-staff/admin emails will create/login as a client
-    const newUser: User = { id: Date.now().toString(), name: 'New Client', email, role: 'client'};
-    updateUserState(newUser);
-    return newUser;
+    // If not found, and it's not a staff/admin/reseller, create a new client account
+    if (!email.endsWith('@test.com')) {
+      const newUser: User = { id: `new-user-${Date.now()}`, name: name || 'New Client', email, role: 'client'};
+      (users as User[]).push(newUser); // Not persistent across reloads, but fine for demo session
+      updateUserState(newUser);
+      return newUser;
+    }
+    
+    return undefined;
   };
 
   const logout = () => {
@@ -61,7 +68,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signup = (name: string, email: string) => {
     // In a real app, this would create a new user in the DB.
-    const newUser: User = { id: Date.now().toString(), name, email, role: 'client' };
+    const newUser: User = { id: `new-user-${Date.now()}`, name, email, role: 'client' };
     (users as User[]).push(newUser); // Not persistent across reloads, but fine for demo session
     updateUserState(newUser);
     return newUser;
