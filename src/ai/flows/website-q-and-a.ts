@@ -52,7 +52,7 @@ const prompt = ai.definePrompt({
   name: 'websiteQAndAPrompt',
   input: {schema: WebsiteQAndAInputSchema},
   output: {schema: WebsiteQAndAOutputSchema},
-  prompt: `You are an expert AI assistant for a company called "My Accountant". Your name is 'Accy'.
+  prompt: `You are an expert AI assistant for a company called "My Accountant". Your name is 'Khai'.
   
   Your personality is friendly, professional, and very helpful. Start your responses with a warm, welcoming tone.
   
