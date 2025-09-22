@@ -1,3 +1,4 @@
+
 'use client';
 import { useState } from 'react';
 import { services as initialServices } from '@/lib/data';
@@ -99,7 +100,9 @@ export default function AdminServicesPage() {
               <TableRow>
                 <TableHead>Title</TableHead>
                 <TableHead>Category</TableHead>
+                <TableHead>Department</TableHead>
                 <TableHead className="text-right">Price</TableHead>
+                <TableHead className="text-right">Reseller Price</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -108,7 +111,11 @@ export default function AdminServicesPage() {
                 <TableRow key={service.id}>
                   <TableCell className="font-medium">{service.title}</TableCell>
                   <TableCell>{service.category}</TableCell>
+                  <TableCell>{service.department || 'N/A'}</TableCell>
                   <TableCell className="text-right">R {service.price.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">
+                    {service.resellerPrice ? `R ${service.resellerPrice.toFixed(2)}` : 'N/A'}
+                  </TableCell>
                   <TableCell className="text-right">
                     <AlertDialog>
                         <DropdownMenu>
