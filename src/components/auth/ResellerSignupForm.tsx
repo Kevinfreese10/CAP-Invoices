@@ -1,3 +1,4 @@
+
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -128,7 +129,7 @@ export default function ResellerSignupForm() {
                 </FormControl>
                 <div className="space-y-1 leading-none">
                     <FormLabel>
-                        I agree to the <Link href="/terms" className="underline">terms and conditions</Link> of the reseller program.
+                        I agree to the <Link href="/popia" className="underline">terms and conditions</Link> of the reseller program.
                     </FormLabel>
                     <FormMessage />
                 </div>

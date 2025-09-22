@@ -54,6 +54,7 @@ const Footer = () => {
                     <li><Link href="/blog" className="text-muted-foreground hover:text-primary">Blog</Link></li>
                     <li><Link href="/contact" className="text-muted-foreground hover:text-primary">Contact</Link></li>
                     <li><Link href="/reseller-signup" className="text-muted-foreground hover:text-primary">Reseller Program</Link></li>
+                    <li><Link href="/popia" className="text-muted-foreground hover:text-primary">POPIA Policy</Link></li>
                 </ul>
             </div>
 
