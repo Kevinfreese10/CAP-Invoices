@@ -1,3 +1,4 @@
+
 import { MetadataRoute } from 'next';
 import { services } from '@/lib/data';
 import { blogPosts } from '@/lib/data';
@@ -18,7 +19,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   }));
 
   const staticPages = [
-    { url: `${siteUrl}/`, lastModified: new Date() },
+    { url: `${siteUrl}/home`, lastModified: new Date() },
     { url: `${siteUrl}/services`, lastModified: new Date() },
     { url: `${siteUrl}/blog`, lastModified: new Date() },
     { url: `${siteUrl}/support`, lastModified: new Date() },

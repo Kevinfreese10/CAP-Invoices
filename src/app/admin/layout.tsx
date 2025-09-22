@@ -26,13 +26,13 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   if (isAuthenticated && user?.role === 'client') {
-    router.push('/');
+    router.push('/home');
     return null;
   }
   
   // Also protect the dashboard page from clients
   if (pathname === '/admin/dashboard' && user?.role === 'client') {
-    router.push('/');
+    router.push('/home');
     return null;
   }
 

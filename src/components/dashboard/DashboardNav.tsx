@@ -38,7 +38,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
 
   const handleLogout = () => {
     logout();
-    router.push('/');
+    router.push('/home');
   };
 
   const navItems = [
