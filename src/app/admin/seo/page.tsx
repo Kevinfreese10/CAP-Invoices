@@ -125,6 +125,20 @@ export default function SeoManagementPage() {
                     }
                 }
             }
+        } else if (groupName === 'Static Pages') {
+            for (const page of pageGroups['Static Pages']) {
+                const pageTitle = page.title.split('|')[0].trim();
+                const result = await generateBlogPostSeo({ title: pageTitle });
+                const index = fields.findIndex(f => f.id === page.id);
+                 if (index !== -1) {
+                    update(index, {
+                        ...fields[index],
+                        title: result.metaTitle,
+                        description: result.metaDescription,
+                        keywords: result.metaKeywords.map(k => ({ value: k })),
+                    });
+                }
+            }
         }
         toast({
             title: 'Optimization Complete!',
@@ -161,7 +175,7 @@ export default function SeoManagementPage() {
                   <AccordionItem key={groupName} value={groupName}>
                     <div className="flex items-center">
                       <AccordionTrigger className="text-xl font-semibold flex-grow">{groupName} ({pages.length})</AccordionTrigger>
-                      <Button type="button" onClick={() => handleAiUpdate(groupName)} size="sm" variant="ghost" disabled={isAiUpdating === groupName || groupName === 'Static Pages'} className="ml-4">
+                      <Button type="button" onClick={() => handleAiUpdate(groupName)} size="sm" variant="ghost" disabled={isAiUpdating === groupName}>
                         {isAiUpdating === groupName ? <Loader2 className="animate-spin mr-2"/> : <Sparkles className="mr-2" />}
                         Update with AI
                       </Button>
@@ -242,5 +256,3 @@ export default function SeoManagementPage() {
     </div>
   );
 }
-
-    
