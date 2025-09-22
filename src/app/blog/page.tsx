@@ -1,6 +1,6 @@
+'use client';
 import Image from 'next/image';
 import Link from 'next/link';
-import { blogPosts } from '@/lib/data';
 import {
   Card,
   CardContent,
@@ -11,8 +11,11 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowRight } from 'lucide-react';
+import { useBlog } from '@/contexts/BlogContext';
 
 export default function BlogPage() {
+  const { blogPosts } = useBlog();
+
   return (
     <div className="container mx-auto px-4 py-12">
       <div className="text-center mb-12">

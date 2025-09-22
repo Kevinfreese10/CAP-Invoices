@@ -1,7 +1,6 @@
 
 'use client';
 import { useState } from 'react';
-import { blogPosts as initialBlogPosts } from '@/lib/data';
 import { BlogPost } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,9 +14,10 @@ import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useBlog } from '@/contexts/BlogContext';
 
 export default function AdminBlogPage() {
-  const [blogPosts, setBlogPosts] = useState<BlogPost[]>(initialBlogPosts);
+  const { blogPosts, addPost, updatePost, deletePost } = useBlog();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedPost, setSelectedPost] = useState<BlogPost | null>(null);
   const { toast } = useToast();
@@ -33,7 +33,7 @@ export default function AdminBlogPage() {
   };
   
   const handleDeletePost = (postId: string) => {
-    setBlogPosts(prevPosts => prevPosts.filter(p => p.id !== postId));
+    deletePost(postId);
     toast({
         title: 'Blog Post Deleted',
         description: 'The post has been successfully removed.',
@@ -44,25 +44,14 @@ export default function AdminBlogPage() {
   const handleFormSubmit = (postData: BlogPost) => {
     if (selectedPost) {
       // Update existing post
-      setBlogPosts(prevPosts =>
-        prevPosts.map(p => (p.id === postData.id ? postData : p))
-      );
+      updatePost(postData);
        toast({
         title: 'Post Updated',
         description: 'The blog post has been saved.',
       });
     } else {
       // Add new post
-      const newPost = { 
-          ...postData, 
-          id: `post-${Date.now()}`,
-          slug: postData.title.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, ''),
-          date: new Date().toISOString()
-      };
-      setBlogPosts(prevPosts => [
-        ...prevPosts,
-        newPost,
-      ]);
+      addPost(postData);
        toast({
         title: 'Post Created',
         description: 'The new blog post has been added successfully.',
