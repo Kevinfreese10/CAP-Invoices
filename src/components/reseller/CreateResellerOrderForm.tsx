@@ -245,14 +245,14 @@ export default function CreateResellerOrderForm() {
                                 control={form.control}
                                 name={`items.${index}.quantity`}
                                 render={({ field }) => (
-                                    <FormItem className="flex-grow">
-                                    <FormLabel>Qty</FormLabel>
-                                    <FormControl><Input type="number" {...field} /></FormControl>
-                                    <FormMessage />
+                                    <FormItem>
+                                        <FormLabel>Qty</FormLabel>
+                                        <FormControl><Input type="number" {...field} /></FormControl>
+                                        <FormMessage />
                                     </FormItem>
                                 )}
                                 />
-                             <div className="flex flex-col justify-end flex-grow">
+                            <FormItem>
                                 <FormLabel>Your Cost (R)</FormLabel>
                                 <div className="flex items-center h-10 px-3 py-2 text-sm font-semibold rounded-md border bg-muted">
                                     {isCustom ? (
@@ -260,33 +260,31 @@ export default function CreateResellerOrderForm() {
                                             control={form.control}
                                             name={`items.${index}.resellerPrice`}
                                             render={({ field }) => (
-                                                <FormItem className="w-full">
-                                                    <FormControl><Input type="number" step="0.01" {...field} className="m-0 p-0 h-auto border-none bg-transparent" /></FormControl>
-                                                </FormItem>
+                                                <FormControl><Input type="number" step="0.01" {...field} className="m-0 p-0 h-auto border-none bg-transparent" /></FormControl>
                                             )}
                                         />
                                     ) : (
                                         <span>R {resellerPrice.toFixed(2)}</span>
                                     )}
                                 </div>
-                            </div>
+                            </FormItem>
                              <FormField
                                 control={form.control}
                                 name={`items.${index}.clientPrice`}
                                 render={({ field }) => (
-                                    <FormItem className="flex-grow">
+                                    <FormItem>
                                     <FormLabel>Client Price (R)</FormLabel>
                                     <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
                                     <FormMessage />
                                     </FormItem>
                                 )}
                                 />
-                            <div className="flex flex-col justify-end flex-grow">
+                            <FormItem>
                                 <FormLabel>Profit</FormLabel>
                                 <div className="flex items-center h-10 px-3 py-2 text-sm font-semibold rounded-md border bg-muted">
                                     R {getLineItemProfit(lineItem).toFixed(2)}
                                 </div>
-                            </div>
+                            </FormItem>
                             <div className="flex items-end">
                                 <Button
                                     type="button"
@@ -331,7 +329,3 @@ export default function CreateResellerOrderForm() {
     </Form>
   );
 }
-
-    
-
-    
