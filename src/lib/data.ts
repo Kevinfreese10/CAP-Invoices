@@ -74,12 +74,6 @@ export const services: Service[] = [
       { label: 'Proof of Address' },
       { label: 'SARS eFiling Login Details' },
     ],
-     conditionalFields: {
-      enabled: false,
-      fieldName: '',
-      fieldValues: [],
-      duplicatedDocuments: [],
-    },
     metaTitle: 'Personal Tax Return Filing (ITR12) | My Accountant',
     metaDescription: 'Expert personal tax return (ITR12) filing services for South African individuals and provisional taxpayers. We ensure compliance and maximize your returns.',
     metaKeywords: ['personal tax return', 'ITR12', 'SARS eFiling', 'South Africa tax'],
@@ -106,15 +100,6 @@ export const services: Service[] = [
         '4 proposed company names',
     ],
     informationToProvide: [],
-    conditionalFields: {
-      enabled: true,
-      fieldName: 'Number of Directors',
-      fieldValues: ['1', '2', '3', '4', '5'],
-      duplicatedDocuments: [
-        { label: 'Certified ID Copy of Director', type: 'file' },
-        { label: 'Proof of Address for Director', type: 'file' },
-      ],
-    },
     metaTitle: 'New Company Registration (Pty Ltd) | My Accountant',
     metaDescription: 'Fast and reliable Pty (Ltd) company registration services with CIPC in South Africa. Includes name reservation, tax number, and all essential documents.',
     metaKeywords: ['company registration', 'CIPC', 'Pty Ltd', 'start a business', 'South Africa'],
@@ -147,12 +132,6 @@ export const services: Service[] = [
       { label: 'All Sales Invoices for the month' },
       { label: 'All Purchase Invoices/Slips for the month' },
     ],
-     conditionalFields: {
-      enabled: false,
-      fieldName: '',
-      fieldValues: [],
-      duplicatedDocuments: [],
-    },
     metaTitle: 'Monthly Bookkeeping Services for Small Businesses | My Accountant',
     metaDescription: 'Affordable monthly bookkeeping and accounting services for small businesses in South Africa. We handle reconciliations, reporting, and more.',
     metaKeywords: ['bookkeeping services', 'small business accounting', 'monthly bookkeeping', 'accountant South Africa'],
@@ -180,12 +159,6 @@ export const services: Service[] = [
     informationToProvide: [
        { label: 'Company Registration Number' },
     ],
-     conditionalFields: {
-      enabled: false,
-      fieldName: '',
-      fieldValues: [],
-      duplicatedDocuments: [],
-    },
     metaTitle: 'CIPC Annual Returns Filing | My Accountant',
     metaDescription: 'Quick and easy CIPC annual return filing service to keep your South African company compliant. Avoid penalties and deregistration.',
     metaKeywords: ['CIPC annual returns', 'company compliance', 'CIPC filing', 'South Africa'],
@@ -217,12 +190,6 @@ export const services: Service[] = [
        { label: 'Estimated Annual Employee Earnings' },
        { label: 'Company Registration Certificate' },
     ],
-     conditionalFields: {
-      enabled: false,
-      fieldName: '',
-      fieldValues: [],
-      duplicatedDocuments: [],
-    },
     metaTitle: 'COIDA Registration Service | My Accountant',
     metaDescription: 'COIDA registration service for South African employers. Ensure compliance with the Compensation for Occupational Injuries and Diseases Act.',
     metaKeywords: ['COIDA registration', 'Compensation Fund', 'Department of Labour', 'workmans compensation'],
@@ -320,7 +287,3 @@ export const orders: Order[] = [
         status: 'Processing',
     }
 ];
-
-    
-
-    

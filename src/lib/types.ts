@@ -17,16 +17,6 @@ export type Service = {
   informationToProvide: {
     label: string;
   }[];
-  conditionalFields?: {
-    enabled: boolean;
-    fieldName: string;
-
-    fieldValues: string[];
-    duplicatedDocuments: {
-      label: string;
-      type: 'text' | 'file';
-    }[];
-  };
   metaTitle?: string;
   metaDescription?: string;
   metaKeywords?: string[];
@@ -122,5 +112,3 @@ export type Task = {
   orderId?: string;
   updates?: TaskUpdate[];
 };
-
-    
