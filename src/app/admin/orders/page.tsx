@@ -166,9 +166,14 @@ export default function AdminOrdersPage() {
     if (newStatus === 'Processing' && !assignedStaffId) {
         const department = orderToUpdate.department as 'Accounting and Tax' | 'Administration' | undefined;
         if (department) {
-            assignedStaffMember = getNextStaffMember(department);
-            if (assignedStaffMember) {
-                assignedStaffId = assignedStaffMember.id;
+            const newStaffAssignment = getNextStaffMember(department);
+            if (newStaffAssignment) {
+                assignedStaffMember = newStaffAssignment;
+                assignedStaffId = newStaffAssignment.id;
+                 toast({
+                    title: 'Order Assigned',
+                    description: `Order has been assigned to ${assignedStaffMember.name}.`
+                });
             }
         }
     }
@@ -177,7 +182,7 @@ export default function AdminOrdersPage() {
       const orderRef = doc(db, 'orders', orderId);
       await updateDoc(orderRef, {
         status: newStatus,
-        assignedTo: assignedStaffId || null, // Update assignment in Firestore
+        assignedTo: assignedStaffId || null,
       });
 
       // Update local state
@@ -192,13 +197,8 @@ export default function AdminOrdersPage() {
         description: `Order ${orderId} has been marked as ${newStatus}.`,
       });
       
-      // New Logic: Send email after assignment on "Processing"
+      // Corrected Logic: Send email if status is "Processing" and a staff member is assigned
       if (newStatus === 'Processing' && assignedStaffMember) {
-        toast({
-            title: 'Order Assigned',
-            description: `Order has been assigned to ${assignedStaffMember.name}.`
-        });
-
         const itemsWithServices = orderToUpdate.items.map(item => {
             const service = allServices.find(s => s.id === item.id);
             return { ...item, service };
