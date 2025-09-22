@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { websiteQAndA } from '@/ai/flows/website-q-and-a';
+import { WebsiteQAndAOutput, websiteQAndA } from '@/ai/flows/website-q-and-a';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,8 +23,7 @@ const RECENT_QUESTIONS_KEY = 'ai-widget-recent-questions';
 const MAX_RECENT_QUESTIONS = 3;
 
 export default function WebsiteAIWidget() {
-  const [answer, setAnswer] = useState('');
-  const [confidence, setConfidence] = useState(0);
+  const [response, setResponse] = useState<WebsiteQAndAOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [recentQuestions, setRecentQuestions] = useState<string[]>([]);
@@ -54,13 +53,11 @@ export default function WebsiteAIWidget() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
-    setAnswer('');
+    setResponse(null);
     setError('');
-    setConfidence(0);
     try {
       const response = await websiteQAndA({ question: values.question });
-      setAnswer(response.answer);
-      setConfidence(response.confidence);
+      setResponse(response);
       
       // Update recent questions
       setRecentQuestions(prev => {
@@ -113,16 +110,23 @@ export default function WebsiteAIWidget() {
               </div>
             )}
             {error && <Alert variant="destructive"><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
-            {answer && !isLoading && (
+            {response && !isLoading && (
               <Alert>
                 <AlertTitle className="flex justify-between items-center">
                     <span>Answer:</span>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>Confidence: {confidence}%</span>
-                        <Progress value={confidence} className="w-20 h-2" />
+                        <span>Confidence: {response.confidence}%</span>
+                        <Progress value={response.confidence} className="w-20 h-2" />
                     </div>
                 </AlertTitle>
-                <AlertDescription>{answer}</AlertDescription>
+                <AlertDescription>
+                  <p>{response.answer}</p>
+                  {response.serviceUrl && (
+                    <Button asChild variant="link" className="p-0 h-auto mt-2">
+                      <Link href={response.serviceUrl}>View Service Details</Link>
+                    </Button>
+                  )}
+                </AlertDescription>
               </Alert>
             )}
 

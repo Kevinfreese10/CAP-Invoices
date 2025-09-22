@@ -23,13 +23,14 @@ export type WebsiteQAndAInput = z.infer<typeof WebsiteQAndAInputSchema>;
 const WebsiteQAndAOutputSchema = z.object({
   answer: z.string().describe('A concise and helpful answer to the user\'s question, based *only* on the provided context. If the answer is not in the context, state that you cannot answer.'),
   confidence: z.number().min(0).max(100).describe('A confidence score (0-100) of how certain you are about the answer based on the provided context. If the answer is directly stated in the context, confidence should be high (90-100). If it is inferred, it should be medium (60-80). If you cannot answer, it should be very low (0-10).'),
+  serviceUrl: z.string().optional().describe("If the user's question is about a specific service, provide the URL for that service page. The URL should be in the format '/services/service-id'."),
 });
 export type WebsiteQAndAOutput = z.infer<typeof WebsiteQAndAOutputSchema>;
 
 // Serialize the website content to pass to the prompt
 const websiteContent = `
   SERVICES:
-  ${services.map(s => `Title: ${s.title}, Description: ${s.longDescription}, Price: ZAR ${s.price}`).join('\n\n')}
+  ${services.map(s => `Title: ${s.title}, URL: /services/${s.id}, Description: ${s.longDescription}, Price: ZAR ${s.price}`).join('\n\n')}
 
   BLOG POSTS:
   ${blogPosts.map(p => `Title: ${p.title}, Excerpt: ${p.excerpt}`).join('\n\n')}
@@ -57,6 +58,8 @@ const prompt = ai.definePrompt({
   Your personality is friendly, professional, and very helpful. Start your responses with a warm, welcoming tone.
   
   Your task is to answer user questions based *only* on the information provided in the context below. The Knowledge Base section is the highest source of truth.
+
+  If the user's question is about a specific service mentioned in the context, you must provide the 'serviceUrl' for that service in your response.
   
   If the answer is not found in the context, you MUST state that you do not have that information and suggest they contact support. For example, say "That's an excellent question! I don't have that specific information right now, but our expert team would be happy to help. You can reach them through our support page."
   
