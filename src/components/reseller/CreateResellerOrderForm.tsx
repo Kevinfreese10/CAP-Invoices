@@ -73,8 +73,8 @@ export default function CreateResellerOrderForm() {
     const subscription = form.watch((value) => {
         const newTotal = (value.items || []).reduce((acc, item) => {
             const quantity = item?.quantity || 0;
-            const resellerPrice = item?.resellerPrice || 0;
-            return acc + (resellerPrice * quantity);
+            const clientPrice = item?.clientPrice || 0;
+            return acc + (clientPrice * quantity);
         }, 0);
         setTotal(newTotal);
     });
@@ -150,6 +150,8 @@ export default function CreateResellerOrderForm() {
     const orderId = `ORD-${Date.now().toString().slice(-6)}`;
     
     try {
+      const resellerTotalCost = values.items.reduce((acc, item) => acc + (item.resellerPrice * item.quantity), 0);
+
       const orderData: Order = {
         id: orderId,
         resellerId: reseller.id,
@@ -161,7 +163,7 @@ export default function CreateResellerOrderForm() {
             price: item.resellerPrice, // The price the reseller pays
             quantity: item.quantity
         })),
-        total: total,
+        total: resellerTotalCost, // The total cost for the reseller
         status: 'Pending Payment',
         date: Timestamp.now(),
       };
