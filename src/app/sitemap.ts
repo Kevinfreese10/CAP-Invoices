@@ -20,6 +20,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   const staticPages = [
     { url: `${siteUrl}/home`, lastModified: new Date() },
+    { url: `${siteUrl}/about`, lastModified: new Date() },
     { url: `${siteUrl}/services`, lastModified: new Date() },
     { url: `${siteUrl}/blog`, lastModified: new Date() },
     { url: `${siteUrl}/support`, lastModified: new Date() },
