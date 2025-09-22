@@ -165,7 +165,7 @@ export default function CreateResellerOrderForm() {
       await setDoc(doc(db, 'orders', orderId), orderData);
 
       // Send email to client
-      if(reseller.smtpDetails) {
+      if(reseller.smtpDetails?.user && reseller.companyName) {
         await sendEmail({
           to: values.customerEmail,
           from: `${reseller.companyName} <${reseller.smtpDetails.user}>`,
