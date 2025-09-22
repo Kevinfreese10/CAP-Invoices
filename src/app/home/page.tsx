@@ -119,7 +119,9 @@ export default function Home() {
             <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
                 {whyChooseUs.map(item => (
                     <div key={item.title} className="flex items-start gap-4">
-                        <item.icon className="h-8 w-8 text-primary" />
+                        <div className="flex-shrink-0">
+                            <item.icon className="h-8 w-8 text-primary" />
+                        </div>
                         <div>
                             <h3 className="font-semibold">{item.title}</h3>
                             <p className="text-sm text-muted-foreground">{item.description}</p>
