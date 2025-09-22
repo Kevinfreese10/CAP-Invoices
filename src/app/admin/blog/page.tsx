@@ -136,6 +136,9 @@ export default function AdminBlogPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                             <DropdownMenuItem asChild>
+                                <Link href={`/blog/${post.slug}`} target="_blank">View Post</Link>
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleEditPost(post)}>
                                 Edit
                             </DropdownMenuItem>
