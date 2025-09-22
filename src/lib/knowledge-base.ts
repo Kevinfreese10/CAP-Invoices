@@ -14,7 +14,8 @@ export const knowledgeBaseItems: KnowledgeBaseItem[] = [
     },
     {
         id: 'kb-3',
-        question: 'Is there a no-refund policy?',
-        answer: 'Yes, all services purchased are subject to a strict no-refund policy once the work has commenced.'
+        question: 'What is your refund policy?',
+        answer: 'All services are non-refundable once work has begun. Refunds may be considered only if the service has not yet started, and a processing fee of 10% will be deducted from any approved refund. Refund requests must be submitted within 48 hours of purchase.'
     }
 ]
+
