@@ -16,7 +16,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Task, User, TaskUpdate } from '@/lib/types';
-import { users as allUsers } from '@/contexts/AuthContext';
+import { users } from '@/lib/data';
 import { useAuth } from '@/contexts/AuthContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -36,7 +36,7 @@ const initialTasks: Task[] = [
     { id: 'task-3', title: 'Review new client onboarding', description: 'Check all new client details from last week.', assignedTo: '2', createdBy: '2', dueDate: subDays(new Date(), 0), status: 'Completed', updates: [] },
 ];
 
-const allStaff = allUsers.filter(u => u.role === 'staff' || u.role === 'admin');
+const allStaff = users.filter(u => u.role === 'staff' || u.role === 'admin');
 const taskStatuses: Task['status'][] = ['To Do', 'In Progress', 'Completed'];
 
 const formSchema = z.object({
@@ -78,7 +78,7 @@ function TaskForm({ task, onSubmit, onCancel, onUpdateSubmit }: { task: Task | n
     }
     
     const getAuthor = (authorId: string): User | undefined => {
-        return allUsers.find(u => u.id === authorId);
+        return users.find(u => u.id === authorId);
     }
     
     return (
@@ -277,7 +277,7 @@ export default function AdminTasksPage() {
 
   const getAssignee = (userId?: string): User | undefined => {
     if (!userId) return undefined;
-    return allUsers.find(u => u.id === userId);
+    return users.find(u => u.id === userId);
   }
 
   const getStatusVariant = (status: Task['status']) => {

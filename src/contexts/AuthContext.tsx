@@ -3,51 +3,7 @@
 import { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import type { User } from '@/lib/types';
 import { useRouter } from 'next/navigation';
-
-// Mock users for demonstration
-export const users: User[] = [
-  { id: '1', name: 'John Doe', email: 'client@test.com', role: 'client' },
-  { 
-    id: '2', 
-    name: 'Jane Admin', 
-    email: 'admin@test.com', 
-    role: 'admin',
-    smtpDetails: {
-        host: 'mail.myacc.co.za',
-        port: '465',
-        user: 'no_reply@myacc.co.za',
-        pass: 'Thinkestry10$',
-    }
-  },
-  { id: '3', name: 'Staff Member', email: 'staff@test.com', role: 'staff', department: 'Accounting and Tax' },
-  { 
-    id: '4', 
-    name: 'Reseller Pro', 
-    email: 'reseller@test.com', 
-    role: 'reseller',
-    companyName: 'Reseller Pro (Pty) Ltd',
-    contactPerson: 'Alex King',
-    contactNumber: '0721234567',
-    address: {
-        street: '123 Reseller Road',
-        city: 'Johannesburg',
-        province: 'Gauteng',
-        zip: '2196',
-    },
-    bankingDetails: {
-        bankName: 'Capitec',
-        accountHolder: 'Reseller Pro (Pty) Ltd',
-        accountNumber: '1234567890',
-        branchCode: '470010',
-    },
-    smtpDetails: {
-        host: 'mail.thinkestry.co.za',
-        port: '465',
-        user: 'no-reply@thinkestry.co.za',
-        pass: 'Thinkestry10$',
-    }
-  },
-];
+import { users } from '@/lib/data';
 
 interface AuthContextType {
   user: User | null;
@@ -106,7 +62,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signup = (name: string, email: string) => {
     // In a real app, this would create a new user in the DB.
     const newUser: User = { id: Date.now().toString(), name, email, role: 'client' };
-    users.push(newUser); // Not persistent across reloads, but fine for demo session
+    (users as User[]).push(newUser); // Not persistent across reloads, but fine for demo session
     updateUserState(newUser);
     return newUser;
   };

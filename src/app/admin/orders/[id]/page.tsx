@@ -8,7 +8,7 @@ import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service, User } from '@/lib/types';
 import { services } from '@/lib/data';
-import { users } from '@/contexts/AuthContext';
+import { users } from '@/lib/data';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';

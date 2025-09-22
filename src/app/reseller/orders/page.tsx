@@ -9,7 +9,7 @@ import { firebaseApp } from '@/lib/firebase';
 import { Order, User, Service } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { services as allServices } from '@/lib/data';
-import { users as allUsers } from '@/contexts/AuthContext';
+import { users } from '@/lib/data';
 import {
   Table,
   TableBody,
@@ -39,7 +39,7 @@ const db = getFirestore(firebaseApp);
 let staffCounters: { [key: string]: number } = {};
 
 const getNextStaffMember = (department: 'Accounting and Tax' | 'Administration'): User | undefined => {
-    const staffInDept = allUsers.filter(u => u.role === 'staff' && u.department === department);
+    const staffInDept = users.filter(u => u.role === 'staff' && u.department === department);
     if (staffInDept.length === 0) return undefined;
 
     if (staffCounters[department] === undefined) {

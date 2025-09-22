@@ -22,7 +22,7 @@ import { Loader2, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { users as allUsers } from '@/contexts/AuthContext';
+import { users } from '@/lib/data';
 import {
   Tooltip,
   TooltipContent,
@@ -90,7 +90,7 @@ export default function OutsourcedOrdersPage() {
 
   const getAssignee = (userId?: string): User | undefined => {
     if (!userId) return undefined;
-    return allUsers.find(u => u.id === userId);
+    return users.find(u => u.id === userId);
   }
 
   const getStatusVariant = (status: Order['status']) => {

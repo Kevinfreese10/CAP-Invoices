@@ -3,7 +3,7 @@
 
 import { Resend } from 'resend';
 import nodemailer from 'nodemailer';
-import { users } from '@/contexts/AuthContext';
+import { users } from '@/lib/data';
 
 type EmailPayload = {
     to: string | string[];

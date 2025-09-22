@@ -1,10 +1,12 @@
+
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { useAuth, users } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { users } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';

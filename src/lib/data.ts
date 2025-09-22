@@ -1,4 +1,48 @@
-import type { Service, BlogPost, FAQ, Order } from './types';
+import type { Service, BlogPost, FAQ, Order, User } from './types';
+
+export const users: User[] = [
+  { id: '1', name: 'John Doe', email: 'client@test.com', role: 'client' },
+  { 
+    id: '2', 
+    name: 'Jane Admin', 
+    email: 'admin@test.com', 
+    role: 'admin',
+    smtpDetails: {
+        host: 'mail.myacc.co.za',
+        port: '465',
+        user: 'no_reply@myacc.co.za',
+        pass: 'Thinkestry10$',
+    }
+  },
+  { id: '3', name: 'Staff Member', email: 'staff@test.com', role: 'staff', department: 'Accounting and Tax' },
+  { 
+    id: '4', 
+    name: 'Reseller Pro', 
+    email: 'reseller@test.com', 
+    role: 'reseller',
+    companyName: 'Reseller Pro (Pty) Ltd',
+    contactPerson: 'Alex King',
+    contactNumber: '0721234567',
+    address: {
+        street: '123 Reseller Road',
+        city: 'Johannesburg',
+        province: 'Gauteng',
+        zip: '2196',
+    },
+    bankingDetails: {
+        bankName: 'Capitec',
+        accountHolder: 'Reseller Pro (Pty) Ltd',
+        accountNumber: '1234567890',
+        branchCode: '470010',
+    },
+    smtpDetails: {
+        host: 'mail.thinkestry.co.za',
+        port: '465',
+        user: 'no-reply@thinkestry.co.za',
+        pass: 'Thinkestry10$',
+    }
+  },
+];
 
 export const services: Service[] = [
   {

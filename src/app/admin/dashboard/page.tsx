@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { format, subDays } from 'date-fns';
 import { Task, User, TaskUpdate } from '@/lib/types';
-import { users as allUsers } from '@/contexts/AuthContext';
+import { users } from '@/lib/data';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { MessageSquare, PlusCircle, MoreHorizontal, CalendarIcon, Loader2 } from 'lucide-react';
@@ -37,7 +37,7 @@ const initialTasks: Task[] = [
     { id: 'task-4', title: 'Finalize Q2 financial statements', description: 'Final review before sending to the client.', assignedTo: '2', createdBy: '3', dueDate: subDays(new Date(), -5), status: 'In Progress', updates: [] },
 ];
 
-const allStaff = allUsers.filter(u => u.role === 'staff' || u.role === 'admin');
+const allStaff = users.filter(u => u.role === 'staff' || u.role === 'admin');
 const taskStatuses: Task['status'][] = ['To Do', 'In Progress', 'Completed'];
 
 const formSchema = z.object({
@@ -79,7 +79,7 @@ function TaskForm({ task, onSubmit, onCancel, onUpdateSubmit }: { task: Task | n
     }
     
     const getAuthor = (authorId: string): User | undefined => {
-        return allUsers.find(u => u.id === authorId);
+        return users.find(u => u.id === authorId);
     }
     
     return (
@@ -181,7 +181,7 @@ function TaskForm({ task, onSubmit, onCancel, onUpdateSubmit }: { task: Task | n
 const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete }: { tasks: Task[], title: string, description: string, onEdit: (task: Task) => void, onUpdateStatus: (taskId: string, status: Task['status']) => void, onDelete: (taskId: string) => void }) => {
     const getAssignee = (userId?: string): User | undefined => {
         if (!userId) return undefined;
-        return allUsers.find(u => u.id === userId);
+        return users.find(u => u.id === userId);
     }
     
     const getStatusVariant = (status: Task['status']) => {

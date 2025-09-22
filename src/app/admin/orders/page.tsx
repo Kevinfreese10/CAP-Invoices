@@ -33,7 +33,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { users as allUsers } from '@/contexts/AuthContext';
+import { users } from '@/lib/data';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Tooltip,
@@ -44,7 +44,7 @@ import {
 
 const db = getFirestore(firebaseApp);
 
-const allStaff = allUsers.filter(u => u.role === 'staff');
+const allStaff = users.filter(u => u.role === 'staff');
 
 const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -169,7 +169,7 @@ export default function AdminOrdersPage() {
 
   const getAssignee = (userId?: string): User | undefined => {
     if (!userId) return undefined;
-    return allUsers.find(u => u.id === userId);
+    return users.find(u => u.id === userId);
   }
 
   const getStatusVariant = (status: Order['status']) => {
