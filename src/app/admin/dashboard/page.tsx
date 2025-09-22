@@ -59,7 +59,7 @@ function TaskForm({ task, onSubmit, onCancel, onUpdateSubmit }: { task: Task | n
             title: task?.title || '',
             description: task?.description || '',
             assignedTo: task?.assignedTo || '',
-            dueDate: task?.dueDate || new Date(),
+            dueDate: task?.dueDate ? new Date(task.dueDate) : new Date(),
             orderId: task?.orderId || '',
             newUpdate: '',
         },
@@ -428,16 +428,18 @@ export default function AdminDashboardPage() {
         });
     }
 
-    const handleFormClose = () => {
-        setIsFormOpen(false);
-        setSelectedTask(null);
+    const handleFormOpenChange = (open: boolean) => {
+        setIsFormOpen(open);
+        if (!open) {
+            setSelectedTask(null);
+        }
     }
 
     return (
         <div className="space-y-8">
             <div className="flex items-center justify-between">
                 <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.name}!</h1>
-                 <Dialog open={isFormOpen} onOpenChange={handleFormClose}>
+                 <Dialog open={isFormOpen} onOpenChange={handleFormOpenChange}>
                     <DialogTrigger asChild>
                         <Button onClick={handleAdd}>
                             <PlusCircle className="mr-2 h-4 w-4" />
@@ -454,7 +456,7 @@ export default function AdminDashboardPage() {
                         <TaskForm 
                             task={selectedTask} 
                             onSubmit={handleFormSubmit}
-                            onCancel={handleFormClose}
+                            onCancel={() => handleFormOpenChange(false)}
                             onUpdateSubmit={handleUpdateSubmit}
                         />
                     </DialogContent>
@@ -513,3 +515,5 @@ export default function AdminDashboardPage() {
         </div>
     );
 }
+
+    
