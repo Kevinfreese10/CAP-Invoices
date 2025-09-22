@@ -57,7 +57,7 @@ const emailFormSchema = z.object({
     message: z.string().min(20, 'Message must be at least 20 characters long.'),
 });
 
-function EmailClientDialog({ order, user }: { order: Order, user: User | null }) {
+function EmailClientDialog({ order, user, onEmailSent }: { order: Order, user: User | null, onEmailSent: (subject: string, message: string) => Promise<void> }) {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isSending, setIsSending] = useState(false);
@@ -78,6 +78,7 @@ function EmailClientDialog({ order, user }: { order: Order, user: User | null })
                 subject: values.subject,
                 html: `<p>${values.message.replace(/\n/g, '<br>')}</p>`,
             });
+            await onEmailSent(values.subject, values.message);
             toast({
                 title: 'Email Sent!',
                 description: 'Your message has been sent to the client.',
@@ -231,6 +232,7 @@ export default function AdminOrderDetailsPage() {
       text: values.noteText,
       authorId: currentUser.id,
       date: Timestamp.now(),
+      type: 'note',
     };
 
     try {
@@ -245,6 +247,29 @@ export default function AdminOrderDetailsPage() {
     } catch (error) {
       console.error("Error adding note:", error);
       toast({ title: "Error", description: "Failed to add note.", variant: "destructive" });
+    }
+  };
+
+  const addEmailToHistory = async (subject: string, message: string) => {
+    if (!currentUser || !order) return;
+
+     const emailNote: OrderNote = {
+      text: message,
+      subject: subject,
+      authorId: currentUser.id,
+      date: Timestamp.now(),
+      type: 'email',
+    };
+
+    try {
+      const orderRef = doc(db, 'orders', order.id);
+      await updateDoc(orderRef, {
+        notes: arrayUnion(emailNote),
+      });
+      await fetchOrder();
+    } catch (error) {
+        console.error("Error logging email to history:", error);
+        // We don't show a toast here because the user already got a "sent" confirmation
     }
   };
 
@@ -272,6 +297,7 @@ export default function AdminOrderDetailsPage() {
 
       let emailHtml = '';
       let subject = '';
+      let message = '';
 
       if (type === 'docs') {
          const itemsWithServices = order.items.map(item => {
@@ -281,18 +307,22 @@ export default function AdminOrderDetailsPage() {
 
         emailHtml = render(<DocumentRequestEmail order={order} items={itemsWithServices} assignedToEmail={currentUser.email} />);
         subject = `Action Required: Documents needed for your order #${order.id}`;
+        message = "Sent 'Request Documents' email to client.";
       } else if (type === 'payment') {
          emailHtml = render(<PaymentFollowUpEmail order={order} />);
          subject = `Payment Reminder for Your Order: #${order.id}`;
+         message = "Sent 'Payment Follow-up' email to client.";
       } else if (type === 'review') {
          emailHtml = render(<ReviewRequestEmail order={order} />);
          subject = `We'd love your feedback on order #${order.id}`;
+         message = "Sent 'Request a Review' email to client.";
       }
 
       toast({ title: 'Sending email...', description: 'Please wait a moment.' });
       
        try {
             await sendEmail({ to: order.customerEmail, subject, html: emailHtml });
+            await addEmailToHistory(subject, message);
             toast({ title: 'Email Sent!', description: 'The email has been successfully sent to the client.' });
         } catch (error) {
             console.error(`Failed to send ${type} email:`, error);
@@ -362,14 +392,15 @@ export default function AdminOrderDetailsPage() {
 
                  <Card>
                     <CardHeader>
-                        <CardTitle>Order Notes</CardTitle>
-                        <CardDescription>Internal notes for this order.</CardDescription>
+                        <CardTitle>Communication History</CardTitle>
+                        <CardDescription>Internal notes and sent emails for this order.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                         <div className="space-y-4 max-h-64 overflow-y-auto pr-2">
+                         <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
                             {order.notes && order.notes.length > 0 ? (
                                 order.notes.slice().reverse().map((note, index) => {
                                     const author = getAuthor(note.authorId);
+                                    const isEmail = note.type === 'email';
                                     return (
                                         <div key={index} className="flex items-start gap-3">
                                             <Avatar className="h-8 w-8 border">
@@ -381,7 +412,17 @@ export default function AdminOrderDetailsPage() {
                                                     <p className="text-xs font-semibold">{author?.name}</p>
                                                     <p className="text-xs text-muted-foreground">{format(new Date(note.date), 'dd MMM yyyy, HH:mm')}</p>
                                                 </div>
-                                                <p className="text-sm">{note.text}</p>
+                                                 {isEmail ? (
+                                                    <div>
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <Mail className="h-4 w-4 text-muted-foreground" />
+                                                            <p className="text-sm font-semibold">{note.subject}</p>
+                                                        </div>
+                                                        <p className="text-sm italic text-muted-foreground">"{note.text}"</p>
+                                                    </div>
+                                                 ) : (
+                                                    <p className="text-sm">{note.text}</p>
+                                                 )}
                                             </div>
                                         </div>
                                     );
@@ -431,7 +472,7 @@ export default function AdminOrderDetailsPage() {
                                 <span>{customer.contactNumber || 'N/A'}</span>
                             </div>
                         )}
-                         <EmailClientDialog order={order} user={customer} />
+                         <EmailClientDialog order={order} user={customer} onEmailSent={addEmailToHistory} />
                     </CardContent>
                  </Card>
                  {assignee && (
@@ -476,3 +517,5 @@ export default function AdminOrderDetailsPage() {
     </div>
   );
 }
+
+    

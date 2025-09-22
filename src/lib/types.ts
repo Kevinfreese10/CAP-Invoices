@@ -59,6 +59,8 @@ export type OrderNote = {
   text: string;
   date: any;
   authorId: string;
+  type?: 'note' | 'email';
+  subject?: string;
 };
 
 export type Order = {
@@ -126,3 +128,5 @@ export type Task = {
   orderId?: string;
   updates?: TaskUpdate[];
 };
+
+    
