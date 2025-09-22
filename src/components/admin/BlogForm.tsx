@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Trash, Sparkles, Loader2 } from 'lucide-react';
 import { generateBlogPostSeo } from '@/ai/flows/generate-blog-post-seo';
+import { generateBlogPost } from '@/ai/flows/generate-blog-post';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
 import { Separator } from '../ui/separator';
@@ -34,7 +35,8 @@ type BlogFormProps = {
 
 export default function BlogForm({ post, onSubmit }: BlogFormProps) {
   const { toast } = useToast();
-  const [isAiUpdating, setIsAiUpdating] = useState(false);
+  const [isAiContentUpdating, setIsAiContentUpdating] = useState(false);
+  const [isAiSeoUpdating, setIsAiSeoUpdating] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -57,7 +59,7 @@ export default function BlogForm({ post, onSubmit }: BlogFormProps) {
     name: 'metaKeywords',
   });
 
-  const handleAiUpdate = async () => {
+  const handleAiContentUpdate = async () => {
     const title = form.getValues('title');
     if (!title) {
         toast({
@@ -68,7 +70,44 @@ export default function BlogForm({ post, onSubmit }: BlogFormProps) {
         return;
     }
     
-    setIsAiUpdating(true);
+    setIsAiContentUpdating(true);
+    toast({
+        title: 'Generating Blog Content...',
+        description: 'The AI is writing your blog post. Please wait.',
+    });
+
+    try {
+        const result = await generateBlogPost({ title });
+        form.setValue('excerpt', result.excerpt);
+        form.setValue('content', result.content);
+        toast({
+            title: 'Blog Content Generated',
+            description: 'The excerpt and main content fields have been populated by AI.',
+        });
+    } catch (error) {
+        console.error("AI Content Generation Error: ", error);
+        toast({
+            title: 'AI Update Failed',
+            description: 'There was an error generating content. Please try again.',
+            variant: 'destructive',
+        });
+    } finally {
+        setIsAiContentUpdating(false);
+    }
+  };
+
+  const handleAiSeoUpdate = async () => {
+    const title = form.getValues('title');
+    if (!title) {
+        toast({
+            title: 'Title is missing',
+            description: 'Please enter a post title before using AI.',
+            variant: 'destructive',
+        });
+        return;
+    }
+    
+    setIsAiSeoUpdating(true);
     toast({
         title: 'Generating SEO Content...',
         description: 'The AI is creating SEO data for your post. Please wait.',
@@ -84,14 +123,14 @@ export default function BlogForm({ post, onSubmit }: BlogFormProps) {
             description: 'The SEO fields have been populated by AI.',
         });
     } catch (error) {
-        console.error("AI Generation Error: ", error);
+        console.error("AI SEO Generation Error: ", error);
         toast({
             title: 'AI Update Failed',
-            description: 'There was an error generating content. Please try again.',
+            description: 'There was an error generating SEO content. Please try again.',
             variant: 'destructive',
         });
     } finally {
-        setIsAiUpdating(false);
+        setIsAiSeoUpdating(false);
     }
   };
 
@@ -118,28 +157,37 @@ export default function BlogForm({ post, onSubmit }: BlogFormProps) {
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
-          name="excerpt"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Excerpt / Short Summary</FormLabel>
-              <FormControl><Textarea {...field} rows={3} /></FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="content"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Main Content (HTML supported)</FormLabel>
-              <FormControl><Textarea {...field} rows={10} /></FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+
+        <div className="space-y-2">
+            <div className="flex items-center justify-between">
+                <FormLabel>Excerpt & Main Content</FormLabel>
+                <Button type="button" size="sm" onClick={handleAiContentUpdate} disabled={isAiContentUpdating}>
+                    {isAiContentUpdating ? <Loader2 className="animate-spin mr-2" /> : <Sparkles className="mr-2" />}
+                    Generate Content with AI
+                </Button>
+            </div>
+            <FormField
+            control={form.control}
+            name="excerpt"
+            render={({ field }) => (
+                <FormItem>
+                <FormControl><Textarea {...field} rows={3} placeholder="A short summary of the post..." /></FormControl>
+                <FormMessage />
+                </FormItem>
+            )}
+            />
+            <FormField
+            control={form.control}
+            name="content"
+            render={({ field }) => (
+                <FormItem>
+                <FormControl><Textarea {...field} rows={10} placeholder="The main content of the blog post. HTML is supported." /></FormControl>
+                <FormMessage />
+                </FormItem>
+            )}
+            />
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField control={form.control} name="author" render={({ field }) => ( <FormItem><FormLabel>Author</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
             <FormField control={form.control} name="imageUrl" render={({ field }) => ( <FormItem><FormLabel>Image URL</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
@@ -151,9 +199,9 @@ export default function BlogForm({ post, onSubmit }: BlogFormProps) {
         <div className="space-y-4 rounded-lg border p-4">
             <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium">SEO Information</h3>
-                 <Button type="button" onClick={handleAiUpdate} disabled={isAiUpdating}>
-                    {isAiUpdating ? <Loader2 className="animate-spin mr-2" /> : <Sparkles className="mr-2" />}
-                    Update with AI
+                 <Button type="button" onClick={handleAiSeoUpdate} disabled={isAiSeoUpdating}>
+                    {isAiSeoUpdating ? <Loader2 className="animate-spin mr-2" /> : <Sparkles className="mr-2" />}
+                    Update SEO with AI
                 </Button>
             </div>
             <FormField
