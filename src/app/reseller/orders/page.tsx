@@ -3,10 +3,12 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, setDoc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, User } from '@/lib/types';
+import { Order, User, Service } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
+import { services as allServices } from '@/lib/data';
+import { users as allUsers } from '@/contexts/AuthContext';
 import {
   Table,
   TableBody,
@@ -25,11 +27,30 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 
 const db = getFirestore(firebaseApp);
+
+// Simple round-robin counter for staff assignment
+let staffCounters: { [key: string]: number } = {};
+
+const getNextStaffMember = (department: 'Accounting and Tax' | 'Administration'): User | undefined => {
+    const staffInDept = allUsers.filter(u => u.role === 'staff' && u.department === department);
+    if (staffInDept.length === 0) return undefined;
+
+    if (staffCounters[department] === undefined) {
+        staffCounters[department] = 0;
+    }
+
+    const staffMember = staffInDept[staffCounters[department]];
+    staffCounters[department] = (staffCounters[department] + 1) % staffInDept.length;
+    
+    return staffMember;
+};
+
 
 export default function ResellerOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -72,6 +93,60 @@ export default function ResellerOrdersPage() {
         fetchOrders();
     }
   }, [user, toast]);
+
+  const handleOutsource = async (orderToOutsource: Order) => {
+    if (!user) return;
+    
+    toast({
+        title: 'Outsourcing Order...',
+        description: `Submitting order ${orderToOutsource.id} to My Accountant.`
+    });
+
+    try {
+        const newOrderId = `ORD-${Date.now().toString().slice(-6)}`;
+        const firstServiceId = orderToOutsource.items[0]?.id;
+        const serviceDetails = allServices.find(s => s.id === firstServiceId);
+        const department = serviceDetails?.department;
+        const assignedStaff = department ? getNextStaffMember(department) : undefined;
+        
+        const newOrderData: Order = {
+            id: newOrderId,
+            customerName: user.companyName || user.name, // The customer is the reseller
+            customerEmail: user.email,
+            date: Timestamp.now(),
+            items: orderToOutsource.items.map(item => ({
+                id: item.id,
+                title: item.title,
+                price: item.price, // This is the reseller's cost
+                quantity: item.quantity,
+            })),
+            total: orderToOutsource.total,
+            status: 'Processing', // The new order for the admin is 'Processing'
+            assignedTo: assignedStaff?.id,
+            department: department,
+            resellerId: user.id, // Link back to the reseller
+            originalOrderId: orderToOutsource.id, // Link to the original order
+        };
+        
+        await setDoc(doc(db, 'orders', newOrderId), newOrderData);
+
+        // Update the original order status to 'Processing'
+        await handleUpdateStatus(orderToOutsource.id, 'Processing');
+        
+        toast({
+            title: 'Order Outsourced Successfully!',
+            description: `Your order has been sent to My Accountant for processing. New order ID: ${newOrderId}`
+        });
+
+    } catch (error) {
+         console.error('Error outsourcing order: ', error);
+        toast({
+            title: 'Outsourcing Failed',
+            description: 'There was a problem submitting your order. Please try again.',
+            variant: 'destructive',
+        });
+    }
+  };
 
 
   const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
@@ -132,7 +207,7 @@ export default function ResellerOrdersPage() {
                   <TableHead>Date</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead>Outsourcing Cost</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -147,7 +222,7 @@ export default function ResellerOrdersPage() {
                         {order.status}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">R {order.total.toFixed(2)}</TableCell>
+                    <TableCell className="font-semibold">R {order.total.toFixed(2)}</TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -161,6 +236,13 @@ export default function ResellerOrdersPage() {
                           <DropdownMenuItem asChild>
                             <Link href={`/reseller/orders/${order.id}`}>Review Order</Link>
                           </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                           <DropdownMenuItem 
+                                onClick={() => handleOutsource(order)}
+                                disabled={order.status !== 'Pending Payment'}>
+                             Outsource to My Accountant
+                           </DropdownMenuItem>
+                           <DropdownMenuSeparator />
                            <DropdownMenuItem
                             onClick={() => handleUpdateStatus(order.id, 'Cancelled')}
                             className="text-destructive"

@@ -66,6 +66,7 @@ export type Order = {
   status: 'Pending Payment' | 'Processing' | 'Completed' | 'Cancelled';
   assignedTo?: string;
   department?: string;
+  originalOrderId?: string;
 };
 
 export type User = {
