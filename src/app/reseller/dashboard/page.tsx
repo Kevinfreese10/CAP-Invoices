@@ -14,34 +14,34 @@ export default function ResellerDashboardPage() {
              <p className="text-lg text-muted-foreground">{user?.companyName}</p>
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                <Card>
+                <Card className="flex flex-col">
                     <CardHeader>
                         <CardTitle>Create New Order</CardTitle>
                         <CardDescription>Create a custom order for your clients.</CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="flex-grow flex items-end">
                         <Button asChild>
                             <Link href="/reseller/orders/new">Create Order</Link>
                         </Button>
                     </CardContent>
                 </Card>
-                <Card>
+                <Card className="flex flex-col">
                     <CardHeader>
                         <CardTitle>Manage Orders</CardTitle>
                         <CardDescription>View history and status of all your orders.</CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="flex-grow flex items-end">
                         <Button asChild>
                             <Link href="/reseller/orders">View Orders</Link>
                         </Button>
                     </CardContent>
                 </Card>
-                <Card>
+                <Card className="flex flex-col">
                     <CardHeader>
                         <CardTitle>Manage Profile</CardTitle>
                         <CardDescription>Update your company information.</CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="flex-grow flex items-end">
                         <Button asChild>
                             <Link href="/reseller/profile">Edit Profile</Link>
                         </Button>
