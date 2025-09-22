@@ -1,2 +1,10 @@
+# Allow all crawlers access to the site
 User-agent: *
-Allow: /
+Disallow: /admin/
+Disallow: /reseller/
+Disallow: /cart/
+Disallow: /checkout/
+Disallow: /order-confirmation/
+
+# Sitemap location
+Sitemap: https://my-accountant-app.com/sitemap.xml
