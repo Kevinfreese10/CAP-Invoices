@@ -11,7 +11,7 @@ import {
   Row,
   Column,
   Link,
-} from 'resend';
+} from '@react-email/components';
 import * as React from 'react';
 import { Order, User } from '@/lib/types';
 
