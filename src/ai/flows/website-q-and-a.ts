@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview An AI agent for answering questions based on website content.
@@ -12,6 +13,7 @@ import {z} from 'genkit';
 import { services } from '@/lib/data';
 import { blogPosts } from '@/lib/data';
 import { faqs } from '@/lib/data';
+import { knowledgeBaseItems } from '@/lib/knowledge-base';
 
 const WebsiteQAndAInputSchema = z.object({
   question: z.string().describe('The user\'s question.'),
@@ -33,6 +35,9 @@ const websiteContent = `
 
   FREQUENTLY ASKED QUESTIONS:
   ${faqs.map(f => `Question: ${f.question}, Answer: ${f.answer}`).join('\n\n')}
+
+  KNOWLEDGE BASE:
+  ${knowledgeBaseItems.map(item => `Question: ${item.question}, Answer: ${item.answer}`).join('\n\n')}
 `;
 
 
@@ -48,7 +53,7 @@ const prompt = ai.definePrompt({
   output: {schema: WebsiteQAndAOutputSchema},
   prompt: `You are an expert AI assistant for a company called "My Accountant". 
   
-  Your task is to answer user questions based *only* on the information provided in the context below. 
+  Your task is to answer user questions based *only* on the information provided in the context below. The Knowledge Base section is the highest source of truth.
   
   If the answer is not found in the context, you MUST state that you do not have that information and suggest they contact support. Do not make up answers.
   

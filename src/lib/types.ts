@@ -43,6 +43,12 @@ export type FAQ = {
   answer: string;
 };
 
+export type KnowledgeBaseItem = {
+  id: string;
+  question: string;
+  answer: string;
+}
+
 export type CartItem = {
   service: Service;
   quantity: number;
