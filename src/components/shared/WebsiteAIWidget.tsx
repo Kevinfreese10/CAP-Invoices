@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Loader2, Sparkles, History } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
 
 const formSchema = z.object({
   question: z.string().min(10, 'Please ask a more detailed question.'),
@@ -22,6 +23,7 @@ const MAX_RECENT_QUESTIONS = 3;
 
 export default function WebsiteAIWidget() {
   const [answer, setAnswer] = useState('');
+  const [confidence, setConfidence] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [recentQuestions, setRecentQuestions] = useState<string[]>([]);
@@ -53,9 +55,11 @@ export default function WebsiteAIWidget() {
     setIsLoading(true);
     setAnswer('');
     setError('');
+    setConfidence(0);
     try {
       const response = await websiteQAndA({ question: values.question });
       setAnswer(response.answer);
+      setConfidence(response.confidence);
       
       // Update recent questions
       setRecentQuestions(prev => {
@@ -108,7 +112,18 @@ export default function WebsiteAIWidget() {
               </div>
             )}
             {error && <Alert variant="destructive"><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
-            {answer && !isLoading && <Alert><AlertTitle>Answer:</AlertTitle><AlertDescription>{answer}</AlertDescription></Alert>}
+            {answer && !isLoading && (
+              <Alert>
+                <AlertTitle className="flex justify-between items-center">
+                    <span>Answer:</span>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>Confidence: {confidence}%</span>
+                        <Progress value={confidence} className="w-20 h-2" />
+                    </div>
+                </AlertTitle>
+                <AlertDescription>{answer}</AlertDescription>
+              </Alert>
+            )}
 
             {!isLoading && recentQuestions.length > 0 && (
                  <div className="pt-4">

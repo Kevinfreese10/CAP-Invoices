@@ -22,6 +22,7 @@ export type WebsiteQAndAInput = z.infer<typeof WebsiteQAndAInputSchema>;
 
 const WebsiteQAndAOutputSchema = z.object({
   answer: z.string().describe('A concise and helpful answer to the user\'s question, based *only* on the provided context. If the answer is not in the context, state that you cannot answer.'),
+  confidence: z.number().min(0).max(100).describe('A confidence score (0-100) of how certain you are about the answer based on the provided context. If the answer is directly stated in the context, confidence should be high (90-100). If it is inferred, it should be medium (60-80). If you cannot answer, it should be very low (0-10).'),
 });
 export type WebsiteQAndAOutput = z.infer<typeof WebsiteQAndAOutputSchema>;
 
@@ -60,6 +61,11 @@ const prompt = ai.definePrompt({
   If the answer is not found in the context, you MUST state that you do not have that information and suggest they contact support. For example, say "That's an excellent question! I don't have that specific information right now, but our expert team would be happy to help. You can reach them through our support page."
   
   Do not make up answers.
+
+  After providing the answer, you must also provide a confidence score (from 0 to 100) based on how directly the information was found in the context.
+  - If the answer is explicitly stated, confidence should be 90-100.
+  - If the answer is inferred from multiple pieces of information, confidence should be 60-80.
+  - If you cannot answer the question at all, confidence should be 0-10.
 
   CONTEXT:
   ---
