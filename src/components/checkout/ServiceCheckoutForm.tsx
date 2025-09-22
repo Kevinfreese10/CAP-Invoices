@@ -34,7 +34,7 @@ const formSchema = z.object({
     message: 'You must confirm you have the prerequisites.',
   }),
   agreeRefund: z.boolean().refine(val => val === true, {
-    message: 'You must agree to the no-refund policy.',
+    message: 'You must agree to the refund policy.',
   }),
 });
 
@@ -211,7 +211,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
                             </FormControl>
                             <div className="space-y-1 leading-none">
                                 <FormLabel>
-                                 I understand and agree to the <Link href="/refund-policy" className="underline hover:text-primary" target="_blank">no-refund policy</Link>.
+                                 I understand and agree to the <Link href="/refund-policy" className="underline hover:text-primary" target="_blank">refund policy</Link>.
                                 </FormLabel>
                                 <FormMessage />
                             </div>
