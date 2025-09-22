@@ -72,7 +72,7 @@ const Header = () => {
             ) : (
               <Button asChild>
                 <Link href="/login">
-                  <LogIn className="mr-2 h-4 w-4" /> Login
+                  <LogIn className="mr-2 h-4 w-4" /> Portal Login
                 </Link>
               </Button>
             )}
@@ -99,7 +99,7 @@ const Header = () => {
                   <div className="mt-auto">
                   {isAuthenticated && user ? (
                       <div className="space-y-4">
-                          <Link href="/dashboard" className="text-lg font-medium" onClick={() => setMobileMenuOpen(false)}>Dashboard</Link>
+                          <Link href="/admin/dashboard" className="text-lg font-medium" onClick={() => setMobileMenuOpen(false)}>Dashboard</Link>
                           <Button onClick={() => { handleLogout(); setMobileMenuOpen(false); }} className="w-full">Logout</Button>
                       </div>
                     ) : (
@@ -138,11 +138,11 @@ const UserMenu = ({ user, onLogout }: { user: any; onLogout: () => void }) => (
         </div>
       </DropdownMenuLabel>
       <DropdownMenuSeparator />
-      <DropdownMenuItem asChild>
-        <Link href="/dashboard">Dashboard</Link>
+       <DropdownMenuItem asChild>
+        <Link href={user.role === 'reseller' ? '/reseller/dashboard' : '/admin/dashboard'}>Dashboard</Link>
       </DropdownMenuItem>
-      <DropdownMenuItem asChild>
-        <Link href="/dashboard/profile">Profile</Link>
+       <DropdownMenuItem asChild>
+        <Link href={user.role === 'reseller' ? '/reseller/profile' : '/admin/staff'}>Profile</Link>
       </DropdownMenuItem>
       <DropdownMenuSeparator />
       <DropdownMenuItem onClick={onLogout}>

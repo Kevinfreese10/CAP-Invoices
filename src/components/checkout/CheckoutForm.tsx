@@ -50,7 +50,7 @@ const getNextStaffMember = (department: 'Accounting and Tax' | 'Administration')
 
 export default function CheckoutForm() {
   const router = useRouter();
-  const { user, login } = useAuth();
+  const { user } = useAuth();
   const { cartItems, cartTotal, clearCart } = useCart();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -74,9 +74,6 @@ export default function CheckoutForm() {
     const orderId = `ORD-${Date.now().toString().slice(-6)}`;
     
     try {
-      // Login or create user
-      const orderUser = login(values.email, values.name);
-
       const firstService = cartItems[0]?.service;
       const department = firstService?.department as 'Accounting and Tax' | 'Administration' | undefined;
       let assignedStaff: User | undefined;
@@ -100,10 +97,6 @@ export default function CheckoutForm() {
         department: department,
         assignedTo: assignedStaff?.id,
       };
-
-      if (orderUser) {
-        orderData.userId = orderUser.id;
-      }
 
       await setDoc(doc(db, 'orders', orderId), orderData);
       
@@ -187,5 +180,3 @@ export default function CheckoutForm() {
     </Card>
   );
 }
-
-    

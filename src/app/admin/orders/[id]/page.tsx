@@ -12,7 +12,6 @@ import { users } from '@/lib/data';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import ServiceDocumentUpload from '@/components/dashboard/ServiceDocumentUpload';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Loader2, User as UserIcon, Mail, Phone } from 'lucide-react';
@@ -175,11 +174,6 @@ export default function AdminOrderDetailsPage() {
                     </CardContent>
                 </Card>
 
-                <div className="space-y-6">
-                {orderItemsWithServices.map(item => (
-                    <ServiceDocumentUpload key={item.id} service={item.service} orderId={order.id} />
-                ))}
-                </div>
             </div>
             <div className="lg:col-span-1 space-y-6 sticky top-24">
                  <Card>

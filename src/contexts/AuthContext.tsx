@@ -25,15 +25,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const storedUser = localStorage.getItem('my-accountant-user');
       if (storedUser) {
         const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser);
+        // Ensure we don't log in 'client' roles
+        if (parsedUser.role !== 'client') {
+            setUser(parsedUser);
+            setIsAuthenticated(true);
+        } else {
+             setIsAuthenticated(false);
+             localStorage.removeItem('my-accountant-user');
+        }
+      } else {
+        setIsAuthenticated(false);
       }
     } catch (error) {
       console.error("Could not parse user from localStorage", error);
+      setIsAuthenticated(false);
     }
-    setIsAuthenticated(!!localStorage.getItem('my-accountant-user'));
   }, []);
   
   const updateUserState = (user: User | null) => {
+    // Do not set user state for 'client' role
+    if (user && user.role === 'client') {
+        setUser(null);
+        setIsAuthenticated(false);
+        localStorage.removeItem('my-accountant-user');
+        return;
+    }
+    
     setUser(user);
     setIsAuthenticated(!!user);
      if (user) {
@@ -45,20 +62,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = (email: string, name?: string) => {
     const foundUser = users.find(u => u.email === email);
-    if (foundUser) {
+    if (foundUser && foundUser.role !== 'client') {
       if (user?.id !== foundUser.id) { // Only update state if it's a new login
         updateUserState(foundUser);
       }
       return foundUser;
     }
-    // If not found, and it's not a staff/admin/reseller, create a new client account
-    if (!email.endsWith('@test.com')) {
-      const newUser: User = { id: `new-user-${Date.now()}`, name: name || 'New Client', email, role: 'client'};
-      (users as User[]).push(newUser); // Not persistent across reloads, but fine for demo session
-      updateUserState(newUser);
-      return newUser;
-    }
-    
     return undefined;
   };
 
@@ -67,9 +76,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signup = (name: string, email: string) => {
-    // In a real app, this would create a new user in the DB.
-    const newUser: User = { id: `new-user-${Date.now()}`, name, email, role: 'client' };
-    (users as User[]).push(newUser); // Not persistent across reloads, but fine for demo session
+    // This function is now effectively disabled for clients
+    // but might be used for other roles in the future.
+    const newUser: User = { id: `new-user-${Date.now()}`, name, email, role: 'staff' };
+    (users as User[]).push(newUser); 
     updateUserState(newUser);
     return newUser;
   };

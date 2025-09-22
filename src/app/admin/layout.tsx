@@ -26,20 +26,20 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   if (isAuthenticated && user?.role === 'client') {
-    router.push('/dashboard');
+    router.push('/');
     return null;
   }
   
   // Also protect the dashboard page from clients
   if (pathname === '/admin/dashboard' && user?.role === 'client') {
-    router.push('/dashboard');
+    router.push('/');
     return null;
   }
 
   return (
     <ProtectedRoute>
       <SidebarProvider>
-        <div className="flex min-h-screen bg-background">
+        <div className="flex min-h-screen bg-white">
           {user && (
             <Sidebar collapsible="icon" className="border-r">
               <DashboardNav user={user} />

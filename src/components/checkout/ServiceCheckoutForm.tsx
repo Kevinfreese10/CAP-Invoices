@@ -66,7 +66,7 @@ const formatPrice = (price: number) => {
 
 export default function ServiceCheckoutForm({ service }: { service: Service }) {
   const router = useRouter();
-  const { user, login } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -106,9 +106,6 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
     const orderId = `ORD-${Date.now().toString().slice(-6)}`;
     
     try {
-      // Login or create user
-      const orderUser = login(values.email, values.name);
-
       const department = service.department as 'Accounting and Tax' | 'Administration' | undefined;
       let assignedStaff: User | undefined;
       if (department) {
@@ -131,10 +128,6 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
         department: department,
         assignedTo: assignedStaff?.id,
       };
-
-      if (orderUser) {
-        orderData.userId = orderUser.id;
-      }
 
       await setDoc(doc(db, 'orders', orderId), orderData);
       

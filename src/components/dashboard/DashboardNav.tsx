@@ -42,9 +42,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
   };
 
   const navItems = [
-    { href: '/dashboard', label: 'Overview', icon: LayoutDashboard, roles: ['client'] },
-    { href: '/dashboard/orders', label: 'My Orders', icon: FileText, roles: ['client'] },
-    { href: '/dashboard/profile', label: 'My Profile', icon: User, roles: ['client', 'staff'] },
   ];
 
   const adminNavItems = [

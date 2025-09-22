@@ -190,19 +190,6 @@ export const OrderConfirmationEmail = ({ order, reseller }: OrderConfirmationEma
                     </Row>
                 </Section>
                 
-                 <Text style={{...paragraph, marginTop: '30px'}}>
-                    You can view your order details, check the status, and upload required documents by visiting your dashboard.
-                </Text>
-
-                <Section style={{ textAlign: 'center', marginTop: '30px', marginBottom: '32px' }}>
-                    <Link
-                        style={button}
-                        href={`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:9002'}/dashboard/orders/${order.id}`}
-                    >
-                        Go to My Dashboard
-                    </Link>
-                </Section>
-                
                 <Text style={footer}>
                 © {new Date().getFullYear()} {companyName}. All rights reserved.
                 </Text>

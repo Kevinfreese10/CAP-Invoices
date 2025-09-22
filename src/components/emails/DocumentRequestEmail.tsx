@@ -53,19 +53,6 @@ const anchor = {
   color: '#214392',
 };
 
-const button = {
-  backgroundColor: '#214392',
-  borderRadius: '5px',
-  color: '#fff',
-  fontSize: '16px',
-  fontWeight: 'bold',
-  textDecoration: 'none',
-  textAlign: 'center' as const,
-  display: 'block',
-  width: '100%',
-  padding: '12px',
-};
-
 const footer = {
   color: '#8898aa',
   fontSize: '12px',
@@ -116,7 +103,10 @@ export const DocumentRequestEmail = ({ order, items }: DocumentRequestEmailProps
                     Hi {order.customerName},
                 </Text>
                 <Text style={paragraph}>
-                    Your order <strong style={{color: '#214392'}}>{order.id}</strong> is now being processed. To continue, we need you to upload some information. Please review the list of required documents below.
+                    Your order <strong style={{color: '#214392'}}>{order.id}</strong> is now being processed. To continue, we need some information from you.
+                </Text>
+                 <Text style={paragraph}>
+                   Please reply to this email and attach the documents listed below.
                 </Text>
                 <Hr style={hr} />
 
@@ -133,19 +123,6 @@ export const DocumentRequestEmail = ({ order, items }: DocumentRequestEmailProps
                 ))}
                 
                 <Hr style={hr} />
-
-                <Text style={{...paragraph, marginTop: '20px'}}>
-                    Please click the button below to go to your order page and upload the required documents securely.
-                </Text>
-
-                <Section style={{ textAlign: 'center', marginTop: '30px', marginBottom: '32px' }}>
-                    <Button
-                        style={button}
-                        href={`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:9002'}/dashboard/orders/${order.id}`}
-                    >
-                        Upload My Documents
-                    </Button>
-                </Section>
                 
                 <Text style={footer}>
                 © {new Date().getFullYear()} My Accountant. All rights reserved.
