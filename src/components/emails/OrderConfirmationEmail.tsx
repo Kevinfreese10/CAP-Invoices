@@ -130,6 +130,8 @@ export const OrderConfirmationEmail = ({ order, reseller }: OrderConfirmationEma
     };
 
     const companyName = reseller?.companyName || 'My Accountant';
+    // In a real app this would be an environment variable
+    const siteUrl = 'https://my-accountant-app.com';
 
     return (
         <Html>
@@ -190,6 +192,10 @@ export const OrderConfirmationEmail = ({ order, reseller }: OrderConfirmationEma
                     </Row>
                 </Section>
                 
+                <Text style={{...paragraph, fontSize: '14px', marginTop: '20px'}}>
+                    By making payment, you accept our <Link href={`${siteUrl}/refund-policy`} style={anchor}>Refund Policy</Link>.
+                </Text>
+
                 <Text style={footer}>
                 © {new Date().getFullYear()} {companyName}. All rights reserved.
                 </Text>
