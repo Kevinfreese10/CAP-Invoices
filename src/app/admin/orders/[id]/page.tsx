@@ -100,9 +100,9 @@ function EmailClientDialog({ order, user, onEmailSent }: { order: Order, user: U
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                <Button size="sm" variant="outline">
+                 <Button variant="outline" className="w-full justify-start">
                     <Mail className="mr-2 h-4 w-4" />
-                    Email Client
+                    Compose Custom Email
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-xl">
@@ -472,7 +472,6 @@ export default function AdminOrderDetailsPage() {
                                 <span>{customer.contactNumber || 'N/A'}</span>
                             </div>
                         )}
-                         <EmailClientDialog order={order} user={customer} onEmailSent={addEmailToHistory} />
                     </CardContent>
                  </Card>
                  {assignee && (
@@ -510,6 +509,8 @@ export default function AdminOrderDetailsPage() {
                         <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickActionEmail('review')}>
                             <Star className="mr-2 h-4 w-4" /> Request a Review
                         </Button>
+                        <Separator className="my-2" />
+                        <EmailClientDialog order={order} user={customer} onEmailSent={addEmailToHistory} />
                     </CardContent>
                  </Card>
             </div>
@@ -517,5 +518,3 @@ export default function AdminOrderDetailsPage() {
     </div>
   );
 }
-
-    
