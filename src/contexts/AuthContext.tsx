@@ -6,7 +6,18 @@ import { useRouter } from 'next/navigation';
 // Mock users for demonstration
 export const users: User[] = [
   { id: '1', name: 'John Doe', email: 'client@test.com', role: 'client' },
-  { id: '2', name: 'Jane Admin', email: 'admin@test.com', role: 'admin' },
+  { 
+    id: '2', 
+    name: 'Jane Admin', 
+    email: 'admin@test.com', 
+    role: 'admin',
+    smtpDetails: {
+        host: 'mail.thinkestry.co.za',
+        port: '465',
+        user: 'no-reply@thinkestry.co.za',
+        pass: 'Thinkestry10$',
+    }
+  },
   { id: '3', name: 'Staff Member', email: 'staff@test.com', role: 'staff', department: 'Accounting and Tax' },
   { 
     id: '4', 

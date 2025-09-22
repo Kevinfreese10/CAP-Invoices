@@ -56,6 +56,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/categories', label: 'Manage Categories', icon: Shapes, roles: ['admin'] },
     { href: '/admin/staff', label: 'Manage Staff', icon: Users, roles: ['admin'] },
     { href: '/admin/seo', label: 'SEO Management', icon: Search, roles: ['admin'] },
+    { href: '/admin/settings', label: 'Settings', icon: Settings, roles: ['admin'] },
   ];
 
   const resellerNavItems = [
