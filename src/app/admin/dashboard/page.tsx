@@ -23,7 +23,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
@@ -35,6 +35,11 @@ import { firebaseApp } from '@/lib/firebase';
 const db = getFirestore(firebaseApp);
 
 const allStaff = users.filter(u => u.role === 'staff' || u.role === 'admin');
+const departments = ['Accounting and Tax', 'Administration'] as const;
+const staffByDept = {
+    'Accounting and Tax': allStaff.filter(u => u.department === 'Accounting and Tax'),
+    'Administration': allStaff.filter(u => u.department === 'Administration'),
+};
 const taskStatuses: Task['status'][] = ['To-Do', 'In Progress', 'Review', 'Done'];
 const taskPriorities: Task['priority'][] = ['High', 'Medium', 'Low'];
 const taskRecurrences: Task['recurrence'][] = ['None', 'Daily', 'Weekly', 'Monthly'];
@@ -94,11 +99,29 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
                     <FormField control={form.control} name="assignedTo" render={({ field }) => (
                         <FormItem>
                             <FormLabel>Assign To</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!!task?.id}>
                                 <FormControl><SelectTrigger><SelectValue placeholder="Select staff..." /></SelectTrigger></FormControl>
-                                <SelectContent>
-                                    {!task?.id && <SelectItem value="all">All Staff</SelectItem>}
-                                    {allStaff.map(staff => <SelectItem key={staff.id} value={staff.id}>{staff.name}</SelectItem>)}
+                                 <SelectContent>
+                                    {!task?.id && (
+                                    <>
+                                        <SelectGroup>
+                                            <SelectLabel>Teams</SelectLabel>
+                                            <SelectItem value="all">All Staff</SelectItem>
+                                            <SelectItem value="dept-accounting-and-tax">Accounting and Tax Dept</SelectItem>
+                                            <SelectItem value="dept-administration">Administration Dept</SelectItem>
+                                        </SelectGroup>
+                                        <SelectGroup>
+                                            <SelectLabel>Individual Staff</SelectLabel>
+                                            {departments.map(dept => (
+                                                <SelectGroup key={dept}>
+                                                    <SelectLabel className="pl-4 text-xs">{dept}</SelectLabel>
+                                                    {staffByDept[dept].map(staff => <SelectItem key={staff.id} value={staff.id}>{staff.name}</SelectItem>)}
+                                                </SelectGroup>
+                                            ))}
+                                        </SelectGroup>
+                                    </>
+                                    )}
+                                    {!!task?.id && allStaff.map(staff => <SelectItem key={staff.id} value={staff.id}>{staff.name}</SelectItem>)}
                                 </SelectContent>
                             </Select>
                             <FormMessage />
@@ -449,17 +472,40 @@ export default function AdminDashboardPage() {
             ...data,
             dueDate: Timestamp.fromDate(data.dueDate),
         };
+        
+        delete (taskData as any).assignedTo;
 
         try {
             if (selectedTask?.id) { // This is an update
                 const taskRef = doc(db, 'tasks', selectedTask.id);
                 // assignedTo is not changed on edit in this logic
-                await updateDoc(taskRef, { ...taskData, assignedTo: selectedTask.assignedTo });
+                await updateDoc(taskRef, { ...taskData });
                 toast({ title: 'Task Updated', description: 'The task details have been saved.' });
             } else { // This is a new task or tasks
-                if (data.assignedTo === 'all') {
+                const assignmentKey = data.assignedTo;
+                let targetStaff: User[] = [];
+                let successMessage = '';
+
+                if (assignmentKey === 'all') {
+                    targetStaff = allStaff;
+                    successMessage = `A new task has been assigned to all ${targetStaff.length} staff members.`;
+                } else if (assignmentKey === 'dept-accounting-and-tax') {
+                    targetStaff = staffByDept['Accounting and Tax'];
+                    successMessage = `Task assigned to all ${targetStaff.length} members of the Accounting and Tax department.`;
+                } else if (assignmentKey === 'dept-administration') {
+                    targetStaff = staffByDept['Administration'];
+                     successMessage = `Task assigned to all ${targetStaff.length} members of the Administration department.`;
+                } else {
+                    const singleStaff = allStaff.find(s => s.id === assignmentKey);
+                    if (singleStaff) {
+                        targetStaff.push(singleStaff);
+                    }
+                    successMessage = 'The new task has been added successfully.';
+                }
+                
+                if (targetStaff.length > 0) {
                     const batch = writeBatch(db);
-                    allStaff.forEach(staffMember => {
+                    targetStaff.forEach(staffMember => {
                         const taskRef = doc(collection(db, 'tasks'));
                         batch.set(taskRef, {
                             ...taskData,
@@ -470,15 +516,9 @@ export default function AdminDashboardPage() {
                         });
                     });
                     await batch.commit();
-                    toast({ title: 'Tasks Created', description: `A new task has been assigned to all ${allStaff.length} staff members.` });
+                    toast({ title: 'Tasks Created', description: successMessage });
                 } else {
-                    await addDoc(collection(db, 'tasks'), {
-                        ...taskData,
-                        status: 'To-Do',
-                        createdBy: user.id,
-                        comments: [],
-                    });
-                    toast({ title: 'Task Created', description: 'The new task has been added successfully.' });
+                     toast({ title: 'Assignment Error', description: 'No staff members found for the selected assignment.', variant: 'destructive' });
                 }
             }
             fetchTasks();
@@ -613,3 +653,5 @@ export default function AdminDashboardPage() {
         </div>
     );
 }
+
+    
