@@ -201,6 +201,8 @@ export default function AdminOrdersPage() {
       });
       
       const currentStaff = assignedStaffId ? allStaff.find(s => s.id === assignedStaffId) : undefined;
+      const emailTo = orderToUpdate.endCustomerEmail || orderToUpdate.customerEmail;
+      const emailOrder = {...orderToUpdate, customerName: orderToUpdate.endCustomerName || orderToUpdate.customerName};
       
       if (newStatus === 'Processing' && currentStaff) {
         const itemsWithServices = orderToUpdate.items.map(item => {
@@ -208,12 +210,13 @@ export default function AdminOrdersPage() {
             return { ...item, service };
         }).filter(item => item.service) as { service: Service }[];
 
-        const emailHtml = render(<DocumentRequestEmail order={orderToUpdate} items={itemsWithServices} assignedToEmail={currentStaff.email} />);
+        const emailHtml = render(<DocumentRequestEmail order={emailOrder} items={itemsWithServices} assignedToEmail={currentStaff.email} />);
         
         await sendEmail({
-            to: orderToUpdate.customerEmail,
+            to: emailTo,
             subject: `Action Required: Documents needed for your order #${orderId}`,
             html: emailHtml,
+            resellerId: orderToUpdate.resellerId
         });
 
         toast({
@@ -223,11 +226,12 @@ export default function AdminOrdersPage() {
       }
 
       if (newStatus === 'Completed') {
-        const emailHtml = render(<ReviewRequestEmail order={orderToUpdate} />);
+        const emailHtml = render(<ReviewRequestEmail order={emailOrder} />);
         await sendEmail({
-            to: orderToUpdate.customerEmail,
+            to: emailTo,
             subject: `We'd love your feedback on order #${orderId}`,
             html: emailHtml,
+            resellerId: orderToUpdate.resellerId
         });
         toast({
             title: 'Review Request Sent',

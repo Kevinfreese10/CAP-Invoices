@@ -399,7 +399,7 @@ export default function AdminOrderDetailsPage() {
                                 </div>
                             </div>
                             <div>
-                                <h3 className="font-semibold text-muted-foreground mb-2">Customer Details</h3>
+                                <h3 className="font-semibold text-muted-foreground mb-2">{order.originalOrderId ? 'End Client Details' : 'Customer Details'}</h3>
                                 <div className="space-y-3">
                                     <p className="font-semibold text-lg">{order.endCustomerName || order.customerName}</p>
                                     <div className="flex items-center gap-2 text-sm">
