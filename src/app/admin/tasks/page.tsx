@@ -359,24 +359,27 @@ export default function AdminTasksPage() {
   
   const handleCommentSubmit = async (taskId: string, commentText: string) => {
       if (!user) return;
-      const newComment: Omit<TaskComment, 'date'> & { date: Timestamp } = {
+      const newComment: Omit<TaskComment, 'date'> & { date: Date } = {
           text: commentText,
-          date: Timestamp.now(),
+          date: new Date(),
           authorId: user.id,
       };
 
       try {
           const taskRef = doc(db, 'tasks', taskId);
           await updateDoc(taskRef, {
-              comments: arrayUnion(newComment)
+              comments: arrayUnion({
+                ...newComment,
+                date: Timestamp.fromDate(newComment.date),
+              })
           });
           if (selectedTask) {
-              const updatedComments = [...(selectedTask.comments || []), { ...newComment, date: new Date() as any }];
+              const updatedComments = [...(selectedTask.comments || []), { ...newComment, date: newComment.date as any }];
               setSelectedTask({ ...selectedTask, comments: updatedComments });
           }
            setTasks(prevTasks => prevTasks.map(t => {
                 if (t.id === taskId) {
-                    return {...t, comments: [...(t.comments || []), {...newComment, date: new Date() as any}]};
+                    return {...t, comments: [...(t.comments || []), {...newComment, date: newComment.date as any}]};
                 }
                 return t;
             }));
