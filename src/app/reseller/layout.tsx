@@ -1,19 +1,24 @@
 
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { ProtectedRoute, useAuth } from '@/contexts/AuthContext';
 import { SidebarProvider, Sidebar, SidebarInset } from '@/components/ui/sidebar';
 import DashboardNav from '@/components/dashboard/DashboardNav';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 
 export default function ResellerLayout({ children }: { children: ReactNode }) {
   const { user, isAuthenticated } = useAuth();
   const router = useRouter();
-  const pathname = usePathname();
   
-  if (isAuthenticated === undefined) {
+  useEffect(() => {
+    if (isAuthenticated && user?.role !== 'reseller') {
+      router.push('/login');
+    }
+  }, [isAuthenticated, user, router]);
+
+  if (isAuthenticated === undefined || (isAuthenticated && user?.role !== 'reseller')) {
      return (
         <div className="flex min-h-screen">
             <Skeleton className="hidden md:block w-16 lg:w-64" />
@@ -23,11 +28,6 @@ export default function ResellerLayout({ children }: { children: ReactNode }) {
             </div>
       </div>
      );
-  }
-  
-  if (isAuthenticated && user?.role !== 'reseller') {
-    router.push('/login');
-    return null;
   }
 
   return (
