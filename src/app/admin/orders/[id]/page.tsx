@@ -62,10 +62,13 @@ function EmailClientDialog({ order, user, onEmailSent }: { order: Order, user: U
     const [isOpen, setIsOpen] = useState(false);
     const [isSending, setIsSending] = useState(false);
 
+    const emailTo = order.endCustomerEmail || order.customerEmail;
+    const nameTo = order.endCustomerName || order.customerName;
+
     const form = useForm<z.infer<typeof emailFormSchema>>({
         resolver: zodResolver(emailFormSchema),
         defaultValues: {
-            subject: `Regarding Your Order: ${order.id}`,
+            subject: `Regarding Your Order: ${order.originalOrderId || order.id}`,
             message: '',
         },
     });
@@ -74,9 +77,10 @@ function EmailClientDialog({ order, user, onEmailSent }: { order: Order, user: U
         setIsSending(true);
         try {
             await sendEmail({
-                to: order.customerEmail,
+                to: emailTo,
                 subject: values.subject,
                 html: `<p>${values.message.replace(/\n/g, '<br>')}</p>`,
+                resellerId: order.resellerId
             });
             await onEmailSent(values.subject, values.message);
             toast({
@@ -107,9 +111,9 @@ function EmailClientDialog({ order, user, onEmailSent }: { order: Order, user: U
             </DialogTrigger>
             <DialogContent className="sm:max-w-xl">
                 <DialogHeader>
-                    <DialogTitle>Send Email to {order.customerName}</DialogTitle>
+                    <DialogTitle>Send Email to {nameTo}</DialogTitle>
                     <DialogDescription>
-                        Compose your message below. The email will be sent from the default company address.
+                        Compose your message below. {order.resellerId ? "This will be sent from the reseller's email." : "The email will be sent from the default company address."}
                     </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
@@ -131,7 +135,7 @@ function EmailClientDialog({ order, user, onEmailSent }: { order: Order, user: U
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>Message</FormLabel>
-                                    <FormControl><Textarea {...field} rows={8} placeholder="Hi there..."/></FormControl>
+                                    <FormControl><Textarea {...field} rows={8} placeholder={`Hi ${nameTo}...`}/></FormControl>
                                     <FormMessage />
                                 </FormItem>
                             )}
@@ -298,6 +302,8 @@ export default function AdminOrderDetailsPage() {
       let emailHtml = '';
       let subject = '';
       let message = '';
+      const emailTo = order.endCustomerEmail || order.customerEmail;
+      const orderForEmail = { ...order, customerName: order.endCustomerName || order.customerName, id: order.originalOrderId || order.id };
 
       if (type === 'docs') {
          const itemsWithServices = order.items.map(item => {
@@ -305,23 +311,23 @@ export default function AdminOrderDetailsPage() {
             return { ...item, service };
         }).filter(item => item.service) as { service: Service }[];
 
-        emailHtml = render(<DocumentRequestEmail order={order} items={itemsWithServices} assignedToEmail={currentUser.email} />);
-        subject = `Action Required: Documents needed for your order #${order.id}`;
+        emailHtml = render(<DocumentRequestEmail order={orderForEmail} items={itemsWithServices} assignedToEmail={currentUser.email} />);
+        subject = `Action Required: Documents needed for your order #${orderForEmail.id}`;
         message = "Sent 'Request Documents' email to client.";
       } else if (type === 'payment') {
-         emailHtml = render(<PaymentFollowUpEmail order={order} />);
-         subject = `Payment Reminder for Your Order: #${order.id}`;
+         emailHtml = render(<PaymentFollowUpEmail order={orderForEmail} />);
+         subject = `Payment Reminder for Your Order: #${orderForEmail.id}`;
          message = "Sent 'Payment Follow-up' email to client.";
       } else if (type === 'review') {
-         emailHtml = render(<ReviewRequestEmail order={order} />);
-         subject = `We'd love your feedback on order #${order.id}`;
+         emailHtml = render(<ReviewRequestEmail order={orderForEmail} />);
+         subject = `We'd love your feedback on order #${orderForEmail.id}`;
          message = "Sent 'Request a Review' email to client.";
       }
 
       toast({ title: 'Sending email...', description: 'Please wait a moment.' });
       
        try {
-            await sendEmail({ to: order.customerEmail, subject, html: emailHtml });
+            await sendEmail({ to: emailTo, subject, html: emailHtml, resellerId: order.resellerId });
             await addEmailToHistory(subject, message);
             toast({ title: 'Email Sent!', description: 'The email has been successfully sent to the client.' });
         } catch (error) {
@@ -368,6 +374,7 @@ export default function AdminOrderDetailsPage() {
                         <CardTitle>Order {order.id}</CardTitle>
                         <CardDescription>
                         Date: {format(new Date(order.date), 'dd MMMM yyyy')} | Status: <Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
+                         {order.originalOrderId && <span className="ml-2">| Original Order: <Link href={`/reseller/orders/${order.originalOrderId}`} className="text-primary hover:underline">{order.originalOrderId}</Link></span>}
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -394,10 +401,10 @@ export default function AdminOrderDetailsPage() {
                             <div>
                                 <h3 className="font-semibold text-muted-foreground mb-2">Customer Details</h3>
                                 <div className="space-y-3">
-                                    <p className="font-semibold text-lg">{order.customerName}</p>
+                                    <p className="font-semibold text-lg">{order.endCustomerName || order.customerName}</p>
                                     <div className="flex items-center gap-2 text-sm">
                                         <Mail className="h-4 w-4 text-muted-foreground" />
-                                        <a href={`mailto:${order.customerEmail}`} className="text-primary hover:underline">{order.customerEmail}</a>
+                                        <a href={`mailto:${order.endCustomerEmail || order.customerEmail}`} className="text-primary hover:underline">{order.endCustomerEmail || order.customerEmail}</a>
                                     </div>
                                     {customer && (
                                         <div className="flex items-center gap-2 text-sm">
@@ -520,5 +527,3 @@ export default function AdminOrderDetailsPage() {
     </div>
   );
 }
-
-    

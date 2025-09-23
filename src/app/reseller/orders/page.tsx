@@ -163,6 +163,8 @@ export default function ResellerOrdersPage() {
             id: newOrderId,
             customerName: user.companyName || user.name, // The customer is the reseller
             customerEmail: user.email,
+            endCustomerName: orderToOutsource.customerName, // Pass the end client's name
+            endCustomerEmail: orderToOutsource.customerEmail, // Pass the end client's email
             date: Timestamp.now(),
             items: orderToOutsource.items.map(item => ({
                 id: item.id,
@@ -581,6 +583,3 @@ export default function ResellerOrdersPage() {
     </>
   );
 }
-
-
-    

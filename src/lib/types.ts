@@ -1,8 +1,4 @@
 
-
-
-
-
 export type Service = {
   id: string;
   title: string;
@@ -71,6 +67,8 @@ export type Order = {
   resellerId?: string;
   customerName: string;
   customerEmail: string;
+  endCustomerName?: string; // Added for reseller's client
+  endCustomerEmail?: string; // Added for reseller's client
   date: any;
   items: any[];
   total: number;
