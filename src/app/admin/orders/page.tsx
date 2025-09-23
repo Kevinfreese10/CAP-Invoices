@@ -54,7 +54,7 @@ const allStaff = users.filter(u => u.role === 'staff' || u.role === 'admin');
 // Simple round-robin counter for staff assignment
 let staffCounters: { [key: string]: number } = {};
 
-const getNextStaffMember = (department: 'Accounting and Tax' | 'Administration'): User | undefined => {
+const getNextStaffMember = (department: 'Accounting and Tax' | 'Administration' | 'CAP'): User | undefined => {
     const staffInDept = users.filter(u => u.role === 'staff' && u.department === department);
     if (staffInDept.length === 0) return undefined;
 
@@ -212,7 +212,7 @@ export default function AdminOrdersPage() {
 
     // New Logic: Assign staff only when moving to "Processing"
     if (newStatus === 'Processing' && !assignedStaffIds?.length) {
-        const department = orderToUpdate.department as 'Accounting and Tax' | 'Administration' | undefined;
+        const department = orderToUpdate.department as 'Accounting and Tax' | 'Administration' | 'CAP' | undefined;
         if (department) {
             const newStaffAssignment = getNextStaffMember(department);
             if (newStaffAssignment) {

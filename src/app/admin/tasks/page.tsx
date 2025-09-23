@@ -36,10 +36,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 const db = getFirestore(firebaseApp);
 
 const allStaff = users.filter(u => u.role === 'staff' || u.role === 'admin');
-const departments = ['Accounting and Tax', 'Administration'] as const;
+const departments = ['Accounting and Tax', 'Administration', 'CAP'] as const;
 const staffByDept = {
     'Accounting and Tax': allStaff.filter(u => u.department === 'Accounting and Tax'),
     'Administration': allStaff.filter(u => u.department === 'Administration'),
+    'CAP': allStaff.filter(u => u.department === 'CAP'),
 };
 const taskStatuses: Task['status'][] = ['To-Do', 'In Progress', 'Review', 'Done'];
 const taskPriorities: Task['priority'][] = ['High', 'Medium', 'Low'];
@@ -110,6 +111,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
                                             <SelectItem value="all">All Staff</SelectItem>
                                             <SelectItem value="dept-accounting-and-tax">Accounting and Tax Dept</SelectItem>
                                             <SelectItem value="dept-administration">Administration Dept</SelectItem>
+                                            <SelectItem value="dept-cap">CAP Dept</SelectItem>
                                         </SelectGroup>
                                         <SelectGroup>
                                             <SelectLabel>Individual Staff</SelectLabel>
@@ -359,35 +361,41 @@ export default function AdminTasksPage() {
   };
   
   const handleCommentSubmit = async (taskId: string, commentText: string) => {
-      if (!user) return;
-      const commentTimestamp = Timestamp.now();
-      const newComment: TaskComment = {
-          text: commentText,
-          date: commentTimestamp,
-          authorId: user.id,
-      };
+    if (!user) return;
+    
+    const newComment: TaskComment = {
+        text: commentText,
+        date: Timestamp.now(),
+        authorId: user.id,
+    };
 
-      try {
-          const taskRef = doc(db, 'tasks', taskId);
-          await updateDoc(taskRef, {
-              comments: arrayUnion(newComment)
-          });
-          if (selectedTask) {
-              const updatedComments = [...(selectedTask.comments || []), newComment];
-              setSelectedTask({ ...selectedTask, comments: updatedComments });
-          }
-           setTasks(prevTasks => prevTasks.map(t => {
-                if (t.id === taskId) {
-                    return {...t, comments: [...(t.comments || []), newComment]};
-                }
-                return t;
-            }));
-          toast({ title: 'Comment Posted', description: 'Your comment has been added.' });
-      } catch (error) {
-          console.error("Error posting comment:", error);
-          toast({ title: 'Error', description: 'Could not post comment.', variant: 'destructive' });
-      }
-  }
+    try {
+        const taskRef = doc(db, 'tasks', taskId);
+        await updateDoc(taskRef, {
+            comments: arrayUnion(newComment),
+        });
+        
+        const newCommentForState = { ...newComment, date: new Date() };
+
+        if (selectedTask) {
+             const updatedComments = [...(selectedTask.comments || []), newCommentForState];
+             setSelectedTask({ ...selectedTask, comments: updatedComments });
+        }
+       
+        setTasks(prevTasks => prevTasks.map(t => {
+            if (t.id === taskId) {
+                const existingComments = t.comments?.map(c => c.date.toDate ? c : {...c, date: new Date(c.date)}) || [];
+                return {...t, comments: [...existingComments, newCommentForState]};
+            }
+            return t;
+        }));
+
+        toast({ title: 'Comment Posted', description: 'Your comment has been added.' });
+    } catch (error) {
+        console.error("Error posting comment:", error);
+        toast({ title: 'Error', description: 'Could not post comment.', variant: 'destructive' });
+    }
+}
 
   const getAssignee = (userId?: string): User | undefined => {
     if (!userId) return undefined;
@@ -521,7 +529,7 @@ export default function AdminTasksPage() {
                             )}
                         </div>
                     </TableCell>
-                    <TableCell className="align-top">{format(task.dueDate.toDate(), 'dd MMM yyyy')}</TableCell>
+                    <TableCell className="align-top">{task.dueDate.toDate ? format(task.dueDate.toDate(), 'dd MMM yyyy') : format(task.dueDate, 'dd MMM yyyy')}</TableCell>
                     <TableCell className="align-top">
                         <Badge variant={getPriorityVariant(task.priority)}>
                             {task.priority}

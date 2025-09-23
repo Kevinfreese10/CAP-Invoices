@@ -19,7 +19,7 @@ import { users as allUsers } from '@/lib/data';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-const departments = ['Accounting and Tax', 'Administration'] as const;
+const departments = ['Accounting and Tax', 'Administration', 'CAP'] as const;
 
 const formSchema = z.object({
   id: z.string().optional(),

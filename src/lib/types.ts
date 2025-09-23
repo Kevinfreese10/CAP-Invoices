@@ -10,7 +10,7 @@ export type Service = {
   imageUrl: string;
   imageHint: string;
   category: string;
-  department?: 'Accounting and Tax' | 'Administration';
+  department?: 'Accounting and Tax' | 'Administration' | 'CAP';
   whatsIncluded: string[];
   turnaroundTime: string;
   clientRequirements: string[];
@@ -77,7 +77,7 @@ export type Order = {
   status: 'Pending Payment' | 'Processing' | 'Completed' | 'Cancelled' | 'Outsourced';
   isOutsourced?: boolean;
   assignedTo?: string[] | null;
-  department?: 'Accounting and Tax' | 'Administration' | null;
+  department?: 'Accounting and Tax' | 'Administration' | 'CAP' | null;
   originalOrderId?: string;
   notes?: OrderNote[];
   source?: 'Client' | 'Staff' | 'Reseller';
@@ -88,7 +88,7 @@ export type User = {
   name: string;
   email: string;
   role: 'client' | 'admin' | 'staff' | 'reseller';
-  department?: 'Accounting and Tax' | 'Administration';
+  department?: 'Accounting and Tax' | 'Administration' | 'CAP';
   status?: 'Active' | 'Inactive';
   // Reseller specific fields
   companyName?: string;

@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
 import { Separator } from '../ui/separator';
 
-const departments = ['Accounting and Tax', 'Administration'] as const;
+const departments = ['Accounting and Tax', 'Administration', 'CAP'] as const;
 
 const formSchema = z.object({
   id: z.string().optional(),

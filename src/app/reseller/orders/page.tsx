@@ -60,7 +60,7 @@ const db = getFirestore(firebaseApp);
 // Simple round-robin counter for staff assignment
 let staffCounters: { [key: string]: number } = {};
 
-const getNextStaffMember = (department: 'Accounting and Tax' | 'Administration'): User | undefined => {
+const getNextStaffMember = (department: 'Accounting and Tax' | 'Administration' | 'CAP'): User | undefined => {
     const staffInDept = users.filter(u => u.role === 'staff' && u.department === department);
     if (staffInDept.length === 0) return undefined;
 
@@ -181,7 +181,7 @@ export default function ResellerOrdersPage() {
         if (department) {
           const assignedStaff = getNextStaffMember(department);
           newOrderData.department = department;
-          newOrderData.assignedTo = assignedStaff?.id || null;
+          newOrderData.assignedTo = assignedStaff?.id ? [assignedStaff.id] : null;
         } else {
             newOrderData.department = null;
             newOrderData.assignedTo = null;
@@ -581,6 +581,7 @@ export default function ResellerOrdersPage() {
     
 
     
+
 
 
 

@@ -36,10 +36,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 const db = getFirestore(firebaseApp);
 
 const allStaff = users.filter(u => u.role === 'staff' || u.role === 'admin');
-const departments = ['Accounting and Tax', 'Administration'] as const;
+const departments = ['Accounting and Tax', 'Administration', 'CAP'] as const;
 const staffByDept = {
     'Accounting and Tax': allStaff.filter(u => u.department === 'Accounting and Tax'),
     'Administration': allStaff.filter(u => u.department === 'Administration'),
+    'CAP': allStaff.filter(u => u.department === 'CAP'),
 };
 const taskStatuses: Task['status'][] = ['To-Do', 'In Progress', 'Review', 'Done'];
 const taskPriorities: Task['priority'][] = ['High', 'Medium', 'Low'];
@@ -110,6 +111,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
                                             <SelectItem value="all">All Staff</SelectItem>
                                             <SelectItem value="dept-accounting-and-tax">Accounting and Tax Dept</SelectItem>
                                             <SelectItem value="dept-administration">Administration Dept</SelectItem>
+                                            <SelectItem value="dept-cap">CAP Dept</SelectItem>
                                         </SelectGroup>
                                         <SelectGroup>
                                             <SelectLabel>Individual Staff</SelectLabel>
@@ -182,7 +184,6 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
                             <div className="space-y-4 max-h-40 overflow-y-auto pr-2">
                                 {task.comments && task.comments.length > 0 ? task.comments.slice().reverse().map((comment, index) => {
                                     const author = getAuthor(comment.authorId);
-                                    // Defensively check if comment.date is a Firestore Timestamp and convert if needed
                                     const date = comment.date?.toDate ? comment.date.toDate() : new Date(comment.date);
                                     return (
                                     <div key={index} className="flex items-start gap-3">
@@ -333,7 +334,7 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                                 )}
                             </div>
                         </TableCell>
-                        <TableCell className="align-top">{format(task.dueDate.toDate(), 'dd MMM yyyy')}</TableCell>
+                        <TableCell className="align-top">{task.dueDate.toDate ? format(task.dueDate.toDate(), 'dd MMM yyyy') : format(task.dueDate, 'dd MMM yyyy')}</TableCell>
                         <TableCell className="align-top">
                             <Badge variant={getPriorityVariant(task.priority)}>
                                 {task.priority}
@@ -439,12 +440,12 @@ export default function AdminDashboardPage() {
 
     const myTasks = useMemo(() => {
         if (!user) return [];
-        return tasks.filter(task => Array.isArray(task.assignedTo) && task.assignedTo.includes(user.id)).sort((a,b) => a.dueDate.toMillis() - b.dueDate.toMillis());
+        return tasks.filter(task => Array.isArray(task.assignedTo) && task.assignedTo.includes(user.id)).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
     }, [tasks, user]);
 
     const delegatedTasks = useMemo(() => {
         if (!user) return [];
-        return tasks.filter(task => task.createdBy === user.id && (!Array.isArray(task.assignedTo) || !task.assignedTo.includes(user.id))).sort((a,b) => a.dueDate.toMillis() - b.dueDate.toMillis());
+        return tasks.filter(task => task.createdBy === user.id && (!Array.isArray(task.assignedTo) || !task.assignedTo.includes(user.id))).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
     }, [tasks, user]);
 
     const handleAdd = () => {
@@ -550,10 +551,10 @@ export default function AdminDashboardPage() {
   
     const handleCommentSubmit = async (taskId: string, commentText: string) => {
         if (!user) return;
-        const commentTimestamp = Timestamp.now();
+        
         const newComment: TaskComment = {
             text: commentText,
-            date: commentTimestamp,
+            date: Timestamp.now(),
             authorId: user.id,
         };
 
@@ -563,15 +564,17 @@ export default function AdminDashboardPage() {
                 comments: arrayUnion(newComment),
             });
             
-            // Manually update the selected task in the dialog to show the new comment
+            const newCommentForState = { ...newComment, date: new Date() };
+
             if (selectedTask) {
-                 const updatedComments = [...(selectedTask.comments || []), newComment];
+                 const updatedComments = [...(selectedTask.comments || []), newCommentForState];
                  setSelectedTask({ ...selectedTask, comments: updatedComments });
             }
-            // Also update the main tasks list optimistically
+           
             setTasks(prevTasks => prevTasks.map(t => {
                 if (t.id === taskId) {
-                    return {...t, comments: [...(t.comments || []), newComment]};
+                    const existingComments = t.comments?.map(c => c.date.toDate ? c : {...c, date: new Date(c.date)}) || [];
+                    return {...t, comments: [...existingComments, newCommentForState]};
                 }
                 return t;
             }));
