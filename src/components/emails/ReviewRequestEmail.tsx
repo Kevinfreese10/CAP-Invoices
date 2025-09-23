@@ -47,6 +47,10 @@ const paragraph = {
   textAlign: 'left' as const,
 };
 
+const anchor = {
+  color: '#214392',
+};
+
 const button = {
   backgroundColor: '#214392',
   borderRadius: '5px',
