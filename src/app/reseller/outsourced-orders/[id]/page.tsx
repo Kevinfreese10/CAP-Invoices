@@ -116,9 +116,9 @@ export default function ResellerOutsourcedOrderDetailsPage() {
     <div className="space-y-8">
         <div>
             <Button variant="outline" asChild>
-                <Link href="/reseller/outsourced-orders">
+                <Link href="/reseller/orders">
                     <ArrowLeft className="mr-2 h-4 w-4" />
-                    Back to Outsourced Orders
+                    Back to Orders
                 </Link>
             </Button>
         </div>
@@ -176,9 +176,12 @@ export default function ResellerOutsourcedOrderDetailsPage() {
                                                 </div>
                                                  {isEmail ? (
                                                     <div>
-                                                        <div className="flex items-center gap-2 mb-1">
+                                                        <div className="flex items-center justify-between gap-2 mb-1 text-sm">
+                                                          <div className="flex items-center gap-2">
                                                             <Mail className="h-4 w-4 text-muted-foreground" />
-                                                            <p className="text-sm font-semibold">{note.subject}</p>
+                                                            <p className="font-semibold">{note.subject}</p>
+                                                          </div>
+                                                            <p className="text-xs text-muted-foreground">To: {order.endCustomerEmail}</p>
                                                         </div>
                                                         <p className="text-sm italic text-muted-foreground">"{note.text}"</p>
                                                     </div>
@@ -226,4 +229,5 @@ export default function ResellerOutsourcedOrderDetailsPage() {
         </div>
     </div>
   );
-}
+
+    
