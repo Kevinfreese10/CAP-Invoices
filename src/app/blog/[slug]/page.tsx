@@ -8,14 +8,15 @@ import { useEffect, useState } from 'react';
 import { BlogPost } from '@/lib/types';
 
 export default function BlogPostPage({ params }: { params: { slug: string } }) {
+  const { slug } = params;
   const [post, setPost] = useState<BlogPost | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const foundPost = blogPosts.find(p => p.slug === params.slug);
+    const foundPost = blogPosts.find(p => p.slug === slug);
     setPost(foundPost);
     setIsLoading(false);
-  }, [params.slug]);
+  }, [slug]);
 
   if (isLoading) {
     // You can add a skeleton loader here if you want
