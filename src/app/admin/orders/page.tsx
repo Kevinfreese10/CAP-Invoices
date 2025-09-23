@@ -4,9 +4,9 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, User, Service } from '@/lib/types';
+import { Order, User, Service, OrderNote } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   Table,
@@ -45,6 +45,7 @@ import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
 import ReviewRequestEmail from '@/components/emails/ReviewRequestEmail';
+import { Timestamp } from 'firebase/firestore';
 
 
 const db = getFirestore(firebaseApp);
@@ -84,8 +85,7 @@ export default function AdminOrdersPage() {
   const { toast } = useToast();
   const { user } = useAuth();
 
-  useEffect(() => {
-    const fetchOrders = async () => {
+  const fetchOrders = async () => {
       setIsLoading(true);
       try {
         const ordersRef = collection(db, 'orders');
@@ -107,7 +107,7 @@ export default function AdminOrdersPage() {
         } else {
           // Admin view: See main store orders OR outsourced reseller orders
           const allOrdersSnapshot = await getDocs(query(ordersRef, orderBy('date', 'desc')));
-          filteredOrders = allOrdersSnapshot.docs.map(doc => {
+          const allFetchedOrders = allOrdersSnapshot.docs.map(doc => {
             const data = doc.data();
             return {
               ...data,
@@ -115,7 +115,22 @@ export default function AdminOrdersPage() {
               date: data.date.toDate(),
               notes: (data.notes || []).map((note: any) => ({...note, date: note.date.toDate()})),
             } as Order;
-          }).filter(order => !order.resellerId || (order.resellerId && order.originalOrderId));
+          });
+          
+          const ordersWithClientDetails = await Promise.all(allFetchedOrders.map(async (order) => {
+              if (order.resellerId && order.originalOrderId && !order.endCustomerEmail) {
+                const originalOrderRef = doc(db, 'orders', order.originalOrderId);
+                const originalOrderSnap = await getDoc(originalOrderRef);
+                if (originalOrderSnap.exists()) {
+                    const originalOrderData = originalOrderSnap.data();
+                    order.endCustomerName = originalOrderData.customerName;
+                    order.endCustomerEmail = originalOrderData.customerEmail;
+                }
+              }
+              return order;
+          }));
+
+          filteredOrders = ordersWithClientDetails.filter(order => !order.resellerId || (order.resellerId && order.originalOrderId));
         }
         
         setOrders(filteredOrders.filter(order => order.status !== 'Cancelled'));
@@ -125,7 +140,8 @@ export default function AdminOrdersPage() {
         setIsLoading(false);
       }
     };
-
+    
+  useEffect(() => {
     if (user) {
         fetchOrders();
     }
@@ -158,9 +174,38 @@ export default function AdminOrdersPage() {
     }
   };
 
+  const addEmailToHistory = async (orderId: string, subject: string, message: string) => {
+    if (!user) return;
+
+     const emailNote: OrderNote = {
+      text: message,
+      subject: subject,
+      authorId: user.id,
+      date: Timestamp.now(),
+      type: 'email',
+    };
+
+    try {
+      const orderRef = doc(db, 'orders', orderId);
+      await updateDoc(orderRef, {
+        notes: arrayUnion(emailNote),
+      });
+      // Optimistically update the UI to avoid a full re-fetch
+       setOrders(prevOrders =>
+        prevOrders.map(order =>
+          order.id === orderId
+            ? { ...order, notes: [...(order.notes || []), {...emailNote, date: new Date()}] } // Use JS Date for UI
+            : order
+        )
+      );
+    } catch (error) {
+        console.error("Error logging email to history:", error);
+    }
+  };
+
   const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
     const orderToUpdate = orders.find(o => o.id === orderId);
-    if (!orderToUpdate) return;
+    if (!orderToUpdate || !user) return;
 
     let assignedStaffId = orderToUpdate.assignedTo;
     let assignedStaffMember = allStaff.find(s => s.id === assignedStaffId);
@@ -189,11 +234,10 @@ export default function AdminOrdersPage() {
       });
 
       // Update local state
-      setOrders(prevOrders =>
-        prevOrders.map(order =>
+      const updatedOrders = orders.map(order =>
           order.id === orderId ? { ...order, status: newStatus, assignedTo: assignedStaffId } : order
-        )
       );
+      setOrders(updatedOrders);
 
       toast({
         title: 'Status Updated',
@@ -201,23 +245,29 @@ export default function AdminOrdersPage() {
       });
       
       const reseller = orderToUpdate.resellerId ? users.find(u => u.id === orderToUpdate.resellerId) : undefined;
-      const emailTo = orderToUpdate.endCustomerEmail || orderToUpdate.customerEmail;
-      const emailOrder = {...orderToUpdate, customerName: orderToUpdate.endCustomerName || orderToUpdate.customerName};
+      const isOutsourced = !!orderToUpdate.resellerId;
+      const emailTo = isOutsourced ? orderToUpdate.endCustomerEmail : orderToUpdate.customerEmail;
+      const customerName = isOutsourced ? orderToUpdate.endCustomerName : orderToUpdate.customerName;
+      const emailOrder = {...orderToUpdate, customerName, id: orderToUpdate.originalOrderId || orderToUpdate.id };
       
       if (newStatus === 'Processing' && emailTo) {
         const itemsWithServices = orderToUpdate.items.map(item => {
             const service = allServices.find(s => s.id === item.id);
             return { ...item, service };
         }).filter(item => item.service) as { service: Service }[];
-
+        
+        const subject = `Action Required: Documents needed for your order #${emailOrder.id}`;
+        const message = "Sent 'Request Documents' email to client.";
         const emailHtml = render(<DocumentRequestEmail order={emailOrder} items={itemsWithServices} reseller={reseller} />);
         
         await sendEmail({
             to: emailTo,
-            subject: `Action Required: Documents needed for your order #${orderId}`,
+            subject: subject,
             html: emailHtml,
             resellerId: orderToUpdate.resellerId
         });
+        
+        await addEmailToHistory(orderToUpdate.id, subject, message);
 
         toast({
             title: 'Document Request Sent',
@@ -229,7 +279,7 @@ export default function AdminOrdersPage() {
         const emailHtml = render(<ReviewRequestEmail order={emailOrder} reseller={reseller} />);
         await sendEmail({
             to: emailTo,
-            subject: `We'd love your feedback on order #${orderId}`,
+            subject: `We'd love your feedback on order #${emailOrder.id}`,
             html: emailHtml,
             resellerId: orderToUpdate.resellerId
         });
@@ -318,13 +368,14 @@ export default function AdminOrdersPage() {
                   const assignee = getAssignee(order.assignedTo);
                   const lastNote = order.notes && order.notes.length > 0 ? order.notes[order.notes.length - 1] : null;
                   const lastNoteAuthor = lastNote ? getAssignee(lastNote.authorId) : null;
+                  const customerName = order.resellerId ? order.endCustomerName : order.customerName;
                   return (
                   <TableRow key={order.id}>
                     <TableCell className="font-medium">
-                        <p>{order.id}</p>
+                        <p>{order.originalOrderId || order.id}</p>
                         <p className="text-xs text-muted-foreground">{format(new Date(order.date), 'dd MMM yyyy')}</p>
                     </TableCell>
-                    <TableCell>{order.customerName}</TableCell>
+                    <TableCell>{customerName}</TableCell>
                     <TableCell>
                       {assignee ? (
                          <TooltipProvider>
@@ -434,3 +485,4 @@ export default function AdminOrdersPage() {
     </div>
   );
 }
+
