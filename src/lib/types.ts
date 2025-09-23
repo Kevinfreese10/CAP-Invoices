@@ -2,6 +2,7 @@
 
 
 
+
 export type Service = {
   id: string;
   title: string;
@@ -74,7 +75,8 @@ export type Order = {
   items: any[];
   total: number;
   clientTotal?: number;
-  status: 'Pending Payment' | 'Processing' | 'Completed' | 'Cancelled';
+  status: 'Pending Payment' | 'Processing' | 'Completed' | 'Cancelled' | 'Outsourced';
+  isOutsourced?: boolean;
   assignedTo?: string | null;
   department?: 'Accounting and Tax' | 'Administration' | null;
   originalOrderId?: string;

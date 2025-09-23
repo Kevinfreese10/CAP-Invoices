@@ -146,8 +146,19 @@ export default function ResellerOrdersPage() {
         
         await setDoc(doc(db, 'orders', newOrderId), newOrderData);
 
-        // Update the original order status to 'Processing'
-        await handleUpdateStatus(orderToOutsource.id, 'Processing');
+        // Update the original order to mark it as outsourced
+        const originalOrderRef = doc(db, 'orders', orderToOutsource.id);
+        await updateDoc(originalOrderRef, {
+            status: 'Outsourced',
+            isOutsourced: true
+        });
+
+        // Update local state to reflect the change immediately
+        setOrders(prevOrders =>
+            prevOrders.map(order =>
+                order.id === orderToOutsource.id ? { ...order, status: 'Outsourced', isOutsourced: true } : order
+            )
+        );
         
         toast({
             title: 'Order Outsourced Successfully!',
@@ -205,6 +216,8 @@ export default function ResellerOrdersPage() {
         return 'success';
       case 'Processing':
         return 'info';
+      case 'Outsourced':
+        return 'info';
       case 'Pending Payment':
         return 'warning';
       case 'Cancelled':
@@ -258,7 +271,7 @@ export default function ResellerOrdersPage() {
                     <TableCell>{order.customerName}</TableCell>
                     <TableCell>
                       <Badge variant={getStatusVariant(order.status)}>
-                        {order.status}
+                        {order.isOutsourced ? 'Outsourced' : order.status}
                       </Badge>
                     </TableCell>
                     <TableCell className="font-semibold">{formatPrice(order.total)}</TableCell>
@@ -279,14 +292,14 @@ export default function ResellerOrdersPage() {
                           <DropdownMenuSeparator />
                            <DropdownMenuItem 
                                 onClick={() => handleOutsource(order)}
-                                disabled={order.status !== 'Pending Payment'}>
+                                disabled={order.isOutsourced || order.status !== 'Pending Payment'}>
                              Outsource to My Accountant
                            </DropdownMenuItem>
                            <DropdownMenuSeparator />
                            <DropdownMenuItem
                             onClick={() => handleUpdateStatus(order.id, 'Cancelled')}
                             className="text-destructive"
-                            disabled={order.status === 'Cancelled'}
+                            disabled={order.status === 'Cancelled' || order.isOutsourced}
                           >
                             Cancel Order
                           </DropdownMenuItem>
