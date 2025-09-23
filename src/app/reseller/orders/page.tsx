@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -287,113 +286,6 @@ export default function ResellerOrdersPage() {
 
        <Card>
         <CardHeader>
-          <CardTitle>Pending Approval</CardTitle>
-          <CardDescription>
-            These outsourced orders are awaiting your payment to be processed by My Accountant.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-             <div className="flex justify-center items-center h-40">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-             </div>
-          ) : pendingApprovalOrders.length === 0 ? (
-             <p className="text-center text-muted-foreground py-4">No orders are pending approval.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Order ID</TableHead>
-                  <TableHead>Original Order</TableHead>
-                  <TableHead>Outsourced Date</TableHead>
-                  <TableHead className="text-right">Amount Due</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pendingApprovalOrders.map((order) => (
-                  <TableRow key={order.id}>
-                    <TableCell className="font-medium">{order.id}</TableCell>
-                    <TableCell>
-                      <Button variant="link" asChild className="p-0 h-auto">
-                        <Link href={`/reseller/orders/${order.originalOrderId}`}>{order.originalOrderId}</Link>
-                      </Button>
-                    </TableCell>
-                    <TableCell>{format(new Date(order.date), 'dd MMM yyyy')}</TableCell>
-                    <TableCell className="text-right font-semibold">{formatPrice(order.total)}</TableCell>
-                    <TableCell className="text-right">
-                       <Button onClick={() => { setOutsourcedOrderDetails(order); setIsOutsourceModalOpen(true); }}>
-                            Pay Now
-                        </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-      
-       <Card>
-        <CardHeader>
-          <CardTitle>My Outsourced Orders</CardTitle>
-          <CardDescription>
-            These are the orders you have sent to My Accountant for fulfillment.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-             <div className="flex justify-center items-center h-40">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-             </div>
-          ) : activeOutsourcedOrders.length === 0 ? (
-             <p className="text-center text-muted-foreground py-4">You have no active outsourced orders.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Order ID</TableHead>
-                  <TableHead>Original Order</TableHead>
-                  <TableHead>Outsourced Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Amount Paid</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {activeOutsourcedOrders.map((order) => (
-                  <TableRow key={order.id}>
-                    <TableCell className="font-medium">{order.id}</TableCell>
-                    <TableCell>
-                      <Button variant="link" asChild className="p-0 h-auto">
-                        <Link href={`/reseller/orders/${order.originalOrderId}`}>{order.originalOrderId}</Link>
-                      </Button>
-                    </TableCell>
-                    <TableCell>{format(new Date(order.date), 'dd MMM yyyy')}</TableCell>
-                    <TableCell>
-                      <Badge variant={getStatusVariant(order.status)}>
-                        {order.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">{formatPrice(order.total)}</TableCell>
-                    <TableCell className="text-right">
-                       <Button variant="ghost" size="icon" asChild>
-                            <Link href={`/reseller/outsourced-orders/${order.id}`}>
-                                <ArrowRight className="h-4 w-4" />
-                            </Link>
-                        </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-
-      <Card>
-        <CardHeader>
           <CardTitle>Your Client Orders</CardTitle>
           <CardDescription>
             View and manage all orders you've created for your clients.
@@ -503,6 +395,113 @@ export default function ResellerOrdersPage() {
           )}
         </CardContent>
       </Card>
+      
+       <Card>
+        <CardHeader>
+          <CardTitle>Pending Approval</CardTitle>
+          <CardDescription>
+            These outsourced orders are awaiting your payment to be processed by My Accountant.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+             <div className="flex justify-center items-center h-40">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+             </div>
+          ) : pendingApprovalOrders.length === 0 ? (
+             <p className="text-center text-muted-foreground py-4">No orders are pending approval.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Order ID</TableHead>
+                  <TableHead>Original Order</TableHead>
+                  <TableHead>Outsourced Date</TableHead>
+                  <TableHead className="text-right">Amount Due</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pendingApprovalOrders.map((order) => (
+                  <TableRow key={order.id}>
+                    <TableCell className="font-medium">{order.id}</TableCell>
+                    <TableCell>
+                      <Button variant="link" asChild className="p-0 h-auto">
+                        <Link href={`/reseller/orders/${order.originalOrderId}`}>{order.originalOrderId}</Link>
+                      </Button>
+                    </TableCell>
+                    <TableCell>{format(new Date(order.date), 'dd MMM yyyy')}</TableCell>
+                    <TableCell className="text-right font-semibold">{formatPrice(order.total)}</TableCell>
+                    <TableCell className="text-right">
+                       <Button onClick={() => { setOutsourcedOrderDetails(order); setIsOutsourceModalOpen(true); }}>
+                            Pay Now
+                        </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+       <Card>
+        <CardHeader>
+          <CardTitle>My Outsourced Orders</CardTitle>
+          <CardDescription>
+            These are the orders you have sent to My Accountant for fulfillment.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+             <div className="flex justify-center items-center h-40">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+             </div>
+          ) : activeOutsourcedOrders.length === 0 ? (
+             <p className="text-center text-muted-foreground py-4">You have no active outsourced orders.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Order ID</TableHead>
+                  <TableHead>Original Order</TableHead>
+                  <TableHead>Outsourced Date</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Amount Paid</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {activeOutsourcedOrders.map((order) => (
+                  <TableRow key={order.id}>
+                    <TableCell className="font-medium">{order.id}</TableCell>
+                    <TableCell>
+                      <Button variant="link" asChild className="p-0 h-auto">
+                        <Link href={`/reseller/orders/${order.originalOrderId}`}>{order.originalOrderId}</Link>
+                      </Button>
+                    </TableCell>
+                    <TableCell>{format(new Date(order.date), 'dd MMM yyyy')}</TableCell>
+                    <TableCell>
+                      <Badge variant={getStatusVariant(order.status)}>
+                        {order.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">{formatPrice(order.total)}</TableCell>
+                    <TableCell className="text-right">
+                       <Button variant="ghost" size="icon" asChild>
+                            <Link href={`/reseller/outsourced-orders/${order.id}`}>
+                                <ArrowRight className="h-4 w-4" />
+                            </Link>
+                        </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
     </div>
     
     <Dialog open={isOutsourceModalOpen} onOpenChange={setIsOutsourceModalOpen}>
@@ -583,3 +582,5 @@ export default function ResellerOrdersPage() {
     </>
   );
 }
+
+    
