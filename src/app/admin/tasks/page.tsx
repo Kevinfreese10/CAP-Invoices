@@ -15,7 +15,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Task, User, TaskUpdate } from '@/lib/types';
+import { Task, User, TaskComment } from '@/lib/types';
 import { users } from '@/lib/data';
 import { useAuth } from '@/contexts/AuthContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -33,7 +33,8 @@ import { Separator } from '@/components/ui/separator';
 const initialTasks: Task[] = [];
 
 const allStaff = users.filter(u => u.role === 'staff' || u.role === 'admin');
-const taskStatuses: Task['status'][] = ['To Do', 'In Progress', 'Completed'];
+const taskStatuses: Task['status'][] = ['To-Do', 'In Progress', 'Review', 'Done'];
+const taskPriorities: Task['priority'][] = ['High', 'Medium', 'Low'];
 
 const formSchema = z.object({
   id: z.string().optional(),
@@ -41,11 +42,12 @@ const formSchema = z.object({
   description: z.string().min(10, 'Description is required.'),
   assignedTo: z.string().min(1, 'Please assign a staff member.'),
   dueDate: z.date({ required_error: 'A due date is required.'}),
+  priority: z.enum(taskPriorities),
   orderId: z.string().optional(),
-  newUpdate: z.string().optional(),
+  newComment: z.string().optional(),
 });
 
-function TaskForm({ task, onSubmit, onCancel, onUpdateSubmit }: { task: Task | null, onSubmit: (data: any) => void, onCancel: () => void, onUpdateSubmit: (taskId: string, updateText: string) => void }) {
+function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | null, onSubmit: (data: any) => void, onCancel: () => void, onCommentSubmit: (taskId: string, commentText: string) => void }) {
     const { user } = useAuth();
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -55,8 +57,9 @@ function TaskForm({ task, onSubmit, onCancel, onUpdateSubmit }: { task: Task | n
             description: task?.description || '',
             assignedTo: task?.assignedTo || '',
             dueDate: task?.dueDate || new Date(),
+            priority: task?.priority || 'Medium',
             orderId: task?.orderId || '',
-            newUpdate: '',
+            newComment: '',
         },
     });
 
@@ -64,12 +67,12 @@ function TaskForm({ task, onSubmit, onCancel, onUpdateSubmit }: { task: Task | n
         onSubmit(values);
     };
 
-    const handleUpdateSubmit = () => {
+    const handleCommentSubmit = () => {
         if (!task || !task.id) return;
-        const updateText = form.getValues('newUpdate');
-        if (updateText) {
-            onUpdateSubmit(task.id, updateText);
-            form.setValue('newUpdate', '');
+        const commentText = form.getValues('newComment');
+        if (commentText) {
+            onCommentSubmit(task.id, commentText);
+            form.setValue('newComment', '');
         }
     }
     
@@ -82,7 +85,7 @@ function TaskForm({ task, onSubmit, onCancel, onUpdateSubmit }: { task: Task | n
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
                 <FormField control={form.control} name="title" render={({ field }) => (<FormItem><FormLabel>Title</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="description" render={({ field }) => (<FormItem><FormLabel>Description</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>)} />
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                     <FormField control={form.control} name="assignedTo" render={({ field }) => (<FormItem><FormLabel>Assign To</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select staff..." /></SelectTrigger></FormControl><SelectContent>{allStaff.map(staff => <SelectItem key={staff.id} value={staff.id}>{staff.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                      <FormField
                         control={form.control}
@@ -122,6 +125,7 @@ function TaskForm({ task, onSubmit, onCancel, onUpdateSubmit }: { task: Task | n
                             </FormItem>
                         )}
                         />
+                    <FormField control={form.control} name="priority" render={({ field }) => (<FormItem><FormLabel>Priority</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select priority..." /></SelectTrigger></FormControl><SelectContent>{taskPriorities.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                 </div>
                  <FormField control={form.control} name="orderId" render={({ field }) => (<FormItem><FormLabel>Related Order ID (Optional)</FormLabel><FormControl><Input {...field} placeholder="e.g. ORD-12345" /></FormControl><FormMessage /></FormItem>)} />
                 
@@ -129,10 +133,10 @@ function TaskForm({ task, onSubmit, onCancel, onUpdateSubmit }: { task: Task | n
                     <>
                         <Separator />
                         <div className="space-y-4">
-                            <h3 className="text-sm font-medium text-foreground">Updates</h3>
+                            <h3 className="text-sm font-medium text-foreground">Comments</h3>
                             <div className="space-y-4 max-h-40 overflow-y-auto pr-2">
-                                {task.updates && task.updates.length > 0 ? task.updates.slice().reverse().map((update, index) => {
-                                    const author = getAuthor(update.authorId);
+                                {task.comments && task.comments.length > 0 ? task.comments.slice().reverse().map((comment, index) => {
+                                    const author = getAuthor(comment.authorId);
                                     return (
                                     <div key={index} className="flex items-start gap-3">
                                          <Avatar className="h-8 w-8 border">
@@ -142,24 +146,24 @@ function TaskForm({ task, onSubmit, onCancel, onUpdateSubmit }: { task: Task | n
                                         <div className="bg-muted p-3 rounded-lg w-full">
                                             <div className="flex justify-between items-center mb-1">
                                                 <p className="text-xs font-semibold">{author?.name}</p>
-                                                <p className="text-xs text-muted-foreground">{format(update.date, 'dd MMM yyyy, HH:mm')}</p>
+                                                <p className="text-xs text-muted-foreground">{format(new Date(comment.date), 'dd MMM yyyy, HH:mm')}</p>
                                             </div>
-                                            <p className="text-sm">{update.text}</p>
+                                            <p className="text-sm">{comment.text}</p>
                                         </div>
                                     </div>
-                                )}) : <p className="text-xs text-muted-foreground text-center py-4">No updates posted yet.</p>}
+                                )}) : <p className="text-xs text-muted-foreground text-center py-4">No comments posted yet.</p>}
                             </div>
                             <FormField 
                                 control={form.control} 
-                                name="newUpdate" 
+                                name="newComment" 
                                 render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Add an Update</FormLabel>
-                                    <FormControl><Textarea {...field} placeholder="Post a new update..." rows={2}/></FormControl>
+                                    <FormLabel>Add a Comment</FormLabel>
+                                    <FormControl><Textarea {...field} placeholder="Post a new comment..." rows={2}/></FormControl>
                                     <FormMessage />
                                 </FormItem>
                             )}/>
-                            <Button type="button" size="sm" onClick={handleUpdateSubmit}>Post Update</Button>
+                            <Button type="button" size="sm" onClick={handleCommentSubmit}>Post Comment</Button>
                         </div>
                     </>
                 )}
@@ -217,7 +221,7 @@ export default function AdminTasksPage() {
       });
   };
 
-  const handleFormSubmit = (data: Omit<Task, 'id' | 'status' | 'createdBy'>) => {
+  const handleFormSubmit = (data: Omit<Task, 'id' | 'status' | 'createdBy' | 'comments'>) => {
     if (!user) return;
     if (selectedTask) {
       // Update
@@ -232,7 +236,7 @@ export default function AdminTasksPage() {
       // Add
       setTasks(prev => [
         ...prev,
-        { ...data, id: `new-task-${Date.now()}`, status: 'To Do', createdBy: user.id, updates: [] },
+        { ...data, id: `new-task-${Date.now()}`, status: 'To-Do', createdBy: user.id, comments: [] },
       ]);
        toast({
         title: 'Task Created',
@@ -243,10 +247,10 @@ export default function AdminTasksPage() {
     setSelectedTask(null);
   };
   
-  const handleUpdateSubmit = (taskId: string, updateText: string) => {
+  const handleCommentSubmit = (taskId: string, commentText: string) => {
       if (!user) return;
-      const newUpdate: TaskUpdate = {
-          text: updateText,
+      const newComment: TaskComment = {
+          text: commentText,
           date: new Date(),
           authorId: user.id,
       };
@@ -254,7 +258,7 @@ export default function AdminTasksPage() {
       const updateTask = (taskToUpdate: Task) => {
         const updatedTask = {
             ...taskToUpdate,
-            updates: [...(taskToUpdate.updates || []), newUpdate],
+            comments: [...(taskToUpdate.comments || []), newComment],
         };
         // Also update the selected task in the dialog
         setSelectedTask(updatedTask); 
@@ -266,8 +270,8 @@ export default function AdminTasksPage() {
       );
 
       toast({
-        title: 'Update Posted',
-        description: 'Your update has been added to the task.',
+        title: 'Comment Posted',
+        description: 'Your comment has been added to the task.',
       });
   }
 
@@ -276,14 +280,24 @@ export default function AdminTasksPage() {
     return users.find(u => u.id === userId);
   }
 
-  const getStatusVariant = (status: Task['status']) => {
-    switch (status) {
-        case 'Completed': return 'success';
-        case 'In Progress': return 'info';
-        case 'To Do': return 'warning';
-        default: return 'secondary';
+    const getStatusVariant = (status: Task['status']) => {
+        switch (status) {
+            case 'Done': return 'success';
+            case 'In Progress': return 'info';
+            case 'To-Do': return 'secondary';
+            case 'Review': return 'warning';
+            default: return 'secondary';
+        }
+    };
+    
+    const getPriorityVariant = (priority: Task['priority']) => {
+        switch(priority) {
+            case 'High': return 'destructive';
+            case 'Medium': return 'warning';
+            case 'Low': return 'secondary';
+            default: return 'secondary';
+        }
     }
-  };
 
   return (
     <div className="space-y-8">
@@ -307,7 +321,7 @@ export default function AdminTasksPage() {
                     task={selectedTask} 
                     onSubmit={handleFormSubmit}
                     onCancel={() => setIsFormOpen(false)}
-                    onUpdateSubmit={handleUpdateSubmit}
+                    onCommentSubmit={handleCommentSubmit}
                 />
            </DialogContent>
         </Dialog>
@@ -326,6 +340,7 @@ export default function AdminTasksPage() {
                 <TableHead>Task</TableHead>
                 <TableHead>Assigned To</TableHead>
                 <TableHead>Due Date</TableHead>
+                <TableHead>Priority</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Related Order</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -352,6 +367,11 @@ export default function AdminTasksPage() {
                      ) : <span className="text-muted-foreground text-xs">N/A</span>}
                   </TableCell>
                    <TableCell>{format(task.dueDate, 'dd MMM yyyy')}</TableCell>
+                   <TableCell>
+                    <Badge variant={getPriorityVariant(task.priority)}>
+                        {task.priority}
+                    </Badge>
+                  </TableCell>
                   <TableCell>
                     <Badge variant={getStatusVariant(task.status)}>
                         {task.status}

@@ -1,4 +1,5 @@
 
+
 export type Service = {
   id: string;
   title: string;
@@ -118,7 +119,7 @@ export type User = {
   }
 };
 
-export type TaskUpdate = {
+export type TaskComment = {
   text: string;
   date: any;
   authorId: string;
@@ -131,7 +132,10 @@ export type Task = {
   assignedTo: string;
   createdBy: string;
   dueDate: Date;
-  status: 'To Do' | 'In Progress' | 'Completed';
+  priority: 'High' | 'Medium' | 'Low';
+  status: 'To-Do' | 'In Progress' | 'Review' | 'Done';
   orderId?: string;
-  updates?: TaskUpdate[];
+  comments?: TaskComment[];
+  updates?: TaskComment[];
 };
+
