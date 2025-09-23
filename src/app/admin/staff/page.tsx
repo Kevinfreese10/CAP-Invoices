@@ -1,6 +1,6 @@
 
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -15,12 +15,9 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { User } from '@/lib/types';
+import { users as allUsers } from '@/lib/data';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-
-const initialStaff: User[] = [
-    { id: '3', name: 'Staff Member', email: 'staff@test.com', role: 'staff', department: 'Accounting and Tax' },
-];
 
 const departments = ['Accounting and Tax', 'Administration'] as const;
 
@@ -99,10 +96,16 @@ function StaffForm({ staffMember, onSubmit, onCancel }: { staffMember: User | nu
 }
 
 export default function AdminStaffPage() {
-  const [staff, setStaff] = useState<User[]>(initialStaff);
+  const [staff, setStaff] = useState<User[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<User | null>(null);
   const { toast } = useToast();
+  
+  useEffect(() => {
+    // Filter allUsers to only include staff and admin roles
+    const staffAndAdmins = allUsers.filter(user => user.role === 'staff' || user.role === 'admin');
+    setStaff(staffAndAdmins);
+  }, []);
 
   const handleAdd = () => {
     setSelectedStaff(null);
@@ -223,7 +226,7 @@ export default function AdminStaffPage() {
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                              <AlertDialogTrigger asChild>
-                                <DropdownMenuItem className="text-destructive">
+                                <DropdownMenuItem className="text-destructive" disabled={staffMember.role === 'admin'}>
                                     Delete
                                 </DropdownMenuItem>
                             </AlertDialogTrigger>
