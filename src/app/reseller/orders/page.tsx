@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { MoreHorizontal, Loader2, PlusCircle } from 'lucide-react';
+import { MoreHorizontal, Loader2, PlusCircle, Banknote, Building, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -33,8 +33,27 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
+import { Separator } from '@/components/ui/separator';
 
 const db = getFirestore(firebaseApp);
 
@@ -70,6 +89,8 @@ export default function ResellerOrdersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const { user } = useAuth();
+  const [isOutsourceModalOpen, setIsOutsourceModalOpen] = useState(false);
+  const [outsourcedOrderDetails, setOutsourcedOrderDetails] = useState<Order | null>(null);
   
   const orderStatuses: Order['status'][] = ['Pending Payment', 'Processing', 'Completed', 'Cancelled'];
 
@@ -154,16 +175,18 @@ export default function ResellerOrdersPage() {
         // Update the original order to mark it as outsourced
         const originalOrderRef = doc(db, 'orders', orderToOutsource.id);
         await updateDoc(originalOrderRef, {
-            status: 'Outsourced',
             isOutsourced: true
         });
 
         // Update local state to reflect the change immediately
         setOrders(prevOrders =>
             prevOrders.map(order =>
-                order.id === orderToOutsource.id ? { ...order, status: 'Outsourced', isOutsourced: true } : order
+                order.id === orderToOutsource.id ? { ...order, isOutsourced: true } : order
             )
         );
+        
+        setOutsourcedOrderDetails(newOrderData as Order);
+        setIsOutsourceModalOpen(true);
         
         toast({
             title: 'Order Outsourced Successfully!',
@@ -233,6 +256,7 @@ export default function ResellerOrdersPage() {
   };
 
   return (
+    <>
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Manage Orders</h1>
@@ -288,6 +312,7 @@ export default function ResellerOrdersPage() {
                     </TableCell>
                     <TableCell className="font-semibold">{formatPrice(order.clientTotal || 0)}</TableCell>
                     <TableCell className="text-right">
+                    <AlertDialog>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" className="h-8 w-8 p-0">
@@ -315,11 +340,11 @@ export default function ResellerOrdersPage() {
                                 ))}
                             </DropdownMenuSubContent>
                           </DropdownMenuSub>
-                           <DropdownMenuItem 
-                                onClick={() => handleOutsource(order)}
-                                disabled={order.isOutsourced || order.status !== 'Pending Payment'}>
-                             Outsource to My Accountant
-                           </DropdownMenuItem>
+                           <AlertDialogTrigger asChild>
+                             <DropdownMenuItem disabled={order.isOutsourced || order.status !== 'Pending Payment'}>
+                               Outsource to My Accountant
+                             </DropdownMenuItem>
+                           </AlertDialogTrigger>
                            <DropdownMenuSeparator />
                            <DropdownMenuItem
                             onClick={() => handleUpdateStatus(order.id, 'Cancelled')}
@@ -330,6 +355,21 @@ export default function ResellerOrdersPage() {
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
+                      <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will create a new internal order for My Accountant to fulfill. The cost to you will be {formatPrice(order.total)}. You will be shown payment details after confirming. Are you sure you want to proceed?
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleOutsource(order)}>
+                              Yes, Outsource this Order
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -339,5 +379,71 @@ export default function ResellerOrdersPage() {
         </CardContent>
       </Card>
     </div>
+    
+    <Dialog open={isOutsourceModalOpen} onOpenChange={setIsOutsourceModalOpen}>
+        <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+                <DialogTitle>Order Outsourced: Payment Required</DialogTitle>
+                <DialogDescription>
+                    Your new internal order has been created. Please make payment using the details below to begin fulfillment.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-4">
+                {outsourcedOrderDetails && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>New Internal Order</CardTitle>
+                            <CardDescription>
+                                Order ID: <span className="font-semibold text-primary">{outsourcedOrderDetails.id}</span>
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                             <div className="space-y-2">
+                                {outsourcedOrderDetails.items.map((item: any) => (
+                                    <div key={item.id} className="flex justify-between items-center text-sm">
+                                        <p>{item.title}</p>
+                                        <p className="font-medium">{formatPrice(item.price)}</p>
+                                    </div>
+                                ))}
+                            </div>
+                            <Separator className="my-3" />
+                            <div className="flex justify-between font-bold text-base">
+                                <span>Total Due</span>
+                                <span>{formatPrice(outsourcedOrderDetails.total)}</span>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+                 <Card>
+                    <CardHeader>
+                        <div className="flex items-center gap-3">
+                            <Banknote className="h-6 w-6 text-primary" />
+                            <CardTitle>EFT Instructions</CardTitle>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4 text-sm">
+                        <div className="space-y-1">
+                            <p className="font-medium">Bank Name:</p>
+                            <p className="p-2 bg-muted rounded-md">FNB</p>
+                        </div>
+                         <div className="space-y-1">
+                            <p className="font-medium">Account Holder:</p>
+                            <p className="p-2 bg-muted rounded-md">My Accountant (Pty) Ltd</p>
+                        </div>
+                         <div className="space-y-1">
+                            <p className="font-medium">Account Number:</p>
+                            <p className="p-2 bg-muted rounded-md">6280 123 4567</p>
+                        </div>
+                         <div className="space-y-1">
+                            <p className="font-medium">Reference:</p>
+                            <p className="p-2 bg-destructive/10 text-destructive rounded-md font-semibold">{outsourcedOrderDetails?.id}</p>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        </DialogContent>
+    </Dialog>
+
+    </>
   );
 }
