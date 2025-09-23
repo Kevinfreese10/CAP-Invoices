@@ -134,6 +134,7 @@ export type Task = {
   dueDate: Date;
   priority: 'High' | 'Medium' | 'Low';
   status: 'To-Do' | 'In Progress' | 'Review' | 'Done';
+  recurrence?: 'None' | 'Daily' | 'Weekly' | 'Monthly';
   orderId?: string;
   comments?: TaskComment[];
   updates?: TaskComment[];

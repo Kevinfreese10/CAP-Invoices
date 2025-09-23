@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Repeat } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -35,6 +35,7 @@ const initialTasks: Task[] = [];
 const allStaff = users.filter(u => u.role === 'staff' || u.role === 'admin');
 const taskStatuses: Task['status'][] = ['To-Do', 'In Progress', 'Review', 'Done'];
 const taskPriorities: Task['priority'][] = ['High', 'Medium', 'Low'];
+const taskRecurrences: Task['recurrence'][] = ['None', 'Daily', 'Weekly', 'Monthly'];
 
 const formSchema = z.object({
   id: z.string().optional(),
@@ -43,6 +44,7 @@ const formSchema = z.object({
   assignedTo: z.string().min(1, 'Please assign a staff member.'),
   dueDate: z.date({ required_error: 'A due date is required.'}),
   priority: z.enum(taskPriorities),
+  recurrence: z.enum(taskRecurrences).optional(),
   orderId: z.string().optional(),
   newComment: z.string().optional(),
 });
@@ -56,8 +58,9 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
             title: task?.title || '',
             description: task?.description || '',
             assignedTo: task?.assignedTo || '',
-            dueDate: task?.dueDate || new Date(),
+            dueDate: task?.dueDate ? new Date(task.dueDate) : new Date(),
             priority: task?.priority || 'Medium',
+            recurrence: task?.recurrence || 'None',
             orderId: task?.orderId || '',
             newComment: '',
         },
@@ -85,7 +88,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
                 <FormField control={form.control} name="title" render={({ field }) => (<FormItem><FormLabel>Title</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="description" render={({ field }) => (<FormItem><FormLabel>Description</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>)} />
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <FormField control={form.control} name="assignedTo" render={({ field }) => (<FormItem><FormLabel>Assign To</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select staff..." /></SelectTrigger></FormControl><SelectContent>{allStaff.map(staff => <SelectItem key={staff.id} value={staff.id}>{staff.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                      <FormField
                         control={form.control}
@@ -126,6 +129,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
                         )}
                         />
                     <FormField control={form.control} name="priority" render={({ field }) => (<FormItem><FormLabel>Priority</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select priority..." /></SelectTrigger></FormControl><SelectContent>{taskPriorities.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="recurrence" render={({ field }) => (<FormItem><FormLabel>Recurrence</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Never" /></SelectTrigger></FormControl><SelectContent>{taskRecurrences.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                 </div>
                  <FormField control={form.control} name="orderId" render={({ field }) => (<FormItem><FormLabel>Related Order ID (Optional)</FormLabel><FormControl><Input {...field} placeholder="e.g. ORD-12345" /></FormControl><FormMessage /></FormItem>)} />
                 
@@ -310,7 +314,7 @@ export default function AdminTasksPage() {
                     Create Task
                 </Button>
            </DialogTrigger>
-           <DialogContent className="sm:max-w-[600px]">
+           <DialogContent className="sm:max-w-[700px]">
                 <DialogHeader>
                     <DialogTitle>{selectedTask ? 'Edit Task' : 'Create New Task'}</DialogTitle>
                     <DialogDescription>
@@ -352,7 +356,10 @@ export default function AdminTasksPage() {
                 return (
                 <TableRow key={task.id}>
                   <TableCell className="font-medium max-w-xs">
-                    <p className="font-semibold truncate">{task.title}</p>
+                    <div className="flex items-center gap-2">
+                        {task.recurrence && task.recurrence !== 'None' && <Repeat className="h-4 w-4 text-muted-foreground" title={`Repeats ${task.recurrence}`} />}
+                        <p className="font-semibold truncate">{task.title}</p>
+                    </div>
                     <p className="text-xs text-muted-foreground truncate">{task.description}</p>
                   </TableCell>
                   <TableCell>
@@ -366,7 +373,7 @@ export default function AdminTasksPage() {
                         </div>
                      ) : <span className="text-muted-foreground text-xs">N/A</span>}
                   </TableCell>
-                   <TableCell>{format(task.dueDate, 'dd MMM yyyy')}</TableCell>
+                   <TableCell>{format(new Date(task.dueDate), 'dd MMM yyyy')}</TableCell>
                    <TableCell>
                     <Badge variant={getPriorityVariant(task.priority)}>
                         {task.priority}

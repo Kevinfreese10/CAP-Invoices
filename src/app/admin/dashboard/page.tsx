@@ -12,7 +12,7 @@ import { Task, User, TaskComment } from '@/lib/types';
 import { users } from '@/lib/data';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { MessageSquare, PlusCircle, MoreHorizontal, CalendarIcon, Loader2 } from 'lucide-react';
+import { MessageSquare, PlusCircle, MoreHorizontal, CalendarIcon, Loader2, Repeat } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -36,6 +36,7 @@ const initialTasks: Task[] = [];
 const allStaff = users.filter(u => u.role === 'staff' || u.role === 'admin');
 const taskStatuses: Task['status'][] = ['To-Do', 'In Progress', 'Review', 'Done'];
 const taskPriorities: Task['priority'][] = ['High', 'Medium', 'Low'];
+const taskRecurrences: Task['recurrence'][] = ['None', 'Daily', 'Weekly', 'Monthly'];
 
 const formSchema = z.object({
   id: z.string().optional(),
@@ -44,6 +45,7 @@ const formSchema = z.object({
   assignedTo: z.string().min(1, 'Please assign a staff member.'),
   dueDate: z.date({ required_error: 'A due date is required.'}),
   priority: z.enum(taskPriorities),
+  recurrence: z.enum(taskRecurrences).optional(),
   orderId: z.string().optional(),
   newComment: z.string().optional(),
 });
@@ -59,6 +61,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
             assignedTo: task?.assignedTo || '',
             dueDate: task?.dueDate ? new Date(task.dueDate) : new Date(),
             priority: task?.priority || 'Medium',
+            recurrence: task?.recurrence || 'None',
             orderId: task?.orderId || '',
             newComment: '',
         },
@@ -86,7 +89,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
                 <FormField control={form.control} name="title" render={({ field }) => (<FormItem><FormLabel>Title</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="description" render={({ field }) => (<FormItem><FormLabel>Description</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>)} />
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <FormField control={form.control} name="assignedTo" render={({ field }) => (<FormItem><FormLabel>Assign To</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select staff..." /></SelectTrigger></FormControl><SelectContent>{allStaff.map(staff => <SelectItem key={staff.id} value={staff.id}>{staff.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                      <FormField
                         control={form.control}
@@ -127,6 +130,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
                         )}
                         />
                     <FormField control={form.control} name="priority" render={({ field }) => (<FormItem><FormLabel>Priority</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select priority..." /></SelectTrigger></FormControl><SelectContent>{taskPriorities.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="recurrence" render={({ field }) => (<FormItem><FormLabel>Recurrence</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Never" /></SelectTrigger></FormControl><SelectContent>{taskRecurrences.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                 </div>
                  <FormField control={form.control} name="orderId" render={({ field }) => (<FormItem><FormLabel>Related Order ID (Optional)</FormLabel><FormControl><Input {...field} placeholder="e.g. ORD-12345" /></FormControl><FormMessage /></FormItem>)} />
                 
@@ -244,7 +248,10 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                         return (
                         <TableRow key={task.id}>
                         <TableCell className="font-medium max-w-xs align-top">
-                            <p className="font-semibold truncate">{task.title}</p>
+                            <div className="flex items-center gap-2">
+                                {task.recurrence && task.recurrence !== 'None' && <Repeat className="h-4 w-4 text-muted-foreground" title={`Repeats ${task.recurrence}`} />}
+                                <p className="font-semibold truncate">{task.title}</p>
+                            </div>
                             <p className="text-xs text-muted-foreground truncate">{task.description}</p>
                             {lastComment && commentAuthor && (
                                 <div className="mt-2 flex items-start gap-2 border-l-2 border-primary/50 pl-2">
@@ -462,7 +469,7 @@ export default function AdminDashboardPage() {
                             Create Task
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-[600px]">
+                    <DialogContent className="sm:max-w-[700px]">
                         <DialogHeader>
                             <DialogTitle>{selectedTask?.id ? 'Edit Task' : 'Create New Task'}</DialogTitle>
                             <DialogDescription>
