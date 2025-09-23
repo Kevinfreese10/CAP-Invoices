@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -154,6 +153,8 @@ export default function CreateResellerOrderForm() {
         clientTotal: clientTotal,
         status: 'Pending Payment',
         date: Timestamp.now(),
+        isOutsourced: false,
+        originalOrderId: null,
       };
 
       await setDoc(doc(db, 'orders', orderId), orderData);
