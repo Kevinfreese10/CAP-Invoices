@@ -435,9 +435,20 @@ export default function ResellerOrdersPage() {
                             <p className="p-2 bg-muted rounded-md">6280 123 4567</p>
                         </div>
                          <div className="space-y-1">
+                            <p className="font-medium">Branch Code:</p>
+                            <p className="p-2 bg-muted rounded-md">250655</p>
+                        </div>
+                         <div className="space-y-1">
                             <p className="font-medium">Reference:</p>
                             <p className="p-2 bg-destructive/10 text-destructive rounded-md font-semibold">{outsourcedOrderDetails?.id}</p>
                         </div>
+                         <Separator className="my-3" />
+                         <p className="font-semibold text-foreground">
+                            Please send your proof of payment to{' '}
+                            <a href="mailto:info@myacc.co.za" className="text-primary underline">
+                                info@myacc.co.za
+                            </a>
+                        </p>
                     </CardContent>
                 </Card>
             </div>
