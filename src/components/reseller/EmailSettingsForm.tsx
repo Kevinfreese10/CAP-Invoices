@@ -20,6 +20,7 @@ const formSchema = z.object({
       user: z.string().min(1, 'SMTP username is required.'),
       pass: z.string().min(1, 'SMTP password is required.'),
   }),
+  testEmail: z.string().email('Please enter a valid email to send a test to.'),
 });
 
 export default function EmailSettingsForm() {
@@ -37,6 +38,7 @@ export default function EmailSettingsForm() {
           user: user?.smtpDetails?.user || '', 
           pass: user?.smtpDetails?.pass || ''
       },
+      testEmail: user?.email || '',
     },
   });
 
@@ -63,8 +65,12 @@ export default function EmailSettingsForm() {
   }
 
   async function onTestEmail() {
-    if (!user || !user.email) return;
-
+    const testEmailAddress = form.getValues('testEmail');
+     if (!testEmailAddress) {
+      form.setError('testEmail', { message: 'Please enter a valid email to send a test to.' });
+      return;
+    }
+    
     setIsTesting(true);
     toast({
         title: 'Sending Test Email...',
@@ -73,13 +79,14 @@ export default function EmailSettingsForm() {
 
     try {
         await sendEmail({
-            to: user.email,
+            to: testEmailAddress,
             subject: 'SMTP Settings Test',
             html: `<p>This is a test email to confirm your SMTP settings are working correctly.</p>`,
+            resellerId: user?.id,
         });
         toast({
             title: 'Test Email Sent!',
-            description: `An email has been sent to ${user.email}. Please check your inbox.`,
+            description: `An email has been sent to ${testEmailAddress}. Please check your inbox.`,
         });
     } catch (error) {
         console.error("Failed to send test email:", error);
@@ -113,6 +120,13 @@ export default function EmailSettingsForm() {
                 {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Save Changes
             </Button>
+        </div>
+        
+        <Separator />
+
+        <div className="space-y-4">
+            <h3 className="text-lg font-medium">Test Settings</h3>
+            <FormField control={form.control} name="testEmail" render={({ field }) => ( <FormItem><FormLabel>Recipient Email</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
             <Button type="button" variant="outline" onClick={onTestEmail} disabled={isTesting}>
                 {isTesting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Send Test Email
