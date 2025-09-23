@@ -427,10 +427,10 @@ export default function AdminOrderDetailsPage() {
                                             <a href={`mailto:${displayCustomerEmail}`} className="text-primary hover:underline">{displayCustomerEmail}</a>
                                         </div>
                                     )}
-                                    {displayCustomer && (
+                                    {displayCustomer?.contactNumber && (
                                         <div className="flex items-center gap-2 text-sm">
                                             <Phone className="h-4 w-4 text-muted-foreground" />
-                                            <span>{displayCustomer.contactNumber || 'N/A'}</span>
+                                            <span>{displayCustomer.contactNumber}</span>
                                         </div>
                                     )}
                                 </div>
