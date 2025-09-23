@@ -9,7 +9,7 @@ export default function ResellerSettingsPage() {
         <Card>
             <CardHeader>
                 <CardTitle>Email Settings</CardTitle>
-                <CardDescription>Manage your SMTP settings for sending automated emails to your clients and send a test email to confirm they're working.</CardDescription>
+                <CardDescription>Manage your outgoing (SMTP) and incoming (IMAP) mail server settings. This allows the application to send emails on your behalf and process replies from your clients.</CardDescription>
             </CardHeader>
             <CardContent>
                 <EmailSettingsForm />

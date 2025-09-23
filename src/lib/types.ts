@@ -109,6 +109,12 @@ export type User = {
     port: string;
     user: string;
     pass: string;
+  },
+  imapDetails?: {
+    host: string;
+    port: string;
+    user: string;
+    pass: string;
   }
 };
 

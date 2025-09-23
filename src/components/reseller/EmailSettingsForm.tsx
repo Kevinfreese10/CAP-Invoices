@@ -20,6 +20,12 @@ const formSchema = z.object({
       user: z.string().min(1, 'SMTP username is required.'),
       pass: z.string().min(1, 'SMTP password is required.'),
   }),
+   imapDetails: z.object({
+      host: z.string().min(3, 'IMAP host is required.'),
+      port: z.string().min(2, 'IMAP port is required.'),
+      user: z.string().min(1, 'IMAP username is required.'),
+      pass: z.string().min(1, 'IMAP password is required.'),
+  }),
   testEmail: z.string().email('Please enter a valid email to send a test to.'),
 });
 
@@ -38,27 +44,32 @@ export default function EmailSettingsForm() {
           user: user?.smtpDetails?.user || '', 
           pass: user?.smtpDetails?.pass || ''
       },
+      imapDetails: { 
+          host: user?.imapDetails?.host || '', 
+          port: user?.imapDetails?.port || '993', 
+          user: user?.imapDetails?.user || '', 
+          pass: user?.imapDetails?.pass || ''
+      },
       testEmail: user?.email || '',
     },
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSaving(true);
-    console.log('Updating SMTP settings:', values);
+    // In a real app, this would be a call to your backend to save the details.
     setTimeout(() => {
-        // In a real app, this would be a call to your backend to save the details.
-        // For this demo, we'll just update the user in the context.
         if (user) {
             const updatedUser = {
                 ...user,
                 smtpDetails: values.smtpDetails,
+                imapDetails: values.imapDetails,
             };
             // This is a mock login to update the user state in the context
             login(updatedUser.email);
         }
         toast({
             title: 'Settings Saved!',
-            description: `Your SMTP settings have been updated.`,
+            description: `Your email settings have been updated.`,
         });
         setIsSaving(false);
     }, 1500)
@@ -104,12 +115,24 @@ export default function EmailSettingsForm() {
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
         <div className="space-y-4">
-            <h3 className="text-lg font-medium">SMTP Details</h3>
+            <h3 className="text-lg font-medium">Outgoing Mail (SMTP)</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <FormField control={form.control} name="smtpDetails.host" render={({ field }) => ( <FormItem><FormLabel>SMTP Host</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                  <FormField control={form.control} name="smtpDetails.port" render={({ field }) => ( <FormItem><FormLabel>SMTP Port</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                  <FormField control={form.control} name="smtpDetails.user" render={({ field }) => ( <FormItem><FormLabel>Username</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                  <FormField control={form.control} name="smtpDetails.pass" render={({ field }) => ( <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
+            </div>
+        </div>
+
+        <Separator />
+
+        <div className="space-y-4">
+            <h3 className="text-lg font-medium">Incoming Mail (IMAP)</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <FormField control={form.control} name="imapDetails.host" render={({ field }) => ( <FormItem><FormLabel>IMAP Host</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                 <FormField control={form.control} name="imapDetails.port" render={({ field }) => ( <FormItem><FormLabel>IMAP Port</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                 <FormField control={form.control} name="imapDetails.user" render={({ field }) => ( <FormItem><FormLabel>Username</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                 <FormField control={form.control} name="imapDetails.pass" render={({ field }) => ( <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
             </div>
         </div>
         
@@ -125,7 +148,7 @@ export default function EmailSettingsForm() {
         <Separator />
 
         <div className="space-y-4">
-            <h3 className="text-lg font-medium">Test Settings</h3>
+            <h3 className="text-lg font-medium">Test Outgoing Settings</h3>
             <FormField control={form.control} name="testEmail" render={({ field }) => ( <FormItem><FormLabel>Recipient Email</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
             <Button type="button" variant="outline" onClick={onTestEmail} disabled={isTesting}>
                 {isTesting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
