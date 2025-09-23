@@ -4,9 +4,9 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, arrayUnion, getDoc, Timestamp } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, arrayUnion, getDoc, Timestamp, addDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, User, Service, OrderNote } from '@/lib/types';
+import { Order, User, Service, OrderNote, Task } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   Table,
@@ -231,6 +231,27 @@ export default function AdminOrdersPage() {
         status: newStatus,
         assignedTo: assignedStaffId || null,
       });
+
+      // Create a task if moving to processing and a staff member is assigned
+      if (newStatus === 'Processing' && assignedStaffId && user) {
+          const taskData = {
+              title: `Process Order: ${orderToUpdate.id}`,
+              description: `Fulfill the services for order ${orderToUpdate.id}. Services include: ${orderToUpdate.items.map(i => i.title).join(', ')}.`,
+              assignedTo: assignedStaffId,
+              createdBy: user.id,
+              dueDate: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)), // 7 days from now
+              priority: 'Medium',
+              status: 'To-Do',
+              orderId: orderToUpdate.id,
+              comments: [],
+          };
+          await addDoc(collection(db, 'tasks'), taskData);
+          toast({
+              title: 'Task Created',
+              description: `A new task has been created for ${assignedStaffMember?.name} to process this order.`,
+          });
+      }
+
 
       // Update local state
       const updatedOrders = orders.map(order =>
@@ -486,6 +507,7 @@ export default function AdminOrdersPage() {
     </div>
   );
 }
+
 
 
 
