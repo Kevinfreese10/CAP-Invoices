@@ -218,7 +218,7 @@ export default function AdminKnowledgeBasePage() {
             <CardHeader>
             <CardTitle>Unanswered Questions</CardTitle>
             <CardDescription>
-                These are questions users have asked that the AI could not answer. Review them to improve the knowledge base.
+                These are questions users have asked that the AI could not answer. Click a question to add it to the knowledge base.
             </CardDescription>
             </CardHeader>
             <CardContent>
@@ -239,35 +239,32 @@ export default function AdminKnowledgeBasePage() {
                     </TableHeader>
                     <TableBody>
                     {questions.map((q) => (
-                        <TableRow key={q.id}>
-                        <TableCell className="font-medium max-w-2xl">{q.question}</TableCell>
-                        <TableCell>{formatDistanceToNow(q.timestamp, { addSuffix: true })}</TableCell>
-                        <TableCell className="text-right">
-                            <AlertDialog>
-                                <Button variant="ghost" onClick={() => handleAddToKnowledgeBase(q.question)}>
-                                    Add to KB
-                                </Button>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="icon">
-                                        <Trash className="h-4 w-4 text-destructive" />
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                        This action cannot be undone. This will permanently delete this question from the training list.
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => handleDeleteUnanswered(q.id)}>
-                                            Continue
-                                        </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                        </TableCell>
+                        <TableRow key={q.id} className="cursor-pointer hover:bg-muted/50" onClick={() => handleAddToKnowledgeBase(q.question)}>
+                            <TableCell className="font-medium max-w-2xl">{q.question}</TableCell>
+                            <TableCell>{formatDistanceToNow(q.timestamp, { addSuffix: true })}</TableCell>
+                            <TableCell className="text-right">
+                                <AlertDialog onOpenChange={(e) => e.stopPropagation()}>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
+                                            <Trash className="h-4 w-4 text-destructive" />
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                            This action cannot be undone. This will permanently delete this question from the training list.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={() => handleDeleteUnanswered(q.id)}>
+                                                Continue
+                                            </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </TableCell>
                         </TableRow>
                     ))}
                     </TableBody>
@@ -344,3 +341,5 @@ export default function AdminKnowledgeBasePage() {
     </div>
   );
 }
+
+    
