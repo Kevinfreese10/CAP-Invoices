@@ -104,7 +104,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="container mx-auto px-4">
+      <section id="ai-assistant" className="container mx-auto px-4 scroll-m-20">
         <WebsiteAIWidget />
       </section>
 
