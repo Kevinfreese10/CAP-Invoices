@@ -94,6 +94,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
         date: Timestamp.now(),
         department: department || null,
         assignedTo: null,
+        source: 'Client',
       };
 
       // Create a user account if one doesn't exist

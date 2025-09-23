@@ -157,6 +157,7 @@ export default function CreateOrderForm() {
         date: Timestamp.now(),
         department: department || null,
         assignedTo: null,
+        source: 'Staff',
       };
 
       await setDoc(doc(db, 'orders', orderId), orderData);

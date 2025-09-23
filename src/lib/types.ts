@@ -76,10 +76,11 @@ export type Order = {
   clientTotal?: number;
   status: 'Pending Payment' | 'Processing' | 'Completed' | 'Cancelled' | 'Outsourced';
   isOutsourced?: boolean;
-  assignedTo?: string | null;
+  assignedTo?: string[] | null;
   department?: 'Accounting and Tax' | 'Administration' | null;
   originalOrderId?: string;
   notes?: OrderNote[];
+  source?: 'Client' | 'Staff' | 'Reseller';
 };
 
 export type User = {

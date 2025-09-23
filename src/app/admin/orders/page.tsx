@@ -92,7 +92,7 @@ export default function AdminOrdersPage() {
 
         if (user?.role === 'staff') {
           // Staff view: only see orders assigned to them
-          const q = query(ordersRef, where('assignedTo', '==', user.id), orderBy('date', 'desc'));
+          const q = query(ordersRef, where('assignedTo', 'array-contains', user.id), orderBy('date', 'desc'));
           const querySnapshot = await getDocs(q);
           filteredOrders = querySnapshot.docs.map(doc => {
             const data = doc.data();
@@ -150,12 +150,12 @@ export default function AdminOrdersPage() {
     try {
       const orderRef = doc(db, 'orders', orderId);
       await updateDoc(orderRef, {
-        assignedTo: staffId,
+        assignedTo: [staffId],
       });
 
       setOrders(prevOrders =>
         prevOrders.map(order =>
-          order.id === orderId ? { ...order, assignedTo: staffId } : order
+          order.id === orderId ? { ...order, assignedTo: [staffId] } : order
         )
       );
 
@@ -206,17 +206,18 @@ export default function AdminOrdersPage() {
     const orderToUpdate = orders.find(o => o.id === orderId);
     if (!orderToUpdate || !user) return;
 
-    let assignedStaffId = orderToUpdate.assignedTo;
-    let assignedStaffMember = allStaff.find(s => s.id === assignedStaffId);
+    let assignedStaffIds = orderToUpdate.assignedTo;
+    let assignedStaffMember = assignedStaffIds?.[0] ? allStaff.find(s => s.id === assignedStaffIds![0]) : undefined;
+
 
     // New Logic: Assign staff only when moving to "Processing"
-    if (newStatus === 'Processing' && !assignedStaffId) {
+    if (newStatus === 'Processing' && !assignedStaffIds) {
         const department = orderToUpdate.department as 'Accounting and Tax' | 'Administration' | undefined;
         if (department) {
             const newStaffAssignment = getNextStaffMember(department);
             if (newStaffAssignment) {
                 assignedStaffMember = newStaffAssignment;
-                assignedStaffId = newStaffAssignment.id;
+                assignedStaffIds = [newStaffAssignment.id];
                  toast({
                     title: 'Order Assigned',
                     description: `Order has been assigned to ${assignedStaffMember.name}.`
@@ -229,15 +230,15 @@ export default function AdminOrdersPage() {
       const orderRef = doc(db, 'orders', orderId);
       await updateDoc(orderRef, {
         status: newStatus,
-        assignedTo: assignedStaffId || null,
+        assignedTo: assignedStaffIds || null,
       });
 
       // Create a task if moving to processing and a staff member is assigned
-      if (newStatus === 'Processing' && assignedStaffId && user) {
+      if (newStatus === 'Processing' && assignedStaffIds && assignedStaffIds.length > 0 && user) {
           const taskData = {
               title: `Process Order: ${orderToUpdate.id}`,
               description: `Fulfill the services for order ${orderToUpdate.id}. Services include: ${orderToUpdate.items.map(i => i.title).join(', ')}.`,
-              assignedTo: [assignedStaffId],
+              assignedTo: assignedStaffIds,
               createdBy: user.id,
               dueDate: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)), // 7 days from now
               priority: 'Medium',
@@ -255,7 +256,7 @@ export default function AdminOrdersPage() {
 
       // Update local state
       const updatedOrders = orders.map(order =>
-          order.id === orderId ? { ...order, status: newStatus, assignedTo: assignedStaffId } : order
+          order.id === orderId ? { ...order, status: newStatus, assignedTo: assignedStaffIds } : order
       );
       setOrders(updatedOrders);
 
@@ -346,6 +347,11 @@ export default function AdminOrdersPage() {
     }
   };
 
+  const getSourceText = (order: Order) => {
+    if (order.resellerId) return 'Reseller';
+    return order.source || 'Client';
+  }
+
 
   return (
     <div className="space-y-8">
@@ -381,13 +387,14 @@ export default function AdminOrdersPage() {
                   <TableHead>Assigned To</TableHead>
                   <TableHead>Last Update</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Source</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {orders.map((order) => {
-                  const assignee = getAssignee(order.assignedTo);
+                  const assignee = getAssignee(order.assignedTo?.[0]);
                   const lastNote = order.notes && order.notes.length > 0 ? order.notes[order.notes.length - 1] : null;
                   const lastNoteAuthor = lastNote ? getAssignee(lastNote.authorId) : null;
                   const customerName = order.resellerId ? order.endCustomerName : order.customerName;
@@ -435,6 +442,9 @@ export default function AdminOrdersPage() {
                         {order.status}
                       </Badge>
                     </TableCell>
+                    <TableCell>
+                       <Badge variant="secondary">{getSourceText(order)}</Badge>
+                    </TableCell>
                     <TableCell className="text-right">{formatPrice(order.total)}</TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
@@ -459,7 +469,7 @@ export default function AdminOrdersPage() {
                                       <DropdownMenuItem 
                                         key={staff.id} 
                                         onClick={() => handleAssignment(order.id, staff.id)}
-                                        disabled={order.assignedTo === staff.id}
+                                        disabled={order.assignedTo?.[0] === staff.id}
                                       >
                                         {staff.name}
                                       </DropdownMenuItem>
@@ -507,10 +517,3 @@ export default function AdminOrdersPage() {
     </div>
   );
 }
-
-
-
-
-
-
-
