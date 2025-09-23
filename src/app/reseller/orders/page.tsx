@@ -29,6 +29,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
 } from '@/components/ui/dropdown-menu';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -67,6 +70,8 @@ export default function ResellerOrdersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const { user } = useAuth();
+  
+  const orderStatuses: Order['status'][] = ['Pending Payment', 'Processing', 'Completed', 'Cancelled'];
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -296,6 +301,20 @@ export default function ResellerOrdersPage() {
                             <Link href={`/reseller/orders/${order.id}`}>Review Order</Link>
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger disabled={order.isOutsourced}>Change Status</DropdownMenuSubTrigger>
+                            <DropdownMenuSubContent>
+                                {orderStatuses.map(status => (
+                                    <DropdownMenuItem 
+                                        key={status} 
+                                        onClick={() => handleUpdateStatus(order.id, status)}
+                                        disabled={order.status === status}
+                                    >
+                                        Mark as {status}
+                                    </DropdownMenuItem>
+                                ))}
+                            </DropdownMenuSubContent>
+                          </DropdownMenuSub>
                            <DropdownMenuItem 
                                 onClick={() => handleOutsource(order)}
                                 disabled={order.isOutsourced || order.status !== 'Pending Payment'}>
