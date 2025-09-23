@@ -1,6 +1,7 @@
 
+
 'use client';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -22,15 +23,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CalendarIcon, Loader2, MessageSquare } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
-import { format, subDays } from 'date-fns';
+import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
+import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, arrayUnion, Timestamp } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
 
-// Mock data
-const initialTasks: Task[] = [];
+const db = getFirestore(firebaseApp);
 
 const allStaff = users.filter(u => u.role === 'staff' || u.role === 'admin');
 const taskStatuses: Task['status'][] = ['To-Do', 'In Progress', 'Review', 'Done'];
@@ -58,7 +60,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
             title: task?.title || '',
             description: task?.description || '',
             assignedTo: task?.assignedTo || '',
-            dueDate: task?.dueDate ? new Date(task.dueDate) : new Date(),
+            dueDate: task?.dueDate ? new Date(task.dueDate.toDate()) : new Date(),
             priority: task?.priority || 'Medium',
             recurrence: task?.recurrence || 'None',
             orderId: task?.orderId || '',
@@ -150,7 +152,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
                                         <div className="bg-muted p-3 rounded-lg w-full">
                                             <div className="flex justify-between items-center mb-1">
                                                 <p className="text-xs font-semibold">{author?.name}</p>
-                                                <p className="text-xs text-muted-foreground">{format(new Date(comment.date), 'dd MMM yyyy, HH:mm')}</p>
+                                                <p className="text-xs text-muted-foreground">{format(new Date(comment.date.toDate()), 'dd MMM yyyy, HH:mm')}</p>
                                             </div>
                                             <p className="text-sm">{comment.text}</p>
                                         </div>
@@ -182,11 +184,31 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
 }
 
 export default function AdminTasksPage() {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
+  
+  const fetchTasks = async () => {
+    setIsLoading(true);
+    try {
+        const q = query(collection(db, 'tasks'), orderBy('dueDate', 'asc'));
+        const querySnapshot = await getDocs(q);
+        const fetchedTasks = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Task));
+        setTasks(fetchedTasks);
+    } catch (error) {
+        console.error("Error fetching tasks:", error);
+        toast({ title: "Error", description: "Could not fetch tasks.", variant: "destructive" });
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTasks();
+  }, []);
 
   const filteredTasks = useMemo(() => {
     if (user?.role === 'staff') {
@@ -206,77 +228,93 @@ export default function AdminTasksPage() {
     setIsFormOpen(true);
   };
   
-  const handleDelete = (taskId: string) => {
-    setTasks(prev => prev.filter(t => t.id !== taskId));
-    toast({
-        title: 'Task Deleted',
-        description: 'The task has been successfully removed.',
-        variant: 'destructive',
-    })
-  };
-
-   const handleUpdateStatus = (taskId: string, status: Task['status']) => {
-    setTasks(prev =>
-      prev.map(t => (t.id === taskId ? { ...t, status } : t))
-    );
-     toast({
-        title: 'Task Status Updated',
-        description: `The task has been marked as "${status}".`,
-      });
-  };
-
-  const handleFormSubmit = (data: Omit<Task, 'id' | 'status' | 'createdBy' | 'comments'>) => {
-    if (!user) return;
-    if (selectedTask) {
-      // Update
-      setTasks(prev =>
-        prev.map(t => (t.id === selectedTask.id ? { ...selectedTask, ...data } : t))
-      );
-       toast({
-        title: 'Task Updated',
-        description: 'The task details have been saved.',
-      });
-    } else {
-      // Add
-      setTasks(prev => [
-        ...prev,
-        { ...data, id: `new-task-${Date.now()}`, status: 'To-Do', createdBy: user.id, comments: [] },
-      ]);
-       toast({
-        title: 'Task Created',
-        description: 'The new task has been added successfully.',
-      });
+  const handleDelete = async (taskId: string) => {
+    try {
+        await deleteDoc(doc(db, 'tasks', taskId));
+        fetchTasks();
+        toast({
+            title: 'Task Deleted',
+            description: 'The task has been successfully removed.',
+            variant: 'destructive',
+        })
+    } catch (error) {
+        console.error("Error deleting task:", error);
+        toast({ title: 'Error', description: 'Could not delete task.', variant: 'destructive'});
     }
-    setIsFormOpen(false);
-    setSelectedTask(null);
+  };
+
+   const handleUpdateStatus = async (taskId: string, status: Task['status']) => {
+    try {
+        const taskRef = doc(db, 'tasks', taskId);
+        await updateDoc(taskRef, { status });
+        fetchTasks();
+        toast({
+            title: 'Task Status Updated',
+            description: `The task has been marked as "${status}".`,
+        });
+    } catch (error) {
+        console.error("Error updating status:", error);
+        toast({ title: 'Error', description: 'Could not update status.', variant: 'destructive'});
+    }
+  };
+
+  const handleFormSubmit = async (data: Omit<Task, 'id' | 'status' | 'createdBy' | 'comments'>) => {
+    if (!user) return;
+    setIsLoading(true);
+
+    const taskData = {
+        ...data,
+        dueDate: Timestamp.fromDate(data.dueDate as Date),
+    };
+
+    try {
+        if (selectedTask?.id) {
+            const taskRef = doc(db, 'tasks', selectedTask.id);
+            await updateDoc(taskRef, taskData);
+            toast({ title: 'Task Updated', description: 'The task details have been saved.' });
+        } else {
+            await addDoc(collection(db, 'tasks'), {
+                ...taskData,
+                status: 'To-Do',
+                createdBy: user.id,
+                comments: [],
+            });
+            toast({ title: 'Task Created', description: 'The new task has been added successfully.' });
+        }
+        fetchTasks();
+        setIsFormOpen(false);
+        setSelectedTask(null);
+    } catch (error) {
+        console.error("Error saving task:", error);
+        toast({ title: 'Error', description: 'Could not save the task.', variant: 'destructive'});
+    } finally {
+        setIsLoading(false);
+    }
   };
   
-  const handleCommentSubmit = (taskId: string, commentText: string) => {
+  const handleCommentSubmit = async (taskId: string, commentText: string) => {
       if (!user) return;
-      const newComment: TaskComment = {
+      const newComment: Omit<TaskComment, 'date'> & { date: Timestamp } = {
           text: commentText,
-          date: new Date(),
+          date: Timestamp.now(),
           authorId: user.id,
       };
 
-      const updateTask = (taskToUpdate: Task) => {
-        const updatedTask = {
-            ...taskToUpdate,
-            comments: [...(taskToUpdate.comments || []), newComment],
-        };
-        // Also update the selected task in the dialog
-        setSelectedTask(updatedTask); 
-        return updatedTask;
+      try {
+          const taskRef = doc(db, 'tasks', taskId);
+          await updateDoc(taskRef, {
+              comments: arrayUnion(newComment)
+          });
+          fetchTasks();
+          if (selectedTask) {
+              const updatedComments = [...(selectedTask.comments || []), { ...newComment, date: new Date() }];
+              setSelectedTask({ ...selectedTask, comments: updatedComments as any });
+          }
+          toast({ title: 'Comment Posted', description: 'Your comment has been added.' });
+      } catch (error) {
+          console.error("Error posting comment:", error);
+          toast({ title: 'Error', description: 'Could not post comment.', variant: 'destructive' });
       }
-
-      setTasks(prev =>
-        prev.map(t => t.id === taskId ? updateTask(t) : t)
-      );
-
-      toast({
-        title: 'Comment Posted',
-        description: 'Your comment has been added to the task.',
-      });
   }
 
   const getAssignee = (userId?: string): User | undefined => {
@@ -338,6 +376,11 @@ export default function AdminTasksPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {isLoading ? (
+            <div className="flex justify-center items-center h-64">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -351,99 +394,106 @@ export default function AdminTasksPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredTasks.map(task => {
-                const assignee = getAssignee(task.assignedTo);
-                return (
-                <TableRow key={task.id}>
-                  <TableCell className="font-medium max-w-xs">
-                    <div className="flex items-center gap-2">
-                        {task.recurrence && task.recurrence !== 'None' && <Repeat className="h-4 w-4 text-muted-foreground" title={`Repeats ${task.recurrence}`} />}
-                        <p className="font-semibold truncate">{task.title}</p>
-                    </div>
-                    <p className="text-xs text-muted-foreground truncate">{task.description}</p>
-                  </TableCell>
-                  <TableCell>
-                     {assignee ? (
-                        <div className="flex items-center gap-2">
-                            <Avatar className="h-6 w-6">
-                                <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${assignee.email}`} alt={assignee.name} />
-                                <AvatarFallback>{assignee.name.charAt(0)}</AvatarFallback>
-                            </Avatar>
-                            <span className="text-xs">{assignee.name}</span>
-                        </div>
-                     ) : <span className="text-muted-foreground text-xs">N/A</span>}
-                  </TableCell>
-                   <TableCell>{format(new Date(task.dueDate), 'dd MMM yyyy')}</TableCell>
-                   <TableCell>
-                    <Badge variant={getPriorityVariant(task.priority)}>
-                        {task.priority}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={getStatusVariant(task.status)}>
-                        {task.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {task.orderId ? (
-                        <Button variant="link" asChild className="p-0 h-auto text-xs">
-                            <Link href={`/admin/orders/${task.orderId}`}>{task.orderId}</Link>
-                        </Button>
-                    ) : <span className="text-muted-foreground text-xs">N/A</span>}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <AlertDialog>
-                        <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => handleEdit(task)}>
-                                Edit
-                            </DropdownMenuItem>
-                             <DropdownMenuSub>
-                                <DropdownMenuSubTrigger>Change Status</DropdownMenuSubTrigger>
-                                <DropdownMenuSubContent>
-                                {taskStatuses.map(status => (
-                                    <DropdownMenuItem key={status} onClick={() => handleUpdateStatus(task.id, status)} disabled={task.status === status}>
-                                        Mark as {status}
-                                    </DropdownMenuItem>
-                                ))}
-                                </DropdownMenuSubContent>
-                            </DropdownMenuSub>
-                            <DropdownMenuSeparator />
-                             <AlertDialogTrigger asChild>
-                                <DropdownMenuItem className="text-destructive">
-                                    Delete
-                                </DropdownMenuItem>
-                            </AlertDialogTrigger>
-                        </DropdownMenuContent>
-                        </DropdownMenu>
-                         <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                This action cannot be undone. This will permanently delete the task:
-                                <span className="font-semibold"> {task.title}</span>.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDelete(task.id)}>
-                                    Continue
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                  </TableCell>
+              {filteredTasks.length === 0 ? (
+                <TableRow>
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">No tasks to display.</TableCell>
                 </TableRow>
-              )})}
+              ) : (
+                filteredTasks.map(task => {
+                    const assignee = getAssignee(task.assignedTo);
+                    return (
+                    <TableRow key={task.id}>
+                    <TableCell className="font-medium max-w-xs">
+                        <div className="flex items-center gap-2">
+                            {task.recurrence && task.recurrence !== 'None' && <Repeat className="h-4 w-4 text-muted-foreground" title={`Repeats ${task.recurrence}`} />}
+                            <p className="font-semibold truncate">{task.title}</p>
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">{task.description}</p>
+                    </TableCell>
+                    <TableCell>
+                        {assignee ? (
+                            <div className="flex items-center gap-2">
+                                <Avatar className="h-6 w-6">
+                                    <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${assignee.email}`} alt={assignee.name} />
+                                    <AvatarFallback>{assignee.name.charAt(0)}</AvatarFallback>
+                                </Avatar>
+                                <span className="text-xs">{assignee.name}</span>
+                            </div>
+                        ) : <span className="text-muted-foreground text-xs">N/A</span>}
+                    </TableCell>
+                    <TableCell>{format(new Date(task.dueDate.toDate()), 'dd MMM yyyy')}</TableCell>
+                    <TableCell>
+                        <Badge variant={getPriorityVariant(task.priority)}>
+                            {task.priority}
+                        </Badge>
+                    </TableCell>
+                    <TableCell>
+                        <Badge variant={getStatusVariant(task.status)}>
+                            {task.status}
+                        </Badge>
+                    </TableCell>
+                    <TableCell>
+                        {task.orderId ? (
+                            <Button variant="link" asChild className="p-0 h-auto text-xs">
+                                <Link href={`/admin/orders/${task.orderId}`}>{task.orderId}</Link>
+                            </Button>
+                        ) : <span className="text-muted-foreground text-xs">N/A</span>}
+                    </TableCell>
+                    <TableCell className="text-right">
+                        <AlertDialog>
+                            <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                <span className="sr-only">Open menu</span>
+                                <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                <DropdownMenuItem onClick={() => handleEdit(task)}>
+                                    Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuSub>
+                                    <DropdownMenuSubTrigger>Change Status</DropdownMenuSubTrigger>
+                                    <DropdownMenuSubContent>
+                                    {taskStatuses.map(status => (
+                                        <DropdownMenuItem key={status} onClick={() => handleUpdateStatus(task.id, status)} disabled={task.status === status}>
+                                            Mark as {status}
+                                        </DropdownMenuItem>
+                                    ))}
+                                    </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                                <DropdownMenuSeparator />
+                                <AlertDialogTrigger asChild>
+                                    <DropdownMenuItem className="text-destructive">
+                                        Delete
+                                    </DropdownMenuItem>
+                                </AlertDialogTrigger>
+                            </DropdownMenuContent>
+                            </DropdownMenu>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                    This action cannot be undone. This will permanently delete the task:
+                                    <span className="font-semibold"> {task.title}</span>.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleDelete(task.id)}>
+                                        Continue
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </TableCell>
+                    </TableRow>
+                )})
+              )}
             </TableBody>
           </Table>
+          )}
         </CardContent>
       </Card>
     </div>

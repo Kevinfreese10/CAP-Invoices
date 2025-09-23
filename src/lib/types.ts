@@ -131,12 +131,11 @@ export type Task = {
   description: string;
   assignedTo: string;
   createdBy: string;
-  dueDate: Date;
+  dueDate: any;
   priority: 'High' | 'Medium' | 'Low';
   status: 'To-Do' | 'In Progress' | 'Review' | 'Done';
   recurrence?: 'None' | 'Daily' | 'Weekly' | 'Monthly';
   orderId?: string;
   comments?: TaskComment[];
-  updates?: TaskComment[];
 };
 

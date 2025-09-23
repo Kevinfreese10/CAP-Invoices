@@ -1,13 +1,13 @@
 
 
 'use client';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { format, subDays } from 'date-fns';
+import { format } from 'date-fns';
 import { Task, User, TaskComment } from '@/lib/types';
 import { users } from '@/lib/data';
 import Link from 'next/link';
@@ -29,9 +29,10 @@ import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import ProductivityStats from '@/components/dashboard/ProductivityStats';
+import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, where, orderBy, arrayUnion, Timestamp } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
 
-// Using the same mock data as the main tasks page for consistency
-const initialTasks: Task[] = [];
+const db = getFirestore(firebaseApp);
 
 const allStaff = users.filter(u => u.role === 'staff' || u.role === 'admin');
 const taskStatuses: Task['status'][] = ['To-Do', 'In Progress', 'Review', 'Done'];
@@ -151,7 +152,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
                                         <div className="bg-muted p-3 rounded-lg w-full">
                                             <div className="flex justify-between items-center mb-1">
                                                 <p className="text-xs font-semibold">{author?.name}</p>
-                                                <p className="text-xs text-muted-foreground">{format(new Date(comment.date), 'dd MMM yyyy, HH:mm')}</p>
+                                                <p className="text-xs text-muted-foreground">{format(new Date(comment.date.toDate()), 'dd MMM yyyy, HH:mm')}</p>
                                             </div>
                                             <p className="text-sm">{comment.text}</p>
                                         </div>
@@ -274,7 +275,7 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                                 </div>
                             ) : <span className="text-muted-foreground text-xs">N/A</span>}
                         </TableCell>
-                        <TableCell className="align-top">{format(task.dueDate, 'dd MMM yyyy')}</TableCell>
+                        <TableCell className="align-top">{format(task.dueDate.toDate(), 'dd MMM yyyy')}</TableCell>
                         <TableCell className="align-top">
                             <Badge variant={getPriorityVariant(task.priority)}>
                                 {task.priority}
@@ -353,19 +354,39 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
 
 export default function AdminDashboardPage() {
     const { user } = useAuth();
-    const [tasks, setTasks] = useState<Task[]>(initialTasks);
+    const [tasks, setTasks] = useState<Task[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
     const { toast } = useToast();
 
+    const fetchTasks = async () => {
+        setIsLoading(true);
+        try {
+            const q = query(collection(db, 'tasks'), orderBy('dueDate', 'asc'));
+            const querySnapshot = await getDocs(q);
+            const fetchedTasks = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Task));
+            setTasks(fetchedTasks);
+        } catch (error) {
+            console.error("Error fetching tasks:", error);
+            toast({ title: "Error", description: "Could not fetch tasks.", variant: "destructive" });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (user) fetchTasks();
+    }, [user]);
+
     const myTasks = useMemo(() => {
         if (!user) return [];
-        return tasks.filter(task => task.assignedTo === user.id).sort((a,b) => a.dueDate.getTime() - b.dueDate.getTime());
+        return tasks.filter(task => task.assignedTo === user.id).sort((a,b) => a.dueDate.toMillis() - b.dueDate.toMillis());
     }, [tasks, user]);
 
     const delegatedTasks = useMemo(() => {
         if (!user) return [];
-        return tasks.filter(task => task.createdBy === user.id && task.assignedTo !== user.id).sort((a,b) => a.dueDate.getTime() - b.dueDate.getTime());
+        return tasks.filter(task => task.createdBy === user.id && task.assignedTo !== user.id).sort((a,b) => a.dueDate.toMillis() - b.dueDate.toMillis());
     }, [tasks, user]);
 
     const handleAdd = () => {
@@ -378,77 +399,94 @@ export default function AdminDashboardPage() {
         setIsFormOpen(true);
     };
     
-    const handleDelete = (taskId: string) => {
-        setTasks(prev => prev.filter(t => t.id !== taskId));
-        toast({
-            title: 'Task Deleted',
-            description: 'The task has been successfully removed.',
-            variant: 'destructive',
-        })
-    };
-
-    const handleUpdateStatus = (taskId: string, status: Task['status']) => {
-        setTasks(prev =>
-        prev.map(t => (t.id === taskId ? { ...t, status } : t))
-        );
-        toast({
-            title: 'Task Status Updated',
-            description: `The task has been marked as "${status}".`,
-        });
-    };
-
-    const handleFormSubmit = (data: Omit<Task, 'id' | 'status' | 'createdBy' | 'comments'>) => {
-        if (!user) return;
-        if (selectedTask) {
-        // Update
-        setTasks(prev =>
-            prev.map(t => (t.id === selectedTask.id ? { ...selectedTask, ...data } : t))
-        );
-        toast({
-            title: 'Task Updated',
-            description: 'The task details have been saved.',
-        });
-        } else {
-        // Add
-        setTasks(prev => [
-            ...prev,
-            { ...data, id: `new-task-${Date.now()}`, status: 'To-Do', createdBy: user.id, comments: [] },
-        ]);
-        toast({
-            title: 'Task Created',
-            description: 'The new task has been added successfully.',
-        });
+    const handleDelete = async (taskId: string) => {
+        try {
+            await deleteDoc(doc(db, 'tasks', taskId));
+            fetchTasks();
+            toast({
+                title: 'Task Deleted',
+                description: 'The task has been successfully removed.',
+                variant: 'destructive',
+            })
+        } catch (error) {
+            console.error("Error deleting task:", error);
+            toast({ title: 'Error', description: 'Could not delete task.', variant: 'destructive'});
         }
-        setIsFormOpen(false);
-        setSelectedTask(null);
+    };
+
+    const handleUpdateStatus = async (taskId: string, status: Task['status']) => {
+        try {
+            const taskRef = doc(db, 'tasks', taskId);
+            await updateDoc(taskRef, { status });
+            fetchTasks();
+            toast({
+                title: 'Task Status Updated',
+                description: `The task has been marked as "${status}".`,
+            });
+        } catch (error) {
+            console.error("Error updating status:", error);
+            toast({ title: 'Error', description: 'Could not update status.', variant: 'destructive'});
+        }
+    };
+
+    const handleFormSubmit = async (data: Omit<Task, 'id' | 'status' | 'createdBy' | 'comments'>) => {
+        if (!user) return;
+        setIsLoading(true);
+
+        const taskData = {
+            ...data,
+            dueDate: Timestamp.fromDate(data.dueDate),
+        };
+
+        try {
+            if (selectedTask?.id) {
+                const taskRef = doc(db, 'tasks', selectedTask.id);
+                await updateDoc(taskRef, taskData);
+                toast({ title: 'Task Updated', description: 'The task details have been saved.' });
+            } else {
+                await addDoc(collection(db, 'tasks'), {
+                    ...taskData,
+                    status: 'To-Do',
+                    createdBy: user.id,
+                    comments: [],
+                });
+                toast({ title: 'Task Created', description: 'The new task has been added successfully.' });
+            }
+            fetchTasks();
+            setIsFormOpen(false);
+            setSelectedTask(null);
+        } catch (error) {
+            console.error("Error saving task:", error);
+            toast({ title: 'Error', description: 'Could not save the task.', variant: 'destructive'});
+        } finally {
+            setIsLoading(false);
+        }
     };
   
-    const handleCommentSubmit = (taskId: string, commentText: string) => {
+    const handleCommentSubmit = async (taskId: string, commentText: string) => {
         if (!user) return;
-        const newComment: TaskComment = {
+        const newComment: Omit<TaskComment, 'date'> & { date: Timestamp } = {
             text: commentText,
-            date: new Date(),
+            date: Timestamp.now(),
             authorId: user.id,
         };
 
-        const updateTask = (taskToUpdate: Task) => {
-            const updatedTask = {
-                ...taskToUpdate,
-                comments: [...(taskToUpdate.comments || []), newComment],
-            };
-            // Also update the selected task in the dialog
-            setSelectedTask(updatedTask); 
-            return updatedTask;
+        try {
+            const taskRef = doc(db, 'tasks', taskId);
+            await updateDoc(taskRef, {
+                comments: arrayUnion(newComment)
+            });
+            fetchTasks();
+            // Manually update the selected task in the dialog to show the new comment
+            if (selectedTask) {
+                 const updatedComments = [...(selectedTask.comments || []), { ...newComment, date: new Date() }];
+                 setSelectedTask({ ...selectedTask, comments: updatedComments as any });
+            }
+            toast({ title: 'Comment Posted', description: 'Your comment has been added.' });
+        } catch (error) {
+            console.error("Error posting comment:", error);
+            toast({ title: 'Error', description: 'Could not post comment.', variant: 'destructive' });
         }
-
-        setTasks(prev =>
-            prev.map(t => t.id === taskId ? updateTask(t) : t)
-        );
-
-        toast({
-            title: 'Comment Posted',
-            description: 'Your comment has been added to the task.',
-        });
     }
 
     const handleFormOpenChange = (open: boolean) => {
@@ -516,23 +554,31 @@ export default function AdminDashboardPage() {
             </div>
 
             <div className="space-y-8">
-                <TaskTable 
-                    tasks={myTasks} 
-                    title="My Tasks" 
-                    description="These are tasks that are assigned to you."
-                    onEdit={handleEdit}
-                    onUpdateStatus={handleUpdateStatus}
-                    onDelete={handleDelete}
-                />
-                {user?.role === 'admin' && (
-                    <TaskTable 
-                        tasks={delegatedTasks} 
-                        title="Delegated Tasks" 
-                        description="Tasks you have created and assigned to other staff."
-                        onEdit={handleEdit}
-                        onUpdateStatus={handleUpdateStatus}
-                        onDelete={handleDelete}
-                    />
+                {isLoading ? (
+                    <div className="flex justify-center items-center h-64">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                ) : (
+                    <>
+                        <TaskTable 
+                            tasks={myTasks} 
+                            title="My Tasks" 
+                            description="These are tasks that are assigned to you."
+                            onEdit={handleEdit}
+                            onUpdateStatus={handleUpdateStatus}
+                            onDelete={handleDelete}
+                        />
+                        {user?.role === 'admin' && (
+                            <TaskTable 
+                                tasks={delegatedTasks} 
+                                title="Delegated Tasks" 
+                                description="Tasks you have created and assigned to other staff."
+                                onEdit={handleEdit}
+                                onUpdateStatus={handleUpdateStatus}
+                                onDelete={handleDelete}
+                            />
+                        )}
+                    </>
                 )}
             </div>
         </div>
