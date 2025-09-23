@@ -113,7 +113,9 @@ function EmailClientDialog({ order, user, onEmailSent }: { order: Order, user: U
                 <DialogHeader>
                     <DialogTitle>Send Email to {nameTo}</DialogTitle>
                     <DialogDescription>
-                        Compose your message below. {order.resellerId ? "This will be sent from the reseller's email." : "The email will be sent from the default company address."}
+                        Recipient: <span className="font-semibold">{emailTo}</span>
+                        <br/>
+                        {order.resellerId ? "This will be sent from the reseller's email." : "The email will be sent from the default company address."}
                     </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
