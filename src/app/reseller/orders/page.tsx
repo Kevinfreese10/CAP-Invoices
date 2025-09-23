@@ -191,13 +191,12 @@ export default function ResellerOrdersPage() {
         const originalOrderRef = doc(db, 'orders', orderToOutsource.id);
         await updateDoc(originalOrderRef, {
             isOutsourced: true,
-            status: 'Outsourced'
         });
 
         // Update local state to reflect the change immediately
         setOrders(prevOrders =>
             prevOrders.map(order =>
-                order.id === orderToOutsource.id ? { ...order, isOutsourced: true, status: 'Outsourced' } : order
+                order.id === orderToOutsource.id ? { ...order, isOutsourced: true } : order
             )
         );
         
@@ -416,7 +415,7 @@ export default function ResellerOrdersPage() {
                             </DropdownMenuSubContent>
                           </DropdownMenuSub>
                            <AlertDialogTrigger asChild>
-                             <DropdownMenuItem disabled={order.isOutsourced || order.status !== 'Pending Payment'}>
+                             <DropdownMenuItem disabled={order.isOutsourced}>
                                Outsource to My Accountant
                              </DropdownMenuItem>
                            </AlertDialogTrigger>
@@ -534,3 +533,5 @@ export default function ResellerOrdersPage() {
   );
 }
 
+
+    
