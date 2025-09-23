@@ -46,20 +46,25 @@ export default function MediaPage() {
     const fetchUploadedImages = async () => {
         setIsLoading(true);
         try {
-            const storageRef = ref(storage, 'uploads/');
+            const storageRef = ref(storage, 'uploads');
             const result = await listAll(storageRef);
-            const urls = await Promise.all(result.items.map(itemRef => getDownloadURL(itemRef)));
-            const uploaded = urls.map((url, index) => ({
-                id: `uploaded-${result.items[index].name}`,
-                title: result.items[index].name,
-                url: url,
-                hint: '',
-                source: 'Uploaded'
-            }));
-            setUploadedImages(uploaded);
+            
+            const urls = await Promise.all(
+              result.items.map(async (itemRef) => {
+                const url = await getDownloadURL(itemRef);
+                return {
+                  id: `uploaded-${itemRef.name}`,
+                  title: itemRef.name,
+                  url: url,
+                  hint: '',
+                  source: 'Uploaded',
+                };
+              })
+            );
+            setUploadedImages(urls);
         } catch (error) {
             console.error("Error fetching uploaded images:", error);
-            toast({ title: "Error", description: "Could not load uploaded images.", variant: "destructive"});
+            toast({ title: "Error", description: "Could not load uploaded images. Please check storage permissions.", variant: "destructive"});
         } finally {
             setIsLoading(false);
         }
