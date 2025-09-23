@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -340,11 +339,25 @@ export default function ResellerOrdersPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem asChild>
+                           <DropdownMenuItem asChild>
                             <Link href={`/reseller/orders/${order.id}`}>View/Add Notes</Link>
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                           <AlertDialogTrigger asChild>
+                           <DropdownMenuSub>
+                              <DropdownMenuSubTrigger disabled={order.isOutsourced}>Change Status</DropdownMenuSubTrigger>
+                              <DropdownMenuSubContent>
+                                  {orderStatuses.map(status => (
+                                      <DropdownMenuItem 
+                                        key={status} 
+                                        onClick={() => handleUpdateStatus(order.id, status)} 
+                                        disabled={order.status === status}
+                                      >
+                                          Mark as {status}
+                                      </DropdownMenuItem>
+                                  ))}
+                              </DropdownMenuSubContent>
+                           </DropdownMenuSub>
+                          <AlertDialogTrigger asChild>
                              <DropdownMenuItem disabled={order.isOutsourced}>
                                Outsource to My Accountant
                              </DropdownMenuItem>
@@ -561,5 +574,7 @@ export default function ResellerOrdersPage() {
     </>
   );
 }
+
+    
 
     
