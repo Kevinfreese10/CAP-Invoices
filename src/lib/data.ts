@@ -60,6 +60,7 @@ export const services: Service[] = [
     imageUrl: 'https://picsum.photos/seed/101/600/400',
     imageHint: 'tax forms',
     category: 'SARS Services',
+    department: 'Accounting and Tax',
     whatsIncluded: [
         'Consultation on tax-deductible expenses',
         'Preparation of your annual tax return',
@@ -93,6 +94,7 @@ export const services: Service[] = [
     imageUrl: 'https://picsum.photos/seed/102/600/400',
     imageHint: 'business documents',
     category: 'Entity Registrations',
+    department: 'Administration',
     whatsIncluded: [
         'Company Name Reservation (COR 9.1)',
         'Company Registration Certificate (COR 14.3)',
@@ -119,6 +121,7 @@ export const services: Service[] = [
     imageUrl: 'https://picsum.photos/seed/103/600/400',
     imageHint: 'accounting ledger',
     category: 'Accounting Services',
+    department: 'Accounting and Tax',
     whatsIncluded: [
         'Processing of up to 50 monthly transactions',
         'Bank and credit card reconciliations',
@@ -150,6 +153,7 @@ export const services: Service[] = [
     imageUrl: 'https://picsum.photos/seed/104/600/400',
     imageHint: 'compliance calendar',
     category: 'CIPC Services',
+    department: 'Administration',
     whatsIncluded: [
         'Calculation of annual return fee',
         'Filing of the return with CIPC',
@@ -177,6 +181,7 @@ export const services: Service[] = [
     imageUrl: 'https://picsum.photos/seed/105/600/400',
     imageHint: 'health safety',
     category: 'COIDA Services',
+    department: 'Administration',
     whatsIncluded: [
         'Preparation of registration documents',
         'Submission to the Department of Labour',
@@ -274,5 +279,4 @@ export const faqs: FAQ[] = [
   },
 ];
 
-const allServices = [...services];
 export const orders: Order[] = [];
