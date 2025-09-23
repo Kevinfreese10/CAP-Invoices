@@ -142,9 +142,9 @@ export default function AdminOrdersPage() {
     };
     
   useEffect(() => {
-    if (user) {
-        fetchOrders();
-    }
+    // We are not fetching orders on load to ensure a clean slate.
+    // fetchOrders can be called later, for example, by a refresh button.
+    setIsLoading(false);
   }, [user]);
 
    const handleAssignment = async (orderId: string, staffId: string) => {
@@ -350,6 +350,8 @@ export default function AdminOrdersPage() {
              <div className="flex justify-center items-center h-64">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
              </div>
+          ) : orders.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">No orders to display.</p>
           ) : (
             <Table>
               <TableHeader>
@@ -485,4 +487,5 @@ export default function AdminOrdersPage() {
     </div>
   );
 }
+
 
