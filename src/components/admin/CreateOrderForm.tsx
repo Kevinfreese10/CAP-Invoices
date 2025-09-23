@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Loader2, Plus, Trash, RefreshCw } from 'lucide-react';
+import { Loader2, Plus, Trash, RefreshCw, Clock, ClipboardCheck } from 'lucide-react';
 import { getFirestore, doc, setDoc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service } from '@/lib/types';
@@ -74,6 +74,8 @@ export default function CreateOrderForm() {
     control: form.control,
     name: 'items',
   });
+  
+  const watchedItems = form.watch('items');
 
   const calculateTotal = (items: any[]) => {
      return (items || []).reduce((acc, item) => {
@@ -237,6 +239,9 @@ export default function CreateOrderForm() {
                 {fields.map((field, index) => {
                     const isCustom = form.watch(`items.${index}.isCustom`);
                     const lineItem = form.watch(`items.${index}`);
+                    const serviceId = form.watch(`items.${index}.serviceId`);
+                    const selectedService = serviceId ? allServices.find(s => s.id === serviceId) : null;
+                    
                     return (
                     <div key={field.id} className="grid grid-cols-1 md:grid-cols-12 gap-x-3 gap-y-2 p-3 border rounded-md relative">
                          <div className="md:col-span-4 space-y-2">
@@ -253,6 +258,7 @@ export default function CreateOrderForm() {
                                     )}
                                 />
                              ) : (
+                                <>
                                 <FormField
                                     control={form.control}
                                     name={`items.${index}.serviceId`}
@@ -271,6 +277,23 @@ export default function CreateOrderForm() {
                                         </FormItem>
                                     )}
                                 />
+                                {selectedService && (
+                                    <div className="text-xs space-y-2 pt-2">
+                                        <div className="flex items-center gap-2 text-muted-foreground">
+                                            <Clock className="h-4 w-4" />
+                                            <span>{selectedService.turnaroundTime}</span>
+                                        </div>
+                                        {selectedService.clientRequirements.length > 0 && (
+                                            <div className="space-y-1">
+                                                <p className="font-medium">Prerequisites:</p>
+                                                <ul className="list-disc pl-5">
+                                                    {selectedService.clientRequirements.map((req, i) => <li key={i}>{req}</li>)}
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                </>
                              )}
                              <FormField
                                 control={form.control}
