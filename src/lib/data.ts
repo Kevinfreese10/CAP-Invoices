@@ -8,6 +8,7 @@ export const users: User[] = [
     name: 'Kevin Freese', 
     email: 'kev@thinkestry.co.za', 
     role: 'admin',
+    department: 'Administration',
     smtpDetails: {
         host: 'mail.myacc.co.za',
         port: '465',
@@ -15,7 +16,6 @@ export const users: User[] = [
         pass: 'Thinkestry10$',
     }
   },
-  { id: '3', name: 'Staff Member', email: 'staff@test.com', role: 'staff', department: 'Accounting and Tax' },
   { 
     id: '4', 
     name: 'Reseller Pro', 
