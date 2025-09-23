@@ -9,6 +9,7 @@ export type Service = {
   resellerPrice?: number;
   imageUrl: string;
   imageHint: string;
+  seoImageUrl?: string;
   category: string;
   department?: 'Accounting and Tax' | 'Administration' | 'CAP';
   whatsIncluded: string[];
@@ -139,4 +140,5 @@ export type Task = {
   orderId?: string;
   comments?: TaskComment[];
 };
+
 
