@@ -186,7 +186,7 @@ export default function OutsourcedOrdersPage() {
                         <TableCell className="text-right font-semibold">{formatPrice(order.total)}</TableCell>
                         <TableCell className="text-right">
                          <Button variant="ghost" size="icon" asChild>
-                            <Link href={`/admin/orders/${order.id}`} target="_blank" rel="noopener noreferrer">
+                            <Link href={`/reseller/outsourced-orders/${order.id}`}>
                                 <ArrowRight className="h-4 w-4" />
                             </Link>
                         </Button>
