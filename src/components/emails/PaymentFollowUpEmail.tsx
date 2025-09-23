@@ -11,10 +11,11 @@ import {
   Link,
 } from '@react-email/components';
 import * as React from 'react';
-import { Order } from '@/lib/types';
+import { Order, User } from '@/lib/types';
 
 interface PaymentFollowUpEmailProps {
   order: Order;
+  reseller?: User;
 }
 
 const main = {
@@ -62,8 +63,12 @@ const heading = {
   color: '#333'
 }
 
-export const PaymentFollowUpEmail = ({ order }: PaymentFollowUpEmailProps) => {
+export const PaymentFollowUpEmail = ({ order, reseller }: PaymentFollowUpEmailProps) => {
     const previewText = `Payment Reminder for Order #${order.id}`;
+
+    const companyName = reseller?.companyName || 'My Accountant';
+    const companyEmail = reseller?.email || 'info@myacc.co.za';
+    const companyAddress = reseller?.address ? `${reseller.address.street}, ${reseller.address.city}` : '369 Oak Avenue, Ferndale, Randburg';
 
     return (
         <Html>
@@ -89,9 +94,18 @@ export const PaymentFollowUpEmail = ({ order }: PaymentFollowUpEmailProps) => {
                 <Text style={paragraph}>
                     If you have any questions, please don't hesitate to contact us.
                 </Text>
+
+                <Text style={paragraph}>
+                    Regards,
+                    <br />
+                    The {companyName} Team
+                </Text>
                 
                 <Text style={footer}>
-                © {new Date().getFullYear()} My Accountant. All rights reserved.
+                     {companyName} | <a href={`mailto:${companyEmail}`} style={anchor}>{companyEmail}</a> | {companyAddress}
+                </Text>
+                <Text style={footer}>
+                © {new Date().getFullYear()} {companyName}. All rights reserved.
                 </Text>
             </Section>
             </Container>

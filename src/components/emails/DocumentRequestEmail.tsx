@@ -14,12 +14,12 @@ import {
   Button,
 } from '@react-email/components';
 import * as React from 'react';
-import { Order, Service } from '@/lib/types';
+import { Order, Service, User } from '@/lib/types';
 
 interface DocumentRequestEmailProps {
   order: Order;
   items: { service: Service }[];
-  assignedToEmail?: string;
+  reseller?: User;
 }
 
 const main = {
@@ -89,8 +89,12 @@ const prereqItem = {
     lineHeight: '22px',
 }
 
-export const DocumentRequestEmail = ({ order, items, assignedToEmail }: DocumentRequestEmailProps) => {
+export const DocumentRequestEmail = ({ order, items, reseller }: DocumentRequestEmailProps) => {
     const previewText = `Action Required for Order #${order.id}`;
+
+    const companyName = reseller?.companyName || 'My Accountant';
+    const companyEmail = reseller?.email || 'info@myacc.co.za';
+    const companyAddress = reseller?.address ? `${reseller.address.street}, ${reseller.address.city}` : '369 Oak Avenue, Ferndale, Randburg';
 
     return (
         <Html>
@@ -104,17 +108,9 @@ export const DocumentRequestEmail = ({ order, items, assignedToEmail }: Document
                     Hi {order.customerName},
                 </Text>
                 <Text style={paragraph}>
-                    Your order <strong style={{color: '#214392'}}>{order.id}</strong> is now being processed. To continue, we need some information from you.
+                    Your order <strong style={{color: '#214392'}}>{order.id}</strong> is now being processed. To continue, we need some information from you. Please reply to this email and attach the documents listed below.
                 </Text>
-                {assignedToEmail ? (
-                    <Text style={paragraph}>
-                        Please reply to this email, or send the required documents directly to your assigned agent at <Link style={anchor} href={`mailto:${assignedToEmail}`}>{assignedToEmail}</Link>.
-                    </Text>
-                ) : (
-                     <Text style={paragraph}>
-                        Please reply to this email and attach the documents listed below.
-                    </Text>
-                )}
+                
                 <Hr style={hr} />
 
                 {items.map(({ service }) => (
@@ -131,8 +127,17 @@ export const DocumentRequestEmail = ({ order, items, assignedToEmail }: Document
                 
                 <Hr style={hr} />
                 
+                <Text style={paragraph}>
+                    Regards,
+                    <br />
+                    The {companyName} Team
+                </Text>
+                
                 <Text style={footer}>
-                © {new Date().getFullYear()} My Accountant. All rights reserved.
+                     {companyName} | <a href={`mailto:${companyEmail}`} style={anchor}>{companyEmail}</a> | {companyAddress}
+                </Text>
+                <Text style={footer}>
+                © {new Date().getFullYear()} {companyName}. All rights reserved.
                 </Text>
             </Section>
             </Container>

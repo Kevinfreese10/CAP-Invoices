@@ -322,6 +322,7 @@ export default function AdminOrderDetailsPage() {
       let subject = '';
       let message = '';
       const isOutsourced = !!order.resellerId;
+      const reseller = isOutsourced ? users.find(u => u.id === order.resellerId) : undefined;
       const emailTo = isOutsourced ? order.endCustomerEmail : order.customerEmail;
       const customerName = isOutsourced ? order.endCustomerName : order.customerName;
       const orderForEmail = { ...order, customerName, id: order.originalOrderId || order.id };
@@ -337,15 +338,15 @@ export default function AdminOrderDetailsPage() {
             return { ...item, service };
         }).filter(item => item.service) as { service: Service }[];
 
-        emailHtml = render(<DocumentRequestEmail order={orderForEmail} items={itemsWithServices} assignedToEmail={currentUser.email} />);
+        emailHtml = render(<DocumentRequestEmail order={orderForEmail} items={itemsWithServices} reseller={reseller} />);
         subject = `Action Required: Documents needed for your order #${orderForEmail.id}`;
         message = "Sent 'Request Documents' email to client.";
       } else if (type === 'payment') {
-         emailHtml = render(<PaymentFollowUpEmail order={orderForEmail} />);
+         emailHtml = render(<PaymentFollowUpEmail order={orderForEmail} reseller={reseller} />);
          subject = `Payment Reminder for Your Order: #${orderForEmail.id}`;
          message = "Sent 'Payment Follow-up' email to client.";
       } else if (type === 'review') {
-         emailHtml = render(<ReviewRequestEmail order={orderForEmail} />);
+         emailHtml = render(<ReviewRequestEmail order={orderForEmail} reseller={reseller} />);
          subject = `We'd love your feedback on order #${orderForEmail.id}`;
          message = "Sent 'Request a Review' email to client.";
       }
@@ -560,5 +561,3 @@ export default function AdminOrderDetailsPage() {
     </div>
   );
 }
-
-    

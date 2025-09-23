@@ -12,10 +12,11 @@ import {
   Link,
 } from '@react-email/components';
 import * as React from 'react';
-import { Order } from '@/lib/types';
+import { Order, User } from '@/lib/types';
 
 interface ReviewRequestEmailProps {
   order: Order;
+  reseller?: User;
 }
 
 const main = {
@@ -72,8 +73,12 @@ const heading = {
   color: '#333'
 }
 
-export const ReviewRequestEmail = ({ order }: ReviewRequestEmailProps) => {
+export const ReviewRequestEmail = ({ order, reseller }: ReviewRequestEmailProps) => {
     const previewText = `We'd love your feedback on order #${order.id}`;
+
+    const companyName = reseller?.companyName || 'My Accountant';
+    const companyEmail = reseller?.email || 'info@myacc.co.za';
+    const companyAddress = reseller?.address ? `${reseller.address.street}, ${reseller.address.city}` : '369 Oak Avenue, Ferndale, Randburg';
 
     return (
         <Html>
@@ -87,7 +92,7 @@ export const ReviewRequestEmail = ({ order }: ReviewRequestEmailProps) => {
                     Hi {order.customerName},
                 </Text>
                 <Text style={paragraph}>
-                    Your order <strong style={{color: '#214392'}}>{order.id}</strong> has now been completed. We hope you had a positive experience with My Accountant.
+                    Your order <strong style={{color: '#214392'}}>{order.id}</strong> has now been completed. We hope you had a positive experience with {companyName}.
                 </Text>
                 <Text style={paragraph}>
                     If you have a moment, we would greatly appreciate it if you could leave us a review on Google. Your feedback helps us improve and lets others know about our services.
@@ -99,11 +104,20 @@ export const ReviewRequestEmail = ({ order }: ReviewRequestEmailProps) => {
 
                 <Hr style={hr} />
                 <Text style={paragraph}>
-                    Thank you for choosing My Accountant. We look forward to working with you again in the future!
+                    Thank you for choosing {companyName}. We look forward to working with you again in the future!
+                </Text>
+
+                 <Text style={paragraph}>
+                    Regards,
+                    <br />
+                    The {companyName} Team
                 </Text>
                 
                 <Text style={footer}>
-                © {new Date().getFullYear()} My Accountant. All rights reserved.
+                     {companyName} | <a href={`mailto:${companyEmail}`} style={anchor}>{companyEmail}</a> | {companyAddress}
+                </Text>
+                <Text style={footer}>
+                © {new Date().getFullYear()} {companyName}. All rights reserved.
                 </Text>
             </Section>
             </Container>

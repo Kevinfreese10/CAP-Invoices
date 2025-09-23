@@ -130,6 +130,9 @@ export const OrderConfirmationEmail = ({ order, reseller }: OrderConfirmationEma
     };
 
     const companyName = reseller?.companyName || 'My Accountant';
+    const companyEmail = reseller?.email || 'info@myacc.co.za';
+    const companyAddress = reseller?.address ? `${reseller.address.street}, ${reseller.address.city}` : '369 Oak Avenue, Ferndale, Randburg';
+    
     // In a real app this would be an environment variable
     const siteUrl = 'https://my-accountant-app.com';
 
@@ -195,9 +198,20 @@ export const OrderConfirmationEmail = ({ order, reseller }: OrderConfirmationEma
                 <Text style={{...paragraph, fontSize: '14px', marginTop: '20px'}}>
                     By making payment, you accept our <Link href={`${siteUrl}/refund-policy`} style={anchor}>Refund Policy</Link>.
                 </Text>
+                
+                <Hr style={hr} />
+
+                <Text style={paragraph}>
+                    Regards,
+                    <br />
+                    The {companyName} Team
+                </Text>
 
                 <Text style={footer}>
-                © {new Date().getFullYear()} {companyName}. All rights reserved.
+                    {companyName} | <a href={`mailto:${companyEmail}`} style={anchor}>{companyEmail}</a> | {companyAddress}
+                </Text>
+                <Text style={footer}>
+                    © {new Date().getFullYear()} {companyName}. All rights reserved.
                 </Text>
             </Section>
             </Container>

@@ -200,17 +200,17 @@ export default function AdminOrdersPage() {
         description: `Order ${orderId} has been marked as ${newStatus}.`,
       });
       
-      const currentStaff = assignedStaffId ? allStaff.find(s => s.id === assignedStaffId) : undefined;
+      const reseller = orderToUpdate.resellerId ? users.find(u => u.id === orderToUpdate.resellerId) : undefined;
       const emailTo = orderToUpdate.endCustomerEmail || orderToUpdate.customerEmail;
       const emailOrder = {...orderToUpdate, customerName: orderToUpdate.endCustomerName || orderToUpdate.customerName};
       
-      if (newStatus === 'Processing' && currentStaff) {
+      if (newStatus === 'Processing' && emailTo) {
         const itemsWithServices = orderToUpdate.items.map(item => {
             const service = allServices.find(s => s.id === item.id);
             return { ...item, service };
         }).filter(item => item.service) as { service: Service }[];
 
-        const emailHtml = render(<DocumentRequestEmail order={emailOrder} items={itemsWithServices} assignedToEmail={currentStaff.email} />);
+        const emailHtml = render(<DocumentRequestEmail order={emailOrder} items={itemsWithServices} reseller={reseller} />);
         
         await sendEmail({
             to: emailTo,
@@ -225,8 +225,8 @@ export default function AdminOrdersPage() {
         });
       }
 
-      if (newStatus === 'Completed') {
-        const emailHtml = render(<ReviewRequestEmail order={emailOrder} />);
+      if (newStatus === 'Completed' && emailTo) {
+        const emailHtml = render(<ReviewRequestEmail order={emailOrder} reseller={reseller} />);
         await sendEmail({
             to: emailTo,
             subject: `We'd love your feedback on order #${orderId}`,
