@@ -181,7 +181,9 @@ export default function ResellerOutsourcedOrderDetailsPage() {
                                                             <Mail className="h-4 w-4 text-muted-foreground" />
                                                             <p className="font-semibold">{note.subject}</p>
                                                           </div>
+                                                          {order.endCustomerEmail && (
                                                             <p className="text-xs text-muted-foreground">To: {order.endCustomerEmail}</p>
+                                                          )}
                                                         </div>
                                                         <p className="text-sm italic text-muted-foreground">"{note.text}"</p>
                                                     </div>
@@ -231,3 +233,4 @@ export default function ResellerOutsourcedOrderDetailsPage() {
   );
 
     
+
