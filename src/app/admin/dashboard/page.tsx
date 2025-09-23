@@ -65,7 +65,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
             title: task?.title || '',
             description: task?.description || '',
             assignedTo: task?.assignedTo || '',
-            dueDate: task?.dueDate ? new Date(task.dueDate) : new Date(),
+            dueDate: task?.dueDate ? new Date(task.dueDate.toDate()) : new Date(),
             priority: task?.priority || 'Medium',
             recurrence: task?.recurrence || 'None',
             orderId: task?.orderId || '',
@@ -548,7 +548,7 @@ export default function AdminDashboardPage() {
             fetchTasks();
             // Manually update the selected task in the dialog to show the new comment
             if (selectedTask) {
-                 const updatedComments = [...(selectedTask.comments || []), { ...newComment, date: new Date() }];
+                 const updatedComments = [...(selectedTask.comments || []), { ...newComment, date: Timestamp.now() }];
                  setSelectedTask({ ...selectedTask, comments: updatedComments as any });
             }
             toast({ title: 'Comment Posted', description: 'Your comment has been added.' });

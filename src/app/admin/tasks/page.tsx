@@ -375,7 +375,7 @@ export default function AdminTasksPage() {
           });
           fetchTasks();
           if (selectedTask) {
-              const updatedComments = [...(selectedTask.comments || []), { ...newComment, date: new Date() }];
+              const updatedComments = [...(selectedTask.comments || []), { ...newComment, date: Timestamp.now() }];
               setSelectedTask({ ...selectedTask, comments: updatedComments as any });
           }
           toast({ title: 'Comment Posted', description: 'Your comment has been added.' });
