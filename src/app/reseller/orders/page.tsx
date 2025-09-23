@@ -258,7 +258,7 @@ export default function ResellerOrdersPage() {
                   <TableHead>Date</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Outsourcing Cost</TableHead>
+                  <TableHead>Fulfillment</TableHead>
                   <TableHead>Selling Price</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -271,10 +271,16 @@ export default function ResellerOrdersPage() {
                     <TableCell>{order.customerName}</TableCell>
                     <TableCell>
                       <Badge variant={getStatusVariant(order.status)}>
-                        {order.isOutsourced ? 'Outsourced' : order.status}
+                        {order.status}
                       </Badge>
                     </TableCell>
-                    <TableCell className="font-semibold">{formatPrice(order.total)}</TableCell>
+                    <TableCell>
+                        {order.isOutsourced ? (
+                            <Badge variant="info">Outsourced</Badge>
+                        ) : (
+                            <Badge variant="secondary">Internal</Badge>
+                        )}
+                    </TableCell>
                     <TableCell className="font-semibold">{formatPrice(order.clientTotal || 0)}</TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
