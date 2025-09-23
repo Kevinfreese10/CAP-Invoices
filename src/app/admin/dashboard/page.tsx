@@ -66,7 +66,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
             title: task?.title || '',
             description: task?.description || '',
             assignedTo: task?.assignedTo?.[0] || '', // Pre-select first user if editing
-            dueDate: task?.dueDate ? new Date(task.dueDate.toDate()) : new Date(),
+            dueDate: task?.dueDate ? task.dueDate.toDate() : new Date(),
             priority: task?.priority || 'Medium',
             recurrence: task?.recurrence || 'None',
             orderId: task?.orderId || '',
@@ -122,7 +122,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
                                         </SelectGroup>
                                     </>
                                     )}
-                                    {!!task?.id && task.assignedTo.map(userId => {
+                                    {!!task?.id && Array.isArray(task.assignedTo) && task.assignedTo.map(userId => {
                                         const user = getAuthor(userId);
                                         return user ? <SelectItem key={user.id} value={user.id}>{user.name}</SelectItem> : null;
                                     })}
@@ -191,7 +191,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
                                         <div className="bg-muted p-3 rounded-lg w-full">
                                             <div className="flex justify-between items-center mb-1">
                                                 <p className="text-xs font-semibold">{author?.name}</p>
-                                                <p className="text-xs text-muted-foreground">{format(new Date(comment.date.toDate()), 'dd MMM yyyy, HH:mm')}</p>
+                                                <p className="text-xs text-muted-foreground">{format(comment.date.toDate(), 'dd MMM yyyy, HH:mm')}</p>
                                             </div>
                                             <p className="text-sm">{comment.text}</p>
                                         </div>
@@ -284,6 +284,7 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                     {tasks.map(task => {
                         const lastComment = task.comments && task.comments.length > 0 ? task.comments[task.comments.length - 1] : null;
                         const commentAuthor = lastComment ? getAssignee(lastComment.authorId) : null;
+                        const assignees = Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo];
                         return (
                         <TableRow key={task.id}>
                         <TableCell className="font-medium max-w-xs align-top">
@@ -297,14 +298,14 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                                     <MessageSquare className="h-3 w-3 text-muted-foreground flex-shrink-0 mt-0.5" />
                                     <div className="text-xs">
                                         <span className="font-semibold">{commentAuthor.name}:</span>
-                                        <span className="text-muted-foreground ml-1">{`"${lastComment.text}"`}</span>
+                                        <span className="text-muted-foreground ml-1">"{lastComment.text}"</span>
                                     </div>
                                 </div>
                             )}
                         </TableCell>
                         <TableCell className="align-top">
                             <div className="flex items-center -space-x-2">
-                                {task.assignedTo.slice(0, 3).map(userId => {
+                                {assignees.slice(0, 3).map(userId => {
                                     const assignee = getAssignee(userId);
                                     if (!assignee) return null;
                                     return (
@@ -323,9 +324,9 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                                         </TooltipProvider>
                                     );
                                 })}
-                                 {task.assignedTo.length > 3 && (
+                                 {assignees.length > 3 && (
                                     <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-xs font-bold border-2 border-background">
-                                        +{task.assignedTo.length - 3}
+                                        +{assignees.length - 3}
                                     </div>
                                 )}
                             </div>
@@ -436,12 +437,12 @@ export default function AdminDashboardPage() {
 
     const myTasks = useMemo(() => {
         if (!user) return [];
-        return tasks.filter(task => task.assignedTo.includes(user.id)).sort((a,b) => a.dueDate.toMillis() - b.dueDate.toMillis());
+        return tasks.filter(task => Array.isArray(task.assignedTo) && task.assignedTo.includes(user.id)).sort((a,b) => a.dueDate.toMillis() - b.dueDate.toMillis());
     }, [tasks, user]);
 
     const delegatedTasks = useMemo(() => {
         if (!user) return [];
-        return tasks.filter(task => task.createdBy === user.id && !task.assignedTo.includes(user.id)).sort((a,b) => a.dueDate.toMillis() - b.dueDate.toMillis());
+        return tasks.filter(task => task.createdBy === user.id && (!Array.isArray(task.assignedTo) || !task.assignedTo.includes(user.id))).sort((a,b) => a.dueDate.toMillis() - b.dueDate.toMillis());
     }, [tasks, user]);
 
     const handleAdd = () => {
@@ -558,13 +559,20 @@ export default function AdminDashboardPage() {
             await updateDoc(taskRef, {
                 comments: arrayUnion(newComment)
             });
-            await fetchTasks();
             
             // Manually update the selected task in the dialog to show the new comment
             if (selectedTask) {
-                 const updatedComments = [...(selectedTask.comments || []), { ...newComment, date: new Date() }];
-                 setSelectedTask({ ...selectedTask, comments: updatedComments as any });
+                 const updatedComments = [...(selectedTask.comments || []), { ...newComment, date: new Date() as any }];
+                 setSelectedTask({ ...selectedTask, comments: updatedComments });
             }
+            // Also update the main tasks list optimistically
+            setTasks(prevTasks => prevTasks.map(t => {
+                if (t.id === taskId) {
+                    return {...t, comments: [...(t.comments || []), {...newComment, date: new Date() as any}]};
+                }
+                return t;
+            }));
+
             toast({ title: 'Comment Posted', description: 'Your comment has been added.' });
         } catch (error) {
             console.error("Error posting comment:", error);
@@ -576,6 +584,7 @@ export default function AdminDashboardPage() {
         setIsFormOpen(open);
         if (!open) {
             setSelectedTask(null);
+            fetchTasks(); // Re-fetch tasks when closing dialog to ensure data is fresh
         }
     }
 
@@ -667,5 +676,3 @@ export default function AdminDashboardPage() {
         </div>
     );
 }
-
-    
