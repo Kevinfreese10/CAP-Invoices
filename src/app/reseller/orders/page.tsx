@@ -140,9 +140,9 @@ export default function ResellerOrdersPage() {
     };
 
   useEffect(() => {
-    // We are not fetching orders on load to ensure a clean slate.
-    // fetchOrders can be called later, for example, by a refresh button.
-    setIsLoading(false);
+    if (user) {
+        fetchOrders();
+    }
   }, [user, toast]);
 
   const handleOutsource = async (orderToOutsource: Order) => {
@@ -581,4 +581,5 @@ export default function ResellerOrdersPage() {
     
 
     
+
 

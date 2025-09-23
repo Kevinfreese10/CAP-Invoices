@@ -142,9 +142,9 @@ export default function AdminOrdersPage() {
     };
     
   useEffect(() => {
-    // We are not fetching orders on load to ensure a clean slate.
-    // fetchOrders can be called later, for example, by a refresh button.
-    setIsLoading(false);
+    if (user) {
+        fetchOrders();
+    }
   }, [user]);
 
    const handleAssignment = async (orderId: string, staffId: string) => {
@@ -487,5 +487,6 @@ export default function AdminOrdersPage() {
     </div>
   );
 }
+
 
 
