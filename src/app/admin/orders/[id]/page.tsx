@@ -192,12 +192,24 @@ export default function AdminOrderDetailsPage() {
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           const data = docSnap.data();
-          const fetchedOrder = {
+          let fetchedOrder = {
             ...data,
             id: docSnap.id,
             date: data.date.toDate(),
             notes: (data.notes || []).map((note: any) => ({...note, date: note.date.toDate()})),
           } as Order;
+
+          // If it's an outsourced order, fetch the original order to get end-client details
+          if (fetchedOrder.originalOrderId) {
+            const originalOrderRef = doc(db, 'orders', fetchedOrder.originalOrderId);
+            const originalOrderSnap = await getDoc(originalOrderRef);
+            if (originalOrderSnap.exists()) {
+                const originalOrderData = originalOrderSnap.data();
+                fetchedOrder.endCustomerName = originalOrderData.customerName;
+                fetchedOrder.endCustomerEmail = originalOrderData.customerEmail;
+            }
+          }
+
           setOrder(fetchedOrder);
           
           if (fetchedOrder.assignedTo) {
@@ -548,3 +560,5 @@ export default function AdminOrderDetailsPage() {
     </div>
   );
 }
+
+    
