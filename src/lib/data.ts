@@ -1,11 +1,12 @@
+
 import type { Service, BlogPost, FAQ, Order, User } from './types';
 
 export const users: User[] = [
   { id: '1', name: 'John Doe', email: 'client@test.com', role: 'client' },
   { 
     id: '2', 
-    name: 'Jane Admin', 
-    email: 'admin@test.com', 
+    name: 'Kevin Freese', 
+    email: 'kev@thinkestry.co.za', 
     role: 'admin',
     smtpDetails: {
         host: 'mail.myacc.co.za',
