@@ -29,7 +29,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
-import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, arrayUnion, Timestamp } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, arrayUnion, Timestamp, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 
 const db = getFirestore(firebaseApp);
@@ -91,7 +91,19 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
                 <FormField control={form.control} name="title" render={({ field }) => (<FormItem><FormLabel>Title</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="description" render={({ field }) => (<FormItem><FormLabel>Description</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>)} />
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <FormField control={form.control} name="assignedTo" render={({ field }) => (<FormItem><FormLabel>Assign To</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select staff..." /></SelectTrigger></FormControl><SelectContent>{allStaff.map(staff => <SelectItem key={staff.id} value={staff.id}>{staff.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="assignedTo" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Assign To</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl><SelectTrigger><SelectValue placeholder="Select staff..." /></SelectTrigger></FormControl>
+                                <SelectContent>
+                                    {!task?.id && <SelectItem value="all">All Staff</SelectItem>}
+                                    {allStaff.map(staff => <SelectItem key={staff.id} value={staff.id}>{staff.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )} />
                      <FormField
                         control={form.control}
                         name="dueDate"
@@ -258,7 +270,7 @@ export default function AdminTasksPage() {
     }
   };
 
-  const handleFormSubmit = async (data: Omit<Task, 'id' | 'status' | 'createdBy' | 'comments'>) => {
+  const handleFormSubmit = async (data: Omit<Task, 'id' | 'status' | 'createdBy' | 'comments'> & { assignedTo: string }) => {
     if (!user) return;
     setIsLoading(true);
 
@@ -270,16 +282,32 @@ export default function AdminTasksPage() {
     try {
         if (selectedTask?.id) {
             const taskRef = doc(db, 'tasks', selectedTask.id);
-            await updateDoc(taskRef, taskData);
+            await updateDoc(taskRef, { ...taskData, assignedTo: selectedTask.assignedTo });
             toast({ title: 'Task Updated', description: 'The task details have been saved.' });
         } else {
-            await addDoc(collection(db, 'tasks'), {
-                ...taskData,
-                status: 'To-Do',
-                createdBy: user.id,
-                comments: [],
-            });
-            toast({ title: 'Task Created', description: 'The new task has been added successfully.' });
+             if (data.assignedTo === 'all') {
+                const batch = writeBatch(db);
+                allStaff.forEach(staffMember => {
+                    const taskRef = doc(collection(db, 'tasks'));
+                    batch.set(taskRef, {
+                        ...taskData,
+                        assignedTo: staffMember.id,
+                        status: 'To-Do',
+                        createdBy: user.id,
+                        comments: [],
+                    });
+                });
+                await batch.commit();
+                toast({ title: 'Tasks Created', description: `A new task has been assigned to all ${allStaff.length} staff members.` });
+            } else {
+                await addDoc(collection(db, 'tasks'), {
+                    ...taskData,
+                    status: 'To-Do',
+                    createdBy: user.id,
+                    comments: [],
+                });
+                toast({ title: 'Task Created', description: 'The new task has been added successfully.' });
+            }
         }
         fetchTasks();
         setIsFormOpen(false);
