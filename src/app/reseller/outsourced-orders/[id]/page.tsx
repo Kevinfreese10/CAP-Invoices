@@ -231,6 +231,4 @@ export default function ResellerOutsourcedOrderDetailsPage() {
         </div>
     </div>
   );
-
-    
-
+}
