@@ -3,8 +3,6 @@
 import { useState, useEffect } from 'react';
 import {
   AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -14,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Mail } from 'lucide-react';
+import { Separator } from '../ui/separator';
 
 const POPUP_STORAGE_KEY = 'my-accountant-visitor-popup-seen';
 
@@ -48,10 +47,19 @@ export default function NewVisitorPopup() {
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle className="text-2xl">Welcome to My Accountant!</AlertDialogTitle>
-          <AlertDialogDescription>
-            As a new visitor, subscribe to our newsletter and get <span className="font-bold text-primary">10% OFF</span> your first service order.
+           <AlertDialogDescription>
+            Did you know that My Accountant is the preferred financial management partner for Carte Blanche? Carte Blanche is South Africa’s most respected investigative journalism programme, trusted for over 30 years by millions of viewers.
           </AlertDialogDescription>
         </AlertDialogHeader>
+
+        <Separator />
+
+        <div className="space-y-2 text-center">
+            <p className="font-semibold">Subscribe for 10% OFF</p>
+            <p className="text-sm text-muted-foreground">
+                As a new visitor, subscribe to our newsletter and get 10% OFF your first service order.
+            </p>
+        </div>
         <div className="space-y-4">
             <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
