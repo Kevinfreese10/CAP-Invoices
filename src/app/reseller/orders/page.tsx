@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -340,36 +341,14 @@ export default function ResellerOrdersPage() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
                           <DropdownMenuItem asChild>
-                            <Link href={`/reseller/orders/${order.id}`}>Review Order</Link>
+                            <Link href={`/reseller/orders/${order.id}`}>View/Add Notes</Link>
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuSub>
-                            <DropdownMenuSubTrigger disabled={order.isOutsourced}>Change Status</DropdownMenuSubTrigger>
-                            <DropdownMenuSubContent>
-                                {orderStatuses.map(status => (
-                                    <DropdownMenuItem 
-                                        key={status} 
-                                        onClick={() => handleUpdateStatus(order.id, status)}
-                                        disabled={order.status === status}
-                                    >
-                                        Mark as {status}
-                                    </DropdownMenuItem>
-                                ))}
-                            </DropdownMenuSubContent>
-                          </DropdownMenuSub>
                            <AlertDialogTrigger asChild>
                              <DropdownMenuItem disabled={order.isOutsourced}>
                                Outsource to My Accountant
                              </DropdownMenuItem>
                            </AlertDialogTrigger>
-                           <DropdownMenuSeparator />
-                           <DropdownMenuItem
-                            onClick={() => handleUpdateStatus(order.id, 'Cancelled')}
-                            className="text-destructive"
-                            disabled={order.status === 'Cancelled' || order.isOutsourced}
-                          >
-                            Cancel Order
-                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                       <AlertDialogContent>

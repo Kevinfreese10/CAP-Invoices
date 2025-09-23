@@ -4,29 +4,28 @@
 
 import { useState, useEffect } from 'react';
 import { notFound, useParams } from 'next/navigation';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service, User } from '@/lib/types';
+import { Order, Service, User, OrderNote } from '@/lib/types';
 import { services } from '@/lib/data';
-import { users } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, User as UserIcon, Mail, Phone } from 'lucide-react';
+import { ArrowLeft, Loader2, User as UserIcon, Mail, Phone, Send, MessageSquare } from 'lucide-react';
 import { format } from 'date-fns';
-import { useAuth } from '@/contexts/AuthContext';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
+import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/hooks/use-toast';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { users as allUsers } from '@/lib/data';
 
 const db = getFirestore(firebaseApp);
-
-type OrderItemWithService = {
-  id: string;
-  title: string;
-  price: number;
-  quantity: number;
-  service: Service;
-};
 
 const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -37,15 +36,24 @@ const formatPrice = (price: number) => {
     }).format(price);
 };
 
+const noteFormSchema = z.object({
+  noteText: z.string().min(3, "Note must be at least 3 characters."),
+});
+
 export default function ResellerOrderDetailsPage() {
   const [order, setOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const params = useParams();
   const id = params.id as string;
   const { user: currentUser } = useAuth();
+  const { toast } = useToast();
 
-  useEffect(() => {
-    const fetchOrder = async () => {
+  const noteForm = useForm<z.infer<typeof noteFormSchema>>({
+    resolver: zodResolver(noteFormSchema),
+    defaultValues: { noteText: "" },
+  });
+
+  const fetchOrder = async () => {
       if (!id || !currentUser) return;
       setIsLoading(true);
       try {
@@ -54,7 +62,6 @@ export default function ResellerOrderDetailsPage() {
         if (docSnap.exists()) {
           const data = docSnap.data();
           
-          // Security check: ensure the fetched order belongs to the reseller
           if (data.resellerId !== currentUser.id) {
              notFound();
              return;
@@ -64,6 +71,7 @@ export default function ResellerOrderDetailsPage() {
             ...data,
             id: docSnap.id,
             date: data.date.toDate(),
+            notes: (data.notes || []).map((note: any) => ({...note, date: note.date.toDate()})),
           } as Order;
           setOrder(fetchedOrder);
 
@@ -78,8 +86,38 @@ export default function ResellerOrderDetailsPage() {
       }
     };
 
+  useEffect(() => {
     fetchOrder();
   }, [id, currentUser]);
+  
+  const onNoteSubmit = async (values: z.infer<typeof noteFormSchema>) => {
+    if (!currentUser || !order) return;
+
+    const newNote: OrderNote = {
+      text: values.noteText,
+      authorId: currentUser.id,
+      date: Timestamp.now(),
+      type: 'note',
+    };
+
+    try {
+      const orderRef = doc(db, 'orders', order.id);
+      await updateDoc(orderRef, {
+        notes: arrayUnion(newNote),
+      });
+
+      toast({ title: "Note Added", description: "Your note has been saved." });
+      noteForm.reset();
+      await fetchOrder(); // Re-fetch to display the new note
+    } catch (error) {
+      console.error("Error adding note:", error);
+      toast({ title: "Error", description: "Failed to add note.", variant: "destructive" });
+    }
+  };
+  
+   const getAuthor = (authorId: string): User | undefined => {
+    return allUsers.find(u => u.id === authorId);
+  }
 
    const getStatusVariant = (status: Order['status']) => {
     switch (status) {
@@ -91,6 +129,8 @@ export default function ResellerOrderDetailsPage() {
         return 'warning';
       case 'Cancelled':
         return 'destructive';
+      case 'Outsourced':
+        return 'info';
       default:
         return 'secondary';
     }
@@ -136,15 +176,67 @@ export default function ResellerOrderDetailsPage() {
                                 <p className="font-semibold">{item.title}</p>
                                 <p className="text-sm text-muted-foreground">Quantity: {item.quantity}</p>
                             </div>
-                            <p>{formatPrice(item.price)}</p>
+                            <p>{formatPrice(item.clientPrice || 0)}</p>
                             </div>
                         ))}
                         </div>
                         <Separator className="my-4" />
                         <div className="flex justify-between font-bold text-lg">
-                        <span>Total Outsourcing Cost</span>
-                        <span>{formatPrice(order.total)}</span>
+                        <span>Total Selling Price</span>
+                        <span>{formatPrice(order.clientTotal || 0)}</span>
                         </div>
+                    </CardContent>
+                </Card>
+
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Order Notes</CardTitle>
+                        <CardDescription>Internal notes for this order.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                         <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+                            {order.notes && order.notes.length > 0 ? (
+                                order.notes.slice().reverse().map((note, index) => {
+                                    const author = getAuthor(note.authorId);
+                                    return (
+                                        <div key={index} className="flex items-start gap-3">
+                                            <Avatar className="h-8 w-8 border">
+                                                <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${author?.email}`} />
+                                                <AvatarFallback>{author?.name.charAt(0)}</AvatarFallback>
+                                            </Avatar>
+                                            <div className="bg-muted p-3 rounded-lg w-full">
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <p className="text-xs font-semibold">{author?.name}</p>
+                                                    <p className="text-xs text-muted-foreground">{format(new Date(note.date), 'dd MMM yyyy, HH:mm')}</p>
+                                                </div>
+                                                <p className="text-sm">{note.text}</p>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            ) : (
+                                <p className="text-xs text-muted-foreground text-center py-4">No notes for this order yet.</p>
+                            )}
+                        </div>
+                         <Form {...noteForm}>
+                          <form onSubmit={noteForm.handleSubmit(onNoteSubmit)} className="flex items-start gap-2 pt-4">
+                            <FormField
+                              control={noteForm.control}
+                              name="noteText"
+                              render={({ field }) => (
+                                <FormItem className="flex-grow">
+                                  <FormControl>
+                                    <Textarea placeholder="Add a new note..." {...field} rows={2} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <Button type="submit" size="icon" className="flex-shrink-0 mt-1">
+                              <Send className="h-4 w-4" />
+                            </Button>
+                          </form>
+                        </Form>
                     </CardContent>
                 </Card>
             </div>
