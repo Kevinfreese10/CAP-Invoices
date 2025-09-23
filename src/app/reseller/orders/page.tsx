@@ -130,7 +130,7 @@ export default function ResellerOrdersPage() {
                 quantity: item.quantity,
             })),
             total: orderToOutsource.total,
-            status: 'Processing', // The new order for the admin is 'Processing'
+            status: 'Pending Payment', // The new order for the admin is 'Pending Payment'
             resellerId: user.id, // Link back to the reseller
             originalOrderId: orderToOutsource.id, // Link to the original order
         };
