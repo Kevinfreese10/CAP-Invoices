@@ -1,22 +1,21 @@
+
 'use client';
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useBlog } from '@/contexts/BlogContext';
+import { blogPosts } from '@/lib/data'; // Direct import
 import { useEffect, useState } from 'react';
 import { BlogPost } from '@/lib/types';
 
 export default function BlogPostPage({ params }: { params: { slug: string } }) {
-  const { blogPosts } = useBlog();
   const [post, setPost] = useState<BlogPost | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const slug = params.slug;
-    const foundPost = blogPosts.find(p => p.slug === slug);
+    const foundPost = blogPosts.find(p => p.slug === params.slug);
     setPost(foundPost);
     setIsLoading(false);
-  }, [blogPosts, params.slug]);
+  }, [params.slug]);
 
   if (isLoading) {
     // You can add a skeleton loader here if you want
