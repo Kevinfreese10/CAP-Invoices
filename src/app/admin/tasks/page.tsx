@@ -182,6 +182,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
                             <div className="space-y-4 max-h-40 overflow-y-auto pr-2">
                                 {task.comments && task.comments.length > 0 ? task.comments.slice().reverse().map((comment, index) => {
                                     const author = getAuthor(comment.authorId);
+                                    const date = comment.date?.toDate ? comment.date.toDate() : new Date(comment.date);
                                     return (
                                     <div key={index} className="flex items-start gap-3">
                                          <Avatar className="h-8 w-8 border">
@@ -191,7 +192,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
                                         <div className="bg-muted p-3 rounded-lg w-full">
                                             <div className="flex justify-between items-center mb-1">
                                                 <p className="text-xs font-semibold">{author?.name}</p>
-                                                <p className="text-xs text-muted-foreground">{format(comment.date.toDate(), 'dd MMM yyyy, HH:mm')}</p>
+                                                <p className="text-xs text-muted-foreground">{format(date, 'dd MMM yyyy, HH:mm')}</p>
                                             </div>
                                             <p className="text-sm">{comment.text}</p>
                                         </div>
@@ -359,27 +360,25 @@ export default function AdminTasksPage() {
   
   const handleCommentSubmit = async (taskId: string, commentText: string) => {
       if (!user) return;
-      const newComment: Omit<TaskComment, 'date'> & { date: Date } = {
+      const commentTimestamp = Timestamp.now();
+      const newComment: TaskComment = {
           text: commentText,
-          date: new Date(),
+          date: commentTimestamp,
           authorId: user.id,
       };
 
       try {
           const taskRef = doc(db, 'tasks', taskId);
           await updateDoc(taskRef, {
-              comments: arrayUnion({
-                ...newComment,
-                date: Timestamp.fromDate(newComment.date),
-              })
+              comments: arrayUnion(newComment)
           });
           if (selectedTask) {
-              const updatedComments = [...(selectedTask.comments || []), { ...newComment, date: newComment.date as any }];
+              const updatedComments = [...(selectedTask.comments || []), newComment];
               setSelectedTask({ ...selectedTask, comments: updatedComments });
           }
            setTasks(prevTasks => prevTasks.map(t => {
                 if (t.id === taskId) {
-                    return {...t, comments: [...(t.comments || []), {...newComment, date: newComment.date as any}]};
+                    return {...t, comments: [...(t.comments || []), newComment]};
                 }
                 return t;
             }));
