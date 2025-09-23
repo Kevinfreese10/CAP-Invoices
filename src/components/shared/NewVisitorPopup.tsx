@@ -46,9 +46,11 @@ export default function NewVisitorPopup() {
     <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle className="text-2xl">Welcome to My Accountant!</AlertDialogTitle>
+          <AlertDialogTitle className="text-2xl">Welcome to My Accountant</AlertDialogTitle>
            <AlertDialogDescription>
-            Did you know that My Accountant is the preferred financial management partner for Carte Blanche? Carte Blanche is South Africa’s most respected investigative journalism programme, trusted for over 30 years by millions of viewers.
+            Did you know that My Accountant is the preferred financial management partner for Carte Blanche?
+            <br/><br/>
+            Carte Blanche is South Africa’s most respected investigative journalism programme, trusted for over 30 years by millions of viewers. Their reputation is built on credibility, professionalism, and integrity — values that align perfectly with how we do business.
           </AlertDialogDescription>
         </AlertDialogHeader>
 
