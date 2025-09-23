@@ -237,7 +237,7 @@ export default function AdminOrdersPage() {
           const taskData = {
               title: `Process Order: ${orderToUpdate.id}`,
               description: `Fulfill the services for order ${orderToUpdate.id}. Services include: ${orderToUpdate.items.map(i => i.title).join(', ')}.`,
-              assignedTo: assignedStaffId,
+              assignedTo: [assignedStaffId],
               createdBy: user.id,
               dueDate: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)), // 7 days from now
               priority: 'Medium',
@@ -507,6 +507,7 @@ export default function AdminOrdersPage() {
     </div>
   );
 }
+
 
 
 
