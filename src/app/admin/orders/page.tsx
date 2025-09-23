@@ -211,7 +211,7 @@ export default function AdminOrdersPage() {
 
 
     // New Logic: Assign staff only when moving to "Processing"
-    if (newStatus === 'Processing' && !assignedStaffIds) {
+    if (newStatus === 'Processing' && !assignedStaffIds?.length) {
         const department = orderToUpdate.department as 'Accounting and Tax' | 'Administration' | undefined;
         if (department) {
             const newStaffAssignment = getNextStaffMember(department);
@@ -517,3 +517,4 @@ export default function AdminOrdersPage() {
     </div>
   );
 }
+
