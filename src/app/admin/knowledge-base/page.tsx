@@ -126,8 +126,8 @@ export default function AdminKnowledgeBasePage() {
     fetchQuestions();
   }, [toast]);
 
-  const handleAddToKnowledgeBase = (question: string) => {
-    setSelectedItem({ id: '', question, answer: '' });
+  const handleAddToKnowledgeBase = (question: UnansweredQuestion) => {
+    setSelectedItem({ id: question.id, question: question.question, answer: '' });
     setIsFormOpen(true);
   };
 
@@ -168,18 +168,22 @@ export default function AdminKnowledgeBasePage() {
     })
   };
 
-  const handleFormSubmit = (data: Omit<KBItem, 'id'>) => {
-    if (selectedItem && selectedItem.id) { // Editing existing KB item
+  const handleFormSubmit = (data: Omit<KBItem, 'id'> & { id?: string }) => {
+    const isEditingExistingKB = selectedItem && selectedItem.id && !questions.some(q => q.id === selectedItem.id);
+
+    if (isEditingExistingKB) {
+      // Logic for editing an item that is already in the knowledge base
       setItems(prev => prev.map(c => (c.id === selectedItem.id ? { ...c, ...data } : c)));
-       toast({ title: 'Item Updated', description: 'The knowledge base has been updated.' });
-    } else { // Adding new item (could be from scratch or from an unanswered question)
+      toast({ title: 'Item Updated', description: 'The knowledge base has been updated.' });
+    } else { 
+      // Logic for adding a new item, either from scratch or from an unanswered question
       setItems(prev => [...prev, { ...data, id: `kb-${Date.now()}` }]);
-       toast({ title: 'Item Added', description: 'The new information has been added to the knowledge base.'});
-       // If it was from an unanswered question, we should remove it from that list
-       const unanswered = questions.find(q => q.question === data.question);
-       if (unanswered) {
-           handleDeleteUnanswered(unanswered.id);
-       }
+      toast({ title: 'Item Added', description: 'The new information has been added to the knowledge base.'});
+      
+      // If it was from an unanswered question, we should remove it from that list
+      if (selectedItem && selectedItem.id) {
+           handleDeleteUnanswered(selectedItem.id);
+      }
     }
     setIsFormOpen(false);
     setSelectedItem(null);
@@ -193,9 +197,9 @@ export default function AdminKnowledgeBasePage() {
             </DialogTrigger>
             <DialogContent className="sm:max-w-xl">
                 <DialogHeader>
-                    <DialogTitle>{selectedItem?.id ? 'Edit Item' : 'Add to Knowledge Base'}</DialogTitle>
+                    <DialogTitle>{selectedItem?.answer ? 'Edit Item' : 'Add to Knowledge Base'}</DialogTitle>
                     <DialogDescription>
-                        {selectedItem?.id ? 'Update this piece of information for the AI.' : 'Add a new piece of information for the AI to learn.'}
+                        {selectedItem?.answer ? 'Update this piece of information for the AI.' : 'Add a new piece of information for the AI to learn.'}
                     </DialogDescription>
                 </DialogHeader>
                 <KnowledgeBaseForm 
@@ -239,7 +243,7 @@ export default function AdminKnowledgeBasePage() {
                     </TableHeader>
                     <TableBody>
                     {questions.map((q) => (
-                        <TableRow key={q.id} className="cursor-pointer hover:bg-muted/50" onClick={() => handleAddToKnowledgeBase(q.question)}>
+                        <TableRow key={q.id} className="cursor-pointer hover:bg-muted/50" onClick={() => handleAddToKnowledgeBase(q)}>
                             <TableCell className="font-medium max-w-2xl">{q.question}</TableCell>
                             <TableCell>{formatDistanceToNow(q.timestamp, { addSuffix: true })}</TableCell>
                             <TableCell className="text-right">
