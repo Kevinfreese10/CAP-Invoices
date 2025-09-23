@@ -31,6 +31,7 @@ import { Separator } from '@/components/ui/separator';
 import ProductivityStats from '@/components/dashboard/ProductivityStats';
 import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, where, orderBy, arrayUnion, Timestamp, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const db = getFirestore(firebaseApp);
 
@@ -64,7 +65,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
             id: task?.id || '',
             title: task?.title || '',
             description: task?.description || '',
-            assignedTo: task?.assignedTo || '',
+            assignedTo: task?.assignedTo?.[0] || '', // Pre-select first user if editing
             dueDate: task?.dueDate ? new Date(task.dueDate.toDate()) : new Date(),
             priority: task?.priority || 'Medium',
             recurrence: task?.recurrence || 'None',
@@ -121,7 +122,10 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
                                         </SelectGroup>
                                     </>
                                     )}
-                                    {!!task?.id && allStaff.map(staff => <SelectItem key={staff.id} value={staff.id}>{staff.name}</SelectItem>)}
+                                    {!!task?.id && task.assignedTo.map(userId => {
+                                        const user = getAuthor(userId);
+                                        return user ? <SelectItem key={user.id} value={user.id}>{user.name}</SelectItem> : null;
+                                    })}
                                 </SelectContent>
                             </Select>
                             <FormMessage />
@@ -144,7 +148,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
                                     )}
                                     >
                                     {field.value ? (
-                                        format(field.value, "PPP")
+                                        format(field.value, "dd MMM yyyy")
                                     ) : (
                                         <span>Pick a date</span>
                                     )}
@@ -278,7 +282,6 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                     </TableHeader>
                     <TableBody>
                     {tasks.map(task => {
-                        const assignee = getAssignee(task.assignedTo);
                         const lastComment = task.comments && task.comments.length > 0 ? task.comments[task.comments.length - 1] : null;
                         const commentAuthor = lastComment ? getAssignee(lastComment.authorId) : null;
                         return (
@@ -300,15 +303,32 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                             )}
                         </TableCell>
                         <TableCell className="align-top">
-                            {assignee ? (
-                                <div className="flex items-center gap-2">
-                                    <Avatar className="h-6 w-6">
-                                        <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${assignee.email}`} alt={assignee.name} />
-                                        <AvatarFallback>{assignee.name.charAt(0)}</AvatarFallback>
-                                    </Avatar>
-                                    <span className="text-xs">{assignee.name}</span>
-                                </div>
-                            ) : <span className="text-muted-foreground text-xs">N/A</span>}
+                            <div className="flex items-center -space-x-2">
+                                {task.assignedTo.slice(0, 3).map(userId => {
+                                    const assignee = getAssignee(userId);
+                                    if (!assignee) return null;
+                                    return (
+                                         <TooltipProvider key={userId}>
+                                            <Tooltip>
+                                                <TooltipTrigger>
+                                                    <Avatar className="h-6 w-6 border-2 border-background">
+                                                        <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${assignee.email}`} alt={assignee.name} />
+                                                        <AvatarFallback>{assignee.name.charAt(0)}</AvatarFallback>
+                                                    </Avatar>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>{assignee.name}</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    );
+                                })}
+                                 {task.assignedTo.length > 3 && (
+                                    <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-xs font-bold border-2 border-background">
+                                        +{task.assignedTo.length - 3}
+                                    </div>
+                                )}
+                            </div>
                         </TableCell>
                         <TableCell className="align-top">{format(task.dueDate.toDate(), 'dd MMM yyyy')}</TableCell>
                         <TableCell className="align-top">
@@ -340,7 +360,7 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                                 <DropdownMenuContent align="end">
                                     <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                     <DropdownMenuItem onClick={() => onEdit(task)}>
-                                        Edit
+                                        Edit / View Comments
                                     </DropdownMenuItem>
                                     <DropdownMenuSub>
                                         <DropdownMenuSubTrigger>Change Status</DropdownMenuSubTrigger>
@@ -416,12 +436,12 @@ export default function AdminDashboardPage() {
 
     const myTasks = useMemo(() => {
         if (!user) return [];
-        return tasks.filter(task => task.assignedTo === user.id).sort((a,b) => a.dueDate.toMillis() - b.dueDate.toMillis());
+        return tasks.filter(task => task.assignedTo.includes(user.id)).sort((a,b) => a.dueDate.toMillis() - b.dueDate.toMillis());
     }, [tasks, user]);
 
     const delegatedTasks = useMemo(() => {
         if (!user) return [];
-        return tasks.filter(task => task.createdBy === user.id && task.assignedTo !== user.id).sort((a,b) => a.dueDate.toMillis() - b.dueDate.toMillis());
+        return tasks.filter(task => task.createdBy === user.id && !task.assignedTo.includes(user.id)).sort((a,b) => a.dueDate.toMillis() - b.dueDate.toMillis());
     }, [tasks, user]);
 
     const handleAdd = () => {
@@ -464,17 +484,17 @@ export default function AdminDashboardPage() {
         }
     };
 
-    const handleFormSubmit = async (data: Omit<Task, 'id' | 'status' | 'createdBy' | 'comments'> & { assignedTo: string }) => {
+    const handleFormSubmit = async (data: Omit<Task, 'id' | 'status' | 'createdBy' | 'comments' | 'assignedTo'> & { assignedTo: string }) => {
         if (!user) return;
         setIsLoading(true);
 
+        const { assignedTo: assignmentKey, ...restOfData } = data;
+
         const taskData = {
-            ...data,
+            ...restOfData,
             dueDate: Timestamp.fromDate(data.dueDate),
         };
         
-        delete (taskData as any).assignedTo;
-
         try {
             if (selectedTask?.id) { // This is an update
                 const taskRef = doc(db, 'tasks', selectedTask.id);
@@ -482,41 +502,34 @@ export default function AdminDashboardPage() {
                 await updateDoc(taskRef, { ...taskData });
                 toast({ title: 'Task Updated', description: 'The task details have been saved.' });
             } else { // This is a new task or tasks
-                const assignmentKey = data.assignedTo;
-                let targetStaff: User[] = [];
+                let targetStaffIds: string[] = [];
                 let successMessage = '';
 
                 if (assignmentKey === 'all') {
-                    targetStaff = allStaff;
-                    successMessage = `A new task has been assigned to all ${targetStaff.length} staff members.`;
-                } else if (assignmentKey === 'dept-accounting-and-tax') {
-                    targetStaff = staffByDept['Accounting and Tax'];
-                    successMessage = `Task assigned to all ${targetStaff.length} members of the Accounting and Tax department.`;
-                } else if (assignmentKey === 'dept-administration') {
-                    targetStaff = staffByDept['Administration'];
-                     successMessage = `Task assigned to all ${targetStaff.length} members of the Administration department.`;
+                    targetStaffIds = allStaff.map(s => s.id);
+                    successMessage = `A new task has been assigned to all ${targetStaffIds.length} staff members.`;
+                } else if (assignmentKey.startsWith('dept-')) {
+                    const dept = assignmentKey.replace('dept-', '') as keyof typeof staffByDept;
+                    targetStaffIds = staffByDept[dept].map(s => s.id);
+                    successMessage = `Task assigned to all ${targetStaffIds.length} members of the ${dept} department.`;
                 } else {
                     const singleStaff = allStaff.find(s => s.id === assignmentKey);
                     if (singleStaff) {
-                        targetStaff.push(singleStaff);
+                        targetStaffIds.push(singleStaff.id);
                     }
                     successMessage = 'The new task has been added successfully.';
                 }
                 
-                if (targetStaff.length > 0) {
-                    const batch = writeBatch(db);
-                    targetStaff.forEach(staffMember => {
-                        const taskRef = doc(collection(db, 'tasks'));
-                        batch.set(taskRef, {
-                            ...taskData,
-                            assignedTo: staffMember.id,
-                            status: 'To-Do',
-                            createdBy: user.id,
-                            comments: [],
-                        });
-                    });
-                    await batch.commit();
-                    toast({ title: 'Tasks Created', description: successMessage });
+                if (targetStaffIds.length > 0) {
+                     const newTask: Omit<Task, 'id'> = {
+                        ...taskData,
+                        assignedTo: targetStaffIds,
+                        status: 'To-Do',
+                        createdBy: user.id,
+                        comments: [],
+                     };
+                     await addDoc(collection(db, 'tasks'), newTask);
+                    toast({ title: 'Task Created', description: successMessage });
                 } else {
                      toast({ title: 'Assignment Error', description: 'No staff members found for the selected assignment.', variant: 'destructive' });
                 }
@@ -545,10 +558,11 @@ export default function AdminDashboardPage() {
             await updateDoc(taskRef, {
                 comments: arrayUnion(newComment)
             });
-            fetchTasks();
+            await fetchTasks();
+            
             // Manually update the selected task in the dialog to show the new comment
             if (selectedTask) {
-                 const updatedComments = [...(selectedTask.comments || []), { ...newComment, date: Timestamp.now() }];
+                 const updatedComments = [...(selectedTask.comments || []), { ...newComment, date: new Date() }];
                  setSelectedTask({ ...selectedTask, comments: updatedComments as any });
             }
             toast({ title: 'Comment Posted', description: 'Your comment has been added.' });

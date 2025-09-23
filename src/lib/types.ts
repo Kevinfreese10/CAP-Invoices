@@ -129,7 +129,7 @@ export type Task = {
   id: string;
   title: string;
   description: string;
-  assignedTo: string;
+  assignedTo: string[];
   createdBy: string;
   dueDate: any;
   priority: 'High' | 'Medium' | 'Low';

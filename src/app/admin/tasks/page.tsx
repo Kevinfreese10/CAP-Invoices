@@ -30,7 +30,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, arrayUnion, Timestamp, writeBatch } from 'firebase/firestore';
-import { firebaseApp } from '@/lib/firebase';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const db = getFirestore(firebaseApp);
 
@@ -64,7 +64,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
             id: task?.id || '',
             title: task?.title || '',
             description: task?.description || '',
-            assignedTo: task?.assignedTo || '',
+            assignedTo: task?.assignedTo?.[0] || '',
             dueDate: task?.dueDate ? new Date(task.dueDate.toDate()) : new Date(),
             priority: task?.priority || 'Medium',
             recurrence: task?.recurrence || 'None',
@@ -121,7 +121,10 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
                                         </SelectGroup>
                                     </>
                                     )}
-                                    {!!task?.id && allStaff.map(staff => <SelectItem key={staff.id} value={staff.id}>{staff.name}</SelectItem>)}
+                                    {!!task?.id && task.assignedTo.map(userId => {
+                                        const user = getAuthor(userId);
+                                        return user ? <SelectItem key={user.id} value={user.id}>{user.name}</SelectItem> : null;
+                                    })}
                                 </SelectContent>
                             </Select>
                             <FormMessage />
@@ -144,7 +147,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
                                     )}
                                     >
                                     {field.value ? (
-                                        format(field.value, "PPP")
+                                        format(field.value, "dd MMM yyyy")
                                     ) : (
                                         <span>Pick a date</span>
                                     )}
@@ -247,7 +250,7 @@ export default function AdminTasksPage() {
 
   const filteredTasks = useMemo(() => {
     if (user?.role === 'staff') {
-        return tasks.filter(task => task.assignedTo === user.id);
+        return tasks.filter(task => task.assignedTo.includes(user.id));
     }
     return tasks;
   }, [tasks, user]);
@@ -293,16 +296,16 @@ export default function AdminTasksPage() {
     }
   };
 
-  const handleFormSubmit = async (data: Omit<Task, 'id' | 'status' | 'createdBy' | 'comments'> & { assignedTo: string }) => {
+  const handleFormSubmit = async (data: Omit<Task, 'id' | 'status' | 'createdBy' | 'comments' | 'assignedTo'> & { assignedTo: string }) => {
     if (!user) return;
     setIsLoading(true);
+    
+    const { assignedTo: assignmentKey, ...restOfData } = data;
 
     const taskData = {
-        ...data,
+        ...restOfData,
         dueDate: Timestamp.fromDate(data.dueDate as Date),
     };
-    
-    delete (taskData as any).assignedTo;
 
     try {
         if (selectedTask?.id) {
@@ -310,41 +313,34 @@ export default function AdminTasksPage() {
             await updateDoc(taskRef, { ...taskData });
             toast({ title: 'Task Updated', description: 'The task details have been saved.' });
         } else {
-             const assignmentKey = data.assignedTo;
-            let targetStaff: User[] = [];
+             let targetStaffIds: string[] = [];
             let successMessage = '';
 
             if (assignmentKey === 'all') {
-                targetStaff = allStaff;
-                successMessage = `A new task has been assigned to all ${targetStaff.length} staff members.`;
-            } else if (assignmentKey === 'dept-accounting-and-tax') {
-                targetStaff = staffByDept['Accounting and Tax'];
-                successMessage = `Task assigned to all ${targetStaff.length} members of the Accounting and Tax department.`;
-            } else if (assignmentKey === 'dept-administration') {
-                targetStaff = staffByDept['Administration'];
-                successMessage = `Task assigned to all ${targetStaff.length} members of the Administration department.`;
+                targetStaffIds = allStaff.map(s => s.id);
+                successMessage = `A new task has been assigned to all ${targetStaffIds.length} staff members.`;
+            } else if (assignmentKey.startsWith('dept-')) {
+                const dept = assignmentKey.replace('dept-', '') as keyof typeof staffByDept;
+                targetStaffIds = staffByDept[dept].map(s => s.id);
+                successMessage = `Task assigned to all ${targetStaffIds.length} members of the ${dept} department.`;
             } else {
                 const singleStaff = allStaff.find(s => s.id === assignmentKey);
                 if (singleStaff) {
-                    targetStaff.push(singleStaff);
+                    targetStaffIds.push(singleStaff.id);
                 }
                 successMessage = 'The new task has been added successfully.';
             }
 
-            if (targetStaff.length > 0) {
-                const batch = writeBatch(db);
-                targetStaff.forEach(staffMember => {
-                    const taskRef = doc(collection(db, 'tasks'));
-                    batch.set(taskRef, {
-                        ...taskData,
-                        assignedTo: staffMember.id,
-                        status: 'To-Do',
-                        createdBy: user.id,
-                        comments: [],
-                    });
-                });
-                await batch.commit();
-                toast({ title: 'Tasks Created', description: successMessage });
+            if (targetStaffIds.length > 0) {
+                const newTask: Omit<Task, 'id'> = {
+                    ...taskData,
+                    assignedTo: targetStaffIds,
+                    status: 'To-Do',
+                    createdBy: user.id,
+                    comments: [],
+                };
+                await addDoc(collection(db, 'tasks'), newTask);
+                toast({ title: 'Task Created', description: successMessage });
             } else {
                     toast({ title: 'Assignment Error', description: 'No staff members found for the selected assignment.', variant: 'destructive' });
             }
@@ -373,9 +369,9 @@ export default function AdminTasksPage() {
           await updateDoc(taskRef, {
               comments: arrayUnion(newComment)
           });
-          fetchTasks();
+          await fetchTasks();
           if (selectedTask) {
-              const updatedComments = [...(selectedTask.comments || []), { ...newComment, date: Timestamp.now() }];
+              const updatedComments = [...(selectedTask.comments || []), { ...newComment, date: new Date() }];
               setSelectedTask({ ...selectedTask, comments: updatedComments as any });
           }
           toast({ title: 'Comment Posted', description: 'Your comment has been added.' });
@@ -468,46 +464,73 @@ export default function AdminTasksPage() {
                 </TableRow>
               ) : (
                 filteredTasks.map(task => {
-                    const assignee = getAssignee(task.assignedTo);
+                    const lastComment = task.comments && task.comments.length > 0 ? task.comments[task.comments.length - 1] : null;
+                    const commentAuthor = lastComment ? getAssignee(lastComment.authorId) : null;
                     return (
                     <TableRow key={task.id}>
-                    <TableCell className="font-medium max-w-xs">
+                    <TableCell className="font-medium max-w-xs align-top">
                         <div className="flex items-center gap-2">
                             {task.recurrence && task.recurrence !== 'None' && <Repeat className="h-4 w-4 text-muted-foreground" title={`Repeats ${task.recurrence}`} />}
                             <p className="font-semibold truncate">{task.title}</p>
                         </div>
                         <p className="text-xs text-muted-foreground truncate">{task.description}</p>
-                    </TableCell>
-                    <TableCell>
-                        {assignee ? (
-                            <div className="flex items-center gap-2">
-                                <Avatar className="h-6 w-6">
-                                    <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${assignee.email}`} alt={assignee.name} />
-                                    <AvatarFallback>{assignee.name.charAt(0)}</AvatarFallback>
-                                </Avatar>
-                                <span className="text-xs">{assignee.name}</span>
+                        {lastComment && commentAuthor && (
+                            <div className="mt-2 flex items-start gap-2 border-l-2 border-primary/50 pl-2">
+                                <MessageSquare className="h-3 w-3 text-muted-foreground flex-shrink-0 mt-0.5" />
+                                <div className="text-xs">
+                                    <span className="font-semibold">{commentAuthor.name}:</span>
+                                    <span className="text-muted-foreground ml-1">{`"${lastComment.text}"`}</span>
+                                </div>
                             </div>
-                        ) : <span className="text-muted-foreground text-xs">N/A</span>}
+                        )}
                     </TableCell>
-                    <TableCell>{format(new Date(task.dueDate.toDate()), 'dd MMM yyyy')}</TableCell>
-                    <TableCell>
+                    <TableCell className="align-top">
+                         <div className="flex items-center -space-x-2">
+                            {task.assignedTo.slice(0, 3).map(userId => {
+                                const assignee = getAssignee(userId);
+                                if (!assignee) return null;
+                                return (
+                                        <TooltipProvider key={userId}>
+                                        <Tooltip>
+                                            <TooltipTrigger>
+                                                <Avatar className="h-6 w-6 border-2 border-background">
+                                                    <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${assignee.email}`} alt={assignee.name} />
+                                                    <AvatarFallback>{assignee.name.charAt(0)}</AvatarFallback>
+                                                </Avatar>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>{assignee.name}</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                );
+                            })}
+                                {task.assignedTo.length > 3 && (
+                                <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-xs font-bold border-2 border-background">
+                                    +{task.assignedTo.length - 3}
+                                </div>
+                            )}
+                        </div>
+                    </TableCell>
+                    <TableCell className="align-top">{format(new Date(task.dueDate.toDate()), 'dd MMM yyyy')}</TableCell>
+                    <TableCell className="align-top">
                         <Badge variant={getPriorityVariant(task.priority)}>
                             {task.priority}
                         </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="align-top">
                         <Badge variant={getStatusVariant(task.status)}>
                             {task.status}
                         </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="align-top">
                         {task.orderId ? (
                             <Button variant="link" asChild className="p-0 h-auto text-xs">
                                 <Link href={`/admin/orders/${task.orderId}`}>{task.orderId}</Link>
                             </Button>
                         ) : <span className="text-muted-foreground text-xs">N/A</span>}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right align-top">
                         <AlertDialog>
                             <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -519,7 +542,7 @@ export default function AdminTasksPage() {
                             <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                 <DropdownMenuItem onClick={() => handleEdit(task)}>
-                                    Edit
+                                    Edit / View Comments
                                 </DropdownMenuItem>
                                 <DropdownMenuSub>
                                     <DropdownMenuSubTrigger>Change Status</DropdownMenuSubTrigger>
