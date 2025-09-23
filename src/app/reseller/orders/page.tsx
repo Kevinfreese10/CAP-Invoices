@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { MoreHorizontal, Loader2, PlusCircle, Banknote, Building, Clock } from 'lucide-react';
+import { MoreHorizontal, Loader2, PlusCircle, Banknote, Building, Clock, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -86,6 +86,7 @@ const formatPrice = (price: number) => {
 
 export default function ResellerOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [outsourcedOrders, setOutsourcedOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const { user } = useAuth();
@@ -100,10 +101,11 @@ export default function ResellerOrdersPage() {
       setIsLoading(true);
       try {
         const ordersRef = collection(db, 'orders');
-        const q = query(ordersRef, where('resellerId', '==', user.id), orderBy('date', 'desc'));
-
-        const querySnapshot = await getDocs(q);
-        let allOrders = querySnapshot.docs.map(doc => {
+        
+        // Fetch client-facing orders (no originalOrderId)
+        const clientOrdersQuery = query(ordersRef, where('resellerId', '==', user.id), where('originalOrderId', '==', null), orderBy('date', 'desc'));
+        const clientOrdersSnapshot = await getDocs(clientOrdersQuery);
+        let clientOrders = clientOrdersSnapshot.docs.map(doc => {
           const data = doc.data();
           return {
             ...data,
@@ -111,8 +113,21 @@ export default function ResellerOrdersPage() {
             date: data.date.toDate(),
           } as Order;
         });
-        
-        setOrders(allOrders.filter(order => order.status !== 'Cancelled'));
+        setOrders(clientOrders.filter(order => order.status !== 'Cancelled'));
+
+        // Fetch outsourced orders (with originalOrderId)
+        const outsourcedOrdersQuery = query(ordersRef, where('resellerId', '==', user.id), where('originalOrderId', '!=', null), orderBy('date', 'desc'));
+        const outsourcedOrdersSnapshot = await getDocs(outsourcedOrdersQuery);
+        let fetchedOutsourcedOrders = outsourcedOrdersSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                ...data,
+                id: doc.id,
+                date: data.date.toDate(),
+            } as Order;
+        });
+        setOutsourcedOrders(fetchedOutsourcedOrders);
+
       } catch (error) {
         console.error("Error fetching orders: ", error);
         toast({
@@ -175,13 +190,14 @@ export default function ResellerOrdersPage() {
         // Update the original order to mark it as outsourced
         const originalOrderRef = doc(db, 'orders', orderToOutsource.id);
         await updateDoc(originalOrderRef, {
-            isOutsourced: true
+            isOutsourced: true,
+            status: 'Outsourced'
         });
 
         // Update local state to reflect the change immediately
         setOrders(prevOrders =>
             prevOrders.map(order =>
-                order.id === orderToOutsource.id ? { ...order, isOutsourced: true } : order
+                order.id === orderToOutsource.id ? { ...order, isOutsourced: true, status: 'Outsourced' } : order
             )
         );
         
@@ -267,6 +283,65 @@ export default function ResellerOrdersPage() {
           </Link>
         </Button>
       </div>
+
+       <Card>
+        <CardHeader>
+          <CardTitle>My Outsourced Orders</CardTitle>
+          <CardDescription>
+            These are the orders you have sent to My Accountant for fulfillment. Pay for them here to start the process.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+             <div className="flex justify-center items-center h-40">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+             </div>
+          ) : outsourcedOrders.length === 0 ? (
+             <p className="text-center text-muted-foreground py-4">You have no outsourced orders.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Order ID</TableHead>
+                  <TableHead>Original Order</TableHead>
+                  <TableHead>Outsourced Date</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Amount Due</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {outsourcedOrders.map((order) => (
+                  <TableRow key={order.id}>
+                    <TableCell className="font-medium">{order.id}</TableCell>
+                    <TableCell>
+                      <Button variant="link" asChild className="p-0 h-auto">
+                        <Link href={`/reseller/orders/${order.originalOrderId}`}>{order.originalOrderId}</Link>
+                      </Button>
+                    </TableCell>
+                    <TableCell>{format(new Date(order.date), 'dd MMM yyyy')}</TableCell>
+                    <TableCell>
+                      <Badge variant={getStatusVariant(order.status)}>
+                        {order.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">{formatPrice(order.total)}</TableCell>
+                    <TableCell className="text-right">
+                       <Button variant="ghost" size="icon" asChild>
+                            <Link href={`/reseller/outsourced-orders/${order.id}`}>
+                                <ArrowRight className="h-4 w-4" />
+                            </Link>
+                        </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+
       <Card>
         <CardHeader>
           <CardTitle>Your Client Orders</CardTitle>
@@ -458,3 +533,4 @@ export default function ResellerOrdersPage() {
     </>
   );
 }
+
