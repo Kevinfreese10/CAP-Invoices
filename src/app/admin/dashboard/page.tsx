@@ -31,12 +31,7 @@ import { Separator } from '@/components/ui/separator';
 import ProductivityStats from '@/components/dashboard/ProductivityStats';
 
 // Using the same mock data as the main tasks page for consistency
-const initialTasks: Task[] = [
-    { id: 'task-1', title: 'Follow up on ORD-001 documentation', description: 'Client needs to upload their ID copy.', assignedTo: '3', createdBy: '2', dueDate: subDays(new Date(), 0), status: 'In Progress', updates: [ { text: 'Emailed client for documents', date: new Date(subDays(new Date(), 1)), authorId: '2' }] },
-    { id: 'task-2', title: 'Prepare ORD-002 monthly reports', description: 'Generate and send the income statement and balance sheet.', assignedTo: '3', createdBy: '2', dueDate: subDays(new Date(), -3), status: 'To Do', updates: [] },
-    { id: 'task-3', title: 'Review new client onboarding', description: 'Check all new client details from last week.', assignedTo: '2', createdBy: '2', dueDate: subDays(new Date(), 0), status: 'Completed', updates: [] },
-    { id: 'task-4', title: 'Finalize Q2 financial statements', description: 'Final review before sending to the client.', assignedTo: '2', createdBy: '3', dueDate: subDays(new Date(), -5), status: 'In Progress', updates: [] },
-];
+const initialTasks: Task[] = [];
 
 const allStaff = users.filter(u => u.role === 'staff' || u.role === 'admin');
 const taskStatuses: Task['status'][] = ['To Do', 'In Progress', 'Completed'];

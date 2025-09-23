@@ -271,19 +271,4 @@ export const faqs: FAQ[] = [
 ];
 
 const allServices = [...services];
-export const orders: Order[] = [
-    {
-        id: 'ORD-001',
-        date: '2024-07-20',
-        items: [{ service: allServices[0], quantity: 1 }, { service: allServices[1], quantity: 1 }],
-        total: allServices[0].price + allServices[1].price,
-        status: 'Completed',
-    },
-    {
-        id: 'ORD-002',
-        date: '2024-07-22',
-        items: [{ service: allServices[2], quantity: 1 }],
-        total: allServices[2].price,
-        status: 'Processing',
-    }
-];
+export const orders: Order[] = [];
