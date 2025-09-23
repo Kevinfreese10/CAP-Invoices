@@ -62,8 +62,9 @@ function EmailClientDialog({ order, user, onEmailSent }: { order: Order, user: U
     const [isOpen, setIsOpen] = useState(false);
     const [isSending, setIsSending] = useState(false);
 
-    const emailTo = order.endCustomerEmail || order.customerEmail;
-    const nameTo = order.endCustomerName || order.customerName;
+    const isOutsourced = !!order.resellerId;
+    const emailTo = isOutsourced ? order.endCustomerEmail : order.customerEmail;
+    const nameTo = isOutsourced ? order.endCustomerName : order.customerName;
 
     const form = useForm<z.infer<typeof emailFormSchema>>({
         resolver: zodResolver(emailFormSchema),
@@ -74,6 +75,10 @@ function EmailClientDialog({ order, user, onEmailSent }: { order: Order, user: U
     });
 
     const onSubmit = async (values: z.infer<typeof emailFormSchema>) => {
+        if (!emailTo) {
+            toast({ title: "Recipient Error", description: "No recipient email address found for this order.", variant: "destructive" });
+            return;
+        }
         setIsSending(true);
         try {
             await sendEmail({
@@ -304,8 +309,15 @@ export default function AdminOrderDetailsPage() {
       let emailHtml = '';
       let subject = '';
       let message = '';
-      const emailTo = order.endCustomerEmail || order.customerEmail;
-      const orderForEmail = { ...order, customerName: order.endCustomerName || order.customerName, id: order.originalOrderId || order.id };
+      const isOutsourced = !!order.resellerId;
+      const emailTo = isOutsourced ? order.endCustomerEmail : order.customerEmail;
+      const customerName = isOutsourced ? order.endCustomerName : order.customerName;
+      const orderForEmail = { ...order, customerName, id: order.originalOrderId || order.id };
+
+      if (!emailTo) {
+          toast({ title: "Recipient Error", description: "No recipient email address found for this order.", variant: "destructive" });
+          return;
+      }
 
       if (type === 'docs') {
          const itemsWithServices = order.items.map(item => {
@@ -357,6 +369,11 @@ export default function AdminOrderDetailsPage() {
   if (!order) {
     return notFound();
   }
+  
+  const isOutsourced = !!order.resellerId;
+  const displayCustomerName = isOutsourced ? order.endCustomerName : order.customerName;
+  const displayCustomerEmail = isOutsourced ? order.endCustomerEmail : order.customerEmail;
+  const displayCustomer = isOutsourced ? null : customer;
 
   return (
     <div className="space-y-8">
@@ -401,17 +418,19 @@ export default function AdminOrderDetailsPage() {
                                 </div>
                             </div>
                             <div>
-                                <h3 className="font-semibold text-muted-foreground mb-2">{order.originalOrderId ? 'End Client Details' : 'Customer Details'}</h3>
+                                <h3 className="font-semibold text-muted-foreground mb-2">{isOutsourced ? 'End Client Details' : 'Customer Details'}</h3>
                                 <div className="space-y-3">
-                                    <p className="font-semibold text-lg">{order.endCustomerName || order.customerName}</p>
-                                    <div className="flex items-center gap-2 text-sm">
-                                        <Mail className="h-4 w-4 text-muted-foreground" />
-                                        <a href={`mailto:${order.endCustomerEmail || order.customerEmail}`} className="text-primary hover:underline">{order.endCustomerEmail || order.customerEmail}</a>
-                                    </div>
-                                    {customer && (
+                                    <p className="font-semibold text-lg">{displayCustomerName}</p>
+                                    {displayCustomerEmail && (
+                                        <div className="flex items-center gap-2 text-sm">
+                                            <Mail className="h-4 w-4 text-muted-foreground" />
+                                            <a href={`mailto:${displayCustomerEmail}`} className="text-primary hover:underline">{displayCustomerEmail}</a>
+                                        </div>
+                                    )}
+                                    {displayCustomer && (
                                         <div className="flex items-center gap-2 text-sm">
                                             <Phone className="h-4 w-4 text-muted-foreground" />
-                                            <span>{customer.contactNumber || 'N/A'}</span>
+                                            <span>{displayCustomer.contactNumber || 'N/A'}</span>
                                         </div>
                                     )}
                                 </div>
@@ -529,5 +548,3 @@ export default function AdminOrderDetailsPage() {
     </div>
   );
 }
-
-    
