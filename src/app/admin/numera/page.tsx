@@ -185,11 +185,9 @@ function TrialBalanceCard({ activeClient }: { activeClient: User }) {
     const handleGenerate = (values: z.infer<typeof trialBalanceFormSchema>) => {
         console.log("Generating Trial Balance for", values);
         
-        // Mock data generation
-        const mockData = chartOfAccounts.map(account => {
+        let mockData = chartOfAccounts.map(account => {
             let debit = 0;
             let credit = 0;
-            // Simple logic to assign some mock balances
             if (account.accountNumber.startsWith('1')) { // Sales
                 credit = Math.random() * 100000;
             } else if (account.accountNumber.startsWith('3') || account.accountNumber.startsWith('4')) { // Expenses
@@ -197,14 +195,25 @@ function TrialBalanceCard({ activeClient }: { activeClient: User }) {
             } else if (account.accountNumber.startsWith('8400')) { // Bank
                 debit = Math.random() * 50000;
             }
-            
-            // Randomly decide to make some non-zero to show filtering
             if (Math.random() > 0.7) {
                 return { accountNumber: account.accountNumber, description: account.description, debit, credit };
             }
-
             return { accountNumber: account.accountNumber, description: account.description, debit: 0, credit: 0 };
         });
+
+        // Balance the trial balance
+        const totalDebits = mockData.reduce((acc, item) => acc + item.debit, 0);
+        const totalCredits = mockData.reduce((acc, item) => acc + item.credit, 0);
+        const difference = totalDebits - totalCredits;
+
+        const suspenseAccountIndex = mockData.findIndex(acc => acc.accountNumber === '9990/000');
+        if (suspenseAccountIndex !== -1) {
+            if (difference > 0) {
+                mockData[suspenseAccountIndex].credit += difference;
+            } else {
+                mockData[suspenseAccountIndex].debit -= difference;
+            }
+        }
 
         const filteredData = values.showZeroItems ? mockData : mockData.filter(d => d.debit !== 0 || d.credit !== 0);
         setTrialBalanceData(filteredData);
@@ -661,3 +670,4 @@ export default function NumeraPage() {
     </div>
   );
 }
+
