@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -43,15 +44,15 @@ const vatCategories = ['A', 'B', 'C'] as const;
 const vatCategoryLabels = {
     A: {
         name: 'Category A (Even Months)',
-        description: 'Period: Jan–Feb, Mar–Apr, etc. Due: 25th of the month after the period ends (e.g., Jan–Feb is due 25 March).'
+        description: 'e.g., Jan–Feb, Mar–Apr'
     },
     B: {
         name: 'Category B (Odd Months)',
-        description: 'Period: Feb–Mar, Apr–May, etc. Due: 25th of the month after the period ends (e.g., Feb–Mar is due 25 April).'
+        description: 'e.g., Feb–Mar, Apr–May'
     },
     C: {
         name: 'Category C (Monthly)',
-        description: 'Period: Every calendar month. Due: 25th of the following month (e.g., March is due 25 April).'
+        description: 'e.g., January, February'
     },
 };
 
@@ -693,5 +694,7 @@ export default function AdminClientsPage() {
     </div>
   );
 }
+
+    
 
     
