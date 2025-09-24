@@ -1,3 +1,4 @@
+
 'use client';
 import { ChartOfAccount } from './types';
 
@@ -71,7 +72,7 @@ export let chartOfAccounts: ChartOfAccount[] = [
     { id: '7700/000', accountNumber: '7700/000', description: 'Inventory Control Account', section: 'Balance Sheet' },
     { id: '8000/000', accountNumber: '8000/000', description: 'Customer Control Account', section: 'Balance Sheet' },
     { id: '8200/000', accountNumber: '8200/000', description: 'Sundry Customers', section: 'Balance Sheet' },
-    { id: '8400/000', accountNumber: '8400/000', description: 'FNB', section: 'Balance Sheet' },
+    { id: 'cashbook-client-numera-test-0', accountNumber: '8400/001', description: 'Test Client - FNB', section: 'Balance Sheet'},
     { id: '9000/000', accountNumber: '9000/000', description: 'Supplier Control Account', section: 'Balance Sheet' },
     { id: '9100/000', accountNumber: '9100/000', description: 'GRN Accrual Account', section: 'Balance Sheet' },
     { id: '9200/000', accountNumber: '9200/000', description: 'Sundry Suppliers', section: 'Balance Sheet' },

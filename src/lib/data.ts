@@ -47,6 +47,14 @@ export const users: User[] = [
   { id: '6', name: 'Winifred Beukes', email: 'winifred@myacc.co.za', role: 'staff', department: 'Administration' },
   { id: '7', name: 'Patricia Rex', email: 'info@myacc.co.za', role: 'staff', department: 'Administration' },
   { id: '8', name: 'Rizma Salimahomed', email: 'tax@myacc.co.za', role: 'staff', department: 'Accounting and Tax' },
+  {
+    id: 'client-numera-test',
+    name: 'Test Client',
+    email: 'test@numera.local',
+    role: 'client',
+    source: 'Numera',
+    yearEnd: new Date('2025-02-28'),
+  }
 ];
 
 export const services: Service[] = [

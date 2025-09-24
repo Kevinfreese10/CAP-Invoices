@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload, FileCheck2, ScanLine, Sprout, Search } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload, FileCheck2, ScanLine, Sprout, Search, ArrowUpDown } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -37,6 +37,10 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { users as allUsers } from '@/lib/data';
 
 const db = getFirestore(firebaseApp);
+
+const formatNumber = (value: number) => {
+    return value.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
 
 type ImportedTransaction = {
     id: string;
@@ -91,9 +95,7 @@ const formSchema = z.object({
   bankAccounts: z.array(bankAccountSchema).optional(),
 });
 
-const formatNumber = (value: number) => {
-    return value.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-};
+
 
 function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSubmit: (data: any) => void, onCancel: () => void }) {
     
@@ -505,17 +507,17 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
       });
   };
 
-  useEffect(() => {
-    if (initialValues?.accounts?.length) {
+ useEffect(() => {
+    if (initialValues && initialValues.accounts && initialValues.accounts.length > 0) {
       const newValues = {
-        ...initialValues,
         fromDate: initialValues.fromDate || startDate,
         toDate: initialValues.toDate || endDate,
+        accounts: initialValues.accounts,
       };
       form.reset(newValues);
-      handleGenerate(newValues);
+      handleGenerate(newValues as z.infer<typeof generalLedgerFormSchema>);
     }
-  }, [JSON.stringify(initialValues)]);
+  }, [JSON.stringify(initialValues?.accounts), initialValues?.fromDate, initialValues?.toDate]);
 
 
   const handleDownloadExcel = () => {
@@ -717,17 +719,31 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
   );
 }
 
-function AllocationCombobox({ onSelect }: { onSelect: (value: string, type: 'account'|'customer'|'supplier') => void }) {
+function AllocationCombobox({ value, onSelect }: { value?: { value: string, type: string }, onSelect: (value: string, type: 'account'|'customer'|'supplier') => void }) {
     const [open, setOpen] = useState(false);
     const customers = allUsers.filter(u => u.role === 'client');
     // Mock suppliers for now
     const suppliers = [{id: 'supp-1', name: 'Telkom'}, {id: 'supp-2', name: 'Eskom'}];
 
+    const getDisplayValue = () => {
+        if (!value) return "Select...";
+        if (value.type === 'account') {
+            return chartOfAccounts.find(a => a.accountNumber === value.value)?.description || "Select...";
+        }
+        if (value.type === 'customer') {
+            return customers.find(c => c.id === value.value)?.name || "Select...";
+        }
+        if (value.type === 'supplier') {
+            return suppliers.find(s => s.id === value.value)?.name || "Select...";
+        }
+        return "Select...";
+    };
+
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
                 <Button variant="outline" role="combobox" aria-expanded={open} className="w-[300px] justify-between">
-                    Select...
+                    <span className="truncate">{getDisplayValue()}</span>
                     <MoreHorizontal className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
@@ -767,12 +783,68 @@ function AllocationCombobox({ onSelect }: { onSelect: (value: string, type: 'acc
     )
 }
 
-function AllocationTable({ transactions, onAllocate, selectedTransactions, onSelectionChange }: { transactions: ImportedTransaction[], onAllocate: (transactionId: string) => void, selectedTransactions: string[], onSelectionChange: (id: string, isSelected: boolean) => void }) {
+type SortableField = 'date' | 'description' | 'amount';
+type SortDirection = 'asc' | 'desc';
+
+function AllocationTable({ transactions, onAllocate, selectedTransactions, onSelectionChange, onAllocationSelect, allocations }: { 
+    transactions: ImportedTransaction[], 
+    onAllocate: (transactionId: string) => void, 
+    selectedTransactions: string[], 
+    onSelectionChange: (id: string, isSelected: boolean) => void,
+    onAllocationSelect: (transactionId: string, value: string, type: 'account'|'customer'|'supplier') => void,
+    allocations: { [key: string]: { value: string, type: string } }
+}) {
+    const [sortConfig, setSortConfig] = useState<{ key: SortableField, direction: SortDirection } | null>({ key: 'date', direction: 'asc'});
+
     const handleSelectAll = (checked: boolean) => {
         transactions.forEach(tx => onSelectionChange(tx.id, checked));
     };
 
+    const sortedTransactions = useMemo(() => {
+        let sortableItems = [...transactions];
+        if (sortConfig !== null) {
+            sortableItems.sort((a, b) => {
+                let aValue = a[sortConfig.key];
+                let bValue = b[sortConfig.key];
+                
+                // Handle date strings
+                if (sortConfig.key === 'date') {
+                    const [dayA, monthA, yearA] = aValue.split('/').map(Number);
+                    const [dayB, monthB, yearB] = bValue.split('/').map(Number);
+                    aValue = new Date(yearA, monthA - 1, dayA).getTime();
+                    bValue = new Date(yearB, monthB - 1, dayB).getTime();
+                }
+
+                if (aValue < bValue) {
+                    return sortConfig.direction === 'asc' ? -1 : 1;
+                }
+                if (aValue > bValue) {
+                    return sortConfig.direction === 'asc' ? 1 : -1;
+                }
+                return 0;
+            });
+        }
+        return sortableItems;
+    }, [transactions, sortConfig]);
+
+    const requestSort = (key: SortableField) => {
+        let direction: SortDirection = 'asc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
     const areAllSelected = transactions.length > 0 && transactions.every(tx => selectedTransactions.includes(tx.id));
+
+    const SortableHeader = ({ field, label }: { field: SortableField, label: string }) => (
+        <TableHead>
+            <Button variant="ghost" onClick={() => requestSort(field)}>
+                {label}
+                <ArrowUpDown className="ml-2 h-4 w-4" />
+            </Button>
+        </TableHead>
+    );
 
     return (
         <Table>
@@ -785,15 +857,15 @@ function AllocationTable({ transactions, onAllocate, selectedTransactions, onSel
                             aria-label="Select all"
                         />
                     </TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Amount</TableHead>
+                    <SortableHeader field="date" label="Date" />
+                    <SortableHeader field="description" label="Description" />
+                    <SortableHeader field="amount" label="Amount" />
                     <TableHead>Allocate To</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
-                {transactions.map(tx => (
+                {sortedTransactions.map(tx => (
                     <TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && "selected"}>
                         <TableCell padding="checkbox">
                             <Checkbox
@@ -806,11 +878,11 @@ function AllocationTable({ transactions, onAllocate, selectedTransactions, onSel
                         <TableCell>{tx.description}</TableCell>
                         <TableCell className="font-mono">{formatNumber(tx.amount)}</TableCell>
                         <TableCell className="w-[300px]">
-                            <AllocationCombobox onSelect={(value, type) => console.log('Allocate to:', { value, type })}/>
+                            <AllocationCombobox value={allocations[tx.id]} onSelect={(value, type) => onAllocationSelect(tx.id, value, type)}/>
                         </TableCell>
                         <TableCell className="text-right">
                             <div className="flex gap-2 justify-end">
-                                <Button size="sm" onClick={() => onAllocate(tx.id)}>Allocate</Button>
+                                <Button size="sm" onClick={() => onAllocate(tx.id)} disabled={!allocations[tx.id]}>Allocate</Button>
                                 <Button size="sm" variant="outline" disabled>Split</Button>
                             </div>
                         </TableCell>
@@ -839,6 +911,7 @@ export default function NumeraPage() {
   const [unallocatedTransactions, setUnallocatedTransactions] = useState<ImportedTransaction[]>([]);
   const [unallocatedSearch, setUnallocatedSearch] = useState('');
   const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
+  const [allocations, setAllocations] = useState<{ [key: string]: { value: string, type: string } }>({});
   
   const importForm = useForm();
   
@@ -847,7 +920,16 @@ export default function NumeraPage() {
     try {
         const q = query(collection(db, "clients"), where('source', '==', 'Numera'));
         const querySnapshot = await getDocs(q);
-        const fetchedClients = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+        let fetchedClients = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+        
+        // Add hardcoded test client if it doesn't exist from firestore
+        const testClientExists = fetchedClients.some(c => c.id === 'client-numera-test');
+        if (!testClientExists) {
+            const testClient = allUsers.find(u => u.id === 'client-numera-test');
+            if(testClient) {
+                fetchedClients.push(testClient);
+            }
+        }
         
         fetchedClients.sort((a, b) => a.name.localeCompare(b.name));
         
@@ -929,14 +1011,14 @@ export default function NumeraPage() {
 
         if (newBankAccounts.length > 0) {
             let nextAccountNumberIndex = 1;
-            const lastCashbook = chartOfAccounts
-                .filter(a => a.accountNumber.startsWith('8400/'))
-                .sort((a,b) => a.accountNumber.localeCompare(b.accountNumber))
-                .pop();
-            if (lastCashbook) {
-                const lastNum = parseInt(lastCashbook.accountNumber.split('/')[1]);
-                if (!isNaN(lastNum)) {
-                    nextAccountNumberIndex = lastNum + 1;
+            const cashbooks = chartOfAccounts.filter(a => a.accountNumber.startsWith('8400/'));
+            if (cashbooks.length > 0) {
+                const lastCashbook = cashbooks.sort((a, b) => a.accountNumber.localeCompare(b.accountNumber)).pop();
+                if (lastCashbook) {
+                    const lastNum = parseInt(lastCashbook.accountNumber.split('/')[1]);
+                    if (!isNaN(lastNum)) {
+                        nextAccountNumberIndex = lastNum + 1;
+                    }
                 }
             }
 
@@ -969,16 +1051,15 @@ export default function NumeraPage() {
         await setDoc(clientRef, { ...clientData, id: clientRef.id });
             
             if (data.bankAccounts && data.bankAccounts.length > 0) {
-              const lastCashbook = chartOfAccounts
-                  .filter(a => a.accountNumber.startsWith('8400/'))
-                  .sort((a,b) => a.accountNumber.localeCompare(b.accountNumber))
-                  .pop();
-              
               let nextAccountNumberIndex = 1;
-              if (lastCashbook) {
-                  const lastNum = parseInt(lastCashbook.accountNumber.split('/')[1]);
-                  if (!isNaN(lastNum)) {
-                     nextAccountNumberIndex = lastNum + 1;
+              const cashbooks = chartOfAccounts.filter(a => a.accountNumber.startsWith('8400/'));
+              if (cashbooks.length > 0) {
+                  const lastCashbook = cashbooks.sort((a, b) => a.accountNumber.localeCompare(b.accountNumber)).pop();
+                  if (lastCashbook) {
+                      const lastNum = parseInt(lastCashbook.accountNumber.split('/')[1]);
+                      if (!isNaN(lastNum)) {
+                         nextAccountNumberIndex = lastNum + 1;
+                      }
                   }
               }
 
@@ -1129,16 +1210,45 @@ export default function NumeraPage() {
   };
   
   const handleAllocate = (transactionId: string) => {
-      // Here you would typically post this allocation to a backend
-      console.log(`Allocating transaction ${transactionId}...`);
+      const allocation = allocations[transactionId];
+      if (!allocation) {
+          toast({ title: 'Allocation Error', description: 'Please select an account to allocate to.', variant: 'destructive' });
+          return;
+      }
+      console.log(`Allocating transaction ${transactionId} to ${allocation.type}: ${allocation.value}`);
+      
       setUnallocatedTransactions(prev => prev.filter(tx => tx.id !== transactionId));
+      setAllocations(prev => {
+          const newAllocations = { ...prev };
+          delete newAllocations[transactionId];
+          return newAllocations;
+      });
+
       toast({ title: 'Transaction Allocated', description: 'The transaction has been successfully allocated.' });
+  }
+  
+  const handleAllocationSelect = (transactionId: string, value: string, type: 'account'|'customer'|'supplier') => {
+      setAllocations(prev => ({
+          ...prev,
+          [transactionId]: { value, type }
+      }));
   }
 
   const handleBulkAllocate = () => {
-    console.log(`Bulk allocating ${selectedTransactions.length} transactions...`);
+    const bulkAllocation = allocations['bulk'];
+     if (!bulkAllocation) {
+        toast({ title: 'Allocation Error', description: 'Please select an account for bulk allocation.', variant: 'destructive' });
+        return;
+    }
+    console.log(`Bulk allocating ${selectedTransactions.length} transactions to ${bulkAllocation.type}: ${bulkAllocation.value}`);
     setUnallocatedTransactions(prev => prev.filter(tx => !selectedTransactions.includes(tx.id)));
     setSelectedTransactions([]);
+    setAllocations(prev => {
+        const newAllocations = { ...prev };
+        delete newAllocations['bulk'];
+        selectedTransactions.forEach(id => delete newAllocations[id]);
+        return newAllocations;
+    });
     toast({ title: 'Bulk Allocation Successful', description: `${selectedTransactions.length} transactions have been allocated.` });
   };
 
@@ -1376,21 +1486,21 @@ export default function NumeraPage() {
                                         {selectedTransactions.length > 0 && (
                                             <div className="flex items-center gap-4 p-4 border-t border-b bg-muted/50">
                                                 <p className="text-sm font-semibold">{selectedTransactions.length} selected</p>
-                                                <AllocationCombobox onSelect={(value, type) => console.log('Bulk Allocate to:', { value, type })}/>
-                                                <Button size="sm" onClick={handleBulkAllocate}>Allocate Selected</Button>
+                                                <AllocationCombobox value={allocations['bulk']} onSelect={(value, type) => handleAllocationSelect('bulk', value, type)}/>
+                                                <Button size="sm" onClick={handleBulkAllocate} disabled={!allocations['bulk']}>Allocate Selected</Button>
                                                 <Button size="sm" variant="ghost" onClick={() => setSelectedTransactions([])}>Clear Selection</Button>
                                             </div>
                                         )}
                                         <TabsContent value="income">
                                             {incomeTransactions.length > 0 ? (
-                                                <AllocationTable transactions={incomeTransactions} onAllocate={handleAllocate} selectedTransactions={selectedTransactions} onSelectionChange={handleSelectionChange} />
+                                                <AllocationTable transactions={incomeTransactions} onAllocate={handleAllocate} selectedTransactions={selectedTransactions} onSelectionChange={handleSelectionChange} onAllocationSelect={handleAllocationSelect} allocations={allocations} />
                                             ) : (
                                                 <p className="text-muted-foreground text-center py-10">No income transactions to display.</p>
                                             )}
                                         </TabsContent>
                                         <TabsContent value="expenses">
                                              {expenseTransactions.length > 0 ? (
-                                                 <AllocationTable transactions={expenseTransactions} onAllocate={handleAllocate} selectedTransactions={selectedTransactions} onSelectionChange={handleSelectionChange} />
+                                                 <AllocationTable transactions={expenseTransactions} onAllocate={handleAllocate} selectedTransactions={selectedTransactions} onSelectionChange={handleSelectionChange} onAllocationSelect={handleAllocationSelect} allocations={allocations} />
                                              ) : (
                                                 <p className="text-muted-foreground text-center py-10">No expense transactions to display.</p>
                                              )}
