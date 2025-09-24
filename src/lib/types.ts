@@ -4,6 +4,7 @@
 
 
 
+
 export type Service = {
   id: string;
   title: string;
@@ -157,8 +158,10 @@ export type Task = {
   status: 'To-Do' | 'In Progress' | 'Review' | 'Done';
   recurrence?: 'None' | 'Daily' | 'Weekly' | 'Monthly' | 'Bi-Monthly' | 'Annually';
   orderId?: string;
+  clientId?: string;
   comments?: TaskComment[];
 };
+
 
 
 

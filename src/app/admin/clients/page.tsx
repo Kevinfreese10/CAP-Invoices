@@ -19,7 +19,7 @@ import { User, Task } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, writeBatch, Timestamp, query, orderBy } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, writeBatch, Timestamp, query, orderBy, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { users as allUsers } from '@/lib/data';
@@ -311,7 +311,7 @@ export default function AdminClientsPage() {
   };
 
    const createRecurringTasks = async (client: Client, creatorId: string) => {
-    if (!client.yearEnd) {
+    if (!client.yearEnd || !client.id) {
       toast({
         title: 'Task Creation Skipped',
         description: 'Financial year-end is required to automate tasks.',
@@ -343,6 +343,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
+            clientId: client.id,
             comments: [],
         });
         
@@ -356,6 +357,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
+            clientId: client.id,
             comments: [],
         });
     }
@@ -372,6 +374,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
+            clientId: client.id,
             comments: [],
         });
     }
@@ -386,6 +389,7 @@ export default function AdminClientsPage() {
         priority: 'Medium',
         status: 'To-Do',
         createdBy: creatorId,
+        clientId: client.id,
         comments: [],
     });
     
@@ -400,6 +404,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
+            clientId: client.id,
             comments: [],
         });
     }
@@ -419,6 +424,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
+            clientId: client.id,
             comments: [],
         });
     }
@@ -454,6 +460,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
+            clientId: client.id,
             comments: [],
         });
     }
@@ -469,6 +476,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
+            clientId: client.id,
             comments: [],
         });
     }
@@ -484,6 +492,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
+            clientId: client.id,
             comments: [],
         });
     }
@@ -499,6 +508,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
+            clientId: client.id,
             comments: [],
         });
         tasksToCreate.push({
@@ -510,6 +520,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
+            clientId: client.id,
             comments: [],
         });
     }
@@ -525,6 +536,17 @@ export default function AdminClientsPage() {
     await batch.commit();
     return tasksToCreate.length;
   };
+  
+  const deleteRecurringTasks = async (clientId: string) => {
+    const tasksQuery = query(collection(db, 'tasks'), where('clientId', '==', clientId));
+    const querySnapshot = await getDocs(tasksQuery);
+    const batch = writeBatch(db);
+    querySnapshot.docs.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+    await batch.commit();
+    return querySnapshot.size;
+  }
 
   const handleFormSubmit = async (data: Omit<User, 'id' | 'role'>) => {
     if (!currentUser) return;
@@ -542,6 +564,15 @@ export default function AdminClientsPage() {
                 title: 'Client Updated',
                 description: 'The client details have been saved.',
             });
+            // Regenerate tasks for the updated client
+            await deleteRecurringTasks(selectedClient.id);
+            const numTasks = await createRecurringTasks({ ...clientData, id: selectedClient.id } as Client, currentUser.id);
+             if (numTasks > 0) {
+                toast({
+                    title: 'Recurring Tasks Updated',
+                    description: `${numTasks} automated tasks have been updated for ${clientData.name}.`,
+                });
+            }
         } else {
             const newDocRef = await addDoc(collection(db, "clients"), clientData);
             toast({
@@ -694,7 +725,3 @@ export default function AdminClientsPage() {
     </div>
   );
 }
-
-    
-
-    
