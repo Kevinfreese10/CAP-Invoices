@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { MoreHorizontal, Loader2, PlusCircle, Banknote, Building, Clock, ArrowRight } from 'lucide-react';
+import { MoreHorizontal, Loader2, PlusCircle, Banknote, Building, Clock, ArrowRight, User as UserIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -268,6 +268,11 @@ export default function ResellerOrdersPage() {
     }
   };
   
+  const getAssignee = (userId?: string): User | undefined => {
+    if (!userId) return undefined;
+    return users.find(u => u.id === userId);
+  }
+  
   const pendingApprovalOrders = outsourcedOrders.filter(o => o.status === 'Pending Payment');
   const activeOutsourcedOrders = outsourcedOrders.filter(o => o.status !== 'Pending Payment');
 
@@ -467,7 +472,9 @@ export default function ResellerOrdersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {activeOutsourcedOrders.map((order) => (
+                {activeOutsourcedOrders.map((order) => {
+                  const assignee = getAssignee(order.assignedTo?.[0]);
+                  return (
                   <TableRow key={order.id}>
                     <TableCell className="font-medium">{order.id}</TableCell>
                     <TableCell>
@@ -483,14 +490,36 @@ export default function ResellerOrdersPage() {
                     </TableCell>
                     <TableCell className="text-right font-semibold">{formatPrice(order.total)}</TableCell>
                     <TableCell className="text-right">
-                       <Button variant="ghost" size="icon" asChild>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">Open menu</span>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                           {assignee ? (
+                              <>
+                                <DropdownMenuLabel className="flex items-center gap-2">
+                                  <UserIcon className="h-4 w-4" />
+                                  Assigned to {assignee.name}
+                                </DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                              </>
+                            ) : (
+                               <DropdownMenuLabel>No consultant assigned yet.</DropdownMenuLabel>
+                            )}
+                          <DropdownMenuItem asChild>
                             <Link href={`/reseller/outsourced-orders/${order.id}`}>
-                                <ArrowRight className="h-4 w-4" />
+                                <ArrowRight className="mr-2 h-4 w-4" />
+                                View Details & History
                             </Link>
-                        </Button>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                ))}
+                )})}
               </TableBody>
             </Table>
           )}
@@ -581,6 +610,7 @@ export default function ResellerOrdersPage() {
     
 
     
+
 
 
 
