@@ -32,6 +32,7 @@ import ProductivityStats from '@/components/dashboard/ProductivityStats';
 import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, where, orderBy, arrayUnion, Timestamp, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import KanbanView from '@/components/dashboard/KanbanView';
 
 const db = getFirestore(firebaseApp);
 
@@ -519,6 +520,10 @@ export default function AdminDashboardPage() {
         ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
     }, [tasks, user]);
 
+    const manualTasks = useMemo(() => {
+      return tasks.filter(task => !task.recurrence || task.recurrence === 'None');
+    }, [tasks]);
+
     const handleAdd = () => {
         setSelectedTask(null);
         setIsFormOpen(true);
@@ -770,6 +775,8 @@ export default function AdminDashboardPage() {
                 )}
             </div>
 
+             <Separator />
+
             <div className="space-y-8">
                 {isLoading ? (
                     <div className="flex justify-center items-center h-64">
@@ -777,6 +784,13 @@ export default function AdminDashboardPage() {
                     </div>
                 ) : (
                     <>
+                        <KanbanView 
+                            tasks={manualTasks} 
+                            onTaskUpdate={handleUpdateStatus} 
+                        />
+                        
+                        <Separator />
+                        
                         <TaskTable 
                             tasks={myTasks} 
                             title="My Manual Tasks" 
