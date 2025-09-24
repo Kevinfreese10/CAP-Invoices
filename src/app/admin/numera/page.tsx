@@ -40,18 +40,18 @@ const formSchema = z.object({
 
 function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSubmit: (data: any) => void, onCancel: () => void }) {
     
-    const getInitialYearEnd = () => {
-        if (!client?.yearEnd) return new Date();
-        if (client.yearEnd.toDate) return client.yearEnd.toDate();
-        return new Date(client.yearEnd);
-    };
+    const toDate = (value: any) => {
+        if (!value) return new Date();
+        if (value.toDate) return value.toDate(); // Firestore Timestamp
+        return new Date(value);
+    }
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
             id: client?.id || '',
             name: client?.name || '',
-            yearEnd: getInitialYearEnd(),
+            yearEnd: client?.yearEnd ? toDate(client.yearEnd) : new Date(),
             bankAccounts: client?.bankingDetails ? [{ name: client.bankingDetails.bankName }] : [],
         },
     });
@@ -274,8 +274,11 @@ export default function NumeraPage() {
     if (date.seconds) {
       return format(new Date(date.seconds * 1000), 'dd MMMM yyyy');
     }
-    // Otherwise, assume it's a JS Date or a string
-    return format(new Date(date), 'dd MMMM yyyy');
+    // Otherwise, assume it's a JS Date
+    if(date instanceof Date) {
+        return format(date, 'dd MMMM yyyy');
+    }
+    return 'Invalid Date';
   };
 
   return (
