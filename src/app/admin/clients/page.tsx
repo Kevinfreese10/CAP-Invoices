@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -39,10 +39,20 @@ const clientStatuses: Client['status'][] = ['Active', 'Inactive'];
 const months = [ "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" ];
 const mgmtAccountFrequencies = ['Monthly', 'Quarterly', 'Bi-Annually', 'Annually'] as const;
 const vatCategories = ['A', 'B', 'C'] as const;
+
 const vatCategoryLabels = {
-    A: 'Category A (Even Months)',
-    B: 'Category B (Odd Months)',
-    C: 'Category C (Monthly)',
+    A: {
+        name: 'Category A (Even Months)',
+        description: 'Period: Jan–Feb, Mar–Apr, etc. Due: 25th of the month after the period ends (e.g., Jan–Feb is due 25 March).'
+    },
+    B: {
+        name: 'Category B (Odd Months)',
+        description: 'Period: Feb–Mar, Apr–May, etc. Due: 25th of the month after the period ends (e.g., Feb–Mar is due 25 April).'
+    },
+    C: {
+        name: 'Category C (Monthly)',
+        description: 'Period: Every calendar month. Due: 25th of the following month (e.g., March is due 25 April).'
+    },
 };
 
 
@@ -180,8 +190,34 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                         </FormItem>
                     )} />
 
-                     {watchIsVatRegistered && (
-                        <FormField control={form.control} name="vatCategory" render={({ field }) => ( <FormItem><FormLabel>VAT Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT category..." /></SelectTrigger></FormControl><SelectContent>{vatCategories.map(c => <SelectItem key={c} value={c}>{vatCategoryLabels[c]}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                    {watchIsVatRegistered && (
+                        <FormField
+                        control={form.control}
+                        name="vatCategory"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>VAT Category</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select VAT category..." />
+                                </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                {vatCategories.map(c => (
+                                    <SelectItem key={c} value={c}>
+                                        <div className="flex flex-col">
+                                            <span>{vatCategoryLabels[c].name}</span>
+                                            <span className="text-xs text-muted-foreground">{vatCategoryLabels[c].description}</span>
+                                        </div>
+                                    </SelectItem>
+                                ))}
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                        />
                     )}
 
                     <Separator />
@@ -657,3 +693,5 @@ export default function AdminClientsPage() {
     </div>
   );
 }
+
+    
