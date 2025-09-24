@@ -241,6 +241,12 @@ function TrialBalanceCard({ activeClient }: { activeClient: User }) {
         <>
         <Dialog open={!!reportData} onOpenChange={(isOpen) => !isOpen && setReportData(null)}>
              <DialogContent className="sm:max-w-4xl">
+                 <DialogHeader>
+                    <DialogTitle>Trial Balance Report</DialogTitle>
+                    <DialogDescription>
+                        A printable trial balance report for {reportData?.clientName}.
+                    </DialogDescription>
+                </DialogHeader>
                  {reportData && (
                     <div className="p-2 bg-white">
                         <Card className="w-full shadow-none border-none">
@@ -717,6 +723,4 @@ export default function NumeraPage() {
     </div>
   );
 }
-
-
 
