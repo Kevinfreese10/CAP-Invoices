@@ -432,23 +432,24 @@ export default function AdminClientsPage() {
     // VAT Returns
     if (client.isVatRegistered && client.vatCategory) {
         const now = new Date();
-        const currentMonth = getMonth(now); // 0-11
         let firstDueDate: Date;
-        
-        if (client.vatCategory === 'C') { // Monthly
-             firstDueDate = set(now, { date: 25, month: currentMonth + 1 });
-        } else { // Bi-monthly
-            const isCurrentMonthEven = (currentMonth + 1) % 2 === 0;
 
-            if (client.vatCategory === 'A') { // Even months
-                firstDueDate = isCurrentMonthEven 
-                    ? set(now, { date: 25, month: currentMonth + 1 }) 
-                    : set(now, { date: 25, month: currentMonth + 2 });
-            } else { // 'B' - Odd months
-                firstDueDate = !isCurrentMonthEven 
-                    ? set(now, { date: 25, month: currentMonth + 1 })
-                    : set(now, { date: 25, month: currentMonth + 2 }); 
+        if (client.vatCategory === 'C') { // Monthly
+            firstDueDate = set(now, { date: 25 });
+            if (isPast(firstDueDate)) {
+                firstDueDate = addMonths(firstDueDate, 1);
             }
+        } else { // Bi-monthly
+            const currentMonth = getMonth(now); // 0-11
+            const isEvenMonth = (currentMonth + 1) % 2 === 0;
+            let targetMonth: number;
+
+            if (client.vatCategory === 'A') { // Even months (Jan-Feb, Mar-Apr, etc.) -> Due Mar 25, May 25...
+                targetMonth = isEvenMonth ? currentMonth + 1 : currentMonth + 2;
+            } else { // 'B' - Odd months (Feb-Mar, Apr-May, etc.) -> Due Apr 25, Jun 25...
+                targetMonth = !isEvenMonth ? currentMonth + 1 : currentMonth + 2;
+            }
+            firstDueDate = set(now, { month: targetMonth, date: 25 });
         }
 
         tasksToCreate.push({
@@ -725,3 +726,4 @@ export default function AdminClientsPage() {
     </div>
   );
 }
+
