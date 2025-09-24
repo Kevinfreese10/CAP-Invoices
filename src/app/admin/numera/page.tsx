@@ -97,6 +97,8 @@ type GeneralLedgerReportData = {
 const clientFormSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(2, 'Client name is required.'),
+  contactPerson: z.string().optional(),
+  email: z.string().email('A valid contact email is required.'),
   yearEnd: z.date({ required_error: 'Financial year end is required.'}),
 });
 
@@ -107,6 +109,8 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
         defaultValues: {
             id: client?.id || '',
             name: client?.name || '',
+            contactPerson: client?.contactPerson || '',
+            email: client?.email || '',
             yearEnd: client?.yearEnd ? (client.yearEnd.toDate ? client.yearEnd.toDate() : new Date(client.yearEnd)) : undefined,
         },
     });
@@ -119,6 +123,8 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
         <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
                 <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Client / Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="contactPerson" render={({ field }) => ( <FormItem><FormLabel>Contact Person</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Contact Email</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField
                     control={form.control}
                     name="yearEnd"
@@ -1116,12 +1122,13 @@ export default function NumeraPage() {
   const handleFormSubmit = async (data: z.infer<typeof clientFormSchema>) => {
     if (!currentUser) return;
 
-    const clientData = {
+    const clientData: Partial<User> = {
       name: data.name,
+      contactPerson: data.contactPerson,
+      email: data.email,
       yearEnd: data.yearEnd,
       role: 'client' as const,
       source: 'Numera' as const,
-      email: `${data.name.toLowerCase().replace(/\s/g, '.')}@numera.local`,
     };
 
     try {
@@ -1807,5 +1814,7 @@ export default function NumeraPage() {
     </div>
   );
 }
+
+    
 
     

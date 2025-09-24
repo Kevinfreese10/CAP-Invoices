@@ -10,6 +10,7 @@
 
 
 
+
 export type ChartOfAccount = {
   id: string;
   accountNumber: string;
@@ -109,7 +110,7 @@ export type User = {
   source?: 'Numera' | 'Client Management';
   department?: 'Accounting and Tax' | 'Administration' | 'CAP';
   status?: 'Active' | 'Inactive';
-  // Reseller specific fields
+  // Reseller specific fields or contact person for Numera
   companyName?: string;
   contactPerson?: string;
   contactNumber?: string;
@@ -186,3 +187,6 @@ export type Task = {
 
 
 
+
+
+    
