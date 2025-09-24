@@ -19,6 +19,7 @@ import {
   BookMarked,
   BrainCircuit,
   Images,
+  FileSpreadsheet,
 } from 'lucide-react';
 
 import {
@@ -52,6 +53,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/orders', label: 'Manage Orders', icon: ShieldCheck, roles: ['admin', 'staff'] },
     { href: '/admin/tasks', label: 'Manage Tasks', icon: ClipboardCheck, roles: ['admin', 'staff'] },
     { href: '/admin/clients', label: 'Manage Clients', icon: BookUser, roles: ['admin'] },
+    { href: '/admin/numera', label: 'Numera', icon: FileSpreadsheet, roles: ['admin', 'staff'] },
     { href: '/admin/services', label: 'Manage Services', icon: Briefcase, roles: ['admin'] },
     { href: '/admin/categories', label: 'Manage Categories', icon: Shapes, roles: ['admin'] },
     { href: '/admin/blog', label: 'Manage Blog', icon: BookMarked, roles: ['admin'] },
