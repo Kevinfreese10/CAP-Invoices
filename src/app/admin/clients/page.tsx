@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -18,18 +19,25 @@ import { User, Task } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { getFirestore, collection, addDoc, Timestamp, doc, setDoc } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, Timestamp, doc, setDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { users as allUsers } from '@/lib/data';
+import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { CalendarIcon } from 'lucide-react';
+import { format, addMonths, set, getDate, getMonth, getYear } from 'date-fns';
+import { cn } from '@/lib/utils';
+import { Calendar } from '@/components/ui/calendar';
 
 const db = getFirestore(firebaseApp);
 
 
-type Client = User & { status: 'Active' | 'Inactive'; cellNumber?: string; contactPerson?: string; yearEnd?: string; };
+type Client = User & { status: 'Active' | 'Inactive'; cellNumber?: string; contactPerson?: string; };
 
 const initialClients: Client[] = [
-    { id: 'client-1', name: 'Innovate Inc.', email: 'contact@innovate.com', role: 'client', status: 'Active', cellNumber: '0821112222', contactPerson: 'Sarah Jones', yearEnd: 'February' },
+    { id: 'client-1', name: 'Innovate Inc.', email: 'contact@innovate.com', role: 'client', status: 'Active', cellNumber: '0821112222', contactPerson: 'Sarah Jones', yearEnd: 'February', isVatRegistered: true, vatCategory: 'A' },
     { id: 'client-2', name: 'Quantum Leap Corp', email: 'hello@quantum.co.za', role: 'client', status: 'Active', cellNumber: '0833334444', contactPerson: 'Mike Brown', yearEnd: 'August' },
     { id: 'client-3', name: 'Apex Solutions', email: 'support@apex.com', role: 'client', status: 'Inactive', cellNumber: '0845556666', contactPerson: 'Lisa Ray', yearEnd: 'February' },
     { id: '1', name: 'John Doe', email: 'client@test.com', role: 'client', status: 'Active', cellNumber: '0817778888', yearEnd: 'February' },
@@ -37,6 +45,8 @@ const initialClients: Client[] = [
 
 const clientStatuses: Client['status'][] = ['Active', 'Inactive'];
 const months = [ "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" ];
+const mgmtAccountFrequencies = ['Monthly', 'Quarterly', 'Bi-Annually', 'Annually'] as const;
+const vatCategories = ['A', 'B', 'C'] as const;
 
 
 const formSchema = z.object({
@@ -46,7 +56,15 @@ const formSchema = z.object({
   email: z.string().email('A valid email is required.'),
   cellNumber: z.string().optional(),
   status: z.enum(clientStatuses),
+  // Automation fields
   yearEnd: z.string().min(1, 'Financial year end is required.'),
+  preparesFinancials: z.boolean().default(false),
+  financialsDueDate: z.date().optional(),
+  requiresManagementAccounts: z.boolean().default(false),
+  managementAccountsFrequency: z.enum(mgmtAccountFrequencies).optional(),
+  managementAccountsDueDate: z.date().optional(),
+  isVatRegistered: z.boolean().default(false),
+  vatCategory: z.enum(vatCategories).optional(),
 });
 
 function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onSubmit: (data: any) => void, onCancel: () => void }) {
@@ -60,8 +78,20 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
             cellNumber: client?.cellNumber || '',
             status: client?.status || 'Active',
             yearEnd: client?.yearEnd || 'February',
+            preparesFinancials: client?.preparesFinancials || false,
+            financialsDueDate: client?.financialsDueDate ? new Date(client.financialsDueDate) : undefined,
+            requiresManagementAccounts: client?.requiresManagementAccounts || false,
+            managementAccountsFrequency: client?.managementAccountsFrequency || undefined,
+            managementAccountsDueDate: client?.managementAccountsDueDate ? new Date(client.managementAccountsDueDate) : undefined,
+            isVatRegistered: client?.isVatRegistered || false,
+            vatCategory: client?.vatCategory || undefined,
         },
     });
+
+    const watchPreparesFinancials = form.watch('preparesFinancials');
+    const watchRequiresMgmt = form.watch('requiresManagementAccounts');
+    const watchIsVatRegistered = form.watch('isVatRegistered');
+
 
     const handleSubmit = (values: z.infer<typeof formSchema>) => {
         onSubmit(values);
@@ -69,85 +99,62 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
     
     return (
         <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-                <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Client / Company Name</FormLabel>
-                            <FormControl><Input {...field} /></FormControl>
-                            <FormMessage />
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 max-h-[70vh] overflow-y-auto p-1 pr-4">
+                 <div className="space-y-4">
+                    <h3 className="text-lg font-medium">Client Details</h3>
+                    <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Client / Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="contactPerson" render={({ field }) => ( <FormItem><FormLabel>Contact Person Name (Optional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="cellNumber" render={({ field }) => ( <FormItem><FormLabel>Cell Number</FormLabel><FormControl><Input {...field} placeholder="e.g. 0821234567" /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="status" render={({ field }) => ( <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{clientStatuses.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                 </div>
+
+                <Separator />
+                
+                <div className="space-y-4">
+                    <h3 className="text-lg font-medium">Task Automation Setup</h3>
+                    <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                    
+                    <FormField control={form.control} name="preparesFinancials" render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                            <div className="space-y-0.5"><FormLabel>Do we prepare your financials?</FormLabel></div>
+                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                         </FormItem>
+                    )} />
+
+                    {watchPreparesFinancials && (
+                        <FormField control={form.control} name="financialsDueDate" render={({ field }) => (
+                            <FormItem className="flex flex-col"><FormLabel>Financials Due Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd MMM yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
+                        )} />
                     )}
-                />
-                 <FormField
-                    control={form.control}
-                    name="contactPerson"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Contact Person Name (Optional)</FormLabel>
-                            <FormControl><Input {...field} /></FormControl>
-                            <FormMessage />
+
+                    <FormField control={form.control} name="requiresManagementAccounts" render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                            <div className="space-y-0.5"><FormLabel>Do you require management accounts?</FormLabel></div>
+                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                         </FormItem>
+                    )} />
+
+                     {watchRequiresMgmt && (
+                        <div className="grid grid-cols-2 gap-4">
+                            <FormField control={form.control} name="managementAccountsFrequency" render={({ field }) => ( <FormItem><FormLabel>Frequency</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger></FormControl><SelectContent>{mgmtAccountFrequencies.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="managementAccountsDueDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Next Due Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd MMM yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)} />
+                        </div>
                     )}
-                />
-                <FormField
-                    control={form.control}
-                    name="email"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Email Address</FormLabel>
-                            <FormControl><Input {...field} /></FormControl>
-                            <FormMessage />
+                    
+                    <FormField control={form.control} name="isVatRegistered" render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                            <div className="space-y-0.5"><FormLabel>Are you registered for VAT?</FormLabel></div>
+                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                         </FormItem>
+                    )} />
+
+                     {watchIsVatRegistered && (
+                        <FormField control={form.control} name="vatCategory" render={({ field }) => ( <FormItem><FormLabel>VAT Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT category..." /></SelectTrigger></FormControl><SelectContent>{vatCategories.map(c => <SelectItem key={c} value={c}>{`Category ${c}`}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                     )}
-                />
-                 <FormField
-                    control={form.control}
-                    name="cellNumber"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Cell Number</FormLabel>
-                            <FormControl><Input {...field} placeholder="e.g. 0821234567" /></FormControl>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
-                <div className="grid grid-cols-2 gap-4">
-                     <FormField
-                        control={form.control}
-                        name="status"
-                        render={({ field }) => (
-                            <FormItem>
-                            <FormLabel>Status</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl>
-                                <SelectContent>
-                                    {clientStatuses.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                            <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                    <FormField
-                        control={form.control}
-                        name="yearEnd"
-                        render={({ field }) => (
-                            <FormItem>
-                            <FormLabel>Financial Year End</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl>
-                                <SelectContent>
-                                    {months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                            <FormMessage />
-                            </FormItem>
-                        )}
-                    />
+
                 </div>
+
                 <div className="flex justify-end gap-2 pt-4">
                     <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
                     <Button type="submit">Save Client</Button>
@@ -183,11 +190,12 @@ export default function AdminClientsPage() {
     })
   };
 
-  const createRecurringTasks = async (client: Client, creatorId: string) => {
+   const createRecurringTasks = async (client: Client, creatorId: string) => {
     const getNextStaffMember = (department: string): string[] => {
         const staffInDept = allUsers.filter(u => u.role === 'staff' && u.department === department);
         if (staffInDept.length > 0) {
-            return [staffInDept[0].id]; // Just assign to the first staff member for simplicity
+            const admin = allUsers.find(u => u.role === 'admin' && u.department === department);
+            return admin ? [admin.id] : [staffInDept[0].id];
         }
         const admin = allUsers.find(u => u.role === 'admin');
         return admin ? [admin.id] : [];
@@ -201,37 +209,113 @@ export default function AdminClientsPage() {
 
     const provisionalTaxDueDate = new Date();
     provisionalTaxDueDate.setMonth(provisionalTaxDueDate.getMonth() + 6);
+    
+    const batch = writeBatch(db);
 
-    const tasksToCreate = [
-        {
-            title: `Provisional Tax Return for ${client.name}`,
-            description: `Complete and file the provisional tax return for ${client.name}.`,
-            assignedTo: getNextStaffMember('Accounting and Tax'),
-            dueDate: Timestamp.fromDate(provisionalTaxDueDate),
-            recurrence: 'Monthly',
-            priority: 'Medium',
-        },
-        {
+    const tasksToCreate: Omit<Task, 'id'>[] = [];
+
+    // Provisional Tax
+    tasksToCreate.push({
+        title: `Provisional Tax Return for ${client.name}`,
+        description: `Complete and file the provisional tax return for ${client.name}.`,
+        assignedTo: getNextStaffMember('Accounting and Tax'),
+        dueDate: Timestamp.fromDate(provisionalTaxDueDate),
+        recurrence: 'Annually',
+        priority: 'Medium',
+        status: 'To-Do',
+        createdBy: creatorId,
+        comments: [],
+    });
+
+    // CIPC Annual Return
+    if (client.yearEnd) {
+        tasksToCreate.push({
             title: `CIPC Annual Return for ${client.name}`,
             description: `File the CIPC annual return for ${client.name}.`,
             assignedTo: getNextStaffMember('Administration'),
-            dueDate: getDueDate(client.yearEnd!, 28), // Example due date
-            recurrence: 'Monthly',
+            dueDate: getDueDate(client.yearEnd, 28),
+            recurrence: 'Annually',
             priority: 'Medium',
-        },
-    ];
-
-    for (const task of tasksToCreate) {
-        if (task.assignedTo.length > 0) {
-            const taskData: Omit<Task, 'id'> = {
-                ...task,
-                createdBy: creatorId,
-                status: 'To-Do',
-                comments: [],
-            };
-            await addDoc(collection(db, 'tasks'), taskData);
-        }
+            status: 'To-Do',
+            createdBy: creatorId,
+            comments: [],
+        });
     }
+    
+    // Financials
+    if (client.preparesFinancials && client.financialsDueDate) {
+         tasksToCreate.push({
+            title: `Annual Financials for ${client.name}`,
+            description: `Prepare annual financial statements for ${client.name}.`,
+            assignedTo: getNextStaffMember('Accounting and Tax'),
+            dueDate: client.financialsDueDate,
+            recurrence: 'Annually',
+            priority: 'High',
+            status: 'To-Do',
+            createdBy: creatorId,
+            comments: [],
+        });
+    }
+
+    // Management Accounts
+    if (client.requiresManagementAccounts && client.managementAccountsDueDate && client.managementAccountsFrequency) {
+        let recurrence: Task['recurrence'] = 'None';
+        if (client.managementAccountsFrequency === 'Monthly') recurrence = 'Monthly';
+        if (client.managementAccountsFrequency === 'Annually') recurrence = 'Annually';
+
+        tasksToCreate.push({
+            title: `Management Accounts for ${client.name}`,
+            description: `Prepare ${client.managementAccountsFrequency} management accounts.`,
+            assignedTo: getNextStaffMember('Accounting and Tax'),
+            dueDate: client.managementAccountsDueDate,
+            recurrence: recurrence,
+            priority: 'Medium',
+            status: 'To-Do',
+            createdBy: creatorId,
+            comments: [],
+        });
+    }
+
+    // VAT Returns
+    if (client.isVatRegistered && client.vatCategory) {
+        const now = new Date();
+        let firstDueDate: Date;
+        
+        // This is a simplified logic. A robust implementation would be more complex.
+        if (client.vatCategory === 'C') { // Monthly
+             firstDueDate = set(now, { date: 25, month: getMonth(now) + 1 });
+        } else { // Bi-monthly
+            const isEvenMonth = (getMonth(now) + 1) % 2 === 0;
+            if ((client.vatCategory === 'A' && isEvenMonth) || (client.vatCategory === 'B' && !isEvenMonth)) {
+                firstDueDate = set(now, { date: 25, month: getMonth(now) + 1 });
+            } else {
+                firstDueDate = set(now, { date: 25, month: getMonth(now) + 2 });
+            }
+        }
+
+        tasksToCreate.push({
+            title: `VAT201 Return for ${client.name}`,
+            description: `File VAT201 return (Category ${client.vatCategory}).`,
+            assignedTo: getNextStaffMember('Accounting and Tax'),
+            dueDate: Timestamp.fromDate(firstDueDate),
+            recurrence: client.vatCategory === 'C' ? 'Monthly' : 'Bi-Monthly',
+            priority: 'High',
+            status: 'To-Do',
+            createdBy: creatorId,
+            comments: [],
+        });
+    }
+
+
+    tasksToCreate.forEach(task => {
+        if (task.assignedTo.length > 0) {
+            const taskRef = doc(collection(db, 'tasks'));
+            batch.set(taskRef, task);
+        }
+    });
+    
+    await batch.commit();
+    return tasksToCreate.length;
   };
 
   const handleFormSubmit = async (data: Omit<User, 'id' | 'role'>) => {
@@ -256,11 +340,10 @@ export default function AdminClientsPage() {
         description: 'The new client has been added.',
       });
       
-      // Create recurring tasks for the new client
-      await createRecurringTasks(newClient, currentUser.id);
+      const numTasks = await createRecurringTasks(newClient, currentUser.id);
       toast({
         title: 'Recurring Tasks Created',
-        description: `Automated tasks for Provisional Tax and CIPC returns have been generated for ${newClient.name}.`,
+        description: `${numTasks} automated tasks have been generated for ${newClient.name}.`,
       });
     }
     setIsFormOpen(false);
@@ -278,11 +361,11 @@ export default function AdminClientsPage() {
                     Create Client
                 </Button>
            </DialogTrigger>
-           <DialogContent className="sm:max-w-[600px]">
+           <DialogContent className="sm:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>{selectedClient ? 'Edit Client' : 'Create New Client'}</DialogTitle>
                     <DialogDescription>
-                        {selectedClient ? 'Update the details for this client.' : 'Fill out the form to add a new client.'}
+                        {selectedClient ? 'Update the details for this client.' : 'Fill out the form to add a new client and automate their tasks.'}
                     </DialogDescription>
                 </DialogHeader>
                 <ClientForm 
@@ -306,6 +389,7 @@ export default function AdminClientsPage() {
                 <TableHead>Email</TableHead>
                 <TableHead>Cell Number</TableHead>
                 <TableHead>Year End</TableHead>
+                <TableHead>VAT Registered</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -328,6 +412,13 @@ export default function AdminClientsPage() {
                   <TableCell>{client.email}</TableCell>
                   <TableCell>{client.cellNumber}</TableCell>
                    <TableCell>{client.yearEnd}</TableCell>
+                    <TableCell>
+                      {client.isVatRegistered ? (
+                          <Badge variant="success">Yes ({client.vatCategory})</Badge>
+                      ) : (
+                          <Badge variant="secondary">No</Badge>
+                      )}
+                  </TableCell>
                   <TableCell>
                     <Badge variant={client.status === 'Active' ? 'default' : 'secondary'}>
                         {client.status}

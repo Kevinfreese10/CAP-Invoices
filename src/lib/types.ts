@@ -1,6 +1,7 @@
 
 
 
+
 export type Service = {
   id: string;
   title: string;
@@ -92,7 +93,6 @@ export type User = {
   role: 'client' | 'admin' | 'staff' | 'reseller';
   department?: 'Accounting and Tax' | 'Administration' | 'CAP';
   status?: 'Active' | 'Inactive';
-  yearEnd?: string;
   // Reseller specific fields
   companyName?: string;
   contactPerson?: string;
@@ -120,7 +120,16 @@ export type User = {
     port: string;
     user: string;
     pass: string;
-  }
+  },
+  // Client specific fields for task automation
+  yearEnd?: string;
+  preparesFinancials?: boolean;
+  financialsDueDate?: any;
+  requiresManagementAccounts?: boolean;
+  managementAccountsFrequency?: 'Monthly' | 'Quarterly' | 'Bi-Annually' | 'Annually';
+  managementAccountsDueDate?: any;
+  isVatRegistered?: boolean;
+  vatCategory?: 'A' | 'B' | 'C';
 };
 
 export type TaskComment = {
@@ -138,10 +147,11 @@ export type Task = {
   dueDate: any;
   priority: 'High' | 'Medium' | 'Low';
   status: 'To-Do' | 'In Progress' | 'Review' | 'Done';
-  recurrence?: 'None' | 'Daily' | 'Weekly' | 'Monthly';
+  recurrence?: 'None' | 'Daily' | 'Weekly' | 'Monthly' | 'Bi-Monthly' | 'Annually';
   orderId?: string;
   comments?: TaskComment[];
 };
+
 
 
 
