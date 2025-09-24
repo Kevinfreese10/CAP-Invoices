@@ -47,6 +47,11 @@ const clientStatuses: Client['status'][] = ['Active', 'Inactive'];
 const months = [ "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" ];
 const mgmtAccountFrequencies = ['Monthly', 'Quarterly', 'Bi-Annually', 'Annually'] as const;
 const vatCategories = ['A', 'B', 'C'] as const;
+const vatCategoryLabels = {
+    A: 'Category A (Even Months)',
+    B: 'Category B (Odd Months)',
+    C: 'Category C (Monthly)',
+};
 
 
 const formSchema = z.object({
@@ -150,7 +155,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                     )} />
 
                      {watchIsVatRegistered && (
-                        <FormField control={form.control} name="vatCategory" render={({ field }) => ( <FormItem><FormLabel>VAT Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT category..." /></SelectTrigger></FormControl><SelectContent>{vatCategories.map(c => <SelectItem key={c} value={c}>{`Category ${c}`}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="vatCategory" render={({ field }) => ( <FormItem><FormLabel>VAT Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT category..." /></SelectTrigger></FormControl><SelectContent>{vatCategories.map(c => <SelectItem key={c} value={c}>{vatCategoryLabels[c]}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                     )}
 
                 </div>
@@ -474,3 +479,4 @@ export default function AdminClientsPage() {
 }
 
     
+
