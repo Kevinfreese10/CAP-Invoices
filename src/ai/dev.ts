@@ -10,3 +10,5 @@ import '@/ai/flows/generate-blog-post-seo.ts';
 import '@/ai-flows/generate-blog-post.ts';
 import '@/ai/flows/website-q-and-a.ts';
 import '@/ai/flows/numera-flow.ts';
+import '@/ai/flows/allocate-transaction.ts';
+

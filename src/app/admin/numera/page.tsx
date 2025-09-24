@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload, FileCheck2, ScanLine, Sprout, Search, ArrowUpDown, Edit } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload, FileCheck2, ScanLine, Sprout, Search, ArrowUpDown, Edit, Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -35,6 +35,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import Papa from 'papaparse';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { users as allUsers } from '@/lib/data';
+import { allocateTransaction } from '@/ai/flows/allocate-transaction';
 
 const db = getFirestore(firebaseApp);
 
@@ -983,6 +984,7 @@ export default function NumeraPage() {
   const [unallocatedSearch, setUnallocatedSearch] = useState('');
   const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
   const [allocations, setAllocations] = useState<{ [key: string]: { value: string, type: 'account'|'customer'|'supplier' } }>({});
+  const [isAiAllocating, setIsAiAllocating] = useState(false);
   
   const importForm = useForm();
   
@@ -1361,6 +1363,35 @@ export default function NumeraPage() {
     });
   };
 
+  const handleAiAllocate = async () => {
+    const transactionsToProcess = unallocatedTransactions.filter(tx => selectedTransactions.includes(tx.id));
+    if (transactionsToProcess.length === 0) {
+        toast({ title: 'No Transactions Selected', description: 'Please select one or more transactions to allocate with AI.', variant: 'destructive'});
+        return;
+    }
+    
+    setIsAiAllocating(true);
+    toast({ title: 'AI Allocation Started', description: `AI is analyzing ${transactionsToProcess.length} transaction(s).`});
+
+    let successCount = 0;
+    const allocationPromises = transactionsToProcess.map(async (tx) => {
+        try {
+            const result = await allocateTransaction({ description: tx.description });
+            if (result.accountNumber && chartOfAccounts.some(acc => acc.accountNumber === result.accountNumber)) {
+                 handleAllocationSelect(tx.id, result.accountNumber, 'account');
+                 successCount++;
+            }
+        } catch (error) {
+            console.error(`AI allocation failed for transaction ${tx.id}:`, error);
+        }
+    });
+
+    await Promise.all(allocationPromises);
+
+    setIsAiAllocating(false);
+    toast({ title: 'AI Allocation Complete', description: `AI successfully suggested allocations for ${successCount} of ${transactionsToProcess.length} transactions.`});
+  };
+
 
   const clientBankAccounts = activeClient
     ? chartOfAccounts.filter(acc => acc.id.startsWith(`cashbook-${activeClient.id}`))
@@ -1584,12 +1615,22 @@ export default function NumeraPage() {
                                             <TabsTrigger value="allocated-income">Allocated Income ({allocatedIncome.length})</TabsTrigger>
                                             <TabsTrigger value="allocated-expenses">Allocated Expenses ({allocatedExpenses.length})</TabsTrigger>
                                         </TabsList>
-                                        {selectedTransactions.length > 0 && (
-                                            <div className="flex items-center gap-4 p-4 border-t border-b bg-muted/50">
+                                        {(selectedTransactions.length > 0 && !isAiAllocating) && (
+                                            <div className="flex flex-wrap items-center gap-4 p-4 border-t border-b bg-muted/50">
                                                 <p className="text-sm font-semibold">{selectedTransactions.length} selected</p>
                                                 <AllocationCombobox value={allocations['bulk']} onSelect={(value, type) => handleAllocationSelect('bulk', value, type)}/>
                                                 <Button size="sm" onClick={handleBulkAllocate} disabled={!allocations['bulk']}>Allocate Selected</Button>
+                                                <Button size="sm" variant="outline" onClick={handleAiAllocate} disabled={isAiAllocating}>
+                                                    {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                                                     Allocate with AI
+                                                </Button>
                                                 <Button size="sm" variant="ghost" onClick={() => setSelectedTransactions([])}>Clear Selection</Button>
+                                            </div>
+                                        )}
+                                        {isAiAllocating && (
+                                            <div className="flex items-center gap-2 p-4 border-t border-b bg-muted/50 text-sm">
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                AI is analyzing transactions... Please wait.
                                             </div>
                                         )}
                                         <TabsContent value="unallocated-income">
@@ -1743,5 +1784,4 @@ export default function NumeraPage() {
     </div>
   );
 }
-
 
