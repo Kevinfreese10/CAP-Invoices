@@ -40,12 +40,18 @@ const formSchema = z.object({
 
 function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSubmit: (data: any) => void, onCancel: () => void }) {
     
+    const getInitialYearEnd = () => {
+        if (!client?.yearEnd) return new Date();
+        if (client.yearEnd.toDate) return client.yearEnd.toDate();
+        return new Date(client.yearEnd);
+    };
+
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
             id: client?.id || '',
             name: client?.name || '',
-            yearEnd: client?.yearEnd ? new Date(client.yearEnd) : new Date(),
+            yearEnd: getInitialYearEnd(),
             bankAccounts: client?.bankingDetails ? [{ name: client.bankingDetails.bankName }] : [],
         },
     });
@@ -261,6 +267,16 @@ export default function NumeraPage() {
         toast({ title: 'Error', description: 'Could not save the client.', variant: 'destructive'});
     }
   };
+  
+  const formatDate = (date: any) => {
+    if (!date) return 'N/A';
+    // Check if it's a Firestore Timestamp
+    if (date.seconds) {
+      return format(new Date(date.seconds * 1000), 'dd MMMM yyyy');
+    }
+    // Otherwise, assume it's a JS Date or a string
+    return format(new Date(date), 'dd MMMM yyyy');
+  };
 
   return (
     <div className="space-y-8">
@@ -329,7 +345,7 @@ export default function NumeraPage() {
                         <span>{client.name}</span>
                     </div>
                   </TableCell>
-                  <TableCell>{client.yearEnd ? format(new Date(client.yearEnd.seconds * 1000), 'dd MMMM yyyy') : 'N/A'}</TableCell>
+                  <TableCell>{formatDate(client.yearEnd)}</TableCell>
                   <TableCell className="text-right">
                     <AlertDialog>
                         <DropdownMenu>

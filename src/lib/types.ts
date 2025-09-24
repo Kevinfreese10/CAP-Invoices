@@ -8,6 +8,7 @@
 
 
 
+
 export type ChartOfAccount = {
   id: string;
   accountNumber: string;
@@ -136,7 +137,7 @@ export type User = {
     pass: string;
   },
   // Client specific fields for task automation
-  yearEnd?: string;
+  yearEnd?: any;
   preparesFinancials?: boolean;
   financialsDueDate?: any;
   requiresManagementAccounts?: boolean;
@@ -172,6 +173,7 @@ export type Task = {
   clientId?: string;
   comments?: TaskComment[];
 };
+
 
 
 
