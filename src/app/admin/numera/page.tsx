@@ -24,6 +24,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { chartOfAccounts } from '@/lib/chart-of-accounts';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const db = getFirestore(firebaseApp);
 
@@ -311,22 +312,72 @@ export default function NumeraPage() {
       </div>
       
         {activeClient ? (
-             <Card className="bg-primary/10 border-primary/20">
-                <CardHeader>
-                    <div className="flex justify-between items-center">
-                        <div>
-                            <CardDescription>Currently working on:</CardDescription>
-                            <CardTitle>{activeClient.name}</CardTitle>
+             <div className="space-y-6">
+                <Card className="bg-primary/10 border-primary/20">
+                    <CardHeader>
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <CardDescription>Currently working on:</CardDescription>
+                                <CardTitle>{activeClient.name}</CardTitle>
+                            </div>
+                            <Button variant="ghost" size="icon" onClick={() => setActiveClient(null)}>
+                                <X className="h-5 w-5" />
+                            </Button>
                         </div>
-                        <Button variant="ghost" size="icon" onClick={() => setActiveClient(null)}>
-                            <X className="h-5 w-5" />
-                        </Button>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-center text-muted-foreground py-10">Client-specific dashboard and accounting features will be built here.</p>
-                </CardContent>
-             </Card>
+                    </CardHeader>
+                </Card>
+                <Tabs defaultValue="reporting" className="w-full">
+                    <TabsList>
+                        <TabsTrigger value="reporting">Reporting</TabsTrigger>
+                        <TabsTrigger value="banking">Banking</TabsTrigger>
+                        <TabsTrigger value="journals">Journals</TabsTrigger>
+                        <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
+                        <TabsTrigger value="customers">Customers</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="reporting" className="space-y-4">
+                        <Card>
+                            <CardHeader><CardTitle>Trial Balance</CardTitle></CardHeader>
+                            <CardContent><p className="text-muted-foreground text-center py-10">Trial Balance functionality will be built here.</p></CardContent>
+                        </Card>
+                         <Card>
+                            <CardHeader><CardTitle>General Ledger</CardTitle></CardHeader>
+                            <CardContent><p className="text-muted-foreground text-center py-10">General Ledger functionality will be built here.</p></CardContent>
+                        </Card>
+                    </TabsContent>
+                    <TabsContent value="banking" className="space-y-4">
+                        <Card>
+                            <CardHeader><CardTitle>Bank Account List</CardTitle></CardHeader>
+                            <CardContent><p className="text-muted-foreground text-center py-10">Bank account list with balances will be built here.</p></CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader><CardTitle>Bank Transactions</CardTitle></CardHeader>
+                            <CardContent><p className="text-muted-foreground text-center py-10">Bank transactions functionality will be built here.</p></CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader><CardTitle>Bank Reconciliation</CardTitle></CardHeader>
+                            <CardContent><p className="text-muted-foreground text-center py-10">Bank reconciliation functionality will be built here.</p></CardContent>
+                        </Card>
+                    </TabsContent>
+                    <TabsContent value="journals">
+                         <Card>
+                            <CardHeader><CardTitle>Manage Journals</CardTitle></CardHeader>
+                            <CardContent><p className="text-muted-foreground text-center py-10">Journal creation and management will be built here.</p></CardContent>
+                        </Card>
+                    </TabsContent>
+                     <TabsContent value="suppliers">
+                         <Card>
+                            <CardHeader><CardTitle>Manage Suppliers</CardTitle></CardHeader>
+                            <CardContent><p className="text-muted-foreground text-center py-10">Supplier creation and management will be built here.</p></CardContent>
+                        </Card>
+                    </TabsContent>
+                     <TabsContent value="customers">
+                         <Card>
+                            <CardHeader><CardTitle>Manage Customers</CardTitle></CardHeader>
+                            <CardContent><p className="text-muted-foreground text-center py-10">Customer creation and management will be built here.</p></CardContent>
+                        </Card>
+                    </TabsContent>
+                </Tabs>
+             </div>
         ) : (
             <Card>
                 <CardHeader>
