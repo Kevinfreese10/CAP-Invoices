@@ -1,5 +1,4 @@
 
-
 'use client';
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -435,7 +434,7 @@ export default function AdminDashboardPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-    const [taskTypeFilter, setTaskTypeFilter] = useState('all');
+    const [automatedTaskFilter, setAutomatedTaskFilter] = useState('all');
     const { toast } = useToast();
 
     const fetchDashboardData = async () => {
@@ -467,7 +466,7 @@ export default function AdminDashboardPage() {
     };
     
     const taskTypes = useMemo(() => {
-        const types = new Set(tasks.map(task => {
+        const types = new Set(tasks.filter(task => task.recurrence && task.recurrence !== 'None').map(task => {
             const title = task.title;
             const forIndex = title.lastIndexOf(' for ');
             if (forIndex > -1) {
@@ -688,20 +687,6 @@ export default function AdminDashboardPage() {
                             />
                         </DialogContent>
                     </Dialog>
-                    <div className="w-full sm:w-auto">
-                        <Select onValueChange={setTaskTypeFilter} defaultValue="all">
-                            <SelectTrigger className="w-full sm:w-[240px]">
-                                <SelectValue placeholder="Filter by task type..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {taskTypes.map(type => (
-                                    <SelectItem key={type} value={type === 'All Tasks' ? 'all' : type}>
-                                        {type}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
                 </div>
             </div>
             
@@ -791,18 +776,44 @@ export default function AdminDashboardPage() {
                             onEdit={handleEdit}
                             onUpdateStatus={handleUpdateStatus}
                             onDelete={handleDelete}
-                            filter={taskTypeFilter}
+                            filter="all"
                         />
                         
-                         <TaskTable 
-                            tasks={automatedTasks} 
-                            title="Automated Client Tasks" 
-                            description="Recurring tasks generated from the client automation system."
-                            onEdit={handleEdit}
-                            onUpdateStatus={handleUpdateStatus}
-                            onDelete={handleDelete}
-                            filter={taskTypeFilter}
-                        />
+                         <Card>
+                            <CardHeader>
+                                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                                    <div>
+                                    <CardTitle>Automated Client Tasks</CardTitle>
+                                    <CardDescription>Recurring tasks generated from the client automation system.</CardDescription>
+                                    </div>
+                                    <div className="w-full sm:w-auto">
+                                        <Select onValueChange={setAutomatedTaskFilter} defaultValue="all">
+                                            <SelectTrigger className="w-full sm:w-[240px]">
+                                                <SelectValue placeholder="Filter by task type..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {taskTypes.map(type => (
+                                                    <SelectItem key={type} value={type === 'All Tasks' ? 'all' : type}>
+                                                        {type}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+                            </CardHeader>
+                            <CardContent>
+                                <TaskTable 
+                                    tasks={automatedTasks} 
+                                    title="" 
+                                    description=""
+                                    onEdit={handleEdit}
+                                    onUpdateStatus={handleUpdateStatus}
+                                    onDelete={handleDelete}
+                                    filter={automatedTaskFilter}
+                                />
+                            </CardContent>
+                        </Card>
 
                         {user?.role === 'admin' && Object.keys(departmentTasks).map(dept => (
                            <TaskTable 
@@ -813,7 +824,7 @@ export default function AdminDashboardPage() {
                                 onEdit={handleEdit}
                                 onUpdateStatus={handleUpdateStatus}
                                 onDelete={handleDelete}
-                                filter={taskTypeFilter}
+                                filter="all"
                             />
                         ))}
                         
@@ -825,7 +836,7 @@ export default function AdminDashboardPage() {
                                 onEdit={handleEdit}
                                 onUpdateStatus={handleUpdateStatus}
                                 onDelete={handleDelete}
-                                filter={taskTypeFilter}
+                                filter="all"
                             />
                         )}
 
@@ -837,7 +848,7 @@ export default function AdminDashboardPage() {
                                 onEdit={handleEdit}
                                 onUpdateStatus={handleUpdateStatus}
                                 onDelete={handleDelete}
-                                filter={taskTypeFilter}
+                                filter="all"
                             />
                         )}
                     </>
@@ -846,5 +857,7 @@ export default function AdminDashboardPage() {
         </div>
     );
 }
+
+    
 
     
