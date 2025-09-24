@@ -1,11 +1,10 @@
 
-
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -19,7 +18,7 @@ import { User, Task } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { getFirestore, collection, addDoc, Timestamp, doc, setDoc, writeBatch } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, writeBatch, Timestamp, query, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { users as allUsers } from '@/lib/data';
@@ -35,13 +34,6 @@ const db = getFirestore(firebaseApp);
 
 
 type Client = User & { status: 'Active' | 'Inactive'; cellNumber?: string; contactPerson?: string; };
-
-const initialClients: Client[] = [
-    { id: 'client-1', name: 'Innovate Inc.', email: 'contact@innovate.com', role: 'client', status: 'Active', cellNumber: '0821112222', contactPerson: 'Sarah Jones', yearEnd: 'February', isVatRegistered: true, vatCategory: 'A' },
-    { id: 'client-2', name: 'Quantum Leap Corp', email: 'hello@quantum.co.za', role: 'client', status: 'Active', cellNumber: '0833334444', contactPerson: 'Mike Brown', yearEnd: 'August' },
-    { id: 'client-3', name: 'Apex Solutions', email: 'support@apex.com', role: 'client', status: 'Inactive', cellNumber: '0845556666', contactPerson: 'Lisa Ray', yearEnd: 'February' },
-    { id: '1', name: 'John Doe', email: 'client@test.com', role: 'client', status: 'Active', cellNumber: '0817778888', yearEnd: 'February' },
-];
 
 const clientStatuses: Client['status'][] = ['Active', 'Inactive'];
 const months = [ "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" ];
@@ -223,11 +215,31 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
 }
 
 export default function AdminClientsPage() {
-  const [clients, setClients] = useState<Client[]>(initialClients);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
+  
+  const fetchClients = async () => {
+    setIsLoading(true);
+    try {
+        const q = query(collection(db, "clients"), orderBy("name"));
+        const querySnapshot = await getDocs(q);
+        const fetchedClients = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Client));
+        setClients(fetchedClients);
+    } catch (error) {
+        console.error("Error fetching clients:", error);
+        toast({ title: 'Error', description: 'Could not fetch clients from the database.', variant: 'destructive'});
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchClients();
+  }, []);
 
   const handleAdd = () => {
     setSelectedClient(null);
@@ -239,13 +251,19 @@ export default function AdminClientsPage() {
     setIsFormOpen(true);
   };
   
-  const handleDelete = (clientId: string) => {
-    setClients(prev => prev.filter(c => c.id !== clientId));
-    toast({
-        title: 'Client Deleted',
-        description: 'The client has been removed.',
-        variant: 'destructive',
-    })
+  const handleDelete = async (clientId: string) => {
+    try {
+        await deleteDoc(doc(db, "clients", clientId));
+        fetchClients();
+        toast({
+            title: 'Client Deleted',
+            description: 'The client has been removed.',
+            variant: 'destructive',
+        });
+    } catch (error) {
+        console.error("Error deleting client:", error);
+        toast({ title: 'Error', description: 'Could not delete client.', variant: 'destructive' });
+    }
   };
 
    const createRecurringTasks = async (client: Client, creatorId: string) => {
@@ -271,7 +289,7 @@ export default function AdminClientsPage() {
 
     // Provisional Tax
     if (client.submitsProvisionalTaxes) {
-        const firstProvDueDate = lastDayOfMonth(addMonths(new Date(getYear(new Date()), yearEndMonthIndex + 1, 1), -6));
+        const firstProvDueDate = lastDayOfMonth(addMonths(new Date(getYear(new Date()), yearEndMonthIndex, 1), 6));
         tasksToCreate.push({
             title: `1st Provisional Tax for ${client.name}`,
             description: `Complete and file the first provisional tax return for ${client.name}.`,
@@ -370,18 +388,16 @@ export default function AdminClientsPage() {
         if (client.vatCategory === 'C') { // Monthly
              firstDueDate = set(now, { date: 25, month: currentMonth + 1 });
         } else { // Bi-monthly
-            // A = Even (Feb, Apr, Jun, Aug, Oct, Dec) -> period ends on last day of these months. Due next month.
-            // B = Odd (Jan, Mar, May, Jul, Sep, Nov) -> period ends on last day of these months. Due next month.
             const isCurrentMonthEven = (currentMonth + 1) % 2 === 0;
 
             if (client.vatCategory === 'A') { // Even months
                 firstDueDate = isCurrentMonthEven 
-                    ? set(now, { date: 25, month: currentMonth + 1 }) // Period ends this month, due next month
-                    : set(now, { date: 25, month: currentMonth + 2 }); // Period ends next month, due month after
+                    ? set(now, { date: 25, month: currentMonth + 1 }) 
+                    : set(now, { date: 25, month: currentMonth + 2 });
             } else { // 'B' - Odd months
                 firstDueDate = !isCurrentMonthEven 
-                    ? set(now, { date: 25, month: currentMonth + 1 }) // Period ends this month, due next month
-                    : set(now, { date: 25, month: currentMonth + 2 }); // Period ends next month, due month after
+                    ? set(now, { date: 25, month: currentMonth + 1 })
+                    : set(now, { date: 25, month: currentMonth + 2 }); 
             }
         }
 
@@ -468,34 +484,42 @@ export default function AdminClientsPage() {
 
   const handleFormSubmit = async (data: Omit<User, 'id' | 'role'>) => {
     if (!currentUser) return;
+    
+    const clientData: Omit<Client, 'id'> = {
+        ...data,
+        role: 'client',
+    };
 
-    if (selectedClient) {
-      setClients(prev =>
-        prev.map(c => (c.id === selectedClient.id ? { ...c, ...data } : c))
-      );
-       toast({
-        title: 'Client Updated',
-        description: 'The client details have been saved.',
-      });
-    } else {
-      const newClient = { ...data, id: `new-client-${Date.now()}`, role: 'client' } as Client;
-      setClients(prev => [
-        ...prev,
-        newClient,
-      ]);
-       toast({
-        title: 'Client Created',
-        description: 'The new client has been added.',
-      });
-      
-      const numTasks = await createRecurringTasks(newClient, currentUser.id);
-      toast({
-        title: 'Recurring Tasks Created',
-        description: `${numTasks} automated tasks have been generated for ${newClient.name}.`,
-      });
+    try {
+        if (selectedClient?.id) {
+            const clientRef = doc(db, "clients", selectedClient.id);
+            await setDoc(clientRef, clientData, { merge: true });
+            toast({
+                title: 'Client Updated',
+                description: 'The client details have been saved.',
+            });
+        } else {
+            const newDocRef = await addDoc(collection(db, "clients"), clientData);
+            toast({
+                title: 'Client Created',
+                description: 'The new client has been added to the database.',
+            });
+            const newClient = { ...clientData, id: newDocRef.id } as Client;
+            const numTasks = await createRecurringTasks(newClient, currentUser.id);
+            if (numTasks > 0) {
+                toast({
+                    title: 'Recurring Tasks Created',
+                    description: `${numTasks} automated tasks have been generated for ${newClient.name}.`,
+                });
+            }
+        }
+        fetchClients();
+        setIsFormOpen(false);
+        setSelectedClient(null);
+    } catch (error) {
+        console.error("Error saving client:", error);
+        toast({ title: 'Error', description: 'Could not save the client.', variant: 'destructive'});
     }
-    setIsFormOpen(false);
-    setSelectedClient(null);
   };
 
   return (
@@ -530,6 +554,11 @@ export default function AdminClientsPage() {
           <CardDescription>View, edit, and manage your monthly accounting clients.</CardDescription>
         </CardHeader>
         <CardContent>
+          {isLoading ? (
+            <div className="flex justify-center items-center h-64">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -615,6 +644,7 @@ export default function AdminClientsPage() {
               ))}
             </TableBody>
           </Table>
+          )}
         </CardContent>
       </Card>
     </div>
