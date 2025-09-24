@@ -257,21 +257,12 @@ export default function AdminClientsPage() {
       });
       return 0;
     }
-    const getNextStaffMember = (department: string): string[] => {
-        const staffInDept = allUsers.filter(u => u.role === 'staff' && u.department === department);
-        if (staffInDept.length > 0) {
-            const admin = allUsers.find(u => u.role === 'admin' && u.department === department);
-            return admin ? [admin.id] : [staffInDept[0].id];
-        }
-        const admin = allUsers.find(u => u.role === 'admin');
-        return admin ? [admin.id] : [];
+    const getDepartmentStaffIds = (department: string): string[] => {
+        return allUsers.filter(u => u.department === department && (u.role === 'staff' || u.role === 'admin')).map(u => u.id);
     };
 
-    const getDueDate = (month: string, day: number) => {
-        const year = new Date().getFullYear();
-        const monthIndex = months.indexOf(month);
-        return Timestamp.fromDate(new Date(year, monthIndex, day));
-    };
+    const accountingAndTaxStaff = getDepartmentStaffIds('Accounting and Tax');
+    const adminStaff = getDepartmentStaffIds('Administration');
     
     const batch = writeBatch(db);
     const tasksToCreate: Omit<Task, 'id'>[] = [];
@@ -280,12 +271,11 @@ export default function AdminClientsPage() {
 
     // Provisional Tax
     if (client.submitsProvisionalTaxes) {
-        // 1st payment: 6 months before year end
         const firstProvDueDate = lastDayOfMonth(addMonths(new Date(getYear(new Date()), yearEndMonthIndex + 1, 1), -6));
         tasksToCreate.push({
             title: `1st Provisional Tax for ${client.name}`,
             description: `Complete and file the first provisional tax return for ${client.name}.`,
-            assignedTo: getNextStaffMember('Accounting and Tax'),
+            assignedTo: accountingAndTaxStaff,
             dueDate: Timestamp.fromDate(firstProvDueDate),
             recurrence: 'Annually',
             priority: 'Medium',
@@ -294,12 +284,11 @@ export default function AdminClientsPage() {
             comments: [],
         });
         
-        // 2nd payment: At the end of the financial year
         const secondProvDueDate = lastDayOfMonth(new Date(getYear(new Date()), yearEndMonthIndex, 1));
          tasksToCreate.push({
             title: `2nd Provisional Tax for ${client.name}`,
             description: `Complete and file the second provisional tax return for ${client.name}.`,
-            assignedTo: getNextStaffMember('Accounting and Tax'),
+            assignedTo: accountingAndTaxStaff,
             dueDate: Timestamp.fromDate(secondProvDueDate),
             recurrence: 'Annually',
             priority: 'Medium',
@@ -315,7 +304,7 @@ export default function AdminClientsPage() {
          tasksToCreate.push({
             title: `ITR14 Return for ${client.name}`,
             description: `File the ITR14 corporate income tax return for ${client.name}.`,
-            assignedTo: getNextStaffMember('Accounting and Tax'),
+            assignedTo: accountingAndTaxStaff,
             dueDate: Timestamp.fromDate(itr14DueDate),
             recurrence: 'Annually',
             priority: 'High',
@@ -325,13 +314,12 @@ export default function AdminClientsPage() {
         });
     }
 
-
     // CIPC Annual Return
     tasksToCreate.push({
         title: `CIPC Annual Return for ${client.name}`,
         description: `File the CIPC annual return for ${client.name}.`,
-        assignedTo: getNextStaffMember('Administration'),
-        dueDate: getDueDate(client.yearEnd, 28),
+        assignedTo: adminStaff,
+        dueDate: Timestamp.fromDate(addMonths(new Date(getYear(new Date()), yearEndMonthIndex, 1), 1)), // Due in the anniversary month
         recurrence: 'Annually',
         priority: 'Medium',
         status: 'To-Do',
@@ -344,7 +332,7 @@ export default function AdminClientsPage() {
          tasksToCreate.push({
             title: `Annual Financials for ${client.name}`,
             description: `Prepare annual financial statements for ${client.name}.`,
-            assignedTo: getNextStaffMember('Accounting and Tax'),
+            assignedTo: accountingAndTaxStaff,
             dueDate: client.financialsDueDate,
             recurrence: 'Annually',
             priority: 'High',
@@ -363,7 +351,7 @@ export default function AdminClientsPage() {
         tasksToCreate.push({
             title: `Management Accounts for ${client.name}`,
             description: `Prepare ${client.managementAccountsFrequency} management accounts.`,
-            assignedTo: getNextStaffMember('Accounting and Tax'),
+            assignedTo: accountingAndTaxStaff,
             dueDate: client.managementAccountsDueDate,
             recurrence: recurrence,
             priority: 'Medium',
@@ -392,7 +380,7 @@ export default function AdminClientsPage() {
         tasksToCreate.push({
             title: `VAT201 Return for ${client.name}`,
             description: `File VAT201 return (Category ${client.vatCategory}).`,
-            assignedTo: getNextStaffMember('Accounting and Tax'),
+            assignedTo: accountingAndTaxStaff,
             dueDate: Timestamp.fromDate(firstDueDate),
             recurrence: client.vatCategory === 'C' ? 'Monthly' : 'Bi-Monthly',
             priority: 'High',
@@ -407,7 +395,7 @@ export default function AdminClientsPage() {
         tasksToCreate.push({
             title: `Prepare Payroll for ${client.name}`,
             description: 'Process monthly payroll.',
-            assignedTo: getNextStaffMember('Accounting and Tax'),
+            assignedTo: accountingAndTaxStaff,
             dueDate: client.payrollDueDate,
             recurrence: 'Monthly',
             priority: 'Medium',
@@ -422,7 +410,7 @@ export default function AdminClientsPage() {
         tasksToCreate.push({
             title: `EMP201 Submission for ${client.name}`,
             description: 'Submit monthly EMP201 declaration.',
-            assignedTo: getNextStaffMember('Accounting and Tax'),
+            assignedTo: accountingAndTaxStaff,
             dueDate: Timestamp.fromDate(set(new Date(), { date: 7, month: getMonth(new Date()) + 1 })),
             recurrence: 'Monthly',
             priority: 'High',
@@ -437,7 +425,7 @@ export default function AdminClientsPage() {
         tasksToCreate.push({
             title: `Interim EMP501 for ${client.name}`,
             description: 'Submit bi-annual EMP501 reconciliation for the period 1 March - 31 August.',
-            assignedTo: getNextStaffMember('Accounting and Tax'),
+            assignedTo: accountingAndTaxStaff,
             dueDate: Timestamp.fromDate(new Date(getYear(new Date()), 9, 31)), // October 31
             recurrence: 'Annually',
             priority: 'High',
@@ -448,7 +436,7 @@ export default function AdminClientsPage() {
         tasksToCreate.push({
             title: `Final EMP501 for ${client.name}`,
             description: 'Submit final EMP501 reconciliation for the period 1 March - 28/29 February.',
-            assignedTo: getNextStaffMember('Accounting and Tax'),
+            assignedTo: accountingAndTaxStaff,
             dueDate: Timestamp.fromDate(new Date(getYear(new Date()) + 1, 4, 31)), // May 31 of next year
             recurrence: 'Annually',
             priority: 'High',
@@ -624,8 +612,3 @@ export default function AdminClientsPage() {
     </div>
   );
 }
-
-    
-
-
-

@@ -463,6 +463,20 @@ export default function AdminDashboardPage() {
         return tasks.filter(task => Array.isArray(task.assignedTo) && task.assignedTo.includes(user.id)).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
     }, [tasks, user]);
 
+    const departmentTasks = useMemo(() => {
+        if (!user?.department) return {};
+        const deptTasks: { [key: string]: Task[] } = {};
+        departments.forEach(dept => {
+             deptTasks[dept] = tasks.filter(task => 
+                task.assignedTo.some(userId => {
+                    const assignee = users.find(u => u.id === userId);
+                    return assignee?.department === dept;
+                })
+            ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
+        });
+        return deptTasks;
+    }, [tasks, user]);
+
     const delegatedTasks = useMemo(() => {
         if (!user) return [];
         return tasks.filter(task => task.createdBy === user.id && (!Array.isArray(task.assignedTo) || !task.assignedTo.includes(user.id))).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
@@ -724,11 +738,35 @@ export default function AdminDashboardPage() {
                         <TaskTable 
                             tasks={myTasks} 
                             title="My Tasks" 
-                            description="These are tasks that are assigned to you."
+                            description="These are tasks that are assigned directly to you."
                             onEdit={handleEdit}
                             onUpdateStatus={handleUpdateStatus}
                             onDelete={handleDelete}
                         />
+
+                        {user?.role === 'admin' && Object.keys(departmentTasks).map(dept => (
+                           <TaskTable 
+                                key={dept}
+                                tasks={departmentTasks[dept]} 
+                                title={`${dept} Department Tasks`} 
+                                description={`All tasks for the ${dept} department.`}
+                                onEdit={handleEdit}
+                                onUpdateStatus={handleUpdateStatus}
+                                onDelete={handleDelete}
+                            />
+                        ))}
+                        
+                        {user?.role === 'staff' && user.department && departmentTasks[user.department] && (
+                             <TaskTable 
+                                tasks={departmentTasks[user.department]} 
+                                title={`${user.department} Department Tasks`} 
+                                description={`All tasks for your department.`}
+                                onEdit={handleEdit}
+                                onUpdateStatus={handleUpdateStatus}
+                                onDelete={handleDelete}
+                            />
+                        )}
+
                         {user?.role === 'admin' && (
                             <TaskTable 
                                 tasks={delegatedTasks} 
