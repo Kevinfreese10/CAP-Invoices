@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -71,6 +72,13 @@ const formSchema = z.object({
 });
 
 function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onSubmit: (data: any) => void, onCancel: () => void }) {
+    
+    const toDate = (value: any) => {
+        if (!value) return undefined;
+        if (value.toDate) return value.toDate(); // Firestore Timestamp
+        return new Date(value);
+    }
+    
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
@@ -84,14 +92,14 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
             submitsProvisionalTaxes: client?.submitsProvisionalTaxes || false,
             submitsIncomeTaxReturn: client?.submitsIncomeTaxReturn || false,
             preparesFinancials: client?.preparesFinancials || false,
-            financialsDueDate: client?.financialsDueDate ? new Date(client.financialsDueDate) : undefined,
+            financialsDueDate: toDate(client?.financialsDueDate),
             requiresManagementAccounts: client?.requiresManagementAccounts || false,
             managementAccountsFrequency: client?.managementAccountsFrequency || undefined,
-            managementAccountsDueDate: client?.managementAccountsDueDate ? new Date(client.managementAccountsDueDate) : undefined,
+            managementAccountsDueDate: toDate(client?.managementAccountsDueDate),
             isVatRegistered: client?.isVatRegistered || false,
             vatCategory: client?.vatCategory || undefined,
             preparesPayroll: client?.preparesPayroll || false,
-            payrollDueDate: client?.payrollDueDate ? new Date(client.payrollDueDate) : undefined,
+            payrollDueDate: toDate(client?.payrollDueDate),
             submitsEmp201: client?.submitsEmp201 || false,
             submitsEmp501: client?.submitsEmp501 || false,
         },
