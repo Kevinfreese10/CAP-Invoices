@@ -9,6 +9,7 @@
 
 
 
+
 export type ChartOfAccount = {
   id: string;
   accountNumber: string;
@@ -173,6 +174,7 @@ export type Task = {
   clientId?: string;
   comments?: TaskComment[];
 };
+
 
 
 

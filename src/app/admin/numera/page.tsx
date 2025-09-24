@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -28,6 +28,7 @@ import { chartOfAccounts } from '@/lib/chart-of-accounts';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
+import * as XLSX from 'xlsx';
 
 const db = getFirestore(firebaseApp);
 
@@ -61,7 +62,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
         defaultValues: {
             id: client?.id || '',
             name: client?.name || '',
-            yearEnd: client?.yearEnd ? new Date(client.yearEnd.seconds * 1000) : undefined,
+            yearEnd: client?.yearEnd ? (client.yearEnd.toDate ? client.yearEnd.toDate() : new Date(client.yearEnd)) : undefined,
             bankAccounts: client?.bankingDetails ? [{ name: client.bankingDetails.bankName }] : [],
         },
     });
@@ -228,14 +229,52 @@ function TrialBalanceCard({ activeClient }: { activeClient: User }) {
         return value.toLocaleString('en-ZA', { style: 'currency', currency: 'ZAR' });
     }
 
+    const handleDownloadExcel = () => {
+        if (!reportData) return;
+        const worksheetData = reportData.data.map(item => ({
+            'Account': item.accountNumber,
+            'Description': item.description,
+            'Debit': item.debit,
+            'Credit': item.credit,
+        }));
+        
+        const totalDebits = worksheetData.reduce((acc, item) => acc + item.Debit, 0);
+        const totalCredits = worksheetData.reduce((acc, item) => acc + item.Credit, 0);
+
+        worksheetData.push({
+            'Account': '',
+            'Description': 'Totals',
+            'Debit': totalDebits,
+            'Credit': totalCredits,
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+        
+        // Add number formatting for Debit and Credit columns
+        worksheet['!cols'] = [ { wch: 15 }, { wch: 40 }, { wch: 15 }, { wch: 15 } ];
+        worksheetData.forEach((_row, index) => {
+            const rowIndex = index + 2; // 1-based index, plus header row
+            if (worksheet[`C${rowIndex}`]) {
+                worksheet[`C${rowIndex}`].z = '"R "#,##0.00;("R "#,##0.00)';
+            }
+            if (worksheet[`D${rowIndex}`]) {
+                worksheet[`D${rowIndex}`].z = '"R "#,##0.00;("R "#,##0.00)';
+            }
+        });
+
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Trial Balance');
+        XLSX.writeFile(workbook, `Trial-Balance-${activeClient.name}-${reportData.fromDate}-to-${reportData.toDate}.xlsx`);
+    };
+
     const totalDebits = reportData?.data.reduce((acc, item) => acc + item.debit, 0) || 0;
     const totalCredits = reportData?.data.reduce((acc, item) => acc + item.credit, 0) || 0;
 
     return (
         <>
         <Dialog open={!!reportData} onOpenChange={(isOpen) => !isOpen && setReportData(null)}>
-             <DialogContent className="sm:max-w-4xl">
-                <DialogHeader>
+            <DialogContent className="sm:max-w-4xl">
+                 <DialogHeader>
                    <DialogTitle>Trial Balance Report</DialogTitle>
                    <DialogDescription>
                        A printable trial balance report for {reportData?.clientName}.
@@ -252,7 +291,11 @@ function TrialBalanceCard({ activeClient }: { activeClient: User }) {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <div className="flex justify-end mb-4 print:hidden">
+                                <div className="flex justify-end gap-2 mb-4 print:hidden">
+                                    <Button variant="outline" onClick={handleDownloadExcel}>
+                                        <Download className="mr-2 h-4 w-4" />
+                                        Download Excel
+                                    </Button>
                                     <Button variant="outline" onClick={() => window.print()}>
                                         <Printer className="mr-2 h-4 w-4" />
                                         Print
@@ -717,5 +760,6 @@ export default function NumeraPage() {
     </div>
   );
 }
+
 
 
