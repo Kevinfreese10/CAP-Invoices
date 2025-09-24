@@ -22,7 +22,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
+import { format, startOfYear, endOfYear, add, sub } from 'date-fns';
 import { chartOfAccounts } from '@/lib/chart-of-accounts';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -41,10 +41,10 @@ const formSchema = z.object({
 
 function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSubmit: (data: any) => void, onCancel: () => void }) {
     
-    const toDate = (value: any) => {
-        if (!value) return undefined;
-        if (value.toDate) return value.toDate(); // Firestore Timestamp
-        return new Date(value);
+    const getInitialYearEnd = (client: User | null) => {
+        if (!client || !client.yearEnd) return undefined;
+        if (client.yearEnd.toDate) return client.yearEnd.toDate();
+        return new Date(client.yearEnd);
     }
     
     const form = useForm<z.infer<typeof formSchema>>({
@@ -52,7 +52,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
         defaultValues: {
             id: client?.id || '',
             name: client?.name || '',
-            yearEnd: toDate(client?.yearEnd),
+            yearEnd: getInitialYearEnd(client),
             bankAccounts: client?.bankingDetails ? [{ name: client.bankingDetails.bankName }] : [],
         },
     });
@@ -143,6 +143,85 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
             </form>
         </Form>
     )
+}
+
+const trialBalanceFormSchema = z.object({
+    fromDate: z.date(),
+    toDate: z.date(),
+});
+
+function TrialBalanceCard({ activeClient }: { activeClient: User }) {
+    
+    const getFinancialYear = (yearEnd: any) => {
+        const toDate = yearEnd?.toDate ? yearEnd.toDate() : new Date(yearEnd);
+        const endDate = toDate;
+        const startDate = add(sub(endDate, { years: 1 }), { days: 1 });
+        return { startDate, endDate };
+    }
+
+    const { startDate, endDate } = getFinancialYear(activeClient.yearEnd);
+    
+    const form = useForm<z.infer<typeof trialBalanceFormSchema>>({
+        resolver: zodResolver(trialBalanceFormSchema),
+        defaultValues: {
+            fromDate: startDate,
+            toDate: endDate,
+        }
+    });
+
+    const handleGenerate = (values: z.infer<typeof trialBalanceFormSchema>) => {
+        console.log("Generating Trial Balance for", values);
+        // Placeholder for generation logic
+    }
+
+    return (
+        <Card>
+            <CardHeader><CardTitle>Trial Balance</CardTitle></CardHeader>
+            <CardContent>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleGenerate)} className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             <FormField
+                                control={form.control}
+                                name="fromDate"
+                                render={({ field }) => (
+                                    <FormItem className="flex flex-col">
+                                        <FormLabel>From Date</FormLabel>
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                            <FormControl>
+                                                <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd MMM yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button>
+                                            </FormControl>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent>
+                                        </Popover>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
+                                 <FormField
+                                control={form.control}
+                                name="toDate"
+                                render={({ field }) => (
+                                    <FormItem className="flex flex-col">
+                                        <FormLabel>To Date</FormLabel>
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                            <FormControl>
+                                                <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd MMM yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button>
+                                            </FormControl>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent>
+                                        </Popover>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
+                        </div>
+                        <Button type="submit">Generate</Button>
+                    </form>
+                </Form>
+            </CardContent>
+        </Card>
+    );
 }
 
 export default function NumeraPage() {
@@ -270,12 +349,7 @@ export default function NumeraPage() {
   
   const formatDate = (date: any) => {
     if (!date) return 'N/A';
-    // Check if it's a Firestore Timestamp
-    if (date.toDate) {
-      return format(date.toDate(), 'dd MMMM yyyy');
-    }
-    // Check if it's already a Date object or a valid date string
-    const d = new Date(date);
+    const d = date?.toDate ? date.toDate() : new Date(date);
     if (d instanceof Date && !isNaN(d.getTime())) {
         return format(d, 'dd MMMM yyyy');
     }
@@ -335,10 +409,7 @@ export default function NumeraPage() {
                         <TabsTrigger value="customers">Customers</TabsTrigger>
                     </TabsList>
                     <TabsContent value="reporting" className="space-y-4">
-                        <Card>
-                            <CardHeader><CardTitle>Trial Balance</CardTitle></CardHeader>
-                            <CardContent><p className="text-muted-foreground text-center py-10">Trial Balance functionality will be built here.</p></CardContent>
-                        </Card>
+                        <TrialBalanceCard activeClient={activeClient} />
                          <Card>
                             <CardHeader><CardTitle>General Ledger</CardTitle></CardHeader>
                             <CardContent><p className="text-muted-foreground text-center py-10">General Ledger functionality will be built here.</p></CardContent>
