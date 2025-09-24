@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -465,6 +466,10 @@ export default function AdminDashboardPage() {
         }
     };
     
+    useEffect(() => {
+        if (user) fetchDashboardData();
+    }, [user]);
+
     const taskTypes = useMemo(() => {
         const types = new Set(tasks.filter(task => task.recurrence && task.recurrence !== 'None').map(task => {
             const title = task.title;
@@ -477,10 +482,6 @@ export default function AdminDashboardPage() {
         return ['All Tasks', ...Array.from(types)];
     }, [tasks]);
 
-    useEffect(() => {
-        if (user) fetchDashboardData();
-    }, [user]);
-
     const myTasks = useMemo(() => {
         if (!user) return [];
         return tasks.filter(task => 
@@ -491,7 +492,6 @@ export default function AdminDashboardPage() {
     }, [tasks, user]);
 
     const departmentTasks = useMemo(() => {
-        if (!user?.department) return {};
         const deptTasks: { [key: string]: Task[] } = {};
         departments.forEach(dept => {
              deptTasks[dept] = tasks.filter(task => 
@@ -503,7 +503,7 @@ export default function AdminDashboardPage() {
             ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
         });
         return deptTasks;
-    }, [tasks, user]);
+    }, [tasks]);
     
     const automatedTasks = useMemo(() => {
         return tasks.filter(task => task.recurrence && task.recurrence !== 'None');
@@ -777,7 +777,15 @@ export default function AdminDashboardPage() {
                     </div>
                 ) : (
                     <>
-                        
+                        <TaskTable 
+                            tasks={myTasks} 
+                            title="My Manual Tasks" 
+                            description="All non-automated tasks assigned directly to you."
+                            onEdit={handleEdit}
+                            onUpdateStatus={handleUpdateStatus}
+                            onDelete={handleDelete}
+                            filter="all"
+                        />
                         
                          <Card>
                             <CardHeader>
@@ -841,7 +849,15 @@ export default function AdminDashboardPage() {
                         )}
 
                         {user?.role === 'admin' && (
-                            
+                            <TaskTable 
+                                tasks={delegatedTasks} 
+                                title="Delegated Tasks" 
+                                description="Tasks you have created and assigned to other team members."
+                                onEdit={handleEdit}
+                                onUpdateStatus={handleUpdateStatus}
+                                onDelete={handleDelete}
+                                filter="all"
+                            />
                         )}
                     </>
                 )}
