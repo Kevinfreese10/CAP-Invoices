@@ -449,7 +449,11 @@ export default function AdminClientsPage() {
             } else { // 'B' - Odd months (Feb-Mar, Apr-May, etc.) -> Due Apr 25, Jun 25...
                 targetMonth = !isEvenMonth ? currentMonth + 1 : currentMonth + 2;
             }
-            firstDueDate = set(now, { month: targetMonth, date: 25 });
+            if(targetMonth > 11){
+                firstDueDate = set(now, { year: getYear(now) + 1, month: targetMonth % 12, date: 25 });
+            } else {
+                firstDueDate = set(now, { month: targetMonth, date: 25 });
+            }
         }
 
         tasksToCreate.push({
@@ -555,6 +559,7 @@ export default function AdminClientsPage() {
     const clientData: Omit<Client, 'id'> = {
         ...data,
         role: 'client',
+        source: 'Client Management',
     };
 
     try {

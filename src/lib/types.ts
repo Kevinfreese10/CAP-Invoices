@@ -5,6 +5,7 @@
 
 
 
+
 export type Service = {
   id: string;
   title: string;
@@ -94,6 +95,7 @@ export type User = {
   name: string;
   email: string;
   role: 'client' | 'admin' | 'staff' | 'reseller';
+  source?: 'Numera' | 'Client Management';
   department?: 'Accounting and Tax' | 'Administration' | 'CAP';
   status?: 'Active' | 'Inactive';
   // Reseller specific fields
@@ -161,6 +163,7 @@ export type Task = {
   clientId?: string;
   comments?: TaskComment[];
 };
+
 
 
 

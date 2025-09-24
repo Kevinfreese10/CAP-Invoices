@@ -268,7 +268,7 @@ export default function NumeraPage() {
   const fetchClients = async () => {
     setIsLoading(true);
     try {
-        const q = query(collection(db, "clients"), orderBy("name"));
+        const q = query(collection(db, "clients"), where('source', '==', 'Numera'), orderBy("name"));
         const querySnapshot = await getDocs(q);
         const fetchedClients = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Client));
         setClients(fetchedClients);
@@ -558,6 +558,7 @@ export default function NumeraPage() {
     const clientData: Omit<Client, 'id'> = {
         ...data,
         role: 'client',
+        source: 'Numera',
     };
 
     try {
@@ -629,8 +630,8 @@ export default function NumeraPage() {
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>All Clients</CardTitle>
-          <CardDescription>View, edit, and manage your monthly accounting clients.</CardDescription>
+          <CardTitle>Numera Clients</CardTitle>
+          <CardDescription>View, edit, and manage your Numera accounting clients.</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -638,6 +639,15 @@ export default function NumeraPage() {
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : (
+            clients.length === 0 ? (
+                <div className="text-center py-10">
+                    <p className="text-muted-foreground">No clients have been added to Numera yet.</p>
+                     <Button onClick={handleAdd} className="mt-4">
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Create Your First Client
+                    </Button>
+                </div>
+            ) : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -723,6 +733,7 @@ export default function NumeraPage() {
               ))}
             </TableBody>
           </Table>
+          )
           )}
         </CardContent>
       </Card>
