@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview An AI agent for allocating bank transactions.
@@ -11,14 +10,6 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { chartOfAccounts } from '@/lib/chart-of-accounts';
-import { ChartOfAccount } from '@/lib/types';
-
-const ChartOfAccountSchema = z.object({
-  id: z.string(),
-  accountNumber: z.string(),
-  description: z.string(),
-  section: z.enum(['Income Statement', 'Balance Sheet']),
-});
 
 const AllocateTransactionInputSchema = z.object({
   description: z.string().describe('The transaction description from the bank statement.'),
@@ -72,4 +63,3 @@ const allocateTransactionFlow = ai.defineFlow(
     return output!;
   }
 );
-

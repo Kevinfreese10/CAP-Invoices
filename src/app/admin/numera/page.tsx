@@ -1784,4 +1784,3 @@ export default function NumeraPage() {
     </div>
   );
 }
-
