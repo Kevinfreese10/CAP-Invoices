@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -40,18 +40,18 @@ const formSchema = z.object({
 
 function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSubmit: (data: any) => void, onCancel: () => void }) {
     
-    const getInitialYearEnd = (dateValue: any) => {
-        if (!dateValue) return new Date();
-        if (dateValue.toDate) return dateValue.toDate(); // Firestore Timestamp
-        return new Date(dateValue);
+    const toDate = (value: any) => {
+        if (!value) return undefined;
+        if (value.toDate) return value.toDate(); // Firestore Timestamp
+        return new Date(value);
     }
-
+    
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
             id: client?.id || '',
             name: client?.name || '',
-            yearEnd: getInitialYearEnd(client?.yearEnd),
+            yearEnd: toDate(client?.yearEnd),
             bankAccounts: client?.bankingDetails ? [{ name: client.bankingDetails.bankName }] : [],
         },
     });
@@ -100,9 +100,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
                                 mode="single"
                                 selected={field.value}
                                 onSelect={field.onChange}
-                                disabled={(date) =>
-                                 date < new Date("1900-01-01")
-                                }
+                                disabled={(date) => date < new Date("1900-01-01")}
                                 initialFocus
                             />
                             </PopoverContent>
@@ -151,6 +149,7 @@ export default function NumeraPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<User | null>(null);
+  const [activeClient, setActiveClient] = useState<User | null>(null);
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
   
@@ -270,7 +269,12 @@ export default function NumeraPage() {
   
   const formatDate = (date: any) => {
     if (!date) return 'N/A';
-    const d = date.toDate ? date.toDate() : new Date(date);
+    // Check if it's a Firestore Timestamp
+    if (date.toDate) {
+      return format(date.toDate(), 'dd MMMM yyyy');
+    }
+    // Check if it's already a Date object or a valid date string
+    const d = new Date(date);
     if (d instanceof Date && !isNaN(d.getTime())) {
         return format(d, 'dd MMMM yyyy');
     }
@@ -281,119 +285,141 @@ export default function NumeraPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Numera Accounting</h1>
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-           <DialogTrigger asChild>
-                <Button onClick={handleAdd}>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Create Client
-                </Button>
-           </DialogTrigger>
-           <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                    <DialogTitle>{selectedClient ? 'Edit Client' : 'Create New Client'}</DialogTitle>
-                    <DialogDescription>
-                        {selectedClient ? 'Update the details for this client.' : 'Enter the details for a new Numera client.'}
-                    </DialogDescription>
-                </DialogHeader>
-                <ClientForm 
-                    client={selectedClient} 
-                    onSubmit={handleFormSubmit}
-                    onCancel={() => setIsFormOpen(false)}
-                />
-           </DialogContent>
-        </Dialog>
-      </div>
-
-       <Card>
-        <CardHeader>
-          <CardTitle>Numera Clients</CardTitle>
-          <CardDescription>View, edit, and manage your Numera accounting clients.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center items-center h-64">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : (
-            clients.length === 0 ? (
-                <div className="text-center py-10">
-                    <p className="text-muted-foreground">No clients have been added to Numera yet.</p>
-                    <Button onClick={handleAdd} className="mt-4">
+        {!activeClient && (
+            <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+            <DialogTrigger asChild>
+                    <Button onClick={handleAdd}>
                         <PlusCircle className="mr-2 h-4 w-4" />
-                        Create Your First Client
+                        Create Client
                     </Button>
-                </div>
-            ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Client</TableHead>
-                <TableHead>Financial Year End</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {clients.map(client => (
-                <TableRow key={client.id}>
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                            <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${client.name}`} alt={client.name} />
-                            <AvatarFallback>{client.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <span>{client.name}</span>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>{selectedClient ? 'Edit Client' : 'Create New Client'}</DialogTitle>
+                        <DialogDescription>
+                            {selectedClient ? 'Update the details for this client.' : 'Enter the details for a new Numera client.'}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <ClientForm 
+                        client={selectedClient} 
+                        onSubmit={handleFormSubmit}
+                        onCancel={() => setIsFormOpen(false)}
+                    />
+            </DialogContent>
+            </Dialog>
+        )}
+      </div>
+      
+        {activeClient ? (
+             <Card className="bg-primary/10 border-primary/20">
+                <CardHeader>
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <CardDescription>Currently working on:</CardDescription>
+                            <CardTitle>{activeClient.name}</CardTitle>
+                        </div>
+                        <Button variant="ghost" size="icon" onClick={() => setActiveClient(null)}>
+                            <X className="h-5 w-5" />
+                        </Button>
                     </div>
-                  </TableCell>
-                  <TableCell>{formatDate(client.yearEnd)}</TableCell>
-                  <TableCell className="text-right">
-                    <AlertDialog>
-                        <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
+                </CardHeader>
+                <CardContent>
+                    <p className="text-center text-muted-foreground py-10">Client-specific dashboard and accounting features will be built here.</p>
+                </CardContent>
+             </Card>
+        ) : (
+            <Card>
+                <CardHeader>
+                <CardTitle>Numera Clients</CardTitle>
+                <CardDescription>Select a client to start working, or create a new client.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                {isLoading ? (
+                    <div className="flex justify-center items-center h-64">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                ) : (
+                    clients.length === 0 ? (
+                        <div className="text-center py-10">
+                            <p className="text-muted-foreground">No clients have been added to Numera yet.</p>
+                            <Button onClick={handleAdd} className="mt-4">
+                                <PlusCircle className="mr-2 h-4 w-4" />
+                                Create Your First Client
                             </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => handleEdit(client)}>
-                                Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                             <AlertDialogTrigger asChild>
-                                <DropdownMenuItem className="text-destructive">
-                                    Delete
-                                </DropdownMenuItem>
-                            </AlertDialogTrigger>
-                        </DropdownMenuContent>
-                        </DropdownMenu>
-                         <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                This action cannot be undone. This will permanently delete the client account for:
-                                <span className="font-semibold"> {client.name}</span>.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDelete(client.id)}>
-                                    Continue
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-            )
-          )}
-        </CardContent>
-      </Card>
+                        </div>
+                    ) : (
+                <Table>
+                    <TableHeader>
+                    <TableRow>
+                        <TableHead>Client</TableHead>
+                        <TableHead>Financial Year End</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                    {clients.map(client => (
+                        <TableRow key={client.id}>
+                        <TableCell className="font-medium">
+                            <div className="flex items-center gap-3">
+                                <Avatar className="h-8 w-8">
+                                    <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${client.name}`} alt={client.name} />
+                                    <AvatarFallback>{client.name.charAt(0)}</AvatarFallback>
+                                </Avatar>
+                                <span>{client.name}</span>
+                            </div>
+                        </TableCell>
+                        <TableCell>{formatDate(client.yearEnd)}</TableCell>
+                        <TableCell className="text-right">
+                            <div className="flex gap-2 justify-end">
+                                <Button size="sm" onClick={() => setActiveClient(client)}>Select</Button>
+                                <AlertDialog>
+                                    <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" className="h-8 w-8 p-0">
+                                        <span className="sr-only">Open menu</span>
+                                        <MoreHorizontal className="h-4 w-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                        <DropdownMenuItem onClick={() => handleEdit(client)}>
+                                            Edit
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <AlertDialogTrigger asChild>
+                                            <DropdownMenuItem className="text-destructive">
+                                                Delete
+                                            </DropdownMenuItem>
+                                        </AlertDialogTrigger>
+                                    </DropdownMenuContent>
+                                    </DropdownMenu>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                            This action cannot be undone. This will permanently delete the client account for:
+                                            <span className="font-semibold"> {client.name}</span>.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={() => handleDelete(client.id)}>
+                                                Continue
+                                            </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </div>
+                        </TableCell>
+                        </TableRow>
+                    ))}
+                    </TableBody>
+                </Table>
+                    )
+                )}
+                </CardContent>
+            </Card>
+        )}
     </div>
   );
 }
-
-    
