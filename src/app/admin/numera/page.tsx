@@ -36,6 +36,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { users as allUsers } from '@/lib/data';
 import { allocateTransaction } from '@/ai/flows/allocate-transaction';
 import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 
 const db = getFirestore(firebaseApp);
 
@@ -1144,7 +1145,7 @@ export default function NumeraPage() {
       setSelectedClient(null);
     } catch (error) {
         console.error("Error saving client:", error);
-        toast({ title: 'Error', description: 'Could not save the client.', variant: 'destructive' });
+        toast({ title: 'Error', description: 'Could not save the client.', variant: 'destructive'});
     }
   };
   
@@ -1806,3 +1807,5 @@ export default function NumeraPage() {
     </div>
   );
 }
+
+    
