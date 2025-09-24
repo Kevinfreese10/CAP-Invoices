@@ -230,6 +230,7 @@ export default function AdminTasksPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [taskTypeFilter, setTaskTypeFilter] = useState('all');
   const { toast } = useToast();
   const { user } = useAuth();
   
@@ -252,12 +253,30 @@ export default function AdminTasksPage() {
     fetchTasks();
   }, []);
 
+  const taskTypes = useMemo(() => {
+    const types = new Set(tasks.map(task => {
+        const title = task.title;
+        const forIndex = title.lastIndexOf(' for ');
+        if (forIndex > -1) {
+            return title.substring(0, forIndex);
+        }
+        return title;
+    }));
+    return ['All Tasks', ...Array.from(types)];
+  }, [tasks]);
+
   const filteredTasks = useMemo(() => {
+    let tasksToFilter = tasks;
     if (user?.role === 'staff') {
-        return tasks.filter(task => Array.isArray(task.assignedTo) && task.assignedTo.includes(user.id));
+        tasksToFilter = tasks.filter(task => Array.isArray(task.assignedTo) && task.assignedTo.includes(user.id));
     }
-    return tasks;
-  }, [tasks, user]);
+    
+    if (taskTypeFilter !== 'all' && taskTypeFilter !== 'All Tasks') {
+        return tasksToFilter.filter(task => task.title.startsWith(taskTypeFilter));
+    }
+
+    return tasksToFilter;
+  }, [tasks, user, taskTypeFilter]);
 
 
   const handleAdd = () => {
@@ -450,10 +469,28 @@ export default function AdminTasksPage() {
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>All Tasks</CardTitle>
-          <CardDescription>
-            {user?.role === 'staff' ? 'Showing all tasks assigned to you.' : 'View, edit, and delete all tasks in the system.'}
-          </CardDescription>
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+            <div>
+              <CardTitle>All Tasks</CardTitle>
+              <CardDescription>
+                {user?.role === 'staff' ? 'Showing all tasks assigned to you.' : 'View, edit, and delete all tasks in the system.'}
+              </CardDescription>
+            </div>
+            <div className="w-full sm:w-auto">
+                <Select onValueChange={setTaskTypeFilter} defaultValue="all">
+                    <SelectTrigger className="w-full sm:w-[240px]">
+                        <SelectValue placeholder="Filter by task type..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {taskTypes.map(type => (
+                            <SelectItem key={type} value={type === 'All Tasks' ? 'all' : type}>
+                                {type}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -607,5 +644,7 @@ export default function AdminTasksPage() {
     </div>
   );
 }
+
+    
 
     
