@@ -774,6 +774,59 @@ function AllocationCombobox({ onSelect }: { onSelect: (value: string, type: 'acc
     )
 }
 
+function AllocationTable({ transactions, onAllocate, selectedTransactions, onSelectionChange }: { transactions: ImportedTransaction[], onAllocate: (transactionId: string) => void, selectedTransactions: string[], onSelectionChange: (id: string, isSelected: boolean) => void }) {
+    const handleSelectAll = (checked: boolean) => {
+        transactions.forEach(tx => onSelectionChange(tx.id, checked));
+    };
+
+    const areAllSelected = transactions.length > 0 && transactions.every(tx => selectedTransactions.includes(tx.id));
+
+    return (
+        <Table>
+            <TableHeader>
+                <TableRow>
+                    <TableHead padding="checkbox">
+                        <Checkbox
+                            checked={areAllSelected}
+                            onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                            aria-label="Select all"
+                        />
+                    </TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Allocate To</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                {transactions.map(tx => (
+                    <TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && "selected"}>
+                        <TableCell padding="checkbox">
+                            <Checkbox
+                                checked={selectedTransactions.includes(tx.id)}
+                                onCheckedChange={(checked) => onSelectionChange(tx.id, !!checked)}
+                                aria-label={`Select transaction ${tx.id}`}
+                            />
+                        </TableCell>
+                        <TableCell>{tx.date}</TableCell>
+                        <TableCell>{tx.description}</TableCell>
+                        <TableCell className="font-mono">{formatNumber(tx.amount)}</TableCell>
+                        <TableCell className="w-[300px]">
+                            <AllocationCombobox onSelect={(value, type) => console.log('Allocate to:', { value, type })}/>
+                        </TableCell>
+                        <TableCell className="text-right">
+                            <div className="flex gap-2 justify-end">
+                                <Button size="sm" onClick={() => onAllocate(tx.id)}>Allocate</Button>
+                                <Button size="sm" variant="outline" disabled>Split</Button>
+                            </div>
+                        </TableCell>
+                    </TableRow>
+                ))}
+            </TableBody>
+        </Table>
+    );
+}
 
 export default function NumeraPage() {
   const [clients, setClients] = useState<User[]>([]);
@@ -792,6 +845,7 @@ export default function NumeraPage() {
   const [bankBalances, setBankBalances] = useState<{ [accountNumber: string]: number }>({});
   const [unallocatedTransactions, setUnallocatedTransactions] = useState<ImportedTransaction[]>([]);
   const [unallocatedSearch, setUnallocatedSearch] = useState('');
+  const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
   
   const importForm = useForm();
   
@@ -1092,13 +1146,43 @@ export default function NumeraPage() {
       toast({ title: 'Transaction Allocated', description: 'The transaction has been successfully allocated.' });
   }
 
+  const handleBulkAllocate = () => {
+    console.log(`Bulk allocating ${selectedTransactions.length} transactions...`);
+    setUnallocatedTransactions(prev => prev.filter(tx => !selectedTransactions.includes(tx.id)));
+    setSelectedTransactions([]);
+    toast({ title: 'Bulk Allocation Successful', description: `${selectedTransactions.length} transactions have been allocated.` });
+  };
+
+  const handleSelectionChange = (id: string, isSelected: boolean) => {
+    setSelectedTransactions(prev => {
+        const newSelection = new Set(prev);
+        if (isSelected) {
+            newSelection.add(id);
+        } else {
+            newSelection.delete(id);
+        }
+        return Array.from(newSelection);
+    });
+  };
+
+
   const clientBankAccounts = activeClient
     ? chartOfAccounts.filter(acc => acc.id.startsWith(`cashbook-${activeClient.id}`))
     : [];
 
-  const filteredUnallocated = useMemo(() => {
-    if (!unallocatedSearch) return unallocatedTransactions;
-    return unallocatedTransactions.filter(tx => 
+  const incomeTransactions = useMemo(() => {
+    const filtered = unallocatedTransactions.filter(tx => tx.amount >= 0);
+    if (!unallocatedSearch) return filtered;
+    return filtered.filter(tx => 
+        tx.description.toLowerCase().includes(unallocatedSearch.toLowerCase()) ||
+        tx.amount.toString().includes(unallocatedSearch)
+    );
+  }, [unallocatedTransactions, unallocatedSearch]);
+
+  const expenseTransactions = useMemo(() => {
+    const filtered = unallocatedTransactions.filter(tx => tx.amount < 0);
+     if (!unallocatedSearch) return filtered;
+    return filtered.filter(tx => 
         tx.description.toLowerCase().includes(unallocatedSearch.toLowerCase()) ||
         tx.amount.toString().includes(unallocatedSearch)
     );
@@ -1295,35 +1379,34 @@ export default function NumeraPage() {
                             </CardHeader>
                             <CardContent>
                                 {unallocatedTransactions.length > 0 ? (
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Date</TableHead>
-                                                <TableHead>Description</TableHead>
-                                                <TableHead>Amount</TableHead>
-                                                <TableHead>Allocate To</TableHead>
-                                                <TableHead className="text-right">Actions</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {filteredUnallocated.map(tx => (
-                                                <TableRow key={tx.id}>
-                                                    <TableCell>{tx.date}</TableCell>
-                                                    <TableCell>{tx.description}</TableCell>
-                                                    <TableCell className="font-mono">{formatNumber(tx.amount)}</TableCell>
-                                                    <TableCell className="w-[300px]">
-                                                         <AllocationCombobox onSelect={(value, type) => console.log('Allocate to:', { value, type })}/>
-                                                    </TableCell>
-                                                     <TableCell className="text-right">
-                                                         <div className="flex gap-2 justify-end">
-                                                            <Button size="sm" onClick={() => handleAllocate(tx.id)}>Allocate</Button>
-                                                            <Button size="sm" variant="outline" disabled>Split</Button>
-                                                         </div>
-                                                     </TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
+                                    <Tabs defaultValue="income">
+                                        <TabsList>
+                                            <TabsTrigger value="income">Income ({incomeTransactions.length})</TabsTrigger>
+                                            <TabsTrigger value="expenses">Expenses ({expenseTransactions.length})</TabsTrigger>
+                                        </TabsList>
+                                        {selectedTransactions.length > 0 && (
+                                            <div className="flex items-center gap-4 p-4 border-t border-b bg-muted/50">
+                                                <p className="text-sm font-semibold">{selectedTransactions.length} selected</p>
+                                                <AllocationCombobox onSelect={(value, type) => console.log('Bulk Allocate to:', { value, type })}/>
+                                                <Button size="sm" onClick={handleBulkAllocate}>Allocate Selected</Button>
+                                                <Button size="sm" variant="ghost" onClick={() => setSelectedTransactions([])}>Clear Selection</Button>
+                                            </div>
+                                        )}
+                                        <TabsContent value="income">
+                                            {incomeTransactions.length > 0 ? (
+                                                <AllocationTable transactions={incomeTransactions} onAllocate={handleAllocate} selectedTransactions={selectedTransactions} onSelectionChange={handleSelectionChange} />
+                                            ) : (
+                                                <p className="text-muted-foreground text-center py-10">No income transactions to display.</p>
+                                            )}
+                                        </TabsContent>
+                                        <TabsContent value="expenses">
+                                             {expenseTransactions.length > 0 ? (
+                                                 <AllocationTable transactions={expenseTransactions} onAllocate={handleAllocate} selectedTransactions={selectedTransactions} onSelectionChange={handleSelectionChange} />
+                                             ) : (
+                                                <p className="text-muted-foreground text-center py-10">No expense transactions to display.</p>
+                                             )}
+                                        </TabsContent>
+                                    </Tabs>
                                 ) : (
                                     <p className="text-muted-foreground text-center py-10">No unallocated transactions.</p>
                                 )}
