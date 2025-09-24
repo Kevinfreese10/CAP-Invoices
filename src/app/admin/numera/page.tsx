@@ -1316,30 +1316,40 @@ export default function NumeraPage() {
   }
 
   const handleBulkAllocate = () => {
-    const bulkAllocation = allocations['bulk'];
-     if (!bulkAllocation) {
-        toast({ title: 'Allocation Error', description: 'Please select an account for bulk allocation.', variant: 'destructive' });
+    const transactionsToAllocate = unallocatedTransactions.filter(tx => selectedTransactions.includes(tx.id));
+    
+    const newAllocatedTransactions: AllocatedTransaction[] = [];
+    const unallocatedStill = [];
+
+    for (const tx of transactionsToAllocate) {
+        const allocation = allocations[tx.id];
+        if (allocation) {
+            newAllocatedTransactions.push({
+                ...tx,
+                allocatedTo: allocation,
+                allocatedAt: new Date(),
+            });
+        } else {
+            unallocatedStill.push(tx.id);
+        }
+    }
+    
+    if (newAllocatedTransactions.length === 0) {
+        toast({ title: 'Allocation Error', description: 'No allocations were selected for the chosen transactions.', variant: 'destructive' });
         return;
     }
 
-    const transactionsToAllocate = unallocatedTransactions.filter(tx => selectedTransactions.includes(tx.id));
-    
-    const newAllocatedTransactions: AllocatedTransaction[] = transactionsToAllocate.map(tx => ({
-        ...tx,
-        allocatedTo: bulkAllocation,
-        allocatedAt: new Date(),
-    }));
-
     setAllocatedTransactions(prev => [...prev, ...newAllocatedTransactions]);
-    setUnallocatedTransactions(prev => prev.filter(tx => !selectedTransactions.includes(tx.id)));
-    setSelectedTransactions([]);
+    setUnallocatedTransactions(prev => prev.filter(tx => !newAllocatedTransactions.some(at => at.id === tx.id)));
+    setSelectedTransactions(unallocatedStill);
+    
     setAllocations(prev => {
         const newAllocations = { ...prev };
-        delete newAllocations['bulk'];
-        selectedTransactions.forEach(id => delete newAllocations[id]);
+        newAllocatedTransactions.forEach(tx => delete newAllocations[tx.id]);
         return newAllocations;
     });
-    toast({ title: 'Bulk Allocation Successful', description: `${selectedTransactions.length} transactions have been allocated.` });
+
+    toast({ title: 'Bulk Allocation Successful', description: `${newAllocatedTransactions.length} transactions have been allocated.` });
   };
 
   const handleSelectionChange = (id: string, isSelected: boolean) => {
@@ -1618,8 +1628,7 @@ export default function NumeraPage() {
                                         {(selectedTransactions.length > 0 && !isAiAllocating) && (
                                             <div className="flex flex-wrap items-center gap-4 p-4 border-t border-b bg-muted/50">
                                                 <p className="text-sm font-semibold">{selectedTransactions.length} selected</p>
-                                                <AllocationCombobox value={allocations['bulk']} onSelect={(value, type) => handleAllocationSelect('bulk', value, type)}/>
-                                                <Button size="sm" onClick={handleBulkAllocate} disabled={!allocations['bulk']}>Allocate Selected</Button>
+                                                <Button size="sm" onClick={handleBulkAllocate} >Allocate Selected</Button>
                                                 <Button size="sm" variant="outline" onClick={handleAiAllocate} disabled={isAiAllocating}>
                                                     {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                                                      Allocate with AI
