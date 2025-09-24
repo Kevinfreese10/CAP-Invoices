@@ -496,9 +496,8 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
       });
   };
 
-   useEffect(() => {
-    const joinedAccounts = initialValues?.accounts?.join(',');
-    if (joinedAccounts) {
+  useEffect(() => {
+    if (initialValues?.accounts && initialValues.accounts.length > 0) {
       const newFromDate = initialValues.fromDate || startDate;
       const newToDate = initialValues.toDate || endDate;
       
@@ -515,7 +514,7 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
       });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialValues?.accounts?.join(','), initialValues?.fromDate?.getTime(), initialValues?.toDate?.getTime()]);
+  }, [initialValues?.accounts?.join(','), initialValues?.fromDate?.getTime(), initialValues?.toDate?.getTime(), form.reset]);
 
 
   const formatNumber = (value: number) => {
@@ -568,16 +567,13 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
         rowIndex += 2; // for account header and transaction headers
         worksheet[`F${rowIndex}`] = { t: 'n', v: account.openingBalance, z: '#,##0.00' };
         rowIndex++;
-        account.transactions.forEach((tx) => {
-             const dataRowIndex = worksheetData.findIndex(row => row.A === tx.date && row.C === tx.reference);
-             if(dataRowIndex > -1){
-                const rowData = worksheetData[dataRowIndex];
-                worksheet[`D${rowIndex}`] = { t: 'n', v: rowData.D, z: '#,##0.00' };
-                worksheet[`E${rowIndex}`] = { t: 'n', v: rowData.E, z: '#,##0.00' };
-                worksheet[`F${rowIndex}`] = { t: 'n', v: rowData.F, z: '#,##0.00' };
-             }
-            rowIndex++;
+        account.transactions.forEach(() => {
+             rowIndex++;
+             worksheet[`D${rowIndex}`].z = '#,##0.00';
+             worksheet[`E${rowIndex}`].z = '#,##0.00';
+             worksheet[`F${rowIndex}`].z = '#,##0.00';
         });
+        rowIndex++;
         worksheet[`F${rowIndex}`] = { t: 'n', v: account.closingBalance, z: '#,##0.00' };
         rowIndex +=2; // for closing balance and spacer row
     });
@@ -958,7 +954,7 @@ export default function NumeraPage() {
         header: true,
         skipEmptyLines: true,
         complete: (results) => {
-            const transactions = results.data as { Amount: string }[];
+            const transactions = results.data as { Date: string; Description: string; Amount: string }[];
             const count = transactions.length;
             const total = transactions.reduce((sum, row) => sum + (parseFloat(row.Amount) || 0), 0);
             
