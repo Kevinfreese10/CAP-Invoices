@@ -20,6 +20,8 @@ import {
   BrainCircuit,
   Images,
   FileSpreadsheet,
+  Book,
+  ListOrdered,
 } from 'lucide-react';
 
 import {
@@ -54,6 +56,8 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/tasks', label: 'Manage Tasks', icon: ClipboardCheck, roles: ['admin', 'staff'] },
     { href: '/admin/clients', label: 'Manage Clients', icon: BookUser, roles: ['admin'] },
     { href: '/admin/numera', label: 'Numera', icon: FileSpreadsheet, roles: ['admin', 'staff'] },
+    { href: '/admin/numera/chart-of-accounts', label: 'Chart of Accounts', icon: Book, roles: ['admin', 'staff'], isSubItem: true },
+    { href: '/admin/numera/allocation-rules', label: 'Allocation Rules', icon: ListOrdered, roles: ['admin', 'staff'], isSubItem: true },
     { href: '/admin/services', label: 'Manage Services', icon: Briefcase, roles: ['admin'] },
     { href: '/admin/categories', label: 'Manage Categories', icon: Shapes, roles: ['admin'] },
     { href: '/admin/blog', label: 'Manage Blog', icon: BookMarked, roles: ['admin'] },
@@ -110,7 +114,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
             <>
                 {visibleAdminNavItems.map((item) => (
                     <SidebarMenuItem key={item.href}>
-                        <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
+                        <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label} className={item.isSubItem ? 'pl-8' : ''}>
                             <Link href={item.href}>
                                 <item.icon />
                                 <span>{item.label}</span>
