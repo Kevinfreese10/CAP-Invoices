@@ -27,7 +27,7 @@ import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CalendarIcon } from 'lucide-react';
-import { format, addMonths, set, getDate, getMonth, getYear, lastDayOfMonth } from 'date-fns';
+import { format, addMonths, set, getDate, getMonth, getYear, lastDayOfMonth, isPast } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Calendar } from '@/components/ui/calendar';
 
@@ -726,4 +726,3 @@ export default function AdminClientsPage() {
     </div>
   );
 }
-
