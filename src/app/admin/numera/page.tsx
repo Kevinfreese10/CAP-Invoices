@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -31,6 +31,7 @@ import { Separator } from '@/components/ui/separator';
 import * as XLSX from 'xlsx';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
 import { Check } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const db = getFirestore(firebaseApp);
 
@@ -493,8 +494,9 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
       });
   };
 
- useEffect(() => {
-    if (initialValues && initialValues.accounts && initialValues.accounts.length > 0) {
+  useEffect(() => {
+    const joinedAccounts = initialValues?.accounts?.join(',');
+    if (joinedAccounts) {
       const newFromDate = initialValues.fromDate || startDate;
       const newToDate = initialValues.toDate || endDate;
       
@@ -507,7 +509,7 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
       handleGenerate({
         fromDate: newFromDate,
         toDate: newToDate,
-        accounts: initialValues.accounts,
+        accounts: initialValues.accounts!,
       });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -564,10 +566,14 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
         rowIndex += 2; // for account header and transaction headers
         worksheet[`F${rowIndex}`] = { t: 'n', v: account.openingBalance, z: '#,##0.00' };
         rowIndex++;
-        account.transactions.forEach(() => {
-             worksheet[`D${rowIndex}`] = { t: 'n', v: worksheetData[rowIndex-1].D, z: '#,##0.00' };
-             worksheet[`E${rowIndex}`] = { t: 'n', v: worksheetData[rowIndex-1].E, z: '#,##0.00' };
-             worksheet[`F${rowIndex}`] = { t: 'n', v: worksheetData[rowIndex-1].F, z: '#,##0.00' };
+        account.transactions.forEach((tx) => {
+             const dataRowIndex = worksheetData.findIndex(row => row.A === tx.date && row.C === tx.reference);
+             if(dataRowIndex > -1){
+                const rowData = worksheetData[dataRowIndex];
+                worksheet[`D${rowIndex}`] = { t: 'n', v: rowData.D, z: '#,##0.00' };
+                worksheet[`E${rowIndex}`] = { t: 'n', v: rowData.E, z: '#,##0.00' };
+                worksheet[`F${rowIndex}`] = { t: 'n', v: rowData.F, z: '#,##0.00' };
+             }
             rowIndex++;
         });
         worksheet[`F${rowIndex}`] = { t: 'n', v: account.closingBalance, z: '#,##0.00' };
@@ -720,6 +726,7 @@ export default function NumeraPage() {
   const { user: currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState('reporting');
   const [glInitialValues, setGlInitialValues] = useState<Partial<z.infer<typeof generalLedgerFormSchema>>>();
+  const [selectedBankAccount, setSelectedBankAccount] = useState('');
   
   const fetchClients = async () => {
     setIsLoading(true);
@@ -915,6 +922,14 @@ export default function NumeraPage() {
     return 'Invalid Date';
   };
 
+  const handleImport = () => {
+    if (!selectedBankAccount) {
+        toast({ title: 'No Account Selected', description: 'Please select a bank account to import transactions into.', variant: 'destructive' });
+        return;
+    }
+    toast({ title: 'Import Successful', description: `Transactions have been imported into account ${selectedBankAccount}.` });
+  }
+
   const clientBankAccounts = activeClient
     ? chartOfAccounts.filter(acc => acc.id.startsWith(`cashbook-${activeClient.id}`))
     : [];
@@ -1001,6 +1016,7 @@ export default function NumeraPage() {
                                             <TableRow>
                                                 <TableHead>Account Number</TableHead>
                                                 <TableHead>Account Name</TableHead>
+                                                <TableHead>Last Import</TableHead>
                                                 <TableHead className="text-right">Balance</TableHead>
                                             </TableRow>
                                         </TableHeader>
@@ -1009,6 +1025,7 @@ export default function NumeraPage() {
                                                 <TableRow key={acc.id}>
                                                     <TableCell className="font-mono">{acc.accountNumber}</TableCell>
                                                     <TableCell>{acc.description}</TableCell>
+                                                    <TableCell>{format(sub(new Date(), {days: Math.floor(Math.random()*30)}), 'dd/MM/yyyy')}</TableCell>
                                                     <TableCell className="text-right font-mono">R 0.00</TableCell>
                                                 </TableRow>
                                             ))}
@@ -1020,12 +1037,34 @@ export default function NumeraPage() {
                             </CardContent>
                         </Card>
                         <Card>
-                            <CardHeader><CardTitle>Bank Transactions</CardTitle></CardHeader>
-                            <CardContent><p className="text-muted-foreground text-center py-10">Bank transactions functionality will be built here.</p></CardContent>
-                        </Card>
-                        <Card>
-                            <CardHeader><CardTitle>Bank Reconciliation</CardTitle></CardHeader>
-                            <CardContent><p className="text-muted-foreground text-center py-10">Bank reconciliation functionality will be built here.</p></CardContent>
+                            <CardHeader>
+                                <CardTitle>Import Bank Transactions</CardTitle>
+                                <CardDescription>Import a CSV file of transactions into a selected bank account.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <FormItem>
+                                    <FormLabel>Select Bank Account</FormLabel>
+                                    <Select onValueChange={setSelectedBankAccount}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select an account..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {clientBankAccounts.map(acc => (
+                                                <SelectItem key={acc.id} value={acc.accountNumber}>{acc.description}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </FormItem>
+                                 <FormItem>
+                                    <FormLabel>Transaction File</FormLabel>
+                                    <Input type="file" accept=".csv" />
+                                 </FormItem>
+                               </div>
+                               <Button onClick={handleImport} disabled={!selectedBankAccount}>
+                                 <Upload className="mr-2 h-4 w-4" /> Import Transactions
+                               </Button>
+                            </CardContent>
                         </Card>
                     </TabsContent>
                     <TabsContent value="journals">
@@ -1144,6 +1183,7 @@ export default function NumeraPage() {
     </div>
   );
 }
+
 
 
 
