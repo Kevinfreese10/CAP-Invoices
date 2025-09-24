@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload, FileCheck2, ScanLine, Sprout, Search, ArrowUpDown } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload, FileCheck2, ScanLine, Sprout, Search, ArrowUpDown, Edit } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -908,6 +908,61 @@ function AllocationTable({ transactions, onAllocate, selectedTransactions, onSel
     );
 }
 
+const customers = allUsers.filter(u => u.role === 'client');
+const suppliers = [{id: 'supp-1', name: 'Telkom'}, {id: 'supp-2', name: 'Eskom'}]; // Mock suppliers
+
+function AllocatedTransactionTable({ transactions, onEditAllocation }: { transactions: AllocatedTransaction[], onEditAllocation: (transaction: AllocatedTransaction) => void }) {
+    
+    const getDisplayValue = (allocatedTo: { value: string, type: string }) => {
+        if (allocatedTo.type === 'account') {
+            return chartOfAccounts.find(a => a.accountNumber === allocatedTo.value)?.description || "N/A";
+        }
+        if (allocatedTo.type === 'customer') {
+            return customers.find(c => c.id === allocatedTo.value)?.name || "N/A";
+        }
+        if (allocatedTo.type === 'supplier') {
+            return suppliers.find(s => s.id === allocatedTo.value)?.name || "N/A";
+        }
+        return "N/A";
+    };
+    
+    return (
+        <Table>
+            <TableHeader>
+                <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Allocated To</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                {transactions.map(tx => (
+                    <TableRow key={tx.id}>
+                        <TableCell>{tx.date}</TableCell>
+                        <TableCell>{tx.description}</TableCell>
+                        <TableCell className="font-mono">{formatNumber(tx.amount)}</TableCell>
+                        <TableCell>
+                             <div className="flex flex-col">
+                                <span className="font-semibold">{getDisplayValue(tx.allocatedTo)}</span>
+                                <span className="text-xs text-muted-foreground">{tx.allocatedTo.type}</span>
+                             </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                           <Button variant="outline" size="sm" onClick={() => onEditAllocation(tx)}>
+                               <Edit className="mr-2 h-3 w-3" />
+                               Edit Allocation
+                           </Button>
+                        </TableCell>
+                    </TableRow>
+                ))}
+            </TableBody>
+        </Table>
+    );
+}
+
+
 export default function NumeraPage() {
   const [clients, setClients] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -927,7 +982,7 @@ export default function NumeraPage() {
   const [allocatedTransactions, setAllocatedTransactions] = useState<AllocatedTransaction[]>([]);
   const [unallocatedSearch, setUnallocatedSearch] = useState('');
   const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
-  const [allocations, setAllocations] = useState<{ [key: string]: { value: string, type: string } }>({});
+  const [allocations, setAllocations] = useState<{ [key: string]: { value: string, type: 'account'|'customer'|'supplier' } }>({});
   
   const importForm = useForm();
   
@@ -1297,6 +1352,15 @@ export default function NumeraPage() {
     });
   };
 
+  const handleEditAllocation = (transaction: AllocatedTransaction) => {
+    setAllocatedTransactions(prev => prev.filter(tx => tx.id !== transaction.id));
+    setUnallocatedTransactions(prev => [transaction, ...prev]);
+    toast({
+        title: 'Transaction Un-allocated',
+        description: 'The transaction has been moved back to the unallocated list for editing.',
+    });
+  };
+
 
   const clientBankAccounts = activeClient
     ? chartOfAccounts.filter(acc => acc.id.startsWith(`cashbook-${activeClient.id}`))
@@ -1319,7 +1383,9 @@ export default function NumeraPage() {
         tx.amount.toString().includes(unallocatedSearch)
     );
   }, [unallocatedTransactions, unallocatedSearch]);
-
+  
+  const allocatedIncome = useMemo(() => allocatedTransactions.filter(tx => tx.amount >= 0), [allocatedTransactions]);
+  const allocatedExpenses = useMemo(() => allocatedTransactions.filter(tx => tx.amount < 0), [allocatedTransactions]);
 
   return (
     <div className="space-y-8">
@@ -1494,7 +1560,7 @@ export default function NumeraPage() {
                             <CardHeader>
                                 <div className="flex flex-col sm:flex-row justify-between gap-2">
                                     <div>
-                                        <CardTitle>Unallocated Transactions</CardTitle>
+                                        <CardTitle>Transaction Processing</CardTitle>
                                         <CardDescription>Allocate imported transactions to your Chart of Accounts.</CardDescription>
                                     </div>
                                     <div className="relative">
@@ -1510,11 +1576,13 @@ export default function NumeraPage() {
                                 </div>
                             </CardHeader>
                             <CardContent>
-                                {unallocatedTransactions.length > 0 ? (
-                                    <Tabs defaultValue="income">
-                                        <TabsList>
-                                            <TabsTrigger value="income">Income ({incomeTransactions.length})</TabsTrigger>
-                                            <TabsTrigger value="expenses">Expenses ({expenseTransactions.length})</TabsTrigger>
+                                {unallocatedTransactions.length > 0 || allocatedTransactions.length > 0 ? (
+                                    <Tabs defaultValue="unallocated-income">
+                                        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto">
+                                            <TabsTrigger value="unallocated-income">Unallocated Income ({incomeTransactions.length})</TabsTrigger>
+                                            <TabsTrigger value="unallocated-expenses">Unallocated Expenses ({expenseTransactions.length})</TabsTrigger>
+                                            <TabsTrigger value="allocated-income">Allocated Income ({allocatedIncome.length})</TabsTrigger>
+                                            <TabsTrigger value="allocated-expenses">Allocated Expenses ({allocatedExpenses.length})</TabsTrigger>
                                         </TabsList>
                                         {selectedTransactions.length > 0 && (
                                             <div className="flex items-center gap-4 p-4 border-t border-b bg-muted/50">
@@ -1524,23 +1592,37 @@ export default function NumeraPage() {
                                                 <Button size="sm" variant="ghost" onClick={() => setSelectedTransactions([])}>Clear Selection</Button>
                                             </div>
                                         )}
-                                        <TabsContent value="income">
+                                        <TabsContent value="unallocated-income">
                                             {incomeTransactions.length > 0 ? (
                                                 <AllocationTable transactions={incomeTransactions} onAllocate={handleAllocate} selectedTransactions={selectedTransactions} onSelectionChange={handleSelectionChange} onAllocationSelect={handleAllocationSelect} allocations={allocations} />
                                             ) : (
-                                                <p className="text-muted-foreground text-center py-10">No income transactions to display.</p>
+                                                <p className="text-muted-foreground text-center py-10">No unallocated income transactions to display.</p>
                                             )}
                                         </TabsContent>
-                                        <TabsContent value="expenses">
+                                        <TabsContent value="unallocated-expenses">
                                              {expenseTransactions.length > 0 ? (
                                                  <AllocationTable transactions={expenseTransactions} onAllocate={handleAllocate} selectedTransactions={selectedTransactions} onSelectionChange={handleSelectionChange} onAllocationSelect={handleAllocationSelect} allocations={allocations} />
                                              ) : (
-                                                <p className="text-muted-foreground text-center py-10">No expense transactions to display.</p>
+                                                <p className="text-muted-foreground text-center py-10">No unallocated expense transactions to display.</p>
                                              )}
+                                        </TabsContent>
+                                        <TabsContent value="allocated-income">
+                                            {allocatedIncome.length > 0 ? (
+                                                <AllocatedTransactionTable transactions={allocatedIncome} onEditAllocation={handleEditAllocation} />
+                                            ) : (
+                                                <p className="text-muted-foreground text-center py-10">No allocated income transactions to display.</p>
+                                            )}
+                                        </TabsContent>
+                                         <TabsContent value="allocated-expenses">
+                                            {allocatedExpenses.length > 0 ? (
+                                                <AllocatedTransactionTable transactions={allocatedExpenses} onEditAllocation={handleEditAllocation} />
+                                            ) : (
+                                                <p className="text-muted-foreground text-center py-10">No allocated expense transactions to display.</p>
+                                            )}
                                         </TabsContent>
                                     </Tabs>
                                 ) : (
-                                    <p className="text-muted-foreground text-center py-10">No unallocated transactions.</p>
+                                    <p className="text-muted-foreground text-center py-10">No transactions to process. Please import a bank statement.</p>
                                 )}
                             </CardContent>
                         </Card>
@@ -1661,4 +1743,5 @@ export default function NumeraPage() {
     </div>
   );
 }
+
 
