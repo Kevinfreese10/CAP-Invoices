@@ -1,3 +1,4 @@
+'use client';
 import { ChartOfAccount } from './types';
 
 // Changed to 'let' to allow dynamic addition of cashbook accounts

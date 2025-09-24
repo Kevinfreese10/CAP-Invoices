@@ -16,15 +16,17 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { User, ChartOfAccount } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, query, where } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, query, where, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
-import { format, startOfYear, endOfYear, add, sub } from 'date-fns';
+import { format, add, sub } from 'date-fns';
 import { chartOfAccounts } from '@/lib/chart-of-accounts';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Separator } from '@/components/ui/separator';
 
 const db = getFirestore(firebaseApp);
 
@@ -41,10 +43,10 @@ const formSchema = z.object({
 
 function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSubmit: (data: any) => void, onCancel: () => void }) {
     
-    const getInitialYearEnd = (client: User | null) => {
-        if (!client || !client.yearEnd) return undefined;
-        if (client.yearEnd.toDate) return client.yearEnd.toDate();
-        return new Date(client.yearEnd);
+    const toDate = (value: any) => {
+        if (!value) return undefined;
+        if (value.toDate) return value.toDate(); // Firestore Timestamp
+        return new Date(value);
     }
     
     const form = useForm<z.infer<typeof formSchema>>({
@@ -52,7 +54,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
         defaultValues: {
             id: client?.id || '',
             name: client?.name || '',
-            yearEnd: getInitialYearEnd(client),
+            yearEnd: toDate(client?.yearEnd),
             bankAccounts: client?.bankingDetails ? [{ name: client.bankingDetails.bankName }] : [],
         },
     });
@@ -148,9 +150,19 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
 const trialBalanceFormSchema = z.object({
     fromDate: z.date(),
     toDate: z.date(),
+    showZeroItems: z.boolean().default(true),
 });
 
+type TrialBalanceData = {
+    accountNumber: string;
+    description: string;
+    debit: number;
+    credit: number;
+}[];
+
 function TrialBalanceCard({ activeClient }: { activeClient: User }) {
+    
+    const [trialBalanceData, setTrialBalanceData] = useState<TrialBalanceData | null>(null);
     
     const getFinancialYear = (yearEnd: any) => {
         const toDate = yearEnd?.toDate ? yearEnd.toDate() : new Date(yearEnd);
@@ -166,13 +178,44 @@ function TrialBalanceCard({ activeClient }: { activeClient: User }) {
         defaultValues: {
             fromDate: startDate,
             toDate: endDate,
+            showZeroItems: true,
         }
     });
 
     const handleGenerate = (values: z.infer<typeof trialBalanceFormSchema>) => {
         console.log("Generating Trial Balance for", values);
-        // Placeholder for generation logic
+        
+        // Mock data generation
+        const mockData = chartOfAccounts.map(account => {
+            let debit = 0;
+            let credit = 0;
+            // Simple logic to assign some mock balances
+            if (account.accountNumber.startsWith('1')) { // Sales
+                credit = Math.random() * 100000;
+            } else if (account.accountNumber.startsWith('3') || account.accountNumber.startsWith('4')) { // Expenses
+                debit = Math.random() * 20000;
+            } else if (account.accountNumber.startsWith('8400')) { // Bank
+                debit = Math.random() * 50000;
+            }
+            
+            // Randomly decide to make some non-zero to show filtering
+            if (Math.random() > 0.7) {
+                return { accountNumber: account.accountNumber, description: account.description, debit, credit };
+            }
+
+            return { accountNumber: account.accountNumber, description: account.description, debit: 0, credit: 0 };
+        });
+
+        const filteredData = values.showZeroItems ? mockData : mockData.filter(d => d.debit !== 0 || d.credit !== 0);
+        setTrialBalanceData(filteredData);
     }
+    
+    const formatCurrency = (value: number) => {
+        return value.toLocaleString('en-ZA', { style: 'currency', currency: 'ZAR' });
+    }
+
+    const totalDebits = trialBalanceData ? trialBalanceData.reduce((acc, item) => acc + item.debit, 0) : 0;
+    const totalCredits = trialBalanceData ? trialBalanceData.reduce((acc, item) => acc + item.credit, 0) : 0;
 
     return (
         <Card>
@@ -216,9 +259,57 @@ function TrialBalanceCard({ activeClient }: { activeClient: User }) {
                                     </FormItem>
                                 )} />
                         </div>
+                        <FormField
+                            control={form.control}
+                            name="showZeroItems"
+                            render={({ field }) => (
+                                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                                <FormControl>
+                                    <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                                </FormControl>
+                                <div className="space-y-1 leading-none">
+                                    <FormLabel>Show zero balance accounts</FormLabel>
+                                </div>
+                                </FormItem>
+                            )}
+                        />
                         <Button type="submit">Generate</Button>
                     </form>
                 </Form>
+                 {trialBalanceData && (
+                    <div className="mt-6">
+                        <Separator className="my-4"/>
+                        <h3 className="text-lg font-medium mb-2">Generated Trial Balance</h3>
+                        <p className="text-sm text-muted-foreground">For period: {format(form.getValues('fromDate'), 'dd MMM yyyy')} to {format(form.getValues('toDate'), 'dd MMM yyyy')}</p>
+                         <Table className="mt-4">
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Account</TableHead>
+                                    <TableHead>Description</TableHead>
+                                    <TableHead className="text-right">Debit</TableHead>
+                                    <TableHead className="text-right">Credit</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {trialBalanceData.map(item => (
+                                    <TableRow key={item.accountNumber}>
+                                        <TableCell className="font-mono">{item.accountNumber}</TableCell>
+                                        <TableCell>{item.description}</TableCell>
+                                        <TableCell className="text-right font-mono">{item.debit > 0 ? formatCurrency(item.debit) : '-'}</TableCell>
+                                        <TableCell className="text-right font-mono">{item.credit > 0 ? formatCurrency(item.credit) : '-'}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                            <TableFooter>
+                                <TableRow>
+                                    <TableCell colSpan={2} className="font-bold">Totals</TableCell>
+                                    <TableCell className="text-right font-bold font-mono">{formatCurrency(totalDebits)}</TableCell>
+                                    <TableCell className="text-right font-bold font-mono">{formatCurrency(totalCredits)}</TableCell>
+                                </TableRow>
+                            </TableFooter>
+                        </Table>
+                    </div>
+                )}
             </CardContent>
         </Card>
     );
@@ -267,11 +358,27 @@ export default function NumeraPage() {
   
   const handleDelete = async (clientId: string) => {
     try {
-        await deleteDoc(doc(db, "clients", clientId));
+        const batch = writeBatch(db);
+        
+        // Delete the client
+        const clientRef = doc(db, "clients", clientId);
+        batch.delete(clientRef);
+
+        // Find and delete associated cashbook accounts from chartOfAccounts
+        const associatedAccounts = chartOfAccounts.filter(acc => acc.id.startsWith(`cashbook-${clientId}`));
+        associatedAccounts.forEach(acc => {
+            const index = chartOfAccounts.findIndex(a => a.id === acc.id);
+            if (index > -1) {
+                chartOfAccounts.splice(index, 1);
+            }
+        });
+
+        await batch.commit();
+
         fetchClients();
         toast({
             title: 'Client Deleted',
-            description: 'The client has been removed.',
+            description: 'The client and their associated cashbooks have been removed.',
             variant: 'destructive',
         });
     } catch (error) {
@@ -300,7 +407,8 @@ export default function NumeraPage() {
                 description: 'The client details have been saved.',
             });
         } else {
-            await addDoc(collection(db, "clients"), clientData);
+            const clientRef = doc(collection(db, "clients"));
+            await setDoc(clientRef, clientData);
             
             // Add new bank accounts to chart of accounts
             if (data.bankAccounts && data.bankAccounts.length > 0) {
@@ -311,19 +419,22 @@ export default function NumeraPage() {
               
               let nextAccountNumberIndex = 1;
               if (lastCashbook) {
-                  nextAccountNumberIndex = parseInt(lastCashbook.accountNumber.split('/')[1]) + 1;
+                  const lastNum = parseInt(lastCashbook.accountNumber.split('/')[1]);
+                  if (!isNaN(lastNum)) {
+                     nextAccountNumberIndex = lastNum + 1;
+                  }
               }
 
               data.bankAccounts.forEach((bank, index) => {
                   const newAccountNum = `8400/${(nextAccountNumberIndex + index).toString().padStart(3, '0')}`;
                   const newAccount: ChartOfAccount = {
-                      id: newAccountNum,
+                      id: `cashbook-${clientRef.id}-${index}`, // Unique ID for the account
                       accountNumber: newAccountNum,
-                      description: bank.name,
+                      description: `${data.name} - ${bank.name}`,
                       section: 'Balance Sheet',
                   };
                   // Avoid duplicates
-                  if (!chartOfAccounts.some(a => a.id === newAccount.id)) {
+                  if (!chartOfAccounts.some(a => a.accountNumber === newAccount.accountNumber)) {
                       chartOfAccounts.push(newAccount);
                   }
               });
@@ -349,9 +460,14 @@ export default function NumeraPage() {
   
   const formatDate = (date: any) => {
     if (!date) return 'N/A';
-    const d = date?.toDate ? date.toDate() : new Date(date);
+    // Check if it's a Firestore Timestamp
+    if (date.toDate) {
+      return format(date.toDate(), 'dd MMMM yyyy');
+    }
+    // Check if it's already a Date object or a valid date string
+    const d = new Date(date);
     if (d instanceof Date && !isNaN(d.getTime())) {
-        return format(d, 'dd MMMM yyyy');
+      return format(d, 'dd MMMM yyyy');
     }
     return 'Invalid Date';
   };
@@ -520,7 +636,7 @@ export default function NumeraPage() {
                                             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                             <AlertDialogDescription>
                                             This action cannot be undone. This will permanently delete the client account for:
-                                            <span className="font-semibold"> {client.name}</span>.
+                                            <span className="font-semibold"> {client.name}</span>. This will also remove their related cashbooks.
                                             </AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
