@@ -87,7 +87,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
             id: client?.id || '',
             name: client?.name || '',
             yearEnd: client?.yearEnd ? (client.yearEnd.toDate ? client.yearEnd.toDate() : new Date(client.yearEnd)) : undefined,
-            bankAccounts: client?.bankingDetails ? [{ name: client.bankingDetails.bankName }] : [],
+            bankAccounts: client?.id ? chartOfAccounts.filter(acc => acc.id.startsWith(`cashbook-${client.id}`)).map(acc => ({ name: acc.description.split(' - ')[1] })) : [],
         },
     });
 
@@ -493,21 +493,24 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
       });
   };
 
-  useEffect(() => {
-    if (initialValues?.accounts) {
+ useEffect(() => {
+    if (initialValues && initialValues.accounts && initialValues.accounts.length > 0) {
+      const newFromDate = initialValues.fromDate || startDate;
+      const newToDate = initialValues.toDate || endDate;
+      
       form.reset({
-        fromDate: initialValues.fromDate || startDate,
-        toDate: initialValues.toDate || endDate,
-        accounts: initialValues.accounts || [],
+        fromDate: newFromDate,
+        toDate: newToDate,
+        accounts: initialValues.accounts,
       });
-      if (initialValues.accounts && initialValues.accounts.length > 0) {
-        handleGenerate({
-          fromDate: initialValues.fromDate || startDate,
-          toDate: initialValues.toDate || endDate,
-          accounts: initialValues.accounts,
-        });
-      }
+
+      handleGenerate({
+        fromDate: newFromDate,
+        toDate: newToDate,
+        accounts: initialValues.accounts,
+      });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialValues?.accounts?.join(','), initialValues?.fromDate?.getTime(), initialValues?.toDate?.getTime()]);
 
 
@@ -556,18 +559,21 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
         { wch: 15 }, { wch: 15 }, { wch: 15 }
     ];
 
-    worksheetData.forEach((row, index) => {
-        const rowIndex = index + 1;
-        if (row.D || row.E || row.F) {
-            ['D', 'E', 'F'].forEach(col => {
-                const cellRef = `${col}${rowIndex}`;
-                const cell = worksheet[cellRef];
-                if (cell && typeof cell.v === 'number') {
-                    cell.z = '#,##0.00';
-                }
-            });
-        }
+    let rowIndex = 1;
+    reportData.accounts.forEach(account => {
+        rowIndex += 2; // for account header and transaction headers
+        worksheet[`F${rowIndex}`] = { t: 'n', v: account.openingBalance, z: '#,##0.00' };
+        rowIndex++;
+        account.transactions.forEach(() => {
+             worksheet[`D${rowIndex}`] = { t: 'n', v: worksheetData[rowIndex-1].D, z: '#,##0.00' };
+             worksheet[`E${rowIndex}`] = { t: 'n', v: worksheetData[rowIndex-1].E, z: '#,##0.00' };
+             worksheet[`F${rowIndex}`] = { t: 'n', v: worksheetData[rowIndex-1].F, z: '#,##0.00' };
+            rowIndex++;
+        });
+        worksheet[`F${rowIndex}`] = { t: 'n', v: account.closingBalance, z: '#,##0.00' };
+        rowIndex +=2; // for closing balance and spacer row
     });
+
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'General Ledger');
@@ -778,26 +784,69 @@ export default function NumeraPage() {
 
   const handleFormSubmit = async (data: z.infer<typeof formSchema>) => {
     if (!currentUser) return;
-    
+
     const clientData = {
-        name: data.name,
-        yearEnd: data.yearEnd,
-        role: 'client' as const,
-        source: 'Numera' as const,
-        email: `${data.name.toLowerCase().replace(/\s/g, '.')}@numera.local`
+      name: data.name,
+      yearEnd: data.yearEnd,
+      role: 'client' as const,
+      source: 'Numera' as const,
+      email: `${data.name.toLowerCase().replace(/\s/g, '.')}@numera.local`,
     };
 
     try {
-        if (selectedClient?.id) {
-            const clientRef = doc(db, "clients", selectedClient.id);
-            await setDoc(clientRef, clientData, { merge: true });
-            toast({
-                title: 'Client Updated',
-                description: 'The client details have been saved.',
+      if (selectedClient?.id) {
+        const clientRef = doc(db, 'clients', selectedClient.id);
+        await setDoc(clientRef, clientData, { merge: true });
+        
+        // Handle new bank accounts on edit
+        const existingBankAccounts = chartOfAccounts
+          .filter(acc => acc.id.startsWith(`cashbook-${selectedClient.id}`))
+          .map(acc => acc.description.split(' - ')[1]);
+        
+        const newBankAccounts = (data.bankAccounts || []).filter(
+          bank => !existingBankAccounts.includes(bank.name)
+        );
+
+        if (newBankAccounts.length > 0) {
+            let nextAccountNumberIndex = 1;
+            const lastCashbook = chartOfAccounts
+                .filter(a => a.accountNumber.startsWith('8400/'))
+                .sort((a,b) => a.accountNumber.localeCompare(b.accountNumber))
+                .pop();
+            if (lastCashbook) {
+                const lastNum = parseInt(lastCashbook.accountNumber.split('/')[1]);
+                if (!isNaN(lastNum)) {
+                    nextAccountNumberIndex = lastNum + 1;
+                }
+            }
+
+            newBankAccounts.forEach((bank, index) => {
+                const newAccountNum = `8400/${(nextAccountNumberIndex + index).toString().padStart(3, '0')}`;
+                const newAccount: ChartOfAccount = {
+                    id: `cashbook-${selectedClient.id}-${Date.now() + index}`,
+                    accountNumber: newAccountNum,
+                    description: `${data.name} - ${bank.name}`,
+                    section: 'Balance Sheet',
+                };
+                if (!chartOfAccounts.some(a => a.accountNumber === newAccount.accountNumber)) {
+                    chartOfAccounts.push(newAccount);
+                }
             });
-        } else {
-            const clientRef = doc(collection(db, "clients"));
-            await setDoc(clientRef, clientData);
+
+            toast({
+                title: 'Cashbooks Added',
+                description: `${newBankAccounts.length} new cashbook accounts have been added.`,
+            });
+        }
+
+        toast({
+          title: 'Client Updated',
+          description: 'The client details have been saved.',
+        });
+
+      } else {
+        const clientRef = doc(collection(db, "clients"));
+        await setDoc(clientRef, clientData);
             
             if (data.bankAccounts && data.bankAccounts.length > 0) {
               const lastCashbook = chartOfAccounts
@@ -835,13 +884,13 @@ export default function NumeraPage() {
                 title: 'Client Created',
                 description: 'The new client has been added to the database.',
             });
-        }
-        fetchClients();
-        setIsFormOpen(false);
-        setSelectedClient(null);
+      }
+      fetchClients();
+      setIsFormOpen(false);
+      setSelectedClient(null);
     } catch (error) {
-        console.error("Error saving client:", error);
-        toast({ title: 'Error', description: 'Could not save the client.', variant: 'destructive'});
+      console.error("Error saving client:", error);
+      toast({ title: 'Error', description: 'Could not save the client.', variant: 'destructive' });
     }
   };
   
@@ -1095,5 +1144,6 @@ export default function NumeraPage() {
     </div>
   );
 }
+
 
 
