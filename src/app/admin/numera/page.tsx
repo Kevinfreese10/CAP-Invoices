@@ -40,10 +40,10 @@ const formSchema = z.object({
 
 function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSubmit: (data: any) => void, onCancel: () => void }) {
     
-    const toDate = (value: any) => {
-        if (!value) return new Date();
-        if (value.toDate) return value.toDate(); // Firestore Timestamp
-        return new Date(value);
+    const getInitialYearEnd = (dateValue: any) => {
+        if (!dateValue) return new Date();
+        if (dateValue.toDate) return dateValue.toDate(); // Firestore Timestamp
+        return new Date(dateValue);
     }
 
     const form = useForm<z.infer<typeof formSchema>>({
@@ -51,7 +51,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
         defaultValues: {
             id: client?.id || '',
             name: client?.name || '',
-            yearEnd: client?.yearEnd ? toDate(client.yearEnd) : new Date(),
+            yearEnd: getInitialYearEnd(client?.yearEnd),
             bankAccounts: client?.bankingDetails ? [{ name: client.bankingDetails.bankName }] : [],
         },
     });
@@ -101,7 +101,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
                                 selected={field.value}
                                 onSelect={field.onChange}
                                 disabled={(date) =>
-                                date > new Date() || date < new Date("1900-01-01")
+                                 date < new Date("1900-01-01")
                                 }
                                 initialFocus
                             />
@@ -270,13 +270,9 @@ export default function NumeraPage() {
   
   const formatDate = (date: any) => {
     if (!date) return 'N/A';
-    // Check if it's a Firestore Timestamp
-    if (date.seconds) {
-      return format(new Date(date.seconds * 1000), 'dd MMMM yyyy');
-    }
-    // Otherwise, assume it's a JS Date
-    if(date instanceof Date) {
-        return format(date, 'dd MMMM yyyy');
+    const d = date.toDate ? date.toDate() : new Date(date);
+    if (d instanceof Date && !isNaN(d.getTime())) {
+        return format(d, 'dd MMMM yyyy');
     }
     return 'Invalid Date';
   };
@@ -399,3 +395,5 @@ export default function NumeraPage() {
     </div>
   );
 }
+
+    
