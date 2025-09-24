@@ -1,5 +1,4 @@
 
-
 'use client';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -498,23 +497,22 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
 
   useEffect(() => {
     if (initialValues?.accounts && initialValues.accounts.length > 0) {
-      const newFromDate = initialValues.fromDate || startDate;
-      const newToDate = initialValues.toDate || endDate;
-      
-      form.reset({
-        fromDate: newFromDate,
-        toDate: newToDate,
-        accounts: initialValues.accounts,
-      });
+        const newFromDate = initialValues.fromDate || startDate;
+        const newToDate = initialValues.toDate || endDate;
+        
+        form.reset({
+            fromDate: newFromDate,
+            toDate: newToDate,
+            accounts: initialValues.accounts,
+        });
 
-      handleGenerate({
-        fromDate: newFromDate,
-        toDate: newToDate,
-        accounts: initialValues.accounts!,
-      });
+        handleGenerate({
+            fromDate: newFromDate,
+            toDate: newToDate,
+            accounts: initialValues.accounts!,
+        });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialValues?.accounts?.join(','), initialValues?.fromDate?.getTime(), initialValues?.toDate?.getTime(), form.reset]);
+}, [JSON.stringify(initialValues)]);
 
 
   const formatNumber = (value: number) => {
@@ -526,11 +524,6 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
 
     let worksheetData: any[] = [];
     
-    worksheetData.push({ A: reportData.clientName });
-    worksheetData.push({ A: 'General Ledger' });
-    worksheetData.push({ A: `For the period: ${reportData.fromDate} to ${reportData.toDate}` });
-    worksheetData.push({});
-
     reportData.accounts.forEach(account => {
         worksheetData.push({ A: `${account.accountNumber} - ${account.description}` });
         worksheetData.push({
@@ -569,9 +562,12 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
         rowIndex++;
         account.transactions.forEach(() => {
              rowIndex++;
-             worksheet[`D${rowIndex}`].z = '#,##0.00';
-             worksheet[`E${rowIndex}`].z = '#,##0.00';
-             worksheet[`F${rowIndex}`].z = '#,##0.00';
+             const debitCell = worksheet[`D${rowIndex}`];
+             const creditCell = worksheet[`E${rowIndex}`];
+             const balanceCell = worksheet[`F${rowIndex}`];
+             if(debitCell) debitCell.z = '#,##0.00';
+             if(creditCell) creditCell.z = '#,##0.00';
+             if(balanceCell) balanceCell.z = '#,##0.00';
         });
         rowIndex++;
         worksheet[`F${rowIndex}`] = { t: 'n', v: account.closingBalance, z: '#,##0.00' };
@@ -973,6 +969,20 @@ export default function NumeraPage() {
     });
   };
 
+  const handleDownloadSample = () => {
+    const csvContent = "Date,Description,Amount\n25/07/2024,Opening Balance,1000.00\n26/07/2024,Payment to Supplier,-250.50\n27/07/2024,Deposit from Client,500.00";
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.href) {
+      URL.revokeObjectURL(link.href);
+    }
+    link.href = URL.createObjectURL(blob);
+    link.download = 'sample-transactions.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
 
   const clientBankAccounts = activeClient
     ? chartOfAccounts.filter(acc => acc.id.startsWith(`cashbook-${activeClient.id}`))
@@ -1092,9 +1102,11 @@ export default function NumeraPage() {
                                         <FormItem>
                                             <FormLabel>Select Bank Account</FormLabel>
                                             <Select onValueChange={setSelectedBankAccount}>
+                                                <FormControl>
                                                 <SelectTrigger>
                                                     <SelectValue placeholder="Select an account..." />
                                                 </SelectTrigger>
+                                                </FormControl>
                                                 <SelectContent>
                                                     {clientBankAccounts.map(acc => (
                                                         <SelectItem key={acc.id} value={acc.accountNumber}>{acc.description}</SelectItem>
@@ -1104,9 +1116,14 @@ export default function NumeraPage() {
                                         </FormItem>
                                         <FormItem>
                                             <FormLabel>Transaction File (.csv)</FormLabel>
+                                            <FormControl>
                                             <Input id="transaction-file-input" type="file" accept=".csv" onChange={handleFileChange} />
+                                            </FormControl>
                                         </FormItem>
                                     </div>
+                                    <Button type="button" variant="secondary" size="sm" onClick={handleDownloadSample}>
+                                        <Download className="mr-2 h-4 w-4" /> Download Sample CSV
+                                    </Button>
                                     {isParsing && (
                                         <div className="flex items-center text-sm text-muted-foreground">
                                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
