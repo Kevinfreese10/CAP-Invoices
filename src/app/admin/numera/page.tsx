@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload, FileCheck2, ScanLine } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload, FileCheck2, ScanLine, Sprout } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -36,6 +36,14 @@ import Papa from 'papaparse';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const db = getFirestore(firebaseApp);
+
+type ImportedTransaction = {
+    id: string;
+    date: string;
+    description: string;
+    amount: number;
+    bankAccountId: string; // The account number of the bank it was imported into
+};
 
 type TrialBalanceReportData = {
     clientName: string;
@@ -497,23 +505,21 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
   };
 
   useEffect(() => {
-    if (initialValues?.accounts && initialValues.accounts.length > 0) {
-        const newFromDate = initialValues.fromDate || startDate;
-        const newToDate = initialValues.toDate || endDate;
-        
-        form.reset({
-            fromDate: newFromDate,
-            toDate: newToDate,
-            accounts: initialValues.accounts,
-        });
-
-        handleGenerate({
-            fromDate: newFromDate,
-            toDate: newToDate,
-            accounts: initialValues.accounts!,
-        });
+    if (initialValues?.accounts?.length) {
+      // Use JSON.stringify to compare the content of the initialValues object,
+      // not just its reference, to prevent an infinite loop.
+      form.reset({
+        ...initialValues,
+        fromDate: initialValues.fromDate || startDate,
+        toDate: initialValues.toDate || endDate,
+      });
+      handleGenerate({
+        accounts: initialValues.accounts,
+        fromDate: initialValues.fromDate || startDate,
+        toDate: initialValues.toDate || endDate,
+      });
     }
-}, [JSON.stringify(initialValues)]);
+  }, [JSON.stringify(initialValues)]);
 
 
   const formatNumber = (value: number) => {
@@ -558,9 +564,14 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
 
     let rowIndex = 1;
     reportData.accounts.forEach(account => {
-        rowIndex += 2; // for account header and transaction headers
-        worksheet[`F${rowIndex}`] = { t: 'n', v: account.openingBalance, z: '#,##0.00' };
+        rowIndex += 1;
+        worksheet[`A${rowIndex}`].s = { font: { bold: true } };
+
+        rowIndex += 1;
+        
         rowIndex++;
+        worksheet[`F${rowIndex}`] = { t: 'n', v: account.openingBalance, z: '#,##0.00' };
+        
         account.transactions.forEach(() => {
              rowIndex++;
              const debitCell = worksheet[`D${rowIndex}`];
@@ -570,9 +581,11 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
              if(creditCell) creditCell.z = '#,##0.00';
              if(balanceCell) balanceCell.z = '#,##0.00';
         });
+        
         rowIndex++;
         worksheet[`F${rowIndex}`] = { t: 'n', v: account.closingBalance, z: '#,##0.00' };
-        rowIndex +=2; // for closing balance and spacer row
+
+        rowIndex +=2; 
     });
 
 
@@ -726,6 +739,7 @@ export default function NumeraPage() {
   const [isParsing, setIsParsing] = useState(false);
   const [importPreview, setImportPreview] = useState<{ count: number; total: number; balance: number; } | null>(null);
   const [bankBalances, setBankBalances] = useState<{ [accountNumber: string]: number }>({});
+  const [unallocatedTransactions, setUnallocatedTransactions] = useState<ImportedTransaction[]>([]);
   
   const importForm = useForm();
   
@@ -853,7 +867,7 @@ export default function NumeraPage() {
 
       } else {
         const clientRef = doc(collection(db, "clients"));
-        await setDoc(clientRef, clientData);
+        await setDoc(clientRef, { ...clientData, id: clientRef.id });
             
             if (data.bankAccounts && data.bankAccounts.length > 0) {
               const lastCashbook = chartOfAccounts
@@ -927,19 +941,43 @@ export default function NumeraPage() {
   };
 
   const handleImport = () => {
-    if (!selectedBankAccount || !importPreview) {
+    if (!selectedBankAccount || !importPreview || !selectedFile) {
         toast({ title: 'Import Error', description: 'No account or file selected for import.', variant: 'destructive' });
         return;
     }
-    setBankBalances(prev => ({
-        ...prev,
-        [selectedBankAccount]: importPreview.balance
-    }));
-    toast({ title: 'Import Successful', description: `${importPreview.count} transactions have been imported into account ${selectedBankAccount}.` });
-    setImportPreview(null);
-    setSelectedFile(null);
-    const fileInput = document.getElementById('transaction-file-input') as HTMLInputElement;
-    if(fileInput) fileInput.value = '';
+
+    Papa.parse(selectedFile, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+          const parsedTransactions = (results.data as { Date: string; Description: string; Amount: string }[])
+              .map((row, index) => ({
+                  id: `tx-${Date.now()}-${index}`,
+                  date: row.Date,
+                  description: row.Description,
+                  amount: parseFloat(row.Amount) || 0,
+                  bankAccountId: selectedBankAccount,
+              }));
+
+          setUnallocatedTransactions(prev => [...prev, ...parsedTransactions]);
+          
+          setBankBalances(prev => ({
+              ...prev,
+              [selectedBankAccount]: importPreview.balance
+          }));
+          
+          toast({ title: 'Import Successful', description: `${importPreview.count} transactions have been added to the allocation list.` });
+          
+          setImportPreview(null);
+          setSelectedFile(null);
+          const fileInput = document.getElementById('transaction-file-input') as HTMLInputElement;
+          if(fileInput) fileInput.value = '';
+      },
+      error: (error) => {
+          console.error("CSV Parsing error on import:", error);
+          toast({ title: 'File Read Error', description: 'Could not parse the selected file for import.', variant: 'destructive'});
+      }
+    });
   }
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -987,7 +1025,13 @@ export default function NumeraPage() {
     link.click();
     document.body.removeChild(link);
   };
-
+  
+  const handleAllocate = (transactionId: string) => {
+      // Here you would typically post this allocation to a backend
+      console.log(`Allocating transaction ${transactionId}...`);
+      setUnallocatedTransactions(prev => prev.filter(tx => tx.id !== transactionId));
+      toast({ title: 'Transaction Allocated', description: 'The transaction has been successfully allocated.' });
+  }
 
   const clientBankAccounts = activeClient
     ? chartOfAccounts.filter(acc => acc.id.startsWith(`cashbook-${activeClient.id}`))
@@ -1161,6 +1205,55 @@ export default function NumeraPage() {
                                </Form>
                             </CardContent>
                         </Card>
+                        
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Unallocated Transactions</CardTitle>
+                                <CardDescription>Allocate imported transactions to your Chart of Accounts.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                {unallocatedTransactions.length > 0 ? (
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Date</TableHead>
+                                                <TableHead>Description</TableHead>
+                                                <TableHead>Amount</TableHead>
+                                                <TableHead>Allocate To</TableHead>
+                                                <TableHead className="text-right">Actions</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {unallocatedTransactions.map(tx => (
+                                                <TableRow key={tx.id}>
+                                                    <TableCell>{tx.date}</TableCell>
+                                                    <TableCell>{tx.description}</TableCell>
+                                                    <TableCell className="font-mono">{formatNumber(tx.amount)}</TableCell>
+                                                    <TableCell className="w-[300px]">
+                                                         <Select>
+                                                            <SelectTrigger><SelectValue placeholder="Select account..." /></SelectTrigger>
+                                                            <SelectContent>
+                                                                {chartOfAccounts.filter(a => a.section === "Income Statement" || a.accountNumber.startsWith('8000') || a.accountNumber.startsWith('9000') || a.accountNumber.startsWith('9200')).map(acc => (
+                                                                    <SelectItem key={acc.id} value={acc.accountNumber}>{acc.accountNumber} - {acc.description}</SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </TableCell>
+                                                     <TableCell className="text-right">
+                                                         <div className="flex gap-2 justify-end">
+                                                            <Button size="sm" onClick={() => handleAllocate(tx.id)}>Allocate</Button>
+                                                            <Button size="sm" variant="outline" disabled>Split</Button>
+                                                         </div>
+                                                     </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                ) : (
+                                    <p className="text-muted-foreground text-center py-10">No unallocated transactions.</p>
+                                )}
+                            </CardContent>
+                        </Card>
                     </TabsContent>
                     <TabsContent value="journals">
                          <Card>
@@ -1278,4 +1371,3 @@ export default function NumeraPage() {
     </div>
   );
 }
-
