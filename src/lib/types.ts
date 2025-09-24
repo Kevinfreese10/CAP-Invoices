@@ -1,5 +1,6 @@
 
 
+
 export type Service = {
   id: string;
   title: string;
@@ -91,6 +92,7 @@ export type User = {
   role: 'client' | 'admin' | 'staff' | 'reseller';
   department?: 'Accounting and Tax' | 'Administration' | 'CAP';
   status?: 'Active' | 'Inactive';
+  yearEnd?: string;
   // Reseller specific fields
   companyName?: string;
   contactPerson?: string;
@@ -140,5 +142,6 @@ export type Task = {
   orderId?: string;
   comments?: TaskComment[];
 };
+
 
 

@@ -14,21 +14,30 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { User } from '@/lib/types';
+import { User, Task } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { getFirestore, collection, addDoc, Timestamp, doc, setDoc } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
+import { useAuth } from '@/contexts/AuthContext';
+import { users as allUsers } from '@/lib/data';
 
-type Client = User & { status: 'Active' | 'Inactive'; cellNumber?: string; contactPerson?: string; };
+const db = getFirestore(firebaseApp);
+
+
+type Client = User & { status: 'Active' | 'Inactive'; cellNumber?: string; contactPerson?: string; yearEnd?: string; };
 
 const initialClients: Client[] = [
-    { id: 'client-1', name: 'Innovate Inc.', email: 'contact@innovate.com', role: 'client', status: 'Active', cellNumber: '0821112222', contactPerson: 'Sarah Jones' },
-    { id: 'client-2', name: 'Quantum Leap Corp', email: 'hello@quantum.co.za', role: 'client', status: 'Active', cellNumber: '0833334444', contactPerson: 'Mike Brown' },
-    { id: 'client-3', name: 'Apex Solutions', email: 'support@apex.com', role: 'client', status: 'Inactive', cellNumber: '0845556666', contactPerson: 'Lisa Ray' },
-    { id: '1', name: 'John Doe', email: 'client@test.com', role: 'client', status: 'Active', cellNumber: '0817778888' },
+    { id: 'client-1', name: 'Innovate Inc.', email: 'contact@innovate.com', role: 'client', status: 'Active', cellNumber: '0821112222', contactPerson: 'Sarah Jones', yearEnd: 'February' },
+    { id: 'client-2', name: 'Quantum Leap Corp', email: 'hello@quantum.co.za', role: 'client', status: 'Active', cellNumber: '0833334444', contactPerson: 'Mike Brown', yearEnd: 'August' },
+    { id: 'client-3', name: 'Apex Solutions', email: 'support@apex.com', role: 'client', status: 'Inactive', cellNumber: '0845556666', contactPerson: 'Lisa Ray', yearEnd: 'February' },
+    { id: '1', name: 'John Doe', email: 'client@test.com', role: 'client', status: 'Active', cellNumber: '0817778888', yearEnd: 'February' },
 ];
 
 const clientStatuses: Client['status'][] = ['Active', 'Inactive'];
+const months = [ "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" ];
+
 
 const formSchema = z.object({
   id: z.string().optional(),
@@ -37,6 +46,7 @@ const formSchema = z.object({
   email: z.string().email('A valid email is required.'),
   cellNumber: z.string().optional(),
   status: z.enum(clientStatuses),
+  yearEnd: z.string().min(1, 'Financial year end is required.'),
 });
 
 function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onSubmit: (data: any) => void, onCancel: () => void }) {
@@ -49,6 +59,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
             email: client?.email || '',
             cellNumber: client?.cellNumber || '',
             status: client?.status || 'Active',
+            yearEnd: client?.yearEnd || 'February',
         },
     });
 
@@ -103,25 +114,41 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                         </FormItem>
                     )}
                 />
-                 <FormField
-                    control={form.control}
-                    name="status"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>Status</FormLabel>
-                         <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                                <SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                                {clientStatuses.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                />
-                <div className="flex justify-end gap-2">
+                <div className="grid grid-cols-2 gap-4">
+                     <FormField
+                        control={form.control}
+                        name="status"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Status</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl>
+                                <SelectContent>
+                                    {clientStatuses.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="yearEnd"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Financial Year End</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl>
+                                <SelectContent>
+                                    {months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
+                <div className="flex justify-end gap-2 pt-4">
                     <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
                     <Button type="submit">Save Client</Button>
                 </div>
@@ -135,6 +162,7 @@ export default function AdminClientsPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const { toast } = useToast();
+  const { user: currentUser } = useAuth();
 
   const handleAdd = () => {
     setSelectedClient(null);
@@ -155,7 +183,60 @@ export default function AdminClientsPage() {
     })
   };
 
-  const handleFormSubmit = (data: Omit<User, 'id' | 'role'>) => {
+  const createRecurringTasks = async (client: Client, creatorId: string) => {
+    const getNextStaffMember = (department: string): string[] => {
+        const staffInDept = allUsers.filter(u => u.role === 'staff' && u.department === department);
+        if (staffInDept.length > 0) {
+            return [staffInDept[0].id]; // Just assign to the first staff member for simplicity
+        }
+        const admin = allUsers.find(u => u.role === 'admin');
+        return admin ? [admin.id] : [];
+    };
+
+    const getDueDate = (month: string, day: number) => {
+        const year = new Date().getFullYear();
+        const monthIndex = months.indexOf(month);
+        return Timestamp.fromDate(new Date(year, monthIndex, day));
+    };
+
+    const provisionalTaxDueDate = new Date();
+    provisionalTaxDueDate.setMonth(provisionalTaxDueDate.getMonth() + 6);
+
+    const tasksToCreate = [
+        {
+            title: `Provisional Tax Return for ${client.name}`,
+            description: `Complete and file the provisional tax return for ${client.name}.`,
+            assignedTo: getNextStaffMember('Accounting and Tax'),
+            dueDate: Timestamp.fromDate(provisionalTaxDueDate),
+            recurrence: 'Monthly',
+            priority: 'Medium',
+        },
+        {
+            title: `CIPC Annual Return for ${client.name}`,
+            description: `File the CIPC annual return for ${client.name}.`,
+            assignedTo: getNextStaffMember('Administration'),
+            dueDate: getDueDate(client.yearEnd!, 28), // Example due date
+            recurrence: 'Monthly',
+            priority: 'Medium',
+        },
+    ];
+
+    for (const task of tasksToCreate) {
+        if (task.assignedTo.length > 0) {
+            const taskData: Omit<Task, 'id'> = {
+                ...task,
+                createdBy: creatorId,
+                status: 'To-Do',
+                comments: [],
+            };
+            await addDoc(collection(db, 'tasks'), taskData);
+        }
+    }
+  };
+
+  const handleFormSubmit = async (data: Omit<User, 'id' | 'role'>) => {
+    if (!currentUser) return;
+
     if (selectedClient) {
       setClients(prev =>
         prev.map(c => (c.id === selectedClient.id ? { ...c, ...data } : c))
@@ -165,13 +246,21 @@ export default function AdminClientsPage() {
         description: 'The client details have been saved.',
       });
     } else {
+      const newClient = { ...data, id: `new-client-${Date.now()}`, role: 'client' } as Client;
       setClients(prev => [
         ...prev,
-        { ...data, id: `new-client-${Date.now()}`, role: 'client' } as Client,
+        newClient,
       ]);
        toast({
         title: 'Client Created',
         description: 'The new client has been added.',
+      });
+      
+      // Create recurring tasks for the new client
+      await createRecurringTasks(newClient, currentUser.id);
+      toast({
+        title: 'Recurring Tasks Created',
+        description: `Automated tasks for Provisional Tax and CIPC returns have been generated for ${newClient.name}.`,
       });
     }
     setIsFormOpen(false);
@@ -189,7 +278,7 @@ export default function AdminClientsPage() {
                     Create Client
                 </Button>
            </DialogTrigger>
-           <DialogContent className="sm:max-w-[500px]">
+           <DialogContent className="sm:max-w-[600px]">
                 <DialogHeader>
                     <DialogTitle>{selectedClient ? 'Edit Client' : 'Create New Client'}</DialogTitle>
                     <DialogDescription>
@@ -216,6 +305,7 @@ export default function AdminClientsPage() {
                 <TableHead>Client</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Cell Number</TableHead>
+                <TableHead>Year End</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -237,6 +327,7 @@ export default function AdminClientsPage() {
                   </TableCell>
                   <TableCell>{client.email}</TableCell>
                   <TableCell>{client.cellNumber}</TableCell>
+                   <TableCell>{client.yearEnd}</TableCell>
                   <TableCell>
                     <Badge variant={client.status === 'Active' ? 'default' : 'secondary'}>
                         {client.status}
