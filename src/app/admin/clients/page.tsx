@@ -72,6 +72,10 @@ const formSchema = z.object({
   managementAccountsDueDate: z.date().optional(),
   isVatRegistered: z.boolean().default(false),
   vatCategory: z.enum(vatCategories).optional(),
+  preparesPayroll: z.boolean().default(false),
+  payrollDueDate: z.date().optional(),
+  submitsEmp201: z.boolean().default(false),
+  submitsEmp501: z.boolean().default(false),
 });
 
 function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onSubmit: (data: any) => void, onCancel: () => void }) {
@@ -94,12 +98,17 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
             managementAccountsDueDate: client?.managementAccountsDueDate ? new Date(client.managementAccountsDueDate) : undefined,
             isVatRegistered: client?.isVatRegistered || false,
             vatCategory: client?.vatCategory || undefined,
+            preparesPayroll: client?.preparesPayroll || false,
+            payrollDueDate: client?.payrollDueDate ? new Date(client.payrollDueDate) : undefined,
+            submitsEmp201: client?.submitsEmp201 || false,
+            submitsEmp501: client?.submitsEmp501 || false,
         },
     });
 
     const watchPreparesFinancials = form.watch('preparesFinancials');
     const watchRequiresMgmt = form.watch('requiresManagementAccounts');
     const watchIsVatRegistered = form.watch('isVatRegistered');
+    const watchPreparesPayroll = form.watch('preparesPayroll');
 
 
     const handleSubmit = (values: z.infer<typeof formSchema>) => {
@@ -176,6 +185,32 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                         <FormField control={form.control} name="vatCategory" render={({ field }) => ( <FormItem><FormLabel>VAT Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT category..." /></SelectTrigger></FormControl><SelectContent>{vatCategories.map(c => <SelectItem key={c} value={c}>{vatCategoryLabels[c]}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                     )}
 
+                    <Separator />
+                    
+                    <FormField control={form.control} name="preparesPayroll" render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                            <div className="space-y-0.5"><FormLabel>Do we prepare your payroll?</FormLabel></div>
+                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                        </FormItem>
+                    )} />
+                     {watchPreparesPayroll && (
+                        <FormField control={form.control} name="payrollDueDate" render={({ field }) => (
+                            <FormItem className="flex flex-col"><FormLabel>Payroll Due Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd MMM yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
+                        )} />
+                    )}
+                    <FormField control={form.control} name="submitsEmp201" render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                            <div className="space-y-0.5"><FormLabel>Do we submit your EMP201?</FormLabel></div>
+                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                        </FormItem>
+                    )} />
+                    <FormField control={form.control} name="submitsEmp501" render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                            <div className="space-y-0.5"><FormLabel>Do we submit your EMP501?</FormLabel></div>
+                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                        </FormItem>
+                    )} />
+
                 </div>
 
                 <div className="flex justify-end gap-2 pt-4">
@@ -245,7 +280,7 @@ export default function AdminClientsPage() {
 
     // Provisional Tax
     if (client.submitsProvisionalTaxes) {
-        // 1st payment: 6 months into the financial year
+        // 1st payment: 6 months before year end
         const firstProvDueDate = lastDayOfMonth(addMonths(new Date(getYear(new Date()), yearEndMonthIndex + 1, 1), -6));
         tasksToCreate.push({
             title: `1st Provisional Tax for ${client.name}`,
@@ -360,6 +395,62 @@ export default function AdminClientsPage() {
             assignedTo: getNextStaffMember('Accounting and Tax'),
             dueDate: Timestamp.fromDate(firstDueDate),
             recurrence: client.vatCategory === 'C' ? 'Monthly' : 'Bi-Monthly',
+            priority: 'High',
+            status: 'To-Do',
+            createdBy: creatorId,
+            comments: [],
+        });
+    }
+
+    // Payroll
+    if (client.preparesPayroll && client.payrollDueDate) {
+        tasksToCreate.push({
+            title: `Prepare Payroll for ${client.name}`,
+            description: 'Process monthly payroll.',
+            assignedTo: getNextStaffMember('Accounting and Tax'),
+            dueDate: client.payrollDueDate,
+            recurrence: 'Monthly',
+            priority: 'Medium',
+            status: 'To-Do',
+            createdBy: creatorId,
+            comments: [],
+        });
+    }
+    
+    // EMP201
+    if (client.submitsEmp201) {
+        tasksToCreate.push({
+            title: `EMP201 Submission for ${client.name}`,
+            description: 'Submit monthly EMP201 declaration.',
+            assignedTo: getNextStaffMember('Accounting and Tax'),
+            dueDate: Timestamp.fromDate(set(new Date(), { date: 7, month: getMonth(new Date()) + 1 })),
+            recurrence: 'Monthly',
+            priority: 'High',
+            status: 'To-Do',
+            createdBy: creatorId,
+            comments: [],
+        });
+    }
+
+    // EMP501
+    if (client.submitsEmp501) {
+        tasksToCreate.push({
+            title: `Interim EMP501 for ${client.name}`,
+            description: 'Submit bi-annual EMP501 reconciliation for the period 1 March - 31 August.',
+            assignedTo: getNextStaffMember('Accounting and Tax'),
+            dueDate: Timestamp.fromDate(new Date(getYear(new Date()), 9, 31)), // October 31
+            recurrence: 'Annually',
+            priority: 'High',
+            status: 'To-Do',
+            createdBy: creatorId,
+            comments: [],
+        });
+        tasksToCreate.push({
+            title: `Final EMP501 for ${client.name}`,
+            description: 'Submit final EMP501 reconciliation for the period 1 March - 28/29 February.',
+            assignedTo: getNextStaffMember('Accounting and Tax'),
+            dueDate: Timestamp.fromDate(new Date(getYear(new Date()) + 1, 4, 31)), // May 31 of next year
+            recurrence: 'Annually',
             priority: 'High',
             status: 'To-Do',
             createdBy: creatorId,
@@ -535,5 +626,6 @@ export default function AdminClientsPage() {
 }
 
     
+
 
 
