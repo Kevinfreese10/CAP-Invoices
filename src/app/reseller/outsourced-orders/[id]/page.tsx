@@ -58,8 +58,8 @@ export default function ResellerOutsourcedOrderDetailsPage() {
           } as Order;
           setOrder(fetchedOrder);
           
-          if (fetchedOrder.assignedTo) {
-            const assignedUser = users.find(u => u.id === fetchedOrder.assignedTo);
+          if (fetchedOrder.assignedTo && fetchedOrder.assignedTo.length > 0) {
+            const assignedUser = users.find(u => u.id === fetchedOrder.assignedTo[0]);
             setAssignee(assignedUser || null);
           }
 
@@ -210,7 +210,7 @@ export default function ResellerOutsourcedOrderDetailsPage() {
                         </CardHeader>
                         <CardContent className="space-y-4">
                            <p className="text-sm text-muted-foreground">This order is being processed by My Accountant. Your original order ID for your client is <Button variant="link" asChild className="p-0 h-auto font-semibold"><Link href={`/reseller/orders/${order.originalOrderId}`}>{order.originalOrderId}</Link></Button>.</p>
-                           {assignee && (
+                           {assignee ? (
                                 <div className="space-y-2 pt-2">
                                      <h4 className="font-semibold text-sm">Assigned To</h4>
                                      <div className="flex items-center gap-4">
@@ -224,6 +224,8 @@ export default function ResellerOutsourcedOrderDetailsPage() {
                                         </div>
                                     </div>
                                 </div>
+                           ) : (
+                                <p className="text-sm text-muted-foreground pt-2">This order has not been assigned to a consultant yet.</p>
                            )}
                         </CardContent>
                  </Card>

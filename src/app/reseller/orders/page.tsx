@@ -268,9 +268,9 @@ export default function ResellerOrdersPage() {
     }
   };
   
-  const getAssignee = (userId?: string): User | undefined => {
-    if (!userId) return undefined;
-    return users.find(u => u.id === userId);
+  const getAssignee = (userIds?: string[]): User | undefined => {
+    if (!userIds || userIds.length === 0) return undefined;
+    return users.find(u => u.id === userIds[0]);
   }
   
   const pendingApprovalOrders = outsourcedOrders.filter(o => o.status === 'Pending Payment');
@@ -473,7 +473,6 @@ export default function ResellerOrdersPage() {
               </TableHeader>
               <TableBody>
                 {activeOutsourcedOrders.map((order) => {
-                  const assignee = getAssignee(order.assignedTo?.[0]);
                   return (
                   <TableRow key={order.id}>
                     <TableCell className="font-medium">{order.id}</TableCell>
@@ -498,17 +497,6 @@ export default function ResellerOrdersPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                           {assignee ? (
-                              <>
-                                <DropdownMenuLabel className="flex items-center gap-2">
-                                  <UserIcon className="h-4 w-4" />
-                                  Assigned to {assignee.name}
-                                </DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                              </>
-                            ) : (
-                               <DropdownMenuLabel>No consultant assigned yet.</DropdownMenuLabel>
-                            )}
                           <DropdownMenuItem asChild>
                             <Link href={`/reseller/outsourced-orders/${order.id}`}>
                                 <ArrowRight className="mr-2 h-4 w-4" />
@@ -610,6 +598,7 @@ export default function ResellerOrdersPage() {
     
 
     
+
 
 
 
