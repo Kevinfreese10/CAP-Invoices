@@ -1,11 +1,9 @@
-
-
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload, FileCheck2, ScanLine, Sprout, Search, ArrowUpDown, Edit, Sparkles } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload, FileCheck2, ScanLine, Sprout, Search, ArrowUpDown, Edit, Sparkles, BrainCircuit } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -36,6 +34,7 @@ import Papa from 'papaparse';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { users as allUsers } from '@/lib/data';
 import { allocateTransaction } from '@/ai/flows/allocate-transaction';
+import { Textarea } from '@/components/ui/textarea';
 
 const db = getFirestore(firebaseApp);
 
@@ -93,37 +92,24 @@ type GeneralLedgerReportData = {
     }[];
 };
 
-const bankAccountSchema = z.object({
-  name: z.string().min(1, 'Bank name is required.'),
-});
-
-const formSchema = z.object({
+const clientFormSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(2, 'Client name is required.'),
   yearEnd: z.date({ required_error: 'Financial year end is required.'}),
-  bankAccounts: z.array(bankAccountSchema).optional(),
 });
-
-
 
 function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSubmit: (data: any) => void, onCancel: () => void }) {
     
-    const form = useForm<z.infer<typeof formSchema>>({
-        resolver: zodResolver(formSchema),
+    const form = useForm<z.infer<typeof clientFormSchema>>({
+        resolver: zodResolver(clientFormSchema),
         defaultValues: {
             id: client?.id || '',
             name: client?.name || '',
             yearEnd: client?.yearEnd ? (client.yearEnd.toDate ? client.yearEnd.toDate() : new Date(client.yearEnd)) : undefined,
-            bankAccounts: client?.id ? chartOfAccounts.filter(acc => acc.id.startsWith(`cashbook-${client.id}`)).map(acc => ({ name: acc.description.split(' - ')[1] })) : [],
         },
     });
 
-    const { fields, append, remove } = useFieldArray({
-        control: form.control,
-        name: 'bankAccounts',
-    });
-
-    const handleSubmit = (values: z.infer<typeof formSchema>) => {
+    const handleSubmit = (values: z.infer<typeof clientFormSchema>) => {
         onSubmit(values);
     };
     
@@ -131,7 +117,6 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
         <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
                 <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Client / Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                
                 <FormField
                     control={form.control}
                     name="yearEnd"
@@ -172,31 +157,6 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
                     )}
                 />
 
-                <div>
-                    <FormLabel>Bank Accounts</FormLabel>
-                    <div className="space-y-2 mt-2">
-                        {fields.map((item, index) => (
-                            <div key={item.id} className="flex items-center gap-2">
-                                <FormField
-                                    control={form.control}
-                                    name={`bankAccounts.${index}.name`}
-                                    render={({ field }) => (
-                                        <FormItem className="flex-grow">
-                                            <FormControl><Input placeholder={`e.g., FNB, ABSA...`} {...field} /></FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <Button type="button" variant="destructive" size="sm" onClick={() => remove(index)}>Remove</Button>
-                            </div>
-                        ))}
-                    </div>
-                     <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => append({ name: '' })}>
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        Add Bank Account
-                    </Button>
-                </div>
-                
                 <div className="flex justify-end gap-2 pt-4">
                     <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
                     <Button type="submit">Save Client</Button>
@@ -204,6 +164,100 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
             </form>
         </Form>
     )
+}
+
+const bankAccountFormSchema = z.object({
+  name: z.string().min(2, "Bank name is required (e.g., FNB, ABSA)."),
+});
+
+function AddBankAccountForm({ activeClient, onAccountAdded }: { activeClient: User; onAccountAdded: () => void; }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const { toast } = useToast();
+
+  const form = useForm<z.infer<typeof bankAccountFormSchema>>({
+    resolver: zodResolver(bankAccountFormSchema),
+    defaultValues: { name: '' },
+  });
+
+  const handleSubmit = async (values: z.infer<typeof bankAccountFormSchema>) => {
+    if (!activeClient) return;
+    setIsSaving(true);
+    try {
+        let nextAccountNumberIndex = 1;
+        const cashbooks = chartOfAccounts.filter(a => a.accountNumber.startsWith('8400/'));
+        if (cashbooks.length > 0) {
+            const lastCashbook = cashbooks.sort((a, b) => a.accountNumber.localeCompare(b.accountNumber)).pop();
+            if (lastCashbook) {
+                const lastNum = parseInt(lastCashbook.accountNumber.split('/')[1]);
+                if (!isNaN(lastNum)) {
+                    nextAccountNumberIndex = lastNum + 1;
+                }
+            }
+        }
+        const newAccountNum = `8400/${(nextAccountNumberIndex).toString().padStart(3, '0')}`;
+        const newAccount: ChartOfAccount = {
+            id: `cashbook-${activeClient.id}-${Date.now()}`,
+            accountNumber: newAccountNum,
+            description: `${activeClient.name} - ${values.name}`,
+            section: 'Balance Sheet',
+        };
+        
+        if (!chartOfAccounts.some(a => a.accountNumber === newAccount.accountNumber)) {
+            chartOfAccounts.push(newAccount);
+            chartOfAccounts.sort((a,b) => a.accountNumber.localeCompare(b.accountNumber));
+        }
+
+        toast({
+            title: 'Cashbook Added',
+            description: `New cashbook account ${newAccountNum} has been added for ${values.name}.`,
+        });
+        form.reset();
+        onAccountAdded();
+        setIsOpen(false);
+    } catch (error) {
+        console.error("Error adding bank account:", error);
+        toast({ title: 'Error', description: 'Could not add bank account.', variant: 'destructive'});
+    } finally {
+        setIsSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm"><PlusCircle className="mr-2 h-4 w-4" /> Add Bank Account</Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Add Bank Account for {activeClient.name}</DialogTitle>
+          <DialogDescription>Create a new cashbook in the Chart of Accounts.</DialogDescription>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Bank Name</FormLabel>
+                  <FormControl><Input placeholder="e.g., FNB, Standard Bank..." {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setIsOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 const trialBalanceFormSchema = z.object({
@@ -1057,7 +1111,7 @@ export default function NumeraPage() {
     }
   };
 
-  const handleFormSubmit = async (data: z.infer<typeof formSchema>) => {
+  const handleFormSubmit = async (data: z.infer<typeof clientFormSchema>) => {
     if (!currentUser) return;
 
     const clientData = {
@@ -1072,98 +1126,24 @@ export default function NumeraPage() {
       if (selectedClient?.id) {
         const clientRef = doc(db, 'clients', selectedClient.id);
         await setDoc(clientRef, clientData, { merge: true });
-        
-        const existingBankAccounts = chartOfAccounts
-          .filter(acc => acc.id.startsWith(`cashbook-${selectedClient.id}`))
-          .map(acc => acc.description.split(' - ')[1]);
-        
-        const newBankAccounts = (data.bankAccounts || []).filter(
-          bank => !existingBankAccounts.includes(bank.name)
-        );
-
-        if (newBankAccounts.length > 0) {
-            let nextAccountNumberIndex = 1;
-            const cashbooks = chartOfAccounts.filter(a => a.accountNumber.startsWith('8400/'));
-            if (cashbooks.length > 0) {
-                const lastCashbook = cashbooks.sort((a, b) => a.accountNumber.localeCompare(b.accountNumber)).pop();
-                if (lastCashbook) {
-                    const lastNum = parseInt(lastCashbook.accountNumber.split('/')[1]);
-                    if (!isNaN(lastNum)) {
-                        nextAccountNumberIndex = lastNum + 1;
-                    }
-                }
-            }
-
-            newBankAccounts.forEach((bank, index) => {
-                const newAccountNum = `8400/${(nextAccountNumberIndex + index).toString().padStart(3, '0')}`;
-                const newAccount: ChartOfAccount = {
-                    id: `cashbook-${selectedClient.id!}-${Date.now() + index}`,
-                    accountNumber: newAccountNum,
-                    description: `${data.name} - ${bank.name}`,
-                    section: 'Balance Sheet',
-                };
-                if (!chartOfAccounts.some(a => a.accountNumber === newAccount.accountNumber)) {
-                    chartOfAccounts.push(newAccount);
-                }
-            });
-
-            toast({
-                title: 'Cashbooks Added',
-                description: `${newBankAccounts.length} new cashbook accounts have been added.`,
-            });
-        }
-
         toast({
           title: 'Client Updated',
           description: 'The client details have been saved.',
         });
-
       } else {
         const clientRef = doc(collection(db, "clients"));
         await setDoc(clientRef, { ...clientData, id: clientRef.id });
-            
-            if (data.bankAccounts && data.bankAccounts.length > 0) {
-              let nextAccountNumberIndex = 1;
-              const cashbooks = chartOfAccounts.filter(a => a.accountNumber.startsWith('8400/'));
-              if (cashbooks.length > 0) {
-                  const lastCashbook = cashbooks.sort((a, b) => a.accountNumber.localeCompare(b.accountNumber)).pop();
-                  if (lastCashbook) {
-                      const lastNum = parseInt(lastCashbook.accountNumber.split('/')[1]);
-                      if (!isNaN(lastNum)) {
-                         nextAccountNumberIndex = lastNum + 1;
-                      }
-                  }
-              }
-
-              data.bankAccounts.forEach((bank, index) => {
-                  const newAccountNum = `8400/${(nextAccountNumberIndex + index).toString().padStart(3, '0')}`;
-                  const newAccount: ChartOfAccount = {
-                      id: `cashbook-${clientRef.id}-${index}`,
-                      accountNumber: newAccountNum,
-                      description: `${data.name} - ${bank.name}`,
-                      section: 'Balance Sheet',
-                  };
-                  if (!chartOfAccounts.some(a => a.accountNumber === newAccount.accountNumber)) {
-                      chartOfAccounts.push(newAccount);
-                  }
-              });
-               toast({
-                title: 'Cashbooks Created',
-                description: `${data.bankAccounts.length} new cashbook accounts added to the Chart of Accounts.`,
-              });
-            }
-
-            toast({
-                title: 'Client Created',
-                description: 'The new client has been added to the database.',
-            });
+        toast({
+            title: 'Client Created',
+            description: 'The new client has been added to the database.',
+        });
       }
       fetchClients();
       setIsFormOpen(false);
       setSelectedClient(null);
     } catch (error) {
       console.error("Error saving client:", error);
-      toast({ title: 'Error', description: 'Could not save the client.', variant: 'destructive' });
+      toast({ title: 'Error', description: 'Could not save the client.', variant = 'destructive' });
     }
   };
   
@@ -1261,7 +1241,7 @@ export default function NumeraPage() {
         },
         error: (error) => {
             console.error("CSV Parsing error:", error);
-            toast({ title: 'File Read Error', description: 'Could not parse the selected file. Please check the format.', variant: 'destructive'});
+            toast({ title: 'File Read Error', description: 'Could not parse the selected file. Please check the format.', variant = 'destructive'});
             setIsParsing(false);
         }
     });
@@ -1335,7 +1315,7 @@ export default function NumeraPage() {
     }
     
     if (newAllocatedTransactions.length === 0) {
-        toast({ title: 'Allocation Error', description: 'No allocations were selected for the chosen transactions.', variant: 'destructive' });
+        toast({ title: 'Allocation Error', description: 'No allocations were selected for the chosen transactions.', variant = 'destructive' });
         return;
     }
 
@@ -1376,7 +1356,7 @@ export default function NumeraPage() {
   const handleAiAllocate = async () => {
     const transactionsToProcess = unallocatedTransactions.filter(tx => selectedTransactions.includes(tx.id));
     if (transactionsToProcess.length === 0) {
-        toast({ title: 'No Transactions Selected', description: 'Please select one or more transactions to allocate with AI.', variant: 'destructive'});
+        toast({ title: 'No Transactions Selected', description: 'Please select one or more transactions to allocate with AI.', variant = 'destructive'});
         return;
     }
     
@@ -1427,6 +1407,8 @@ export default function NumeraPage() {
   
   const allocatedIncome = useMemo(() => allocatedTransactions.filter(tx => tx.amount >= 0), [allocatedTransactions]);
   const allocatedExpenses = useMemo(() => allocatedTransactions.filter(tx => tx.amount < 0), [allocatedTransactions]);
+
+  const [_, forceUpdate] = useState({});
 
   return (
     <div className="space-y-8">
@@ -1495,6 +1477,7 @@ export default function NumeraPage() {
                         <TabsTrigger value="journals">Journals</TabsTrigger>
                         <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
                         <TabsTrigger value="customers">Customers</TabsTrigger>
+                        <TabsTrigger value="train-ai">Train AI</TabsTrigger>
                     </TabsList>
                     <TabsContent value="reporting" className="space-y-4">
                         <TrialBalanceCard activeClient={activeClient} onAccountClick={handleTBAccountClick} />
@@ -1502,7 +1485,13 @@ export default function NumeraPage() {
                     </TabsContent>
                     <TabsContent value="banking" className="space-y-4">
                         <Card>
-                            <CardHeader><CardTitle>Bank Account List</CardTitle></CardHeader>
+                             <CardHeader className="flex flex-row items-center justify-between">
+                                <div>
+                                    <CardTitle>Bank Account List</CardTitle>
+                                    <CardDescription>Manage this client's bank accounts.</CardDescription>
+                                </div>
+                                <AddBankAccountForm activeClient={activeClient} onAccountAdded={() => forceUpdate({})} />
+                            </CardHeader>
                             <CardContent>
                                 {clientBankAccounts.length > 0 ? (
                                     <Table>
@@ -1695,6 +1684,29 @@ export default function NumeraPage() {
                             <CardContent><p className="text-muted-foreground text-center py-10">Customer creation and management will be built here.</p></CardContent>
                         </Card>
                     </TabsContent>
+                    <TabsContent value="train-ai">
+                         <Card>
+                            <CardHeader>
+                                <CardTitle>Train Allocation AI</CardTitle>
+                                <CardDescription>Provide more context to help the AI make better allocation decisions.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                                <div className="space-y-2">
+                                    <Label htmlFor="ai-text-input">Provide Contextual Information</Label>
+                                    <Textarea id="ai-text-input" placeholder="e.g., 'All transactions from Pick n Pay should be allocated to General Expenses.' or 'Supplier XYZ is for raw materials.'" rows={4}/>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="ai-doc-upload">Upload Sample Documents</Label>
+                                    <Input id="ai-doc-upload" type="file" />
+                                    <p className="text-xs text-muted-foreground">Upload documents like supplier invoices or bank statements to give the AI more context.</p>
+                                </div>
+                                <Button>
+                                    <BrainCircuit className="mr-2 h-4 w-4" />
+                                    Submit for Training
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
                 </Tabs>
              </div>
         ) : (
@@ -1793,3 +1805,4 @@ export default function NumeraPage() {
     </div>
   );
 }
+
