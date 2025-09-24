@@ -1,11 +1,11 @@
 
 
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload, FileCheck2, ScanLine, Sprout } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload, FileCheck2, ScanLine, Sprout, Search } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -29,11 +29,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import * as XLSX from 'xlsx';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Check } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Papa from 'papaparse';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { users as allUsers } from '@/lib/data';
 
 const db = getFirestore(firebaseApp);
 
@@ -506,8 +507,6 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
 
   useEffect(() => {
     if (initialValues?.accounts?.length) {
-      // Use JSON.stringify to compare the content of the initialValues object,
-      // not just its reference, to prevent an infinite loop.
       form.reset({
         ...initialValues,
         fromDate: initialValues.fromDate || startDate,
@@ -519,7 +518,7 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
         toDate: initialValues.toDate || endDate,
       });
     }
-  }, [JSON.stringify(initialValues)]);
+  }, [JSON.stringify(initialValues), startDate, endDate]); // stringify to compare content, not reference
 
 
   const formatNumber = (value: number) => {
@@ -532,6 +531,9 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
     let worksheetData: any[] = [];
     
     reportData.accounts.forEach(account => {
+        if (worksheetData.length > 0) {
+            worksheetData.push({}); // Add a blank row between accounts
+        }
         worksheetData.push({ A: `${account.accountNumber} - ${account.description}` });
         worksheetData.push({
             A: 'Date', B: 'Description', C: 'Reference',
@@ -552,7 +554,6 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
         });
         
         worksheetData.push({ A: 'Closing Balance', F: account.closingBalance });
-        worksheetData.push({});
     });
 
     const worksheet = XLSX.utils.json_to_sheet(worksheetData, { skipHeader: true });
@@ -562,14 +563,17 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
         { wch: 15 }, { wch: 15 }, { wch: 15 }
     ];
 
-    let rowIndex = 1;
+    let rowIndex = 0;
     reportData.accounts.forEach(account => {
-        rowIndex += 1;
-        worksheet[`A${rowIndex}`].s = { font: { bold: true } };
+        if (rowIndex > 0) {
+          rowIndex++; // Skip blank row
+        }
+        rowIndex++; // Account header row
+        if (worksheet[`A${rowIndex}`]) worksheet[`A${rowIndex}`].s = { font: { bold: true } };
 
-        rowIndex += 1;
+        rowIndex++; // Column headers row
         
-        rowIndex++;
+        rowIndex++; // Opening Balance row
         worksheet[`F${rowIndex}`] = { t: 'n', v: account.openingBalance, z: '#,##0.00' };
         
         account.transactions.forEach(() => {
@@ -582,12 +586,9 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
              if(balanceCell) balanceCell.z = '#,##0.00';
         });
         
-        rowIndex++;
+        rowIndex++; // Closing Balance row
         worksheet[`F${rowIndex}`] = { t: 'n', v: account.closingBalance, z: '#,##0.00' };
-
-        rowIndex +=2; 
     });
-
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'General Ledger');
@@ -723,6 +724,56 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
   );
 }
 
+function AllocationCombobox({ onSelect }: { onSelect: (value: string, type: 'account'|'customer'|'supplier') => void }) {
+    const [open, setOpen] = useState(false);
+    const customers = allUsers.filter(u => u.role === 'client');
+    // Mock suppliers for now
+    const suppliers = [{id: 'supp-1', name: 'Telkom'}, {id: 'supp-2', name: 'Eskom'}];
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <Button variant="outline" role="combobox" aria-expanded={open} className="w-[300px] justify-between">
+                    Select...
+                    <MoreHorizontal className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[300px] p-0">
+                <Command>
+                    <CommandInput placeholder="Search..." />
+                    <CommandList>
+                        <CommandEmpty>No results found.</CommandEmpty>
+                        <CommandGroup heading="Accounts">
+                            {chartOfAccounts.filter(a => a.section === "Income Statement" || a.accountNumber.startsWith('8000') || a.accountNumber.startsWith('9000') || a.accountNumber.startsWith('9200')).map(acc => (
+                                <CommandItem key={`acc-${acc.id}`} onSelect={() => { onSelect(acc.accountNumber, 'account'); setOpen(false); }}>
+                                    {acc.accountNumber} - {acc.description}
+                                </CommandItem>
+                            ))}
+                            <CommandItem onSelect={() => alert('Open create account modal...')}>+ Create new account</CommandItem>
+                        </CommandGroup>
+                        <CommandGroup heading="Customers">
+                             {customers.map(customer => (
+                                <CommandItem key={`cust-${customer.id}`} onSelect={() => { onSelect(customer.id, 'customer'); setOpen(false); }}>
+                                    {customer.name}
+                                </CommandItem>
+                            ))}
+                            <CommandItem onSelect={() => alert('Open create customer modal...')}>+ Create new customer</CommandItem>
+                        </CommandGroup>
+                        <CommandGroup heading="Suppliers">
+                             {suppliers.map(supplier => (
+                                <CommandItem key={`supp-${supplier.id}`} onSelect={() => { onSelect(supplier.id, 'supplier'); setOpen(false); }}>
+                                    {supplier.name}
+                                </CommandItem>
+                            ))}
+                            <CommandItem onSelect={() => alert('Open create supplier modal...')}>+ Create new supplier</CommandItem>
+                        </CommandGroup>
+                    </CommandList>
+                </Command>
+            </PopoverContent>
+        </Popover>
+    )
+}
+
 
 export default function NumeraPage() {
   const [clients, setClients] = useState<User[]>([]);
@@ -740,6 +791,7 @@ export default function NumeraPage() {
   const [importPreview, setImportPreview] = useState<{ count: number; total: number; balance: number; } | null>(null);
   const [bankBalances, setBankBalances] = useState<{ [accountNumber: string]: number }>({});
   const [unallocatedTransactions, setUnallocatedTransactions] = useState<ImportedTransaction[]>([]);
+  const [unallocatedSearch, setUnallocatedSearch] = useState('');
   
   const importForm = useForm();
   
@@ -844,7 +896,7 @@ export default function NumeraPage() {
             newBankAccounts.forEach((bank, index) => {
                 const newAccountNum = `8400/${(nextAccountNumberIndex + index).toString().padStart(3, '0')}`;
                 const newAccount: ChartOfAccount = {
-                    id: `cashbook-${selectedClient.id}-${Date.now() + index}`,
+                    id: `cashbook-${selectedClient.id!}-${Date.now() + index}`,
                     accountNumber: newAccountNum,
                     description: `${data.name} - ${bank.name}`,
                     section: 'Balance Sheet',
@@ -994,6 +1046,13 @@ export default function NumeraPage() {
         header: true,
         skipEmptyLines: true,
         complete: (results) => {
+            if (!results.meta.fields?.includes('Date') || !results.meta.fields?.includes('Description') || !results.meta.fields?.includes('Amount')) {
+              toast({ title: 'Invalid CSV Format', description: 'File must contain Date, Description, and Amount columns.', variant: 'destructive'});
+              setIsParsing(false);
+              const fileInput = document.getElementById('transaction-file-input') as HTMLInputElement;
+              if (fileInput) fileInput.value = '';
+              return;
+            }
             const transactions = results.data as { Date: string; Description: string; Amount: string }[];
             const count = transactions.length;
             const total = transactions.reduce((sum, row) => sum + (parseFloat(row.Amount) || 0), 0);
@@ -1036,6 +1095,15 @@ export default function NumeraPage() {
   const clientBankAccounts = activeClient
     ? chartOfAccounts.filter(acc => acc.id.startsWith(`cashbook-${activeClient.id}`))
     : [];
+
+  const filteredUnallocated = useMemo(() => {
+    if (!unallocatedSearch) return unallocatedTransactions;
+    return unallocatedTransactions.filter(tx => 
+        tx.description.toLowerCase().includes(unallocatedSearch.toLowerCase()) ||
+        tx.amount.toString().includes(unallocatedSearch)
+    );
+  }, [unallocatedTransactions, unallocatedSearch]);
+
 
   return (
     <div className="space-y-8">
@@ -1128,7 +1196,7 @@ export default function NumeraPage() {
                                                 <TableRow key={acc.id}>
                                                     <TableCell className="font-mono">{acc.accountNumber}</TableCell>
                                                     <TableCell>{acc.description}</TableCell>
-                                                    <TableCell>{format(sub(new Date(), {days: Math.floor(Math.random()*30)}), 'dd/MM/yyyy')}</TableCell>
+                                                    <TableCell>{unallocatedTransactions.some(t => t.bankAccountId === acc.accountNumber) ? format(new Date(), 'dd/MM/yyyy') : 'N/A'}</TableCell>
                                                     <TableCell className="text-right font-mono">{formatNumber(bankBalances[acc.accountNumber] || 0)}</TableCell>
                                                 </TableRow>
                                             ))}
@@ -1146,7 +1214,7 @@ export default function NumeraPage() {
                             </CardHeader>
                             <CardContent className="space-y-4">
                                <Form {...importForm}>
-                                <form onSubmit={importForm.handleSubmit(handleImport)} className="space-y-4">
+                                <form className="space-y-4" onSubmit={e => e.preventDefault()}>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <FormItem>
                                             <FormLabel>Select Bank Account</FormLabel>
@@ -1198,7 +1266,7 @@ export default function NumeraPage() {
                                             </AlertDescription>
                                         </Alert>
                                     )}
-                                    <Button type="submit" disabled={!selectedBankAccount || !importPreview || isParsing}>
+                                    <Button type="button" onClick={handleImport} disabled={!selectedBankAccount || !importPreview || isParsing}>
                                         <Upload className="mr-2 h-4 w-4" /> Import Transactions
                                     </Button>
                                 </form>
@@ -1208,8 +1276,22 @@ export default function NumeraPage() {
                         
                         <Card>
                             <CardHeader>
-                                <CardTitle>Unallocated Transactions</CardTitle>
-                                <CardDescription>Allocate imported transactions to your Chart of Accounts.</CardDescription>
+                                <div className="flex flex-col sm:flex-row justify-between gap-2">
+                                    <div>
+                                        <CardTitle>Unallocated Transactions</CardTitle>
+                                        <CardDescription>Allocate imported transactions to your Chart of Accounts.</CardDescription>
+                                    </div>
+                                    <div className="relative">
+                                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                            type="search"
+                                            placeholder="Search transactions..."
+                                            className="w-full sm:w-[250px] pl-8"
+                                            value={unallocatedSearch}
+                                            onChange={(e) => setUnallocatedSearch(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
                             </CardHeader>
                             <CardContent>
                                 {unallocatedTransactions.length > 0 ? (
@@ -1224,20 +1306,13 @@ export default function NumeraPage() {
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {unallocatedTransactions.map(tx => (
+                                            {filteredUnallocated.map(tx => (
                                                 <TableRow key={tx.id}>
                                                     <TableCell>{tx.date}</TableCell>
                                                     <TableCell>{tx.description}</TableCell>
                                                     <TableCell className="font-mono">{formatNumber(tx.amount)}</TableCell>
                                                     <TableCell className="w-[300px]">
-                                                         <Select>
-                                                            <SelectTrigger><SelectValue placeholder="Select account..." /></SelectTrigger>
-                                                            <SelectContent>
-                                                                {chartOfAccounts.filter(a => a.section === "Income Statement" || a.accountNumber.startsWith('8000') || a.accountNumber.startsWith('9000') || a.accountNumber.startsWith('9200')).map(acc => (
-                                                                    <SelectItem key={acc.id} value={acc.accountNumber}>{acc.accountNumber} - {acc.description}</SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
+                                                         <AllocationCombobox onSelect={(value, type) => console.log('Allocate to:', { value, type })}/>
                                                     </TableCell>
                                                      <TableCell className="text-right">
                                                          <div className="flex gap-2 justify-end">
