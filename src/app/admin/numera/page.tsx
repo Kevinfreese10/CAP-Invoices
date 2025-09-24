@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -30,6 +30,18 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 
 const db = getFirestore(firebaseApp);
+
+type TrialBalanceReportData = {
+    clientName: string;
+    fromDate: string;
+    toDate: string;
+    data: {
+        accountNumber: string;
+        description: string;
+        debit: number;
+        credit: number;
+    }[];
+};
 
 const bankAccountSchema = z.object({
   name: z.string().min(1, 'Bank name is required.'),
@@ -156,6 +168,8 @@ const trialBalanceFormSchema = z.object({
 
 function TrialBalanceCard({ activeClient }: { activeClient: User }) {
     
+    const [reportData, setReportData] = useState<TrialBalanceReportData | null>(null);
+
     const getFinancialYear = (yearEnd: any) => {
         const toDate = yearEnd?.toDate ? yearEnd.toDate() : new Date(yearEnd);
         const endDate = toDate;
@@ -207,18 +221,76 @@ function TrialBalanceCard({ activeClient }: { activeClient: User }) {
 
         const filteredData = values.showZeroItems ? mockData : mockData.filter(d => d.debit !== 0 || d.credit !== 0);
         
-        const reportData = {
+        const newReportData = {
             clientName: activeClient.name,
             fromDate: format(values.fromDate, 'dd MMM yyyy'),
             toDate: format(values.toDate, 'dd MMM yyyy'),
             data: filteredData,
         };
-
-        sessionStorage.setItem('trialBalanceReportData', JSON.stringify(reportData));
-        window.open('/admin/numera/trial-balance-report', '_blank');
+        setReportData(newReportData);
     }
     
+     const formatCurrency = (value: number) => {
+        return value.toLocaleString('en-ZA', { style: 'currency', currency: 'ZAR' });
+    }
+
+    const totalDebits = reportData?.data.reduce((acc, item) => acc + item.debit, 0) || 0;
+    const totalCredits = reportData?.data.reduce((acc, item) => acc + item.credit, 0) || 0;
+
     return (
+        <>
+        <Dialog open={!!reportData} onOpenChange={(isOpen) => !isOpen && setReportData(null)}>
+             <DialogContent className="sm:max-w-4xl">
+                 {reportData && (
+                    <div className="p-2 bg-white">
+                        <Card className="w-full shadow-none border-none">
+                            <CardHeader className="text-center">
+                                <CardTitle className="text-2xl">{reportData.clientName}</CardTitle>
+                                <CardDescription className="text-lg">Trial Balance</CardDescription>
+                                <CardDescription>
+                                    For the period: {reportData.fromDate} to {reportData.toDate}
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="flex justify-end mb-4 print:hidden">
+                                    <Button variant="outline" onClick={() => window.print()}>
+                                        <Printer className="mr-2 h-4 w-4" />
+                                        Print
+                                    </Button>
+                                </div>
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="w-[150px]">Account</TableHead>
+                                            <TableHead>Description</TableHead>
+                                            <TableHead className="text-right w-[150px]">Debit</TableHead>
+                                            <TableHead className="text-right w-[150px]">Credit</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {reportData.data.map(item => (
+                                            <TableRow key={item.accountNumber}>
+                                                <TableCell className="font-mono">{item.accountNumber}</TableCell>
+                                                <TableCell>{item.description}</TableCell>
+                                                <TableCell className="text-right font-mono">{item.debit > 0 ? formatCurrency(item.debit) : '-'}</TableCell>
+                                                <TableCell className="text-right font-mono">{item.credit > 0 ? formatCurrency(item.credit) : '-'}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                    <TableFooter>
+                                        <TableRow>
+                                            <TableCell colSpan={2} className="font-bold text-base">Totals</TableCell>
+                                            <TableCell className="text-right font-bold font-mono text-base">{formatCurrency(totalDebits)}</TableCell>
+                                            <TableCell className="text-right font-bold font-mono text-base">{formatCurrency(totalCredits)}</TableCell>
+                                        </TableRow>
+                                    </TableFooter>
+                                </Table>
+                            </CardContent>
+                        </Card>
+                    </div>
+                 )}
+             </DialogContent>
+         </Dialog>
         <Card>
             <CardHeader><CardTitle>Trial Balance</CardTitle></CardHeader>
             <CardContent>
@@ -279,6 +351,7 @@ function TrialBalanceCard({ activeClient }: { activeClient: User }) {
                 </Form>
             </CardContent>
         </Card>
+        </>
     );
 }
 
@@ -441,6 +514,22 @@ export default function NumeraPage() {
 
   return (
     <div className="space-y-8">
+        <style jsx global>{`
+            @media print {
+              body * {
+                visibility: hidden;
+              }
+              .printable-area, .printable-area * {
+                visibility: visible;
+              }
+              .printable-area {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+              }
+            }
+        `}</style>
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Numera Accounting</h1>
         {!activeClient && (
@@ -628,5 +717,6 @@ export default function NumeraPage() {
     </div>
   );
 }
+
 
 
