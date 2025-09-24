@@ -56,18 +56,12 @@ const formSchema = z.object({
 
 function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSubmit: (data: any) => void, onCancel: () => void }) {
     
-    const toDate = (value: any) => {
-        if (!value) return undefined;
-        if (value.toDate) return value.toDate(); // Firestore Timestamp
-        return new Date(value);
-    }
-    
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
             id: client?.id || '',
             name: client?.name || '',
-            yearEnd: toDate(client?.yearEnd),
+            yearEnd: client?.yearEnd ? new Date(client.yearEnd.seconds * 1000) : undefined,
             bankAccounts: client?.bankingDetails ? [{ name: client.bankingDetails.bankName }] : [],
         },
     });
@@ -241,14 +235,14 @@ function TrialBalanceCard({ activeClient }: { activeClient: User }) {
         <>
         <Dialog open={!!reportData} onOpenChange={(isOpen) => !isOpen && setReportData(null)}>
              <DialogContent className="sm:max-w-4xl">
-                 <DialogHeader>
-                    <DialogTitle>Trial Balance Report</DialogTitle>
-                    <DialogDescription>
-                        A printable trial balance report for {reportData?.clientName}.
-                    </DialogDescription>
-                </DialogHeader>
+                <DialogHeader>
+                   <DialogTitle>Trial Balance Report</DialogTitle>
+                   <DialogDescription>
+                       A printable trial balance report for {reportData?.clientName}.
+                   </DialogDescription>
+               </DialogHeader>
                  {reportData && (
-                    <div className="p-2 bg-white">
+                    <div className="printable-area p-2 bg-white max-h-[70vh] overflow-y-auto">
                         <Card className="w-full shadow-none border-none">
                             <CardHeader className="text-center">
                                 <CardTitle className="text-2xl">{reportData.clientName}</CardTitle>
@@ -723,4 +717,5 @@ export default function NumeraPage() {
     </div>
   );
 }
+
 
