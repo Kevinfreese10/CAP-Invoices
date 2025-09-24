@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -153,16 +154,7 @@ const trialBalanceFormSchema = z.object({
     showZeroItems: z.boolean().default(true),
 });
 
-type TrialBalanceData = {
-    accountNumber: string;
-    description: string;
-    debit: number;
-    credit: number;
-}[];
-
 function TrialBalanceCard({ activeClient }: { activeClient: User }) {
-    
-    const [trialBalanceData, setTrialBalanceData] = useState<TrialBalanceData | null>(null);
     
     const getFinancialYear = (yearEnd: any) => {
         const toDate = yearEnd?.toDate ? yearEnd.toDate() : new Date(yearEnd);
@@ -183,8 +175,6 @@ function TrialBalanceCard({ activeClient }: { activeClient: User }) {
     });
 
     const handleGenerate = (values: z.infer<typeof trialBalanceFormSchema>) => {
-        console.log("Generating Trial Balance for", values);
-        
         let mockData = chartOfAccounts.map(account => {
             let debit = 0;
             let credit = 0;
@@ -216,16 +206,18 @@ function TrialBalanceCard({ activeClient }: { activeClient: User }) {
         }
 
         const filteredData = values.showZeroItems ? mockData : mockData.filter(d => d.debit !== 0 || d.credit !== 0);
-        setTrialBalanceData(filteredData);
+        
+        const reportData = {
+            clientName: activeClient.name,
+            fromDate: format(values.fromDate, 'dd MMM yyyy'),
+            toDate: format(values.toDate, 'dd MMM yyyy'),
+            data: filteredData,
+        };
+
+        sessionStorage.setItem('trialBalanceReportData', JSON.stringify(reportData));
+        window.open('/admin/numera/trial-balance-report', '_blank');
     }
     
-    const formatCurrency = (value: number) => {
-        return value.toLocaleString('en-ZA', { style: 'currency', currency: 'ZAR' });
-    }
-
-    const totalDebits = trialBalanceData ? trialBalanceData.reduce((acc, item) => acc + item.debit, 0) : 0;
-    const totalCredits = trialBalanceData ? trialBalanceData.reduce((acc, item) => acc + item.credit, 0) : 0;
-
     return (
         <Card>
             <CardHeader><CardTitle>Trial Balance</CardTitle></CardHeader>
@@ -285,40 +277,6 @@ function TrialBalanceCard({ activeClient }: { activeClient: User }) {
                         <Button type="submit">Generate</Button>
                     </form>
                 </Form>
-                 {trialBalanceData && (
-                    <div className="mt-6">
-                        <Separator className="my-4"/>
-                        <h3 className="text-lg font-medium mb-2">Generated Trial Balance</h3>
-                        <p className="text-sm text-muted-foreground">For period: {format(form.getValues('fromDate'), 'dd MMM yyyy')} to {format(form.getValues('toDate'), 'dd MMM yyyy')}</p>
-                         <Table className="mt-4">
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Account</TableHead>
-                                    <TableHead>Description</TableHead>
-                                    <TableHead className="text-right">Debit</TableHead>
-                                    <TableHead className="text-right">Credit</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {trialBalanceData.map(item => (
-                                    <TableRow key={item.accountNumber}>
-                                        <TableCell className="font-mono">{item.accountNumber}</TableCell>
-                                        <TableCell>{item.description}</TableCell>
-                                        <TableCell className="text-right font-mono">{item.debit > 0 ? formatCurrency(item.debit) : '-'}</TableCell>
-                                        <TableCell className="text-right font-mono">{item.credit > 0 ? formatCurrency(item.credit) : '-'}</TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                            <TableFooter>
-                                <TableRow>
-                                    <TableCell colSpan={2} className="font-bold">Totals</TableCell>
-                                    <TableCell className="text-right font-bold font-mono">{formatCurrency(totalDebits)}</TableCell>
-                                    <TableCell className="text-right font-bold font-mono">{formatCurrency(totalCredits)}</TableCell>
-                                </TableRow>
-                            </TableFooter>
-                        </Table>
-                    </div>
-                )}
             </CardContent>
         </Card>
     );
@@ -670,4 +628,5 @@ export default function NumeraPage() {
     </div>
   );
 }
+
 
