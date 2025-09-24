@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
@@ -1783,3 +1784,4 @@ export default function NumeraPage() {
     </div>
   );
 }
+
