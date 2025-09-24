@@ -91,6 +91,10 @@ const formSchema = z.object({
   bankAccounts: z.array(bankAccountSchema).optional(),
 });
 
+const formatNumber = (value: number) => {
+    return value.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
 function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSubmit: (data: any) => void, onCancel: () => void }) {
     
     const form = useForm<z.infer<typeof formSchema>>({
@@ -258,10 +262,6 @@ function TrialBalanceCard({ activeClient, onAccountClick }: { activeClient: User
             data: filteredData,
         };
         setReportData(newReportData);
-    }
-    
-     const formatNumber = (value: number) => {
-        return value.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
     const handleDownloadExcel = () => {
@@ -507,24 +507,17 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
 
   useEffect(() => {
     if (initialValues?.accounts?.length) {
-      form.reset({
+      const newValues = {
         ...initialValues,
         fromDate: initialValues.fromDate || startDate,
         toDate: initialValues.toDate || endDate,
-      });
-      handleGenerate({
-        accounts: initialValues.accounts,
-        fromDate: initialValues.fromDate || startDate,
-        toDate: initialValues.toDate || endDate,
-      });
+      };
+      form.reset(newValues);
+      handleGenerate(newValues);
     }
-  }, [JSON.stringify(initialValues), startDate, endDate]); // stringify to compare content, not reference
+  }, [JSON.stringify(initialValues)]);
 
 
-  const formatNumber = (value: number) => {
-    return value.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  };
-  
   const handleDownloadExcel = () => {
     if (!reportData) return;
 
@@ -1041,10 +1034,6 @@ export default function NumeraPage() {
     }
     return 'Invalid Date';
   };
-  
-  const formatNumber = (value: number) => {
-    return value.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  };
 
   const handleImport = () => {
     if (!selectedBankAccount || !importPreview || !selectedFile) {
@@ -1529,3 +1518,4 @@ export default function NumeraPage() {
     </div>
   );
 }
+
