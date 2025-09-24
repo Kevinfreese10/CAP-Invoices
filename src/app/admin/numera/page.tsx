@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -240,8 +241,8 @@ function TrialBalanceCard({ activeClient, onAccountClick }: { activeClient: User
         
         const newReportData = {
             clientName: activeClient.name,
-            fromDate: format(values.fromDate, 'dd MMM yyyy'),
-            toDate: format(values.toDate, 'dd MMM yyyy'),
+            fromDate: format(values.fromDate, 'dd/MM/yyyy'),
+            toDate: format(values.toDate, 'dd/MM/yyyy'),
             data: filteredData,
         };
         setReportData(newReportData);
@@ -378,7 +379,7 @@ function TrialBalanceCard({ activeClient, onAccountClick }: { activeClient: User
                                         <Popover>
                                             <PopoverTrigger asChild>
                                             <FormControl>
-                                                <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd MMM yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button>
+                                                <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd/MM/yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button>
                                             </FormControl>
                                             </PopoverTrigger>
                                             <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent>
@@ -395,7 +396,7 @@ function TrialBalanceCard({ activeClient, onAccountClick }: { activeClient: User
                                         <Popover>
                                             <PopoverTrigger asChild>
                                             <FormControl>
-                                                <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd MMM yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button>
+                                                <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd/MM/yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button>
                                             </FormControl>
                                             </PopoverTrigger>
                                             <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent>
@@ -470,7 +471,7 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
         });
       }
     }
-  }, [initialValues, form.reset, startDate, endDate]);
+  }, [initialValues, form, startDate, endDate]);
 
   const handleGenerate = (values: z.infer<typeof generalLedgerFormSchema>) => {
       const selectedAccounts = values.accounts.includes('all') ? chartOfAccounts.map(a => a.accountNumber) : values.accounts;
@@ -484,7 +485,7 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
               const amount = Math.random() * 1000;
               runningBalance += isDebit ? amount : -amount;
               return {
-                  date: format(add(values.fromDate, { days: i * 10 }), 'dd MMM yyyy'),
+                  date: format(add(values.fromDate, { days: i * 10 }), 'dd/MM/yyyy'),
                   description: `Mock transaction ${i + 1}`,
                   reference: `REF-${Math.floor(Math.random() * 10000)}`,
                   debit: isDebit ? amount : 0,
@@ -503,8 +504,8 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
 
       setReportData({
           clientName: activeClient.name,
-          fromDate: format(values.fromDate, 'dd MMM yyyy'),
-          toDate: format(values.toDate, 'dd MMM yyyy'),
+          fromDate: format(values.fromDate, 'dd/MM/yyyy'),
+          toDate: format(values.toDate, 'dd/MM/yyyy'),
           accounts: generatedAccounts,
       });
   };
@@ -516,26 +517,28 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
   const handleDownloadExcel = () => {
     if (!reportData) return;
 
-    const wb = XLSX.utils.book_new();
+    let worksheetData: any[] = [];
+    
+    // Add main headers
+    worksheetData.push({ A: reportData.clientName });
+    worksheetData.push({ A: 'General Ledger' });
+    worksheetData.push({ A: `For the period: ${reportData.fromDate} to ${reportData.toDate}` });
+    worksheetData.push({}); // Spacer row
 
-    // Create summary sheet
-    const summaryData = reportData.accounts.map(acc => ({
-        'Account': acc.accountNumber,
-        'Description': acc.description,
-        'Opening Balance': acc.openingBalance,
-        'Closing Balance': acc.closingBalance,
-    }));
-    const summaryWs = XLSX.utils.json_to_sheet(summaryData);
-    summaryWs['!cols'] = [{ wch: 15 }, { wch: 40 }, { wch: 15 }, { wch: 15 }];
-    XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary');
-
-    // Create a sheet for each account
     reportData.accounts.forEach(account => {
-        const accountData = [
-            { A: 'Opening Balance', F: account.openingBalance }
-        ];
+        // Account Header
+        worksheetData.push({ A: `${account.accountNumber} - ${account.description}` });
+        worksheetData.push({
+            A: 'Date', B: 'Description', C: 'Reference',
+            D: 'Debit', E: 'Credit', F: 'Balance'
+        });
+
+        // Opening Balance
+        worksheetData.push({ A: 'Opening Balance', F: account.openingBalance });
+        
+        // Transactions
         account.transactions.forEach(tx => {
-            accountData.push({
+            worksheetData.push({
                 A: tx.date,
                 B: tx.description,
                 C: tx.reference,
@@ -544,27 +547,37 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
                 F: tx.balance
             });
         });
-        accountData.push({ A: 'Closing Balance', F: account.closingBalance });
-
-        const ws = XLSX.utils.json_to_sheet(accountData, { skipHeader: true });
-        ws['!cols'] = [{ wch: 15 }, { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
-        XLSX.utils.sheet_add_aoa(ws, [['Date', 'Description', 'Reference', 'Debit', 'Credit', 'Balance']], { origin: 'A1' });
-
-        // Apply number formatting
-        for (let i = 2; i <= accountData.length + 1; i++) {
-             ['D', 'E', 'F'].forEach(col => {
-                const cell = ws[`${col}${i}`];
-                if(cell && typeof cell.v === 'number') {
-                    cell.z = '#,##0.00';
-                }
-             });
-        }
         
-        const safeSheetName = account.accountNumber.replace('/', '-').substring(0, 31);
-        XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
+        // Closing Balance
+        worksheetData.push({ A: 'Closing Balance', F: account.closingBalance });
+        worksheetData.push({}); // Spacer row
     });
 
-    XLSX.writeFile(wb, `General-Ledger-${activeClient.name}-${reportData.fromDate}-to-${reportData.toDate}.xlsx`);
+    const worksheet = XLSX.utils.json_to_sheet(worksheetData, { skipHeader: true });
+    
+    worksheet['!cols'] = [
+        { wch: 15 }, { wch: 40 }, { wch: 15 },
+        { wch: 15 }, { wch: 15 }, { wch: 15 }
+    ];
+
+    // Apply number formatting for currency columns
+    // Note: This requires careful iteration as the structure is non-uniform
+    worksheetData.forEach((row, index) => {
+        const rowIndex = index + 1; // 1-based index
+        if (row.D || row.E || row.F) {
+            ['D', 'E', 'F'].forEach(col => {
+                const cellRef = `${col}${rowIndex}`;
+                const cell = worksheet[cellRef];
+                if (cell && typeof cell.v === 'number') {
+                    cell.z = '#,##0.00';
+                }
+            });
+        }
+    });
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'General Ledger');
+    XLSX.writeFile(workbook, `General-Ledger-${activeClient.name}-${reportData.fromDate}-to-${reportData.toDate}.xlsx`);
   };
 
   return (
@@ -649,8 +662,8 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleGenerate)} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField control={form.control} name="fromDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>From Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd MMM yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem> )} />
-                <FormField control={form.control} name="toDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>To Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd MMM yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem> )} />
+                <FormField control={form.control} name="fromDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>From Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd/MM/yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem> )} />
+                <FormField control={form.control} name="toDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>To Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd/MM/yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem> )} />
               </div>
               <FormField
                 control={form.control}
@@ -728,7 +741,7 @@ export default function NumeraPage() {
 
   useEffect(() => {
     fetchClients();
-  }, []);
+  }, [toast]);
 
   const handleAdd = () => {
     setSelectedClient(null);
@@ -1061,3 +1074,4 @@ export default function NumeraPage() {
     </div>
   );
 }
+
