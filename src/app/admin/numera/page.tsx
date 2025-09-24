@@ -50,6 +50,14 @@ type ImportedTransaction = {
     bankAccountId: string; // The account number of the bank it was imported into
 };
 
+type AllocatedTransaction = ImportedTransaction & {
+    allocatedTo: {
+        value: string; // Account number, customer id, or supplier id
+        type: 'account' | 'customer' | 'supplier';
+    };
+    allocatedAt: Date;
+};
+
 type TrialBalanceReportData = {
     clientName: string;
     fromDate: string;
@@ -448,7 +456,7 @@ const generalLedgerFormSchema = z.object({
   accounts: z.array(z.string()).min(1, 'Please select at least one account.'),
 });
 
-function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User, initialValues?: Partial<z.infer<typeof generalLedgerFormSchema>> }) {
+function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions }: { activeClient: User, initialValues?: Partial<z.infer<typeof generalLedgerFormSchema>>, allocatedTransactions: AllocatedTransaction[] }) {
   
   const [reportData, setReportData] = useState<GeneralLedgerReportData | null>(null);
 
@@ -475,21 +483,27 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
       
       const generatedAccounts = selectedAccounts.map(accNum => {
           const accountInfo = chartOfAccounts.find(a => a.accountNumber === accNum)!;
-          const openingBalance = (Math.random() - 0.5) * 10000;
+          const openingBalance = (Math.random() - 0.5) * 10000; // Mock opening balance
           let runningBalance = openingBalance;
-          const transactions: GLTransaction[] = Array.from({ length: Math.floor(Math.random() * 10) + 1 }).map((_, i) => {
-              const isDebit = Math.random() > 0.5;
-              const amount = Math.random() * 1000;
-              runningBalance += isDebit ? amount : -amount;
+
+          const accountTransactions = allocatedTransactions.filter(
+              tx => tx.allocatedTo.type === 'account' && tx.allocatedTo.value === accNum
+          );
+
+          const transactions: GLTransaction[] = accountTransactions.map(tx => {
+              const amount = tx.amount;
+              const isDebit = amount >= 0; // Assuming positive is debit for GL
+              runningBalance += amount; // This might need refinement based on account type
               return {
-                  date: format(add(values.fromDate, { days: i * 10 }), 'dd/MM/yyyy'),
-                  description: `Mock transaction ${i + 1}`,
-                  reference: `REF-${Math.floor(Math.random() * 10000)}`,
+                  date: tx.date,
+                  description: tx.description,
+                  reference: tx.id.substring(0, 8),
                   debit: isDebit ? amount : 0,
-                  credit: !isDebit ? amount : 0,
+                  credit: !isDebit ? Math.abs(amount) : 0,
                   balance: runningBalance,
               };
           });
+
           return {
               accountNumber: accNum,
               description: accountInfo.description,
@@ -507,7 +521,8 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
       });
   };
 
- useEffect(() => {
+  useEffect(() => {
+    const stringifiedAccounts = JSON.stringify(initialValues?.accounts);
     if (initialValues && initialValues.accounts && initialValues.accounts.length > 0) {
       const newValues = {
         fromDate: initialValues.fromDate || startDate,
@@ -909,6 +924,7 @@ export default function NumeraPage() {
   const [importPreview, setImportPreview] = useState<{ count: number; total: number; balance: number; } | null>(null);
   const [bankBalances, setBankBalances] = useState<{ [accountNumber: string]: number }>({});
   const [unallocatedTransactions, setUnallocatedTransactions] = useState<ImportedTransaction[]>([]);
+  const [allocatedTransactions, setAllocatedTransactions] = useState<AllocatedTransaction[]>([]);
   const [unallocatedSearch, setUnallocatedSearch] = useState('');
   const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
   const [allocations, setAllocations] = useState<{ [key: string]: { value: string, type: string } }>({});
@@ -922,7 +938,6 @@ export default function NumeraPage() {
         const querySnapshot = await getDocs(q);
         let fetchedClients = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
         
-        // Add hardcoded test client if it doesn't exist from firestore
         const testClientExists = fetchedClients.some(c => c.id === 'client-numera-test');
         if (!testClientExists) {
             const testClient = allUsers.find(u => u.id === 'client-numera-test');
@@ -1215,8 +1230,17 @@ export default function NumeraPage() {
           toast({ title: 'Allocation Error', description: 'Please select an account to allocate to.', variant: 'destructive' });
           return;
       }
-      console.log(`Allocating transaction ${transactionId} to ${allocation.type}: ${allocation.value}`);
       
+      const transactionToAllocate = unallocatedTransactions.find(tx => tx.id === transactionId);
+      if (!transactionToAllocate) return;
+
+      const newAllocatedTransaction: AllocatedTransaction = {
+          ...transactionToAllocate,
+          allocatedTo: allocation,
+          allocatedAt: new Date(),
+      };
+      
+      setAllocatedTransactions(prev => [...prev, newAllocatedTransaction]);
       setUnallocatedTransactions(prev => prev.filter(tx => tx.id !== transactionId));
       setAllocations(prev => {
           const newAllocations = { ...prev };
@@ -1240,7 +1264,16 @@ export default function NumeraPage() {
         toast({ title: 'Allocation Error', description: 'Please select an account for bulk allocation.', variant: 'destructive' });
         return;
     }
-    console.log(`Bulk allocating ${selectedTransactions.length} transactions to ${bulkAllocation.type}: ${bulkAllocation.value}`);
+
+    const transactionsToAllocate = unallocatedTransactions.filter(tx => selectedTransactions.includes(tx.id));
+    
+    const newAllocatedTransactions: AllocatedTransaction[] = transactionsToAllocate.map(tx => ({
+        ...tx,
+        allocatedTo: bulkAllocation,
+        allocatedAt: new Date(),
+    }));
+
+    setAllocatedTransactions(prev => [...prev, ...newAllocatedTransactions]);
     setUnallocatedTransactions(prev => prev.filter(tx => !selectedTransactions.includes(tx.id)));
     setSelectedTransactions([]);
     setAllocations(prev => {
@@ -1358,7 +1391,7 @@ export default function NumeraPage() {
                     </TabsList>
                     <TabsContent value="reporting" className="space-y-4">
                         <TrialBalanceCard activeClient={activeClient} onAccountClick={handleTBAccountClick} />
-                        <GeneralLedgerCard activeClient={activeClient} initialValues={glInitialValues} />
+                        <GeneralLedgerCard activeClient={activeClient} initialValues={glInitialValues} allocatedTransactions={allocatedTransactions} />
                     </TabsContent>
                     <TabsContent value="banking" className="space-y-4">
                         <Card>
