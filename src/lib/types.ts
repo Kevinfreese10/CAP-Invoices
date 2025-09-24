@@ -2,6 +2,7 @@
 
 
 
+
 export type Service = {
   id: string;
   title: string;
@@ -130,6 +131,8 @@ export type User = {
   managementAccountsDueDate?: any;
   isVatRegistered?: boolean;
   vatCategory?: 'A' | 'B' | 'C';
+  submitsProvisionalTaxes?: boolean;
+  submitsIncomeTaxReturn?: boolean;
 };
 
 export type TaskComment = {
@@ -151,6 +154,7 @@ export type Task = {
   orderId?: string;
   comments?: TaskComment[];
 };
+
 
 
 

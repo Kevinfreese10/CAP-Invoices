@@ -27,7 +27,7 @@ import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CalendarIcon } from 'lucide-react';
-import { format, addMonths, set, getDate, getMonth, getYear } from 'date-fns';
+import { format, addMonths, set, getDate, getMonth, getYear, lastDayOfMonth } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Calendar } from '@/components/ui/calendar';
 
@@ -63,6 +63,8 @@ const formSchema = z.object({
   status: z.enum(clientStatuses),
   // Automation fields
   yearEnd: z.string().min(1, 'Financial year end is required.'),
+  submitsProvisionalTaxes: z.boolean().default(false),
+  submitsIncomeTaxReturn: z.boolean().default(false),
   preparesFinancials: z.boolean().default(false),
   financialsDueDate: z.date().optional(),
   requiresManagementAccounts: z.boolean().default(false),
@@ -83,6 +85,8 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
             cellNumber: client?.cellNumber || '',
             status: client?.status || 'Active',
             yearEnd: client?.yearEnd || 'February',
+            submitsProvisionalTaxes: client?.submitsProvisionalTaxes || false,
+            submitsIncomeTaxReturn: client?.submitsIncomeTaxReturn || false,
             preparesFinancials: client?.preparesFinancials || false,
             financialsDueDate: client?.financialsDueDate ? new Date(client.financialsDueDate) : undefined,
             requiresManagementAccounts: client?.requiresManagementAccounts || false,
@@ -120,9 +124,23 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                     <h3 className="text-lg font-medium">Task Automation Setup</h3>
                     <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                     
+                    <FormField control={form.control} name="submitsProvisionalTaxes" render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                            <div className="space-y-0.5"><FormLabel>Do we submit your provisional taxes?</FormLabel></div>
+                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                        </FormItem>
+                    )} />
+
+                    <FormField control={form.control} name="submitsIncomeTaxReturn" render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                            <div className="space-y-0.5"><FormLabel>Do we submit your corporate income tax return (ITR14)?</FormLabel></div>
+                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                        </FormItem>
+                    )} />
+
                     <FormField control={form.control} name="preparesFinancials" render={({ field }) => (
                         <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                            <div className="space-y-0.5"><FormLabel>Do we prepare your financials?</FormLabel></div>
+                            <div className="space-y-0.5"><FormLabel>Do we prepare your annual financials?</FormLabel></div>
                             <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                         </FormItem>
                     )} />
@@ -196,6 +214,14 @@ export default function AdminClientsPage() {
   };
 
    const createRecurringTasks = async (client: Client, creatorId: string) => {
+    if (!client.yearEnd) {
+      toast({
+        title: 'Task Creation Skipped',
+        description: 'Financial year-end is required to automate tasks.',
+        variant: 'destructive'
+      });
+      return 0;
+    }
     const getNextStaffMember = (department: string): string[] => {
         const staffInDept = allUsers.filter(u => u.role === 'staff' && u.department === department);
         if (staffInDept.length > 0) {
@@ -211,34 +237,35 @@ export default function AdminClientsPage() {
         const monthIndex = months.indexOf(month);
         return Timestamp.fromDate(new Date(year, monthIndex, day));
     };
-
-    const provisionalTaxDueDate = new Date();
-    provisionalTaxDueDate.setMonth(provisionalTaxDueDate.getMonth() + 6);
     
     const batch = writeBatch(db);
-
     const tasksToCreate: Omit<Task, 'id'>[] = [];
+    
+    const yearEndMonthIndex = months.indexOf(client.yearEnd);
 
     // Provisional Tax
-    tasksToCreate.push({
-        title: `Provisional Tax Return for ${client.name}`,
-        description: `Complete and file the provisional tax return for ${client.name}.`,
-        assignedTo: getNextStaffMember('Accounting and Tax'),
-        dueDate: Timestamp.fromDate(provisionalTaxDueDate),
-        recurrence: 'Annually',
-        priority: 'Medium',
-        status: 'To-Do',
-        createdBy: creatorId,
-        comments: [],
-    });
-
-    // CIPC Annual Return
-    if (client.yearEnd) {
+    if (client.submitsProvisionalTaxes) {
+        // 1st payment: 6 months into the financial year
+        const firstProvDueDate = lastDayOfMonth(addMonths(new Date(getYear(new Date()), yearEndMonthIndex + 1, 1), -6));
         tasksToCreate.push({
-            title: `CIPC Annual Return for ${client.name}`,
-            description: `File the CIPC annual return for ${client.name}.`,
-            assignedTo: getNextStaffMember('Administration'),
-            dueDate: getDueDate(client.yearEnd, 28),
+            title: `1st Provisional Tax for ${client.name}`,
+            description: `Complete and file the first provisional tax return for ${client.name}.`,
+            assignedTo: getNextStaffMember('Accounting and Tax'),
+            dueDate: Timestamp.fromDate(firstProvDueDate),
+            recurrence: 'Annually',
+            priority: 'Medium',
+            status: 'To-Do',
+            createdBy: creatorId,
+            comments: [],
+        });
+        
+        // 2nd payment: At the end of the financial year
+        const secondProvDueDate = lastDayOfMonth(new Date(getYear(new Date()), yearEndMonthIndex, 1));
+         tasksToCreate.push({
+            title: `2nd Provisional Tax for ${client.name}`,
+            description: `Complete and file the second provisional tax return for ${client.name}.`,
+            assignedTo: getNextStaffMember('Accounting and Tax'),
+            dueDate: Timestamp.fromDate(secondProvDueDate),
             recurrence: 'Annually',
             priority: 'Medium',
             status: 'To-Do',
@@ -246,6 +273,36 @@ export default function AdminClientsPage() {
             comments: [],
         });
     }
+
+    // Corporate Income Tax (ITR14)
+    if (client.submitsIncomeTaxReturn) {
+         const itr14DueDate = addMonths(lastDayOfMonth(new Date(getYear(new Date()), yearEndMonthIndex, 1)), 12);
+         tasksToCreate.push({
+            title: `ITR14 Return for ${client.name}`,
+            description: `File the ITR14 corporate income tax return for ${client.name}.`,
+            assignedTo: getNextStaffMember('Accounting and Tax'),
+            dueDate: Timestamp.fromDate(itr14DueDate),
+            recurrence: 'Annually',
+            priority: 'High',
+            status: 'To-Do',
+            createdBy: creatorId,
+            comments: [],
+        });
+    }
+
+
+    // CIPC Annual Return
+    tasksToCreate.push({
+        title: `CIPC Annual Return for ${client.name}`,
+        description: `File the CIPC annual return for ${client.name}.`,
+        assignedTo: getNextStaffMember('Administration'),
+        dueDate: getDueDate(client.yearEnd, 28),
+        recurrence: 'Annually',
+        priority: 'Medium',
+        status: 'To-Do',
+        createdBy: creatorId,
+        comments: [],
+    });
     
     // Financials
     if (client.preparesFinancials && client.financialsDueDate) {
@@ -286,7 +343,6 @@ export default function AdminClientsPage() {
         const now = new Date();
         let firstDueDate: Date;
         
-        // This is a simplified logic. A robust implementation would be more complex.
         if (client.vatCategory === 'C') { // Monthly
              firstDueDate = set(now, { date: 25, month: getMonth(now) + 1 });
         } else { // Bi-monthly
@@ -479,4 +535,5 @@ export default function AdminClientsPage() {
 }
 
     
+
 
