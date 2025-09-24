@@ -297,7 +297,7 @@ function TrialBalanceCard({ activeClient, onAccountClick }: { activeClient: User
         <>
         <Dialog open={!!reportData} onOpenChange={(isOpen) => !isOpen && setReportData(null)}>
             <DialogContent className="sm:max-w-4xl">
-                <DialogHeader>
+                 <DialogHeader>
                    <DialogTitle>Trial Balance Report</DialogTitle>
                    <DialogDescription>
                        A printable trial balance report for {reportData?.clientName}. Click an amount to view the General Ledger.
@@ -728,6 +728,8 @@ export default function NumeraPage() {
   const [glInitialValues, setGlInitialValues] = useState<Partial<z.infer<typeof generalLedgerFormSchema>>>();
   const [selectedBankAccount, setSelectedBankAccount] = useState('');
   
+  const importForm = useForm();
+  
   const fetchClients = async () => {
     setIsLoading(true);
     try {
@@ -805,7 +807,6 @@ export default function NumeraPage() {
         const clientRef = doc(db, 'clients', selectedClient.id);
         await setDoc(clientRef, clientData, { merge: true });
         
-        // Handle new bank accounts on edit
         const existingBankAccounts = chartOfAccounts
           .filter(acc => acc.id.startsWith(`cashbook-${selectedClient.id}`))
           .map(acc => acc.description.split(' - ')[1]);
@@ -1042,28 +1043,32 @@ export default function NumeraPage() {
                                 <CardDescription>Import a CSV file of transactions into a selected bank account.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <FormItem>
-                                    <FormLabel>Select Bank Account</FormLabel>
-                                    <Select onValueChange={setSelectedBankAccount}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select an account..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {clientBankAccounts.map(acc => (
-                                                <SelectItem key={acc.id} value={acc.accountNumber}>{acc.description}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </FormItem>
-                                 <FormItem>
-                                    <FormLabel>Transaction File</FormLabel>
-                                    <Input type="file" accept=".csv" />
-                                 </FormItem>
-                               </div>
-                               <Button onClick={handleImport} disabled={!selectedBankAccount}>
-                                 <Upload className="mr-2 h-4 w-4" /> Import Transactions
-                               </Button>
+                               <Form {...importForm}>
+                                <form onSubmit={importForm.handleSubmit(handleImport)} className="space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <FormItem>
+                                            <FormLabel>Select Bank Account</FormLabel>
+                                            <Select onValueChange={setSelectedBankAccount}>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select an account..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {clientBankAccounts.map(acc => (
+                                                        <SelectItem key={acc.id} value={acc.accountNumber}>{acc.description}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </FormItem>
+                                        <FormItem>
+                                            <FormLabel>Transaction File</FormLabel>
+                                            <Input type="file" accept=".csv" />
+                                        </FormItem>
+                                    </div>
+                                    <Button type="submit" disabled={!selectedBankAccount}>
+                                        <Upload className="mr-2 h-4 w-4" /> Import Transactions
+                                    </Button>
+                                </form>
+                               </Form>
                             </CardContent>
                         </Card>
                     </TabsContent>
@@ -1183,6 +1188,7 @@ export default function NumeraPage() {
     </div>
   );
 }
+
 
 
 
