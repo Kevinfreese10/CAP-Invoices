@@ -45,6 +45,15 @@ type TrialBalanceReportData = {
     }[];
 };
 
+type GLTransaction = { 
+    date: string; 
+    description: string; 
+    reference: string; 
+    debit: number; 
+    credit: number;
+    balance: number; 
+};
+
 type GeneralLedgerReportData = {
     clientName: string;
     fromDate: string;
@@ -52,7 +61,7 @@ type GeneralLedgerReportData = {
     accounts: {
         accountNumber: string;
         description: string;
-        transactions: { date: string; description: string; reference: string; debit: number; credit: number }[];
+        transactions: GLTransaction[];
         openingBalance: number;
         closingBalance: number;
     }[];
@@ -286,12 +295,12 @@ function TrialBalanceCard({ activeClient, onAccountClick }: { activeClient: User
         <>
         <Dialog open={!!reportData} onOpenChange={(isOpen) => !isOpen && setReportData(null)}>
             <DialogContent className="sm:max-w-4xl">
-                 <DialogHeader>
+                <DialogHeader>
                    <DialogTitle>Trial Balance Report</DialogTitle>
                    <DialogDescription>
                        A printable trial balance report for {reportData?.clientName}. Click an amount to view the General Ledger.
                    </DialogDescription>
-               </DialogHeader>
+                </DialogHeader>
                  {reportData && (
                     <div className="printable-area p-2 bg-white max-h-[70vh] overflow-y-auto">
                         <Card className="w-full shadow-none border-none">
@@ -470,7 +479,7 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
           const accountInfo = chartOfAccounts.find(a => a.accountNumber === accNum)!;
           const openingBalance = (Math.random() - 0.5) * 10000;
           let runningBalance = openingBalance;
-          const transactions = Array.from({ length: Math.floor(Math.random() * 10) + 1 }).map((_, i) => {
+          const transactions: GLTransaction[] = Array.from({ length: Math.floor(Math.random() * 10) + 1 }).map((_, i) => {
               const isDebit = Math.random() > 0.5;
               const amount = Math.random() * 1000;
               runningBalance += isDebit ? amount : -amount;
@@ -480,6 +489,7 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
                   reference: `REF-${Math.floor(Math.random() * 10000)}`,
                   debit: isDebit ? amount : 0,
                   credit: !isDebit ? amount : 0,
+                  balance: runningBalance,
               };
           });
           return {
@@ -501,6 +511,60 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
 
   const formatNumber = (value: number) => {
     return value.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+  
+  const handleDownloadExcel = () => {
+    if (!reportData) return;
+
+    const wb = XLSX.utils.book_new();
+
+    // Create summary sheet
+    const summaryData = reportData.accounts.map(acc => ({
+        'Account': acc.accountNumber,
+        'Description': acc.description,
+        'Opening Balance': acc.openingBalance,
+        'Closing Balance': acc.closingBalance,
+    }));
+    const summaryWs = XLSX.utils.json_to_sheet(summaryData);
+    summaryWs['!cols'] = [{ wch: 15 }, { wch: 40 }, { wch: 15 }, { wch: 15 }];
+    XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary');
+
+    // Create a sheet for each account
+    reportData.accounts.forEach(account => {
+        const accountData = [
+            { A: 'Opening Balance', F: account.openingBalance }
+        ];
+        account.transactions.forEach(tx => {
+            accountData.push({
+                A: tx.date,
+                B: tx.description,
+                C: tx.reference,
+                D: tx.debit || null,
+                E: tx.credit || null,
+                F: tx.balance
+            });
+        });
+        accountData.push({ A: 'Closing Balance', F: account.closingBalance });
+
+        const ws = XLSX.utils.json_to_sheet(accountData, { skipHeader: true });
+        ws['!cols'] = [{ wch: 15 }, { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
+        XLSX.utils.sheet_add_aoa(ws, [['Date', 'Description', 'Reference', 'Debit', 'Credit', 'Balance']], { origin: 'A1' });
+
+        // Apply number formatting
+        for (let i = 2; i <= accountData.length + 1; i++) {
+             ['D', 'E', 'F'].forEach(col => {
+                const cell = ws[`${col}${i}`];
+                if(cell && typeof cell.v === 'number') {
+                    cell.z = '#,##0.00';
+                }
+             });
+        }
+        
+        const safeSheetName = account.accountNumber.replace('/', '-').substring(0, 31);
+        XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
+    });
+
+    XLSX.writeFile(wb, `General-Ledger-${activeClient.name}-${reportData.fromDate}-to-${reportData.toDate}.xlsx`);
   };
 
   return (
@@ -525,6 +589,9 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
                 </CardHeader>
                 <CardContent>
                   <div className="flex justify-end gap-2 mb-4 print:hidden">
+                    <Button variant="outline" onClick={handleDownloadExcel}>
+                        <Download className="mr-2 h-4 w-4" /> Download Excel
+                    </Button>
                     <Button variant="outline" onClick={() => window.print()}>
                       <Printer className="mr-2 h-4 w-4" /> Print
                     </Button>
@@ -556,7 +623,7 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
                                 <TableCell>{tx.reference}</TableCell>
                                 <TableCell className="text-right font-mono">{tx.debit > 0 ? formatNumber(tx.debit) : '-'}</TableCell>
                                 <TableCell className="text-right font-mono">{tx.credit > 0 ? formatNumber(tx.credit) : '-'}</TableCell>
-                                <TableCell className="text-right font-mono">{/* Balance per line can be calculated here if needed */}</TableCell>
+                                <TableCell className="text-right font-mono">{formatNumber(tx.balance)}</TableCell>
                               </TableRow>
                             ))}
                           </TableBody>
@@ -994,5 +1061,3 @@ export default function NumeraPage() {
     </div>
   );
 }
-
-    
