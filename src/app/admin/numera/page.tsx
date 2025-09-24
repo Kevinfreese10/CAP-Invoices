@@ -456,23 +456,6 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
     }
   });
 
-  useEffect(() => {
-    if (initialValues) {
-      form.reset({
-        fromDate: initialValues.fromDate || startDate,
-        toDate: initialValues.toDate || endDate,
-        accounts: initialValues.accounts || [],
-      });
-      if (initialValues.accounts && initialValues.accounts.length > 0) {
-        handleGenerate({
-          fromDate: initialValues.fromDate || startDate,
-          toDate: initialValues.toDate || endDate,
-          accounts: initialValues.accounts,
-        });
-      }
-    }
-  }, [initialValues, form, startDate, endDate]);
-
   const handleGenerate = (values: z.infer<typeof generalLedgerFormSchema>) => {
       const selectedAccounts = values.accounts.includes('all') ? chartOfAccounts.map(a => a.accountNumber) : values.accounts;
       
@@ -510,6 +493,25 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
       });
   };
 
+  useEffect(() => {
+    if (initialValues) {
+      form.reset({
+        fromDate: initialValues.fromDate || startDate,
+        toDate: initialValues.toDate || endDate,
+        accounts: initialValues.accounts || [],
+      });
+      if (initialValues.accounts && initialValues.accounts.length > 0) {
+        // We call handleGenerate directly to show the report
+        handleGenerate({
+          fromDate: initialValues.fromDate || startDate,
+          toDate: initialValues.toDate || endDate,
+          accounts: initialValues.accounts,
+        });
+      }
+    }
+  }, [initialValues?.accounts, initialValues?.fromDate, initialValues?.toDate]);
+
+
   const formatNumber = (value: number) => {
     return value.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
@@ -519,24 +521,20 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
 
     let worksheetData: any[] = [];
     
-    // Add main headers
     worksheetData.push({ A: reportData.clientName });
     worksheetData.push({ A: 'General Ledger' });
     worksheetData.push({ A: `For the period: ${reportData.fromDate} to ${reportData.toDate}` });
-    worksheetData.push({}); // Spacer row
+    worksheetData.push({});
 
     reportData.accounts.forEach(account => {
-        // Account Header
         worksheetData.push({ A: `${account.accountNumber} - ${account.description}` });
         worksheetData.push({
             A: 'Date', B: 'Description', C: 'Reference',
             D: 'Debit', E: 'Credit', F: 'Balance'
         });
 
-        // Opening Balance
         worksheetData.push({ A: 'Opening Balance', F: account.openingBalance });
         
-        // Transactions
         account.transactions.forEach(tx => {
             worksheetData.push({
                 A: tx.date,
@@ -548,9 +546,8 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
             });
         });
         
-        // Closing Balance
         worksheetData.push({ A: 'Closing Balance', F: account.closingBalance });
-        worksheetData.push({}); // Spacer row
+        worksheetData.push({});
     });
 
     const worksheet = XLSX.utils.json_to_sheet(worksheetData, { skipHeader: true });
@@ -560,10 +557,8 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
         { wch: 15 }, { wch: 15 }, { wch: 15 }
     ];
 
-    // Apply number formatting for currency columns
-    // Note: This requires careful iteration as the structure is non-uniform
     worksheetData.forEach((row, index) => {
-        const rowIndex = index + 1; // 1-based index
+        const rowIndex = index + 1;
         if (row.D || row.E || row.F) {
             ['D', 'E', 'F'].forEach(col => {
                 const cellRef = `${col}${rowIndex}`;
