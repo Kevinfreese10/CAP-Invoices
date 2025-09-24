@@ -483,7 +483,11 @@ export default function AdminDashboardPage() {
 
     const myTasks = useMemo(() => {
         if (!user) return [];
-        return tasks.filter(task => Array.isArray(task.assignedTo) && task.assignedTo.includes(user.id) && !task.recurrence).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
+        return tasks.filter(task => 
+            Array.isArray(task.assignedTo) && 
+            task.assignedTo.includes(user.id) && 
+            (!task.recurrence || task.recurrence === 'None')
+        ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
     }, [tasks, user]);
 
     const departmentTasks = useMemo(() => {
@@ -491,7 +495,7 @@ export default function AdminDashboardPage() {
         const deptTasks: { [key: string]: Task[] } = {};
         departments.forEach(dept => {
              deptTasks[dept] = tasks.filter(task => 
-                !task.recurrence &&
+                (!task.recurrence || task.recurrence === 'None') &&
                 task.assignedTo.some(userId => {
                     const assignee = users.find(u => u.id === userId);
                     return assignee?.department === dept;
@@ -508,7 +512,11 @@ export default function AdminDashboardPage() {
 
     const delegatedTasks = useMemo(() => {
         if (!user) return [];
-        return tasks.filter(task => task.createdBy === user.id && (!Array.isArray(task.assignedTo) || !task.assignedTo.includes(user.id))).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
+        return tasks.filter(task => 
+            task.createdBy === user.id && 
+            (!Array.isArray(task.assignedTo) || !task.assignedTo.includes(user.id)) &&
+            (!task.recurrence || task.recurrence === 'None')
+        ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
     }, [tasks, user]);
 
     const handleAdd = () => {
@@ -769,15 +777,7 @@ export default function AdminDashboardPage() {
                     </div>
                 ) : (
                     <>
-                        <TaskTable 
-                            tasks={myTasks} 
-                            title="My Manual Tasks" 
-                            description="These are ad-hoc tasks assigned directly to you."
-                            onEdit={handleEdit}
-                            onUpdateStatus={handleUpdateStatus}
-                            onDelete={handleDelete}
-                            filter="all"
-                        />
+                        
                         
                          <Card>
                             <CardHeader>
@@ -841,15 +841,7 @@ export default function AdminDashboardPage() {
                         )}
 
                         {user?.role === 'admin' && (
-                            <TaskTable 
-                                tasks={delegatedTasks} 
-                                title="Delegated Tasks" 
-                                description="Tasks you have created and assigned to other staff."
-                                onEdit={handleEdit}
-                                onUpdateStatus={handleUpdateStatus}
-                                onDelete={handleDelete}
-                                filter="all"
-                            />
+                            
                         )}
                     </>
                 )}
@@ -857,7 +849,7 @@ export default function AdminDashboardPage() {
         </div>
     );
 }
-
     
 
+    
     
