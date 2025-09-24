@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload, FileCheck2, ScanLine } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -32,6 +32,8 @@ import * as XLSX from 'xlsx';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
 import { Check } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import Papa from 'papaparse';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const db = getFirestore(firebaseApp);
 
@@ -494,7 +496,7 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
       });
   };
 
-  useEffect(() => {
+   useEffect(() => {
     const joinedAccounts = initialValues?.accounts?.join(',');
     if (joinedAccounts) {
       const newFromDate = initialValues.fromDate || startDate;
@@ -727,6 +729,9 @@ export default function NumeraPage() {
   const [activeTab, setActiveTab] = useState('reporting');
   const [glInitialValues, setGlInitialValues] = useState<Partial<z.infer<typeof generalLedgerFormSchema>>>();
   const [selectedBankAccount, setSelectedBankAccount] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isParsing, setIsParsing] = useState(false);
+  const [importPreview, setImportPreview] = useState<{ count: number; total: number; balance: number; } | null>(null);
   
   const importForm = useForm();
   
@@ -914,22 +919,64 @@ export default function NumeraPage() {
   const formatDate = (date: any) => {
     if (!date) return 'N/A';
     if (date.toDate) {
-      return format(date.toDate(), 'dd MMMM yyyy');
+      return format(date.toDate(), 'dd/MM/yyyy');
     }
     const d = new Date(date);
     if (d instanceof Date && !isNaN(d.getTime())) {
-      return format(d, 'dd MMMM yyyy');
+      return format(d, 'dd/MM/yyyy');
     }
     return 'Invalid Date';
   };
+  
+  const formatNumber = (value: number) => {
+    return value.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
 
   const handleImport = () => {
-    if (!selectedBankAccount) {
-        toast({ title: 'No Account Selected', description: 'Please select a bank account to import transactions into.', variant: 'destructive' });
+    if (!selectedBankAccount || !importPreview) {
+        toast({ title: 'Import Error', description: 'No account or file selected for import.', variant: 'destructive' });
         return;
     }
-    toast({ title: 'Import Successful', description: `Transactions have been imported into account ${selectedBankAccount}.` });
+    toast({ title: 'Import Successful', description: `${importPreview.count} transactions have been imported into account ${selectedBankAccount}.` });
+    setImportPreview(null);
+    setSelectedFile(null);
+    const fileInput = document.getElementById('transaction-file-input') as HTMLInputElement;
+    if(fileInput) fileInput.value = '';
   }
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      setImportPreview(null);
+      return;
+    };
+    setSelectedFile(file);
+    setIsParsing(true);
+    setImportPreview(null);
+
+    Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+            const transactions = results.data as { Amount: string }[];
+            const count = transactions.length;
+            const total = transactions.reduce((sum, row) => sum + (parseFloat(row.Amount) || 0), 0);
+            
+            // For now, current balance is 0
+            const currentBalance = 0;
+            const newBalance = currentBalance + total;
+
+            setImportPreview({ count, total, balance: newBalance });
+            setIsParsing(false);
+        },
+        error: (error) => {
+            console.error("CSV Parsing error:", error);
+            toast({ title: 'File Read Error', description: 'Could not parse the selected file. Please check the format.', variant: 'destructive'});
+            setIsParsing(false);
+        }
+    });
+  };
+
 
   const clientBankAccounts = activeClient
     ? chartOfAccounts.filter(acc => acc.id.startsWith(`cashbook-${activeClient.id}`))
@@ -1060,11 +1107,36 @@ export default function NumeraPage() {
                                             </Select>
                                         </FormItem>
                                         <FormItem>
-                                            <FormLabel>Transaction File</FormLabel>
-                                            <Input type="file" accept=".csv" />
+                                            <FormLabel>Transaction File (.csv)</FormLabel>
+                                            <Input id="transaction-file-input" type="file" accept=".csv" onChange={handleFileChange} />
                                         </FormItem>
                                     </div>
-                                    <Button type="submit" disabled={!selectedBankAccount}>
+                                    {isParsing && (
+                                        <div className="flex items-center text-sm text-muted-foreground">
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            Analyzing file...
+                                        </div>
+                                    )}
+                                    {importPreview && (
+                                        <Alert>
+                                            <ScanLine className="h-4 w-4" />
+                                            <AlertTitle>Import Preview</AlertTitle>
+                                            <AlertDescription className="space-y-2">
+                                                <p>File: <span className="font-semibold">{selectedFile?.name}</span></p>
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <p className="text-xs">Transactions Found</p>
+                                                        <p className="font-bold">{importPreview.count}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs">Projected New Balance</p>
+                                                        <p className="font-bold">{formatNumber(importPreview.balance)}</p>
+                                                    </div>
+                                                </div>
+                                            </AlertDescription>
+                                        </Alert>
+                                    )}
+                                    <Button type="submit" disabled={!selectedBankAccount || !importPreview || isParsing}>
                                         <Upload className="mr-2 h-4 w-4" /> Import Transactions
                                     </Button>
                                 </form>
@@ -1188,8 +1260,3 @@ export default function NumeraPage() {
     </div>
   );
 }
-
-
-
-
-
