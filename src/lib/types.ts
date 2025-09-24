@@ -6,6 +6,14 @@
 
 
 
+
+export type ChartOfAccount = {
+  id: string;
+  accountNumber: number;
+  description: string;
+  section: 'Income Statement' | 'Balance Sheet';
+};
+
 export type Service = {
   id: string;
   title: string;
@@ -163,6 +171,7 @@ export type Task = {
   clientId?: string;
   comments?: TaskComment[];
 };
+
 
 
 
