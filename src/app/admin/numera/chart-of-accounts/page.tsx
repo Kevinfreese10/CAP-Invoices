@@ -22,7 +22,7 @@ const accountSections: ChartOfAccount['section'][] = ['Income Statement', 'Balan
 
 const formSchema = z.object({
   id: z.string().optional(),
-  accountNumber: z.preprocess(val => Number(val), z.number().min(1000000, 'Account number must be at least 7 digits.')),
+  accountNumber: z.string().regex(/^\d{4}\/\d{3}$/, 'Account number must be in XXXX/XXX format.'),
   description: z.string().min(3, 'Description is required.'),
   section: z.enum(accountSections),
 });
@@ -32,7 +32,7 @@ function AccountForm({ account, onSubmit, onCancel }: { account: ChartOfAccount 
         resolver: zodResolver(formSchema),
         defaultValues: {
             id: account?.id || '',
-            accountNumber: account?.accountNumber || undefined,
+            accountNumber: account?.accountNumber || '',
             description: account?.description || '',
             section: account?.section || 'Income Statement',
         },
@@ -45,7 +45,7 @@ function AccountForm({ account, onSubmit, onCancel }: { account: ChartOfAccount 
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-                <FormField control={form.control} name="accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input placeholder="e.g. 1000/000" {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="section" render={({ field }) => ( <FormItem><FormLabel>Section</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a section" /></SelectTrigger></FormControl><SelectContent>{accountSections.map(section => <SelectItem key={section} value={section}>{section}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                 
@@ -87,7 +87,7 @@ export default function ChartOfAccountsPage() {
     if (selectedAccount) {
       // Update
       setAccounts(prev =>
-        prev.map(a => (a.id === selectedAccount.id ? { ...a, ...data } : a))
+        prev.map(a => (a.id === selectedAccount.id ? { ...a, ...data, id: data.accountNumber } : a))
       );
        toast({
         title: 'Account Updated',
@@ -95,8 +95,8 @@ export default function ChartOfAccountsPage() {
       });
     } else {
       // Add
-      const newAccount = { ...data, id: data.accountNumber.toString() };
-      setAccounts(prev => [...prev, newAccount].sort((a,b) => a.accountNumber - b.accountNumber));
+      const newAccount = { ...data, id: data.accountNumber };
+      setAccounts(prev => [...prev, newAccount].sort((a,b) => a.accountNumber.localeCompare(b.accountNumber)));
        toast({
         title: 'Account Created',
         description: 'The new account has been added.',

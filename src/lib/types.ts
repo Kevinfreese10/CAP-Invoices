@@ -7,9 +7,10 @@
 
 
 
+
 export type ChartOfAccount = {
   id: string;
-  accountNumber: number;
+  accountNumber: string;
   description: string;
   section: 'Income Statement' | 'Balance Sheet';
 };
@@ -171,6 +172,7 @@ export type Task = {
   clientId?: string;
   comments?: TaskComment[];
 };
+
 
 
 
