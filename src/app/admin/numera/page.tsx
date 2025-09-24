@@ -1,3 +1,4 @@
+
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
@@ -1142,8 +1143,8 @@ export default function NumeraPage() {
       setIsFormOpen(false);
       setSelectedClient(null);
     } catch (error) {
-      console.error("Error saving client:", error);
-      toast({ title: 'Error', description: 'Could not save the client.', variant = 'destructive' });
+        console.error("Error saving client:", error);
+        toast({ title: 'Error', description: 'Could not save the client.', variant: 'destructive' });
     }
   };
   
@@ -1241,7 +1242,7 @@ export default function NumeraPage() {
         },
         error: (error) => {
             console.error("CSV Parsing error:", error);
-            toast({ title: 'File Read Error', description: 'Could not parse the selected file. Please check the format.', variant = 'destructive'});
+            toast({ title: 'File Read Error', description: 'Could not parse the selected file. Please check the format.', variant: 'destructive'});
             setIsParsing(false);
         }
     });
@@ -1315,7 +1316,7 @@ export default function NumeraPage() {
     }
     
     if (newAllocatedTransactions.length === 0) {
-        toast({ title: 'Allocation Error', description: 'No allocations were selected for the chosen transactions.', variant = 'destructive' });
+        toast({ title: 'Allocation Error', description: 'No allocations were selected for the chosen transactions.', variant: 'destructive' });
         return;
     }
 
@@ -1356,7 +1357,7 @@ export default function NumeraPage() {
   const handleAiAllocate = async () => {
     const transactionsToProcess = unallocatedTransactions.filter(tx => selectedTransactions.includes(tx.id));
     if (transactionsToProcess.length === 0) {
-        toast({ title: 'No Transactions Selected', description: 'Please select one or more transactions to allocate with AI.', variant = 'destructive'});
+        toast({ title: 'No Transactions Selected', description: 'Please select one or more transactions to allocate with AI.', variant: 'destructive'});
         return;
     }
     
@@ -1805,4 +1806,3 @@ export default function NumeraPage() {
     </div>
   );
 }
-
