@@ -1,5 +1,4 @@
 
-
 'use client';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -29,6 +28,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import * as XLSX from 'xlsx';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
+import { Check } from 'lucide-react';
 
 const db = getFirestore(firebaseApp);
 
@@ -41,6 +42,19 @@ type TrialBalanceReportData = {
         description: string;
         debit: number;
         credit: number;
+    }[];
+};
+
+type GeneralLedgerReportData = {
+    clientName: string;
+    fromDate: string;
+    toDate: string;
+    accounts: {
+        accountNumber: string;
+        description: string;
+        transactions: { date: string; description: string; reference: string; debit: number; credit: number }[];
+        openingBalance: number;
+        closingBalance: number;
     }[];
 };
 
@@ -161,7 +175,7 @@ const trialBalanceFormSchema = z.object({
     showZeroItems: z.boolean().default(true),
 });
 
-function TrialBalanceCard({ activeClient }: { activeClient: User }) {
+function TrialBalanceCard({ activeClient, onAccountClick }: { activeClient: User; onAccountClick: (accountNumber: string, from: Date, to: Date) => void; }) {
     
     const [reportData, setReportData] = useState<TrialBalanceReportData | null>(null);
 
@@ -200,7 +214,6 @@ function TrialBalanceCard({ activeClient }: { activeClient: User }) {
             return { accountNumber: account.accountNumber, description: account.description, debit: 0, credit: 0 };
         });
 
-        // Balance the trial balance
         const totalDebits = mockData.reduce((acc, item) => acc + item.debit, 0);
         const totalCredits = mockData.reduce((acc, item) => acc + item.credit, 0);
         const difference = totalDebits - totalCredits;
@@ -225,8 +238,8 @@ function TrialBalanceCard({ activeClient }: { activeClient: User }) {
         setReportData(newReportData);
     }
     
-     const formatCurrency = (value: number) => {
-        return value.toLocaleString('en-ZA', { style: 'currency', currency: 'ZAR' });
+     const formatNumber = (value: number) => {
+        return value.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
     const handleDownloadExcel = () => {
@@ -250,15 +263,14 @@ function TrialBalanceCard({ activeClient }: { activeClient: User }) {
 
         const worksheet = XLSX.utils.json_to_sheet(worksheetData);
         
-        // Add number formatting for Debit and Credit columns
         worksheet['!cols'] = [ { wch: 15 }, { wch: 40 }, { wch: 15 }, { wch: 15 } ];
         worksheetData.forEach((_row, index) => {
-            const rowIndex = index + 2; // 1-based index, plus header row
+            const rowIndex = index + 2;
             if (worksheet[`C${rowIndex}`]) {
-                worksheet[`C${rowIndex}`].z = '"R "#,##0.00;("R "#,##0.00)';
+                worksheet[`C${rowIndex}`].z = '#,##0.00';
             }
             if (worksheet[`D${rowIndex}`]) {
-                worksheet[`D${rowIndex}`].z = '"R "#,##0.00;("R "#,##0.00)';
+                worksheet[`D${rowIndex}`].z = '#,##0.00';
             }
         });
 
@@ -277,7 +289,7 @@ function TrialBalanceCard({ activeClient }: { activeClient: User }) {
                  <DialogHeader>
                    <DialogTitle>Trial Balance Report</DialogTitle>
                    <DialogDescription>
-                       A printable trial balance report for {reportData?.clientName}.
+                       A printable trial balance report for {reportData?.clientName}. Click an amount to view the General Ledger.
                    </DialogDescription>
                </DialogHeader>
                  {reportData && (
@@ -315,16 +327,24 @@ function TrialBalanceCard({ activeClient }: { activeClient: User }) {
                                             <TableRow key={item.accountNumber}>
                                                 <TableCell className="font-mono">{item.accountNumber}</TableCell>
                                                 <TableCell>{item.description}</TableCell>
-                                                <TableCell className="text-right font-mono">{item.debit > 0 ? formatCurrency(item.debit) : '-'}</TableCell>
-                                                <TableCell className="text-right font-mono">{item.credit > 0 ? formatCurrency(item.credit) : '-'}</TableCell>
+                                                <TableCell className="text-right font-mono">
+                                                    <Button variant="link" className="p-0 h-auto" onClick={() => { onAccountClick(item.accountNumber, form.getValues('fromDate'), form.getValues('toDate')); setReportData(null); }}>
+                                                        {item.debit > 0 ? formatNumber(item.debit) : '-'}
+                                                    </Button>
+                                                </TableCell>
+                                                <TableCell className="text-right font-mono">
+                                                    <Button variant="link" className="p-0 h-auto" onClick={() => { onAccountClick(item.accountNumber, form.getValues('fromDate'), form.getValues('toDate')); setReportData(null); }}>
+                                                        {item.credit > 0 ? formatNumber(item.credit) : '-'}
+                                                    </Button>
+                                                </TableCell>
                                             </TableRow>
                                         ))}
                                     </TableBody>
                                     <TableFooter>
                                         <TableRow>
                                             <TableCell colSpan={2} className="font-bold text-base">Totals</TableCell>
-                                            <TableCell className="text-right font-bold font-mono text-base">{formatCurrency(totalDebits)}</TableCell>
-                                            <TableCell className="text-right font-bold font-mono text-base">{formatCurrency(totalCredits)}</TableCell>
+                                            <TableCell className="text-right font-bold font-mono text-base">{formatNumber(totalDebits)}</TableCell>
+                                            <TableCell className="text-right font-bold font-mono text-base">{formatNumber(totalCredits)}</TableCell>
                                         </TableRow>
                                     </TableFooter>
                                 </Table>
@@ -398,6 +418,218 @@ function TrialBalanceCard({ activeClient }: { activeClient: User }) {
     );
 }
 
+const generalLedgerFormSchema = z.object({
+  fromDate: z.date(),
+  toDate: z.date(),
+  accounts: z.array(z.string()).min(1, 'Please select at least one account.'),
+});
+
+function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User, initialValues?: Partial<z.infer<typeof generalLedgerFormSchema>> }) {
+  
+  const [reportData, setReportData] = useState<GeneralLedgerReportData | null>(null);
+
+  const getFinancialYear = (yearEnd: any) => {
+    const toDate = yearEnd?.toDate ? yearEnd.toDate() : new Date(yearEnd);
+    const endDate = toDate;
+    const startDate = add(sub(endDate, { years: 1 }), { days: 1 });
+    return { startDate, endDate };
+  }
+
+  const { startDate, endDate } = getFinancialYear(activeClient.yearEnd);
+
+  const form = useForm<z.infer<typeof generalLedgerFormSchema>>({
+    resolver: zodResolver(generalLedgerFormSchema),
+    defaultValues: {
+      fromDate: initialValues?.fromDate || startDate,
+      toDate: initialValues?.toDate || endDate,
+      accounts: initialValues?.accounts || [],
+    }
+  });
+
+  useEffect(() => {
+    if (initialValues) {
+      form.reset({
+        fromDate: initialValues.fromDate || startDate,
+        toDate: initialValues.toDate || endDate,
+        accounts: initialValues.accounts || [],
+      });
+      if (initialValues.accounts && initialValues.accounts.length > 0) {
+        handleGenerate({
+          fromDate: initialValues.fromDate || startDate,
+          toDate: initialValues.toDate || endDate,
+          accounts: initialValues.accounts,
+        });
+      }
+    }
+  }, [initialValues, form.reset, startDate, endDate]);
+
+  const handleGenerate = (values: z.infer<typeof generalLedgerFormSchema>) => {
+      const selectedAccounts = values.accounts.includes('all') ? chartOfAccounts.map(a => a.accountNumber) : values.accounts;
+      
+      const generatedAccounts = selectedAccounts.map(accNum => {
+          const accountInfo = chartOfAccounts.find(a => a.accountNumber === accNum)!;
+          const openingBalance = (Math.random() - 0.5) * 10000;
+          let runningBalance = openingBalance;
+          const transactions = Array.from({ length: Math.floor(Math.random() * 10) + 1 }).map((_, i) => {
+              const isDebit = Math.random() > 0.5;
+              const amount = Math.random() * 1000;
+              runningBalance += isDebit ? amount : -amount;
+              return {
+                  date: format(add(values.fromDate, { days: i * 10 }), 'dd MMM yyyy'),
+                  description: `Mock transaction ${i + 1}`,
+                  reference: `REF-${Math.floor(Math.random() * 10000)}`,
+                  debit: isDebit ? amount : 0,
+                  credit: !isDebit ? amount : 0,
+              };
+          });
+          return {
+              accountNumber: accNum,
+              description: accountInfo.description,
+              transactions,
+              openingBalance,
+              closingBalance: runningBalance,
+          };
+      });
+
+      setReportData({
+          clientName: activeClient.name,
+          fromDate: format(values.fromDate, 'dd MMM yyyy'),
+          toDate: format(values.toDate, 'dd MMM yyyy'),
+          accounts: generatedAccounts,
+      });
+  };
+
+  const formatNumber = (value: number) => {
+    return value.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  return (
+    <>
+      <Dialog open={!!reportData} onOpenChange={(isOpen) => !isOpen && setReportData(null)}>
+        <DialogContent className="sm:max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>General Ledger Report</DialogTitle>
+            <DialogDescription>
+              A printable general ledger report for {reportData?.clientName}.
+            </DialogDescription>
+          </DialogHeader>
+          {reportData && (
+            <div className="printable-area p-2 bg-white max-h-[70vh] overflow-y-auto">
+              <Card className="w-full shadow-none border-none">
+                <CardHeader className="text-center">
+                  <CardTitle className="text-2xl">{reportData.clientName}</CardTitle>
+                  <CardDescription className="text-lg">General Ledger</CardDescription>
+                  <CardDescription>
+                    For the period: {reportData.fromDate} to {reportData.toDate}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex justify-end gap-2 mb-4 print:hidden">
+                    <Button variant="outline" onClick={() => window.print()}>
+                      <Printer className="mr-2 h-4 w-4" /> Print
+                    </Button>
+                  </div>
+                  <div className="space-y-8">
+                    {reportData.accounts.map(account => (
+                      <div key={account.accountNumber}>
+                        <h3 className="text-lg font-bold">{account.accountNumber} - {account.description}</h3>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Date</TableHead>
+                              <TableHead>Description</TableHead>
+                              <TableHead>Reference</TableHead>
+                              <TableHead className="text-right">Debit</TableHead>
+                              <TableHead className="text-right">Credit</TableHead>
+                              <TableHead className="text-right">Balance</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            <TableRow>
+                                <TableCell colSpan={5} className="font-bold">Opening Balance</TableCell>
+                                <TableCell className="text-right font-bold font-mono">{formatNumber(account.openingBalance)}</TableCell>
+                            </TableRow>
+                            {account.transactions.map((tx, i) => (
+                              <TableRow key={i}>
+                                <TableCell>{tx.date}</TableCell>
+                                <TableCell>{tx.description}</TableCell>
+                                <TableCell>{tx.reference}</TableCell>
+                                <TableCell className="text-right font-mono">{tx.debit > 0 ? formatNumber(tx.debit) : '-'}</TableCell>
+                                <TableCell className="text-right font-mono">{tx.credit > 0 ? formatNumber(tx.credit) : '-'}</TableCell>
+                                <TableCell className="text-right font-mono">{/* Balance per line can be calculated here if needed */}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                          <TableFooter>
+                            <TableRow>
+                              <TableCell colSpan={5} className="font-bold text-base">Closing Balance</TableCell>
+                              <TableCell className="text-right font-bold font-mono text-base">{formatNumber(account.closingBalance)}</TableCell>
+                            </TableRow>
+                          </TableFooter>
+                        </Table>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      <Card>
+        <CardHeader><CardTitle>General Ledger</CardTitle></CardHeader>
+        <CardContent>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleGenerate)} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField control={form.control} name="fromDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>From Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd MMM yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem> )} />
+                <FormField control={form.control} name="toDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>To Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd MMM yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem> )} />
+              </div>
+              <FormField
+                control={form.control}
+                name="accounts"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Accounts</FormLabel>
+                     <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button variant="outline" role="combobox" className={cn("w-full justify-between", !field.value?.length && "text-muted-foreground")}>
+                            {field.value?.length > 1 ? `${field.value.length} selected` : field.value?.length === 1 ? chartOfAccounts.find(a => a.accountNumber === field.value[0])?.description : "Select accounts"}
+                            <MoreHorizontal className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                         <Command>
+                           <CommandInput placeholder="Search accounts..." />
+                           <CommandEmpty>No accounts found.</CommandEmpty>
+                           <CommandGroup className="max-h-64 overflow-y-auto">
+                              <CommandItem onSelect={() => { const allSelected = field.value?.includes('all'); const newSelection = allSelected ? [] : ['all', ...chartOfAccounts.map(a => a.accountNumber)]; field.onChange(newSelection); }}> <div className={cn("mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary", field.value?.includes('all') ? "bg-primary text-primary-foreground" : "opacity-50 [&_svg]:invisible" )}><Check className={cn("h-4 w-4")} /></div> All Accounts </CommandItem>
+                             {chartOfAccounts.map((account) => (
+                               <CommandItem key={account.accountNumber} value={account.description} onSelect={() => { const selection = new Set(field.value); if (selection.has(account.accountNumber)) { selection.delete(account.accountNumber); } else { selection.add(account.accountNumber); } field.onChange(Array.from(selection)); }}>
+                                 <div className={cn("mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary", field.value?.includes(account.accountNumber) ? "bg-primary text-primary-foreground" : "opacity-50 [&_svg]:invisible" )}><Check className={cn("h-4 w-4")} /></div>
+                                 <span>{account.accountNumber} - {account.description}</span>
+                               </CommandItem>
+                             ))}
+                           </CommandGroup>
+                         </Command>
+                       </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit">Generate</Button>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+    </>
+  );
+}
+
+
 export default function NumeraPage() {
   const [clients, setClients] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -406,6 +638,8 @@ export default function NumeraPage() {
   const [activeClient, setActiveClient] = useState<User | null>(null);
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
+  const [activeTab, setActiveTab] = useState('reporting');
+  const [glInitialValues, setGlInitialValues] = useState<Partial<z.infer<typeof generalLedgerFormSchema>>>();
   
   const fetchClients = async () => {
     setIsLoading(true);
@@ -443,11 +677,9 @@ export default function NumeraPage() {
     try {
         const batch = writeBatch(db);
         
-        // Delete the client
         const clientRef = doc(db, "clients", clientId);
         batch.delete(clientRef);
 
-        // Find and delete associated cashbook accounts from chartOfAccounts
         const associatedAccounts = chartOfAccounts.filter(acc => acc.id.startsWith(`cashbook-${clientId}`));
         associatedAccounts.forEach(acc => {
             const index = chartOfAccounts.findIndex(a => a.id === acc.id);
@@ -478,7 +710,7 @@ export default function NumeraPage() {
         yearEnd: data.yearEnd,
         role: 'client' as const,
         source: 'Numera' as const,
-        email: `${data.name.toLowerCase().replace(/\s/g, '.')}@numera.local` // Placeholder email
+        email: `${data.name.toLowerCase().replace(/\s/g, '.')}@numera.local`
     };
 
     try {
@@ -493,7 +725,6 @@ export default function NumeraPage() {
             const clientRef = doc(collection(db, "clients"));
             await setDoc(clientRef, clientData);
             
-            // Add new bank accounts to chart of accounts
             if (data.bankAccounts && data.bankAccounts.length > 0) {
               const lastCashbook = chartOfAccounts
                   .filter(a => a.accountNumber.startsWith('8400/'))
@@ -511,12 +742,11 @@ export default function NumeraPage() {
               data.bankAccounts.forEach((bank, index) => {
                   const newAccountNum = `8400/${(nextAccountNumberIndex + index).toString().padStart(3, '0')}`;
                   const newAccount: ChartOfAccount = {
-                      id: `cashbook-${clientRef.id}-${index}`, // Unique ID for the account
+                      id: `cashbook-${clientRef.id}-${index}`,
                       accountNumber: newAccountNum,
                       description: `${data.name} - ${bank.name}`,
                       section: 'Balance Sheet',
                   };
-                  // Avoid duplicates
                   if (!chartOfAccounts.some(a => a.accountNumber === newAccount.accountNumber)) {
                       chartOfAccounts.push(newAccount);
                   }
@@ -541,13 +771,20 @@ export default function NumeraPage() {
     }
   };
   
+   const handleTBAccountClick = (accountNumber: string, fromDate: Date, toDate: Date) => {
+    setActiveTab('reporting');
+    setGlInitialValues({
+      accounts: [accountNumber],
+      fromDate,
+      toDate,
+    });
+  };
+
   const formatDate = (date: any) => {
     if (!date) return 'N/A';
-    // Check if it's a Firestore Timestamp
     if (date.toDate) {
       return format(date.toDate(), 'dd MMMM yyyy');
     }
-    // Check if it's already a Date object or a valid date string
     const d = new Date(date);
     if (d instanceof Date && !isNaN(d.getTime())) {
       return format(d, 'dd MMMM yyyy');
@@ -615,7 +852,7 @@ export default function NumeraPage() {
                         </div>
                     </CardHeader>
                 </Card>
-                <Tabs defaultValue="reporting" className="w-full">
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                     <TabsList>
                         <TabsTrigger value="reporting">Reporting</TabsTrigger>
                         <TabsTrigger value="banking">Banking</TabsTrigger>
@@ -624,11 +861,8 @@ export default function NumeraPage() {
                         <TabsTrigger value="customers">Customers</TabsTrigger>
                     </TabsList>
                     <TabsContent value="reporting" className="space-y-4">
-                        <TrialBalanceCard activeClient={activeClient} />
-                         <Card>
-                            <CardHeader><CardTitle>General Ledger</CardTitle></CardHeader>
-                            <CardContent><p className="text-muted-foreground text-center py-10">General Ledger functionality will be built here.</p></CardContent>
-                        </Card>
+                        <TrialBalanceCard activeClient={activeClient} onAccountClick={handleTBAccountClick} />
+                        <GeneralLedgerCard activeClient={activeClient} initialValues={glInitialValues} />
                     </TabsContent>
                     <TabsContent value="banking" className="space-y-4">
                         <Card>
@@ -761,5 +995,4 @@ export default function NumeraPage() {
   );
 }
 
-
-
+    
