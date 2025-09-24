@@ -364,16 +364,24 @@ export default function AdminClientsPage() {
     // VAT Returns
     if (client.isVatRegistered && client.vatCategory) {
         const now = new Date();
+        const currentMonth = getMonth(now); // 0-11
         let firstDueDate: Date;
         
         if (client.vatCategory === 'C') { // Monthly
-             firstDueDate = set(now, { date: 25, month: getMonth(now) + 1 });
+             firstDueDate = set(now, { date: 25, month: currentMonth + 1 });
         } else { // Bi-monthly
-            const isEvenMonth = (getMonth(now) + 1) % 2 === 0;
-            if ((client.vatCategory === 'A' && isEvenMonth) || (client.vatCategory === 'B' && !isEvenMonth)) {
-                firstDueDate = set(now, { date: 25, month: getMonth(now) + 1 });
-            } else {
-                firstDueDate = set(now, { date: 25, month: getMonth(now) + 2 });
+            // A = Even (Feb, Apr, Jun, Aug, Oct, Dec) -> period ends on last day of these months. Due next month.
+            // B = Odd (Jan, Mar, May, Jul, Sep, Nov) -> period ends on last day of these months. Due next month.
+            const isCurrentMonthEven = (currentMonth + 1) % 2 === 0;
+
+            if (client.vatCategory === 'A') { // Even months
+                firstDueDate = isCurrentMonthEven 
+                    ? set(now, { date: 25, month: currentMonth + 1 }) // Period ends this month, due next month
+                    : set(now, { date: 25, month: currentMonth + 2 }); // Period ends next month, due month after
+            } else { // 'B' - Odd months
+                firstDueDate = !isCurrentMonthEven 
+                    ? set(now, { date: 25, month: currentMonth + 1 }) // Period ends this month, due next month
+                    : set(now, { date: 25, month: currentMonth + 2 }); // Period ends next month, due month after
             }
         }
 
