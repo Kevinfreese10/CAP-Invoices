@@ -455,7 +455,7 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
       accounts: initialValues?.accounts || [],
     }
   });
-
+  
   const handleGenerate = (values: z.infer<typeof generalLedgerFormSchema>) => {
       const selectedAccounts = values.accounts.includes('all') ? chartOfAccounts.map(a => a.accountNumber) : values.accounts;
       
@@ -494,14 +494,13 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
   };
 
   useEffect(() => {
-    if (initialValues) {
+    if (initialValues?.accounts) {
       form.reset({
         fromDate: initialValues.fromDate || startDate,
         toDate: initialValues.toDate || endDate,
         accounts: initialValues.accounts || [],
       });
       if (initialValues.accounts && initialValues.accounts.length > 0) {
-        // We call handleGenerate directly to show the report
         handleGenerate({
           fromDate: initialValues.fromDate || startDate,
           toDate: initialValues.toDate || endDate,
@@ -509,7 +508,7 @@ function GeneralLedgerCard({ activeClient, initialValues }: { activeClient: User
         });
       }
     }
-  }, [initialValues?.accounts, initialValues?.fromDate, initialValues?.toDate]);
+  }, [initialValues?.accounts?.join(','), initialValues?.fromDate?.getTime(), initialValues?.toDate?.getTime()]);
 
 
   const formatNumber = (value: number) => {
@@ -867,6 +866,10 @@ export default function NumeraPage() {
     return 'Invalid Date';
   };
 
+  const clientBankAccounts = activeClient
+    ? chartOfAccounts.filter(acc => acc.id.startsWith(`cashbook-${activeClient.id}`))
+    : [];
+
   return (
     <div className="space-y-8">
         <style jsx global>{`
@@ -942,7 +945,30 @@ export default function NumeraPage() {
                     <TabsContent value="banking" className="space-y-4">
                         <Card>
                             <CardHeader><CardTitle>Bank Account List</CardTitle></CardHeader>
-                            <CardContent><p className="text-muted-foreground text-center py-10">Bank account list with balances will be built here.</p></CardContent>
+                            <CardContent>
+                                {clientBankAccounts.length > 0 ? (
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Account Number</TableHead>
+                                                <TableHead>Account Name</TableHead>
+                                                <TableHead className="text-right">Balance</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {clientBankAccounts.map(acc => (
+                                                <TableRow key={acc.id}>
+                                                    <TableCell className="font-mono">{acc.accountNumber}</TableCell>
+                                                    <TableCell>{acc.description}</TableCell>
+                                                    <TableCell className="text-right font-mono">R 0.00</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                ) : (
+                                    <p className="text-muted-foreground text-center py-10">No bank accounts found for this client.</p>
+                                )}
+                            </CardContent>
                         </Card>
                         <Card>
                             <CardHeader><CardTitle>Bank Transactions</CardTitle></CardHeader>
@@ -1069,4 +1095,5 @@ export default function NumeraPage() {
     </div>
   );
 }
+
 
