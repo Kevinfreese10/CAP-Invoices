@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, query, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const db = getFirestore(firebaseApp);
 
@@ -177,94 +178,126 @@ export default function NumeraPage() {
            </DialogContent>
         </Dialog>
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Numera Clients</CardTitle>
-          <CardDescription>View, edit, and manage your Numera accounting clients.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center items-center h-64">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : (
-            clients.length === 0 ? (
-                <div className="text-center py-10">
-                    <p className="text-muted-foreground">No clients have been added to Numera yet.</p>
-                     <Button onClick={handleAdd} className="mt-4">
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        Create Your First Client
-                    </Button>
-                </div>
-            ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Client</TableHead>
-                <TableHead>Financial Year End</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {clients.map(client => (
-                <TableRow key={client.id}>
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                            <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${client.name}`} alt={client.name} />
-                            <AvatarFallback>{client.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <span>{client.name}</span>
+
+       <Tabs defaultValue="clients" className="w-full">
+        <TabsList>
+            <TabsTrigger value="clients">Clients</TabsTrigger>
+            <TabsTrigger value="chart-of-accounts">Chart of Accounts</TabsTrigger>
+            <TabsTrigger value="allocation-rules">Allocation Rules</TabsTrigger>
+        </TabsList>
+        <TabsContent value="clients">
+            <Card>
+                <CardHeader>
+                <CardTitle>Numera Clients</CardTitle>
+                <CardDescription>View, edit, and manage your Numera accounting clients.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                {isLoading ? (
+                    <div className="flex justify-center items-center h-64">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     </div>
-                  </TableCell>
-                   <TableCell>{client.yearEnd}</TableCell>
-                  <TableCell className="text-right">
-                    <AlertDialog>
-                        <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
+                ) : (
+                    clients.length === 0 ? (
+                        <div className="text-center py-10">
+                            <p className="text-muted-foreground">No clients have been added to Numera yet.</p>
+                            <Button onClick={handleAdd} className="mt-4">
+                                <PlusCircle className="mr-2 h-4 w-4" />
+                                Create Your First Client
                             </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => handleEdit(client)}>
-                                Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                             <AlertDialogTrigger asChild>
-                                <DropdownMenuItem className="text-destructive">
-                                    Delete
-                                </DropdownMenuItem>
-                            </AlertDialogTrigger>
-                        </DropdownMenuContent>
-                        </DropdownMenu>
-                         <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                This action cannot be undone. This will permanently delete the client account for:
-                                <span className="font-semibold"> {client.name}</span>.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDelete(client.id)}>
-                                    Continue
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          )
-          )}
-        </CardContent>
-      </Card>
+                        </div>
+                    ) : (
+                <Table>
+                    <TableHeader>
+                    <TableRow>
+                        <TableHead>Client</TableHead>
+                        <TableHead>Financial Year End</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                    {clients.map(client => (
+                        <TableRow key={client.id}>
+                        <TableCell className="font-medium">
+                            <div className="flex items-center gap-3">
+                                <Avatar className="h-8 w-8">
+                                    <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${client.name}`} alt={client.name} />
+                                    <AvatarFallback>{client.name.charAt(0)}</AvatarFallback>
+                                </Avatar>
+                                <span>{client.name}</span>
+                            </div>
+                        </TableCell>
+                        <TableCell>{client.yearEnd}</TableCell>
+                        <TableCell className="text-right">
+                            <AlertDialog>
+                                <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" className="h-8 w-8 p-0">
+                                    <span className="sr-only">Open menu</span>
+                                    <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                    <DropdownMenuItem onClick={() => handleEdit(client)}>
+                                        Edit
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <AlertDialogTrigger asChild>
+                                        <DropdownMenuItem className="text-destructive">
+                                            Delete
+                                        </DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                </DropdownMenuContent>
+                                </DropdownMenu>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                        This action cannot be undone. This will permanently delete the client account for:
+                                        <span className="font-semibold"> {client.name}</span>.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleDelete(client.id)}>
+                                            Continue
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </TableCell>
+                        </TableRow>
+                    ))}
+                    </TableBody>
+                </Table>
+                )
+                )}
+                </CardContent>
+            </Card>
+        </TabsContent>
+        <TabsContent value="chart-of-accounts">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Chart of Accounts</CardTitle>
+                    <CardDescription>Manage the general ledger accounts for financial reporting.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-muted-foreground text-center py-10">Chart of Accounts management will be built here.</p>
+                </CardContent>
+            </Card>
+        </TabsContent>
+        <TabsContent value="allocation-rules">
+             <Card>
+                <CardHeader>
+                    <CardTitle>Allocation Rules</CardTitle>
+                    <CardDescription>Create rules to automatically categorize transactions.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-muted-foreground text-center py-10">Allocation Rules management will be built here.</p>
+                </CardContent>
+            </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
