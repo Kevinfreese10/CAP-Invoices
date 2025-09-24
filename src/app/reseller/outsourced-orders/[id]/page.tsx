@@ -211,7 +211,7 @@ export default function ResellerOutsourcedOrderDetailsPage() {
                         <CardContent className="space-y-4">
                            <p className="text-sm text-muted-foreground">This order is being processed by My Accountant. Your original order ID for your client is <Button variant="link" asChild className="p-0 h-auto font-semibold"><Link href={`/reseller/orders/${order.originalOrderId}`}>{order.originalOrderId}</Link></Button>.</p>
                            {assignee ? (
-                                <div className="space-y-2 pt-2">
+                                <div className="space-y-4 pt-2">
                                      <h4 className="font-semibold text-sm">Assigned To</h4>
                                      <div className="flex items-center gap-4">
                                         <Avatar className="h-12 w-12">
@@ -223,6 +223,12 @@ export default function ResellerOutsourcedOrderDetailsPage() {
                                             <p className="text-sm text-muted-foreground">{assignee.department}</p>
                                         </div>
                                     </div>
+                                    <Button variant="outline" className="w-full" asChild>
+                                        <a href={`mailto:${assignee.email}?subject=Query regarding Order ${order.id}`}>
+                                            <Mail className="mr-2 h-4 w-4"/>
+                                            Contact Accountant
+                                        </a>
+                                    </Button>
                                 </div>
                            ) : (
                                 <p className="text-sm text-muted-foreground pt-2">This order has not been assigned to a consultant yet.</p>
