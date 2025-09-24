@@ -42,15 +42,15 @@ const vatCategories = ['A', 'B', 'C'] as const;
 
 const vatCategoryLabels = {
     A: {
-        name: 'Category A',
+        name: 'Category A (Even Months)',
         description: 'e.g., Jan–Feb, Mar–Apr'
     },
     B: {
-        name: 'Category B',
+        name: 'Category B (Odd Months)',
         description: 'e.g., Feb–Mar, Apr–May'
     },
     C: {
-        name: 'Category C',
+        name: 'Category C (Monthly)',
         description: 'e.g., January, February'
     },
 };
@@ -268,9 +268,13 @@ export default function NumeraPage() {
   const fetchClients = async () => {
     setIsLoading(true);
     try {
-        const q = query(collection(db, "clients"), where('source', '==', 'Numera'), orderBy("name"));
+        const q = query(collection(db, "clients"), where('source', '==', 'Numera'));
         const querySnapshot = await getDocs(q);
         const fetchedClients = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Client));
+        
+        // Sort clients by name client-side
+        fetchedClients.sort((a, b) => a.name.localeCompare(b.name));
+        
         setClients(fetchedClients);
     } catch (error) {
         console.error("Error fetching clients:", error);
@@ -740,5 +744,3 @@ export default function NumeraPage() {
     </div>
   );
 }
-
-    
