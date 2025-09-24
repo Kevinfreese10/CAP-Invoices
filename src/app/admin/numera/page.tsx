@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -724,6 +725,7 @@ export default function NumeraPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isParsing, setIsParsing] = useState(false);
   const [importPreview, setImportPreview] = useState<{ count: number; total: number; balance: number; } | null>(null);
+  const [bankBalances, setBankBalances] = useState<{ [accountNumber: string]: number }>({});
   
   const importForm = useForm();
   
@@ -929,6 +931,10 @@ export default function NumeraPage() {
         toast({ title: 'Import Error', description: 'No account or file selected for import.', variant: 'destructive' });
         return;
     }
+    setBankBalances(prev => ({
+        ...prev,
+        [selectedBankAccount]: importPreview.balance
+    }));
     toast({ title: 'Import Successful', description: `${importPreview.count} transactions have been imported into account ${selectedBankAccount}.` });
     setImportPreview(null);
     setSelectedFile(null);
@@ -938,7 +944,7 @@ export default function NumeraPage() {
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) {
+    if (!file || !selectedBankAccount) {
       setImportPreview(null);
       return;
     };
@@ -954,8 +960,7 @@ export default function NumeraPage() {
             const count = transactions.length;
             const total = transactions.reduce((sum, row) => sum + (parseFloat(row.Amount) || 0), 0);
             
-            // For now, current balance is 0
-            const currentBalance = 0;
+            const currentBalance = bankBalances[selectedBankAccount] || 0;
             const newBalance = currentBalance + total;
 
             setImportPreview({ count, total, balance: newBalance });
@@ -1080,7 +1085,7 @@ export default function NumeraPage() {
                                                     <TableCell className="font-mono">{acc.accountNumber}</TableCell>
                                                     <TableCell>{acc.description}</TableCell>
                                                     <TableCell>{format(sub(new Date(), {days: Math.floor(Math.random()*30)}), 'dd/MM/yyyy')}</TableCell>
-                                                    <TableCell className="text-right font-mono">R 0.00</TableCell>
+                                                    <TableCell className="text-right font-mono">{formatNumber(bankBalances[acc.accountNumber] || 0)}</TableCell>
                                                 </TableRow>
                                             ))}
                                         </TableBody>
@@ -1273,3 +1278,4 @@ export default function NumeraPage() {
     </div>
   );
 }
+
