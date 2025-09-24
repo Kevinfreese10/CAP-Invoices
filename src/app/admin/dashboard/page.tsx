@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { format, formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow, isPast } from 'date-fns';
 import { Task, User, TaskComment } from '@/lib/types';
 import { users } from '@/lib/data';
 import Link from 'next/link';
@@ -231,11 +231,18 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
     )
 }
 
-const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete }: { tasks: Task[], title: string, description: string, onEdit: (task: Task) => void, onUpdateStatus: (taskId: string, status: Task['status']) => void, onDelete: (taskId: string) => void }) => {
+const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete, filter }: { tasks: Task[], title: string, description: string, onEdit: (task: Task) => void, onUpdateStatus: (taskId: string, status: Task['status']) => void, onDelete: (taskId: string) => void, filter: string }) => {
     const getAssignee = (userId?: string): User | undefined => {
         if (!userId) return undefined;
         return users.find(u => u.id === userId);
     }
+    
+    const filteredTasks = useMemo(() => {
+        if (filter !== 'all' && filter !== 'All Tasks') {
+            return tasks.filter(task => task.title.startsWith(filter));
+        }
+        return tasks;
+    }, [tasks, filter]);
     
     const getStatusVariant = (status: Task['status']) => {
         switch (status) {
@@ -247,7 +254,10 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
         }
     };
     
-    const getPriorityVariant = (priority: Task['priority']) => {
+    const getPriorityVariant = (priority: Task['priority'], dueDate: any) => {
+        const date = dueDate?.toDate ? dueDate.toDate() : new Date(dueDate);
+        if (isPast(date) && priority !== 'High') return 'destructive';
+        
         switch(priority) {
             case 'High': return 'destructive';
             case 'Medium': return 'warning';
@@ -256,7 +266,7 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
         }
     }
 
-    if (tasks.length === 0) {
+    if (filteredTasks.length === 0) {
         return (
              <Card>
                 <CardHeader>
@@ -264,7 +274,7 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                     <CardDescription>{description}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <p className="text-sm text-muted-foreground">No tasks to display.</p>
+                    <p className="text-sm text-muted-foreground">No tasks to display for the current filter.</p>
                 </CardContent>
             </Card>
         )
@@ -290,10 +300,11 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                     </TableRow>
                     </TableHeader>
                     <TableBody>
-                    {tasks.map(task => {
+                    {filteredTasks.map(task => {
                         const lastComment = task.comments && task.comments.length > 0 ? task.comments[task.comments.length - 1] : null;
                         const commentAuthor = lastComment ? getAssignee(lastComment.authorId) : null;
                         const assignees = Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo];
+                        const priority = task.status !== 'Done' && isPast(task.dueDate.toDate()) ? 'High' : task.priority;
                         return (
                         <TableRow key={task.id}>
                         <TableCell className="font-medium max-w-xs align-top">
@@ -342,8 +353,8 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                         </TableCell>
                         <TableCell className="align-top">{task.dueDate.toDate ? format(task.dueDate.toDate(), 'dd MMM yyyy') : format(task.dueDate, 'dd MMM yyyy')}</TableCell>
                         <TableCell className="align-top">
-                            <Badge variant={getPriorityVariant(task.priority)}>
-                                {task.priority}
+                            <Badge variant={getPriorityVariant(task.priority, task.dueDate)}>
+                                {priority}
                             </Badge>
                         </TableCell>
                         <TableCell className="align-top">
@@ -424,6 +435,7 @@ export default function AdminDashboardPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+    const [taskTypeFilter, setTaskTypeFilter] = useState('all');
     const { toast } = useToast();
 
     const fetchDashboardData = async () => {
@@ -453,6 +465,18 @@ export default function AdminDashboardPage() {
             setIsLoading(false);
         }
     };
+    
+    const taskTypes = useMemo(() => {
+        const types = new Set(tasks.map(task => {
+            const title = task.title;
+            const forIndex = title.lastIndexOf(' for ');
+            if (forIndex > -1) {
+                return title.substring(0, forIndex);
+            }
+            return title;
+        }));
+        return ['All Tasks', ...Array.from(types)];
+    }, [tasks]);
 
     useEffect(() => {
         if (user) fetchDashboardData();
@@ -460,7 +484,7 @@ export default function AdminDashboardPage() {
 
     const myTasks = useMemo(() => {
         if (!user) return [];
-        return tasks.filter(task => Array.isArray(task.assignedTo) && task.assignedTo.includes(user.id)).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
+        return tasks.filter(task => Array.isArray(task.assignedTo) && task.assignedTo.includes(user.id) && !task.recurrence).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
     }, [tasks, user]);
 
     const departmentTasks = useMemo(() => {
@@ -468,6 +492,7 @@ export default function AdminDashboardPage() {
         const deptTasks: { [key: string]: Task[] } = {};
         departments.forEach(dept => {
              deptTasks[dept] = tasks.filter(task => 
+                !task.recurrence &&
                 task.assignedTo.some(userId => {
                     const assignee = users.find(u => u.id === userId);
                     return assignee?.department === dept;
@@ -476,6 +501,11 @@ export default function AdminDashboardPage() {
         });
         return deptTasks;
     }, [tasks, user]);
+    
+    const automatedTasks = useMemo(() => {
+        return tasks.filter(task => task.recurrence && task.recurrence !== 'None');
+    }, [tasks]);
+
 
     const delegatedTasks = useMemo(() => {
         if (!user) return [];
@@ -630,30 +660,49 @@ export default function AdminDashboardPage() {
 
     return (
         <div className="space-y-8">
-            <div className="flex items-center justify-between">
-                <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.name}!</h1>
-                 <Dialog open={isFormOpen} onOpenChange={handleFormOpenChange}>
-                    <DialogTrigger asChild>
-                        <Button onClick={handleAdd}>
-                            <PlusCircle className="mr-2 h-4 w-4" />
-                            Create Task
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-[700px]">
-                        <DialogHeader>
-                            <DialogTitle>{selectedTask?.id ? 'Edit Task' : 'Create New Task'}</DialogTitle>
-                            <DialogDescription>
-                                {selectedTask?.id ? 'Update the details of this task.' : 'Fill out the form to add a new task for a staff member.'}
-                            </DialogDescription>
-                        </DialogHeader>
-                        <TaskForm 
-                            task={selectedTask} 
-                            onSubmit={handleFormSubmit}
-                            onCancel={() => handleFormOpenChange(false)}
-                            onCommentSubmit={handleCommentSubmit}
-                        />
-                    </DialogContent>
-                </Dialog>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.name}!</h1>
+                    <p className="text-muted-foreground">Here's a summary of what's happening today.</p>
+                </div>
+                <div className="flex gap-2">
+                     <Dialog open={isFormOpen} onOpenChange={handleFormOpenChange}>
+                        <DialogTrigger asChild>
+                            <Button onClick={handleAdd}>
+                                <PlusCircle className="mr-2 h-4 w-4" />
+                                Create Task
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-[700px]">
+                            <DialogHeader>
+                                <DialogTitle>{selectedTask?.id ? 'Edit Task' : 'Create New Task'}</DialogTitle>
+                                <DialogDescription>
+                                    {selectedTask?.id ? 'Update the details of this task.' : 'Fill out the form to add a new task for a staff member.'}
+                                </DialogDescription>
+                            </DialogHeader>
+                            <TaskForm 
+                                task={selectedTask} 
+                                onSubmit={handleFormSubmit}
+                                onCancel={() => handleFormOpenChange(false)}
+                                onCommentSubmit={handleCommentSubmit}
+                            />
+                        </DialogContent>
+                    </Dialog>
+                    <div className="w-full sm:w-auto">
+                        <Select onValueChange={setTaskTypeFilter} defaultValue="all">
+                            <SelectTrigger className="w-full sm:w-[240px]">
+                                <SelectValue placeholder="Filter by task type..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {taskTypes.map(type => (
+                                    <SelectItem key={type} value={type === 'All Tasks' ? 'all' : type}>
+                                        {type}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
             </div>
             
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
@@ -737,22 +786,34 @@ export default function AdminDashboardPage() {
                     <>
                         <TaskTable 
                             tasks={myTasks} 
-                            title="My Tasks" 
-                            description="These are tasks that are assigned directly to you."
+                            title="My Manual Tasks" 
+                            description="These are ad-hoc tasks assigned directly to you."
                             onEdit={handleEdit}
                             onUpdateStatus={handleUpdateStatus}
                             onDelete={handleDelete}
+                            filter={taskTypeFilter}
+                        />
+                        
+                         <TaskTable 
+                            tasks={automatedTasks} 
+                            title="Automated Client Tasks" 
+                            description="Recurring tasks generated from the client automation system."
+                            onEdit={handleEdit}
+                            onUpdateStatus={handleUpdateStatus}
+                            onDelete={handleDelete}
+                            filter={taskTypeFilter}
                         />
 
                         {user?.role === 'admin' && Object.keys(departmentTasks).map(dept => (
                            <TaskTable 
                                 key={dept}
-                                tasks={departmentTasks[dept]} 
+                                tasks={departmentTasks[dept as keyof typeof departmentTasks]} 
                                 title={`${dept} Department Tasks`} 
                                 description={`All tasks for the ${dept} department.`}
                                 onEdit={handleEdit}
                                 onUpdateStatus={handleUpdateStatus}
                                 onDelete={handleDelete}
+                                filter={taskTypeFilter}
                             />
                         ))}
                         
@@ -764,6 +825,7 @@ export default function AdminDashboardPage() {
                                 onEdit={handleEdit}
                                 onUpdateStatus={handleUpdateStatus}
                                 onDelete={handleDelete}
+                                filter={taskTypeFilter}
                             />
                         )}
 
@@ -775,6 +837,7 @@ export default function AdminDashboardPage() {
                                 onEdit={handleEdit}
                                 onUpdateStatus={handleUpdateStatus}
                                 onDelete={handleDelete}
+                                filter={taskTypeFilter}
                             />
                         )}
                     </>

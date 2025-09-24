@@ -23,7 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGr
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CalendarIcon, Loader2, MessageSquare } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
-import { format } from 'date-fns';
+import { format, isPast } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -431,7 +431,10 @@ export default function AdminTasksPage() {
         }
     };
     
-    const getPriorityVariant = (priority: Task['priority']) => {
+    const getPriorityVariant = (priority: Task['priority'], dueDate: any) => {
+        const date = dueDate?.toDate ? dueDate.toDate() : new Date(dueDate);
+        if (isPast(date) && priority !== 'High') return 'destructive';
+        
         switch(priority) {
             case 'High': return 'destructive';
             case 'Medium': return 'warning';
@@ -520,6 +523,7 @@ export default function AdminTasksPage() {
                     const lastComment = task.comments && task.comments.length > 0 ? task.comments[task.comments.length - 1] : null;
                     const commentAuthor = lastComment ? getAssignee(lastComment.authorId) : null;
                     const assignees = Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo];
+                    const priority = task.status !== 'Done' && isPast(task.dueDate.toDate()) ? 'High' : task.priority;
                     return (
                     <TableRow key={task.id}>
                     <TableCell className="font-medium max-w-xs align-top">
@@ -568,8 +572,8 @@ export default function AdminTasksPage() {
                     </TableCell>
                     <TableCell className="align-top">{task.dueDate.toDate ? format(task.dueDate.toDate(), 'dd MMM yyyy') : format(task.dueDate, 'dd MMM yyyy')}</TableCell>
                     <TableCell className="align-top">
-                        <Badge variant={getPriorityVariant(task.priority)}>
-                            {task.priority}
+                        <Badge variant={getPriorityVariant(task.priority, task.dueDate)}>
+                            {priority}
                         </Badge>
                     </TableCell>
                     <TableCell className="align-top">

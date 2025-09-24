@@ -1,5 +1,4 @@
 
-
 'use client';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -333,7 +332,7 @@ export default function AdminClientsPage() {
             assignedTo: accountingAndTaxStaff,
             dueDate: Timestamp.fromDate(itr14DueDate),
             recurrence: 'Annually',
-            priority: 'High',
+            priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
             comments: [],
@@ -361,7 +360,7 @@ export default function AdminClientsPage() {
             assignedTo: accountingAndTaxStaff,
             dueDate: client.financialsDueDate,
             recurrence: 'Annually',
-            priority: 'High',
+            priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
             comments: [],
@@ -415,7 +414,7 @@ export default function AdminClientsPage() {
             assignedTo: accountingAndTaxStaff,
             dueDate: Timestamp.fromDate(firstDueDate),
             recurrence: client.vatCategory === 'C' ? 'Monthly' : 'Bi-Monthly',
-            priority: 'High',
+            priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
             comments: [],
@@ -445,7 +444,7 @@ export default function AdminClientsPage() {
             assignedTo: accountingAndTaxStaff,
             dueDate: Timestamp.fromDate(set(new Date(), { date: 7, month: getMonth(new Date()) + 1 })),
             recurrence: 'Monthly',
-            priority: 'High',
+            priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
             comments: [],
@@ -460,7 +459,7 @@ export default function AdminClientsPage() {
             assignedTo: accountingAndTaxStaff,
             dueDate: Timestamp.fromDate(new Date(getYear(new Date()), 9, 31)), // October 31
             recurrence: 'Annually',
-            priority: 'High',
+            priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
             comments: [],
@@ -471,7 +470,7 @@ export default function AdminClientsPage() {
             assignedTo: accountingAndTaxStaff,
             dueDate: Timestamp.fromDate(new Date(getYear(new Date()) + 1, 4, 31)), // May 31 of next year
             recurrence: 'Annually',
-            priority: 'High',
+            priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
             comments: [],
