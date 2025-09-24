@@ -15,7 +15,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ChartOfAccount } from '@/lib/types';
-import { initialChartOfAccounts } from '@/lib/chart-of-accounts';
+import { chartOfAccounts } from '@/lib/chart-of-accounts';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const accountSections: ChartOfAccount['section'][] = ['Income Statement', 'Balance Sheet'];
@@ -59,7 +59,7 @@ function AccountForm({ account, onSubmit, onCancel }: { account: ChartOfAccount 
 }
 
 export default function ChartOfAccountsPage() {
-  const [accounts, setAccounts] = useState<ChartOfAccount[]>(initialChartOfAccounts);
+  const [accounts, setAccounts] = useState<ChartOfAccount[]>(chartOfAccounts);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<ChartOfAccount | null>(null);
   const { toast } = useToast();

@@ -1,6 +1,7 @@
 import { ChartOfAccount } from './types';
 
-export const initialChartOfAccounts: ChartOfAccount[] = [
+// Changed to 'let' to allow dynamic addition of cashbook accounts
+export let chartOfAccounts: ChartOfAccount[] = [
     { id: '1000/000', accountNumber: '1000/000', description: 'Sales', section: 'Income Statement' },
     { id: '2000/000', accountNumber: '2000/000', description: 'Cost of Sales / Purchases', section: 'Income Statement' },
     { id: '2100/000', accountNumber: '2100/000', description: 'Inventory Adjustment', section: 'Income Statement' },

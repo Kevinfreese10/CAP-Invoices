@@ -4,31 +4,38 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Loader2 } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { useForm } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { User } from '@/lib/types';
+import { User, ChartOfAccount } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, query, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
+import { chartOfAccounts } from '@/lib/chart-of-accounts';
 
 const db = getFirestore(firebaseApp);
 
-const months = [ "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" ];
+const bankAccountSchema = z.object({
+  name: z.string().min(1, 'Bank name is required.'),
+});
 
 const formSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(2, 'Client name is required.'),
-  yearEnd: z.string().min(1, 'Financial year end is required.'),
+  yearEnd: z.date({ required_error: 'Financial year end is required.'}),
+  bankAccounts: z.array(bankAccountSchema).optional(),
 });
 
 function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSubmit: (data: any) => void, onCancel: () => void }) {
@@ -38,8 +45,14 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
         defaultValues: {
             id: client?.id || '',
             name: client?.name || '',
-            yearEnd: client?.yearEnd || 'February',
+            yearEnd: client?.yearEnd ? new Date(client.yearEnd) : new Date(),
+            bankAccounts: client?.bankingDetails ? [{ name: client.bankingDetails.bankName }] : [],
         },
+    });
+
+    const { fields, append, remove } = useFieldArray({
+        control: form.control,
+        name: 'bankAccounts',
     });
 
     const handleSubmit = (values: z.infer<typeof formSchema>) => {
@@ -50,7 +63,73 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
         <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
                 <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Client / Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                
+                <FormField
+                    control={form.control}
+                    name="yearEnd"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                        <FormLabel>Financial Year End</FormLabel>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                            <FormControl>
+                                <Button
+                                variant={"outline"}
+                                className={cn(
+                                    "w-full pl-3 text-left font-normal",
+                                    !field.value && "text-muted-foreground"
+                                )}
+                                >
+                                {field.value ? (
+                                    format(field.value, "dd MMMM yyyy")
+                                ) : (
+                                    <span>Pick a date</span>
+                                )}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                </Button>
+                            </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                                mode="single"
+                                selected={field.value}
+                                onSelect={field.onChange}
+                                disabled={(date) =>
+                                date > new Date() || date < new Date("1900-01-01")
+                                }
+                                initialFocus
+                            />
+                            </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                />
+
+                <div>
+                    <FormLabel>Bank Accounts</FormLabel>
+                    <div className="space-y-2 mt-2">
+                        {fields.map((item, index) => (
+                            <div key={item.id} className="flex items-center gap-2">
+                                <FormField
+                                    control={form.control}
+                                    name={`bankAccounts.${index}.name`}
+                                    render={({ field }) => (
+                                        <FormItem className="flex-grow">
+                                            <FormControl><Input placeholder={`e.g., FNB, ABSA...`} {...field} /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <Button type="button" variant="destructive" size="sm" onClick={() => remove(index)}>Remove</Button>
+                            </div>
+                        ))}
+                    </div>
+                     <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => append({ name: '' })}>
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Add Bank Account
+                    </Button>
+                </div>
                 
                 <div className="flex justify-end gap-2 pt-4">
                     <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
@@ -137,6 +216,38 @@ export default function NumeraPage() {
             });
         } else {
             await addDoc(collection(db, "clients"), clientData);
+            
+            // Add new bank accounts to chart of accounts
+            if (data.bankAccounts && data.bankAccounts.length > 0) {
+              const lastCashbook = chartOfAccounts
+                  .filter(a => a.accountNumber.startsWith('8400/'))
+                  .sort((a,b) => a.accountNumber.localeCompare(b.accountNumber))
+                  .pop();
+              
+              let nextAccountNumberIndex = 1;
+              if (lastCashbook) {
+                  nextAccountNumberIndex = parseInt(lastCashbook.accountNumber.split('/')[1]) + 1;
+              }
+
+              data.bankAccounts.forEach((bank, index) => {
+                  const newAccountNum = `8400/${(nextAccountNumberIndex + index).toString().padStart(3, '0')}`;
+                  const newAccount: ChartOfAccount = {
+                      id: newAccountNum,
+                      accountNumber: newAccountNum,
+                      description: bank.name,
+                      section: 'Balance Sheet',
+                  };
+                  // Avoid duplicates
+                  if (!chartOfAccounts.some(a => a.id === newAccount.id)) {
+                      chartOfAccounts.push(newAccount);
+                  }
+              });
+               toast({
+                title: 'Cashbooks Created',
+                description: `${data.bankAccounts.length} new cashbook accounts added to the Chart of Accounts.`,
+              });
+            }
+
             toast({
                 title: 'Client Created',
                 description: 'The new client has been added to the database.',
@@ -218,7 +329,7 @@ export default function NumeraPage() {
                         <span>{client.name}</span>
                     </div>
                   </TableCell>
-                  <TableCell>{client.yearEnd}</TableCell>
+                  <TableCell>{client.yearEnd ? format(new Date(client.yearEnd.seconds * 1000), 'dd MMMM yyyy') : 'N/A'}</TableCell>
                   <TableCell className="text-right">
                     <AlertDialog>
                         <DropdownMenu>
