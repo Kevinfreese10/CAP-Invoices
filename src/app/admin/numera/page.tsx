@@ -725,7 +725,7 @@ function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions 
                 const txDate = new Date(tx.date.split('/').reverse().join('-'));
                 const isAllocation = tx.allocatedTo.type === 'account' && tx.allocatedTo.value === accNum;
                 const isBankContra = tx.bankAccountId === accNum;
-                const isVatContra = accNum === VAT_CONTROL_ACC;
+                const isVatContra = accNum === VAT_CONTROL_ACC && (tx.vatType === 'standard_rated_sales' || tx.vatType === 'standard_rated_purchases' || tx.vatType === 'capital_goods_purchases');
                 return (isAllocation || isBankContra || isVatContra) && txDate >= values.fromDate && txDate <= values.toDate;
             }).sort((a,b) => new Date(a.date.split('/').reverse().join('-')).getTime() - new Date(b.date.split('/').reverse().join('-')).getTime());
 
@@ -998,9 +998,9 @@ function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions 
 }
 
 const allVatTypes: { name: VatType, label: string, category: 'Output Tax' | 'Input Tax' | 'Other' }[] = [
-    { name: 'standard_rated_sales', label: 'Standard-rated sales (15%)', category: 'Output Tax' },
-    { name: 'zero_rated_sales', label: 'Zero-rated sales (0%)', category: 'Output Tax' },
-    { name: 'exempt_sales', label: 'Exempt sales', category: 'Output Tax' },
+    { name: 'standard_rated_sales', label: 'Standard-rated supplies (15%)', category: 'Output Tax' },
+    { name: 'zero_rated_sales', label: 'Zero-rated supplies (0%)', category: 'Output Tax' },
+    { name: 'exempt_sales', label: 'Exempt supplies', category: 'Output Tax' },
     { name: 'standard_rated_purchases', label: 'Standard-rated purchases (15%)', category: 'Input Tax' },
     { name: 'capital_goods_purchases', label: 'Capital goods (15%)', category: 'Input Tax' },
     { name: 'zero_rated_purchases', label: 'Zero-rated purchases (0%)', category: 'Input Tax' },
@@ -1448,7 +1448,7 @@ function VatReportCard({ allocatedTransactions, activeClient }: { allocatedTrans
     });
 
     const vatPeriods = useMemo(() => {
-        if (!activeClient.isVatRegistered || !activeClient.vatCategory) return [];
+        if (!activeClient.isVatRegistered || !activeClient.vatRegistrationDate) return [];
 
         const regDate = activeClient.vatRegistrationDate?.toDate ? activeClient.vatRegistrationDate.toDate() : new Date(activeClient.vatRegistrationDate);
         const now = new Date();
@@ -2573,6 +2573,7 @@ export default function NumeraPage() {
     </div>
   );
 }
+
 
 
 
