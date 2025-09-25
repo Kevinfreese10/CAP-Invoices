@@ -274,7 +274,7 @@ const trialBalanceFormSchema = z.object({
     showZeroItems: z.boolean().default(true),
 });
 
-function TrialBalanceCard({ activeClient, onAccountClick }: { activeClient: User; onAccountClick: (accountNumber: string, from: Date, to: Date) => void; }) {
+function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions }: { activeClient: User; onAccountClick: (accountNumber: string, from: Date, to: Date) => void; allocatedTransactions: AllocatedTransaction[] }) {
     
     const [reportData, setReportData] = useState<TrialBalanceReportData | null>(null);
 
@@ -297,37 +297,60 @@ function TrialBalanceCard({ activeClient, onAccountClick }: { activeClient: User
     });
 
     const handleGenerate = (values: z.infer<typeof trialBalanceFormSchema>) => {
-        let mockData = chartOfAccounts.map(account => {
-            let debit = 0;
-            let credit = 0;
-            if (account.accountNumber.startsWith('1')) { // Sales
-                credit = Math.random() * 100000;
-            } else if (account.accountNumber.startsWith('3') || account.accountNumber.startsWith('4')) { // Expenses
-                debit = Math.random() * 20000;
-            } else if (account.accountNumber.startsWith('8400')) { // Bank
-                debit = Math.random() * 50000;
-            }
-            if (Math.random() > 0.7) {
-                return { accountNumber: account.accountNumber, description: account.description, debit, credit };
-            }
-            return { accountNumber: account.accountNumber, description: account.description, debit: 0, credit: 0 };
+        const accountBalances: { [key: string]: { debit: number; credit: number } } = {};
+
+        chartOfAccounts.forEach(acc => {
+            accountBalances[acc.accountNumber] = { debit: 0, credit: 0 };
         });
 
-        const totalDebits = mockData.reduce((acc, item) => acc + item.debit, 0);
-        const totalCredits = mockData.reduce((acc, item) => acc + item.credit, 0);
+        allocatedTransactions.forEach(tx => {
+            if (tx.allocatedTo.type === 'account') {
+                const accNum = tx.allocatedTo.value;
+                if (accountBalances[accNum]) {
+                    if (tx.amount > 0) { // Assume income/credit to bank is a debit in the GL account
+                        accountBalances[accNum].debit += tx.amount;
+                    } else { // Assume expense/debit from bank is a credit in the GL account
+                        accountBalances[accNum].credit += Math.abs(tx.amount);
+                    }
+                }
+                 // Handle the bank side of the transaction
+                const bankAccNum = tx.bankAccountId;
+                 if (accountBalances[bankAccNum]) {
+                    if (tx.amount > 0) {
+                        accountBalances[bankAccNum].debit += tx.amount;
+                    } else {
+                        accountBalances[bankAccNum].credit += Math.abs(tx.amount);
+                    }
+                 }
+            }
+        });
+        
+        let reportLedger = Object.entries(accountBalances).map(([accountNumber, balances]) => {
+            const accountInfo = chartOfAccounts.find(a => a.accountNumber === accountNumber)!;
+            return {
+                accountNumber,
+                description: accountInfo.description,
+                debit: balances.debit,
+                credit: balances.credit,
+            };
+        });
+
+        // Basic balancing with suspense account for demo purposes
+        const totalDebits = reportLedger.reduce((acc, item) => acc + item.debit, 0);
+        const totalCredits = reportLedger.reduce((acc, item) => acc + item.credit, 0);
         const difference = totalDebits - totalCredits;
 
-        const suspenseAccountIndex = mockData.findIndex(acc => acc.accountNumber === '9990/000');
-        if (suspenseAccountIndex !== -1) {
+        const suspenseAccount = reportLedger.find(acc => acc.accountNumber === '9990/000');
+        if (suspenseAccount) {
             if (difference > 0) {
-                mockData[suspenseAccountIndex].credit += difference;
+                suspenseAccount.credit += difference;
             } else {
-                mockData[suspenseAccountIndex].debit -= difference;
+                suspenseAccount.debit -= difference;
             }
         }
-
-        const filteredData = values.showZeroItems ? mockData : mockData.filter(d => d.debit !== 0 || d.credit !== 0);
         
+        const filteredData = values.showZeroItems ? reportLedger : reportLedger.filter(d => d.debit !== 0 || d.credit !== 0);
+
         const newReportData = {
             clientName: activeClient.name,
             fromDate: format(values.fromDate, 'dd/MM/yyyy'),
@@ -546,23 +569,38 @@ function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions 
       
       const generatedAccounts = selectedAccounts.map(accNum => {
           const accountInfo = chartOfAccounts.find(a => a.accountNumber === accNum)!;
-          const openingBalance = (Math.random() - 0.5) * 10000; // Mock opening balance
+          const openingBalance = 0; // In a real app, this would be calculated or fetched
           let runningBalance = openingBalance;
 
-          const accountTransactions = allocatedTransactions.filter(
-              tx => tx.allocatedTo.type === 'account' && tx.allocatedTo.value === accNum
-          );
+          const accountTransactions = allocatedTransactions.filter(tx => {
+                const txDate = new Date(tx.date.split('/').reverse().join('-'));
+                const isCorrectAccount = tx.allocatedTo.type === 'account' && tx.allocatedTo.value === accNum;
+                const isBankContra = tx.bankAccountId === accNum;
+                return (isCorrectAccount || isBankContra) && txDate >= values.fromDate && txDate <= values.toDate;
+            });
 
           const transactions: GLTransaction[] = accountTransactions.map(tx => {
+              const isContra = tx.bankAccountId === accNum;
               const amount = tx.amount;
-              const isDebit = amount >= 0; // Assuming positive is debit for GL
-              runningBalance += amount; // This might need refinement based on account type
+              let debit = 0;
+              let credit = 0;
+
+              if (isContra) { // This is the bank side of the transaction
+                  if(amount > 0) debit = amount;
+                  else credit = Math.abs(amount);
+              } else { // This is the allocation side of the transaction
+                  if(amount > 0) credit = amount;
+                  else debit = Math.abs(amount);
+              }
+
+              runningBalance += (debit - credit);
+              
               return {
                   date: tx.date,
                   description: tx.description,
                   reference: tx.id.substring(0, 8),
-                  debit: isDebit ? amount : 0,
-                  credit: !isDebit ? Math.abs(amount) : 0,
+                  debit,
+                  credit,
                   balance: runningBalance,
               };
           });
@@ -890,7 +928,7 @@ function AllocationTable({ transactions, onAllocate, selectedTransactions, onSel
                     const [dayA, monthA, yearA] = aValue.split('/').map(Number);
                     const [dayB, monthB, yearB] = bValue.split('/').map(Number);
                     aValue = new Date(yearA, monthA - 1, dayA).getTime();
-                    bValue = new Date(yearB, monthB - 1, dayB).getTime();
+                    bValue = new Date(yearB, monthB - 1, yearB).getTime();
                 }
 
                 if (aValue < bValue) {
@@ -1489,7 +1527,7 @@ export default function NumeraPage() {
                         <TabsTrigger value="train-ai">Train AI</TabsTrigger>
                     </TabsList>
                     <TabsContent value="reporting" className="space-y-4">
-                        <TrialBalanceCard activeClient={activeClient} onAccountClick={handleTBAccountClick} />
+                        <TrialBalanceCard activeClient={activeClient} onAccountClick={handleTBAccountClick} allocatedTransactions={allocatedTransactions} />
                         <GeneralLedgerCard activeClient={activeClient} initialValues={glInitialValues} allocatedTransactions={allocatedTransactions} />
                     </TabsContent>
                     <TabsContent value="banking" className="space-y-4">
@@ -1814,3 +1852,4 @@ export default function NumeraPage() {
     </div>
   );
 }
+
