@@ -1,5 +1,4 @@
 
-
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
@@ -744,12 +743,15 @@ function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions 
             let credit = 0;
             
             if (accNum === tx.bankAccountId) {
+                // Bank is always Gross
                 debit = grossAmount > 0 ? grossAmount : 0;
                 credit = grossAmount < 0 ? Math.abs(grossAmount) : 0;
             } else if (accNum === tx.allocatedTo.value) {
+                // Allocation is always Net
                 debit = exclusiveAmount < 0 ? Math.abs(exclusiveAmount) : 0;
                 credit = exclusiveAmount > 0 ? exclusiveAmount : 0;
             } else if (accNum === VAT_CONTROL_ACC && isStandardVat) {
+                // VAT account is always the VAT portion
                 const vatPostAmount = tx.vatType === 'standard_rated_sales' ? -vatAmount : vatAmount;
                 debit = vatPostAmount > 0 ? vatPostAmount : 0;
                 credit = vatPostAmount < 0 ? Math.abs(vatPostAmount) : 0;
@@ -1163,14 +1165,6 @@ function AllocationTable({ transactions, onAllocate, selectedTransactions, onSel
         }
         return sortableItems;
     }, [transactions, sortConfig]);
-
-    const requestSort = (key: SortableField) => {
-        let direction: SortDirection = 'asc';
-        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
-            direction = 'desc';
-        }
-        setSortConfig({ key, direction });
-    };
 
     const areAllSelected = transactions.length > 0 && transactions.every(tx => selectedTransactions.includes(tx.id));
 
@@ -1686,17 +1680,7 @@ export default function NumeraPage() {
         const q = query(collection(db, "clients"), where('source', '==', 'Numera'));
         const querySnapshot = await getDocs(q);
         let fetchedClients = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
-        
-        const testClientExists = fetchedClients.some(c => c.id === 'client-numera-test');
-        if (!testClientExists) {
-            const testClient = allUsers.find(u => u.id === 'client-numera-test');
-            if(testClient) {
-                fetchedClients.push(testClient);
-            }
-        }
-        
         fetchedClients.sort((a, b) => a.name.localeCompare(b.name));
-        
         setClients(fetchedClients);
     } catch (error) {
         console.error("Error fetching clients:", error);
@@ -1722,27 +1706,16 @@ export default function NumeraPage() {
   
   const handleDelete = async (clientId: string) => {
     try {
-        const batch = writeBatch(db);
-        
-        const clientRef = doc(db, "clients", clientId);
-        batch.delete(clientRef);
-
-        const associatedAccounts = chartOfAccounts.filter(acc => acc.id.startsWith(`cashbook-${clientId}`));
-        associatedAccounts.forEach(acc => {
-            const index = chartOfAccounts.findIndex(a => a.id === acc.id);
-            if (index > -1) {
-                chartOfAccounts.splice(index, 1);
-            }
-        });
-
-        await batch.commit();
-
+        await deleteDoc(doc(db, "clients", clientId));
         fetchClients();
         toast({
             title: 'Client Deleted',
             description: 'The client and their associated cashbooks have been removed.',
             variant: 'destructive',
         });
+        if (activeClient?.id === clientId) {
+            setActiveClient(null);
+        }
     } catch (error) {
         console.error("Error deleting client:", error);
         toast({ title: 'Error', description: 'Could not delete client.', variant: 'destructive' });
@@ -1756,10 +1729,10 @@ export default function NumeraPage() {
       name: data.name,
       contactPerson: data.contactPerson,
       email: data.email,
-      yearEnd: data.yearEnd,
+      yearEnd: data.yearEnd ? Timestamp.fromDate(data.yearEnd) : null,
       isVatRegistered: data.isVatRegistered,
       vatCategory: data.vatCategory,
-      vatRegistrationDate: data.vatRegistrationDate,
+      vatRegistrationDate: data.vatRegistrationDate ? Timestamp.fromDate(data.vatRegistrationDate) : null,
       role: 'client' as const,
       source: 'Numera' as const,
     };
@@ -1773,8 +1746,7 @@ export default function NumeraPage() {
           description: 'The client details have been saved.',
         });
       } else {
-        const clientRef = doc(collection(db, "clients"));
-        await setDoc(clientRef, { ...clientData, id: clientRef.id });
+        await addDoc(collection(db, "clients"), clientData);
         toast({
             title: 'Client Created',
             description: 'The new client has been added to the database.',
@@ -2834,3 +2806,5 @@ function BulkAllocateDialog({ isOpen, onClose, onBulkAllocate, count }: { isOpen
         </Dialog>
     );
 }
+
+    
