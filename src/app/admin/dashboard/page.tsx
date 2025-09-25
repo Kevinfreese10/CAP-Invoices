@@ -553,11 +553,28 @@ export default function AdminDashboardPage() {
         try {
             const taskRef = doc(db, 'tasks', taskId);
             await updateDoc(taskRef, { status });
+            
+            // Optimistically update the UI before re-fetching
+            setTasks(prevTasks =>
+                prevTasks.map(t =>
+                    t.id === taskId ? { ...t, status } : t
+                )
+            );
+            
+            if (status === 'Done') {
+                 toast({
+                    title: 'Task Completed!',
+                    description: `The task has been marked as "${status}".`,
+                });
+            } else {
+                 toast({
+                    title: 'Task Status Updated',
+                    description: `The task has been marked as "${status}".`,
+                });
+            }
+
+            // Fetch to ensure full consistency, though UI is already updated
             fetchDashboardData();
-            toast({
-                title: 'Task Status Updated',
-                description: `The task has been marked as "${status}".`,
-            });
         } catch (error) {
             console.error("Error updating status:", error);
             toast({ title: 'Error', description: 'Could not update status.', variant: 'destructive'});

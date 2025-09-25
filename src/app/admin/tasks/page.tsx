@@ -308,11 +308,19 @@ export default function AdminTasksPage() {
     try {
         const taskRef = doc(db, 'tasks', taskId);
         await updateDoc(taskRef, { status });
+        
+        if (status === 'Done') {
+            toast({
+                title: 'Task Completed!',
+                description: 'The task has been successfully marked as complete.',
+            });
+        } else {
+             toast({
+                title: 'Task Status Updated',
+                description: `The task has been marked as "${status}".`,
+            });
+        }
         fetchTasks();
-        toast({
-            title: 'Task Status Updated',
-            description: `The task has been marked as "${status}".`,
-        });
     } catch (error) {
         console.error("Error updating status:", error);
         toast({ title: 'Error', description: 'Could not update status.', variant: 'destructive'});
