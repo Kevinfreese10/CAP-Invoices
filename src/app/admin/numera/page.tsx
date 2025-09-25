@@ -429,10 +429,11 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions,
         const UNALLOCATED_SUSPENSE_ACC = '9950/000';
         const VAT_RATE = 0.15;
 
-        const accountBalances: { [key: string]: { debit: number; credit: number } } = {};
+        const accountMovements: { [key: string]: { debit: number, credit: number } } = {};
 
+        // Initialize all accounts from CoA
         chartOfAccounts.forEach(acc => {
-            accountBalances[acc.accountNumber] = { debit: 0, credit: 0 };
+            accountMovements[acc.accountNumber] = { debit: 0, credit: 0 };
         });
 
         const filterTxsByDate = (txs: (ImportedTransaction | AllocatedTransaction)[]) => {
@@ -449,7 +450,7 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions,
             if (tx.allocatedTo.type === 'account') {
                 const allocationAccNum = tx.allocatedTo.value;
                 const bankAccNum = tx.bankAccountId;
-                const grossAmount = Math.abs(tx.amount);
+                const grossAmount = tx.amount;
                 
                 let netAmount = grossAmount;
                 let vatAmount = 0;
@@ -461,58 +462,39 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions,
                     netAmount = grossAmount / (1 + VAT_RATE);
                     vatAmount = grossAmount - netAmount;
                 }
-
-                if (accountBalances[allocationAccNum] && accountBalances[bankAccNum] && accountBalances[VAT_CONTROL_ACC]) {
-                     if (tx.amount < 0) { // Expense / Payment
-                        accountBalances[allocationAccNum].debit += netAmount;
-                        accountBalances[bankAccNum].credit += grossAmount;
-                        if(isStandardVatPurchase) {
-                            accountBalances[VAT_CONTROL_ACC].debit += vatAmount;
-                        }
-                    } else { // Income / Deposit
-                        accountBalances[bankAccNum].debit += grossAmount;
-                        accountBalances[allocationAccNum].credit += netAmount;
-                         if(isStandardVatSale) {
-                            accountBalances[VAT_CONTROL_ACC].credit += vatAmount;
-                        }
-                    }
+                
+                // Bank movement
+                if(grossAmount > 0) { // Income
+                    accountMovements[bankAccNum].debit += grossAmount;
+                    accountMovements[allocationAccNum].credit += netAmount;
+                    accountMovements[VAT_CONTROL_ACC].credit += vatAmount;
+                } else { // Expense
+                    accountMovements[bankAccNum].credit += Math.abs(grossAmount);
+                    accountMovements[allocationAccNum].debit += Math.abs(netAmount);
+                    accountMovements[VAT_CONTROL_ACC].debit += Math.abs(vatAmount);
                 }
             }
         });
         
         filteredUnallocated.forEach(tx => {
-            const bankAccNum = tx.bankAccountId;
-            const amount = Math.abs(tx.amount);
-
-            if(accountBalances[bankAccNum] && accountBalances[UNALLOCATED_SUSPENSE_ACC]) {
-                if (tx.amount < 0) { // Payment
-                    accountBalances[UNALLOCATED_SUSPENSE_ACC].debit += amount;
-                    accountBalances[bankAccNum].credit += amount;
-                } else { // Deposit
-                    accountBalances[bankAccNum].debit += amount;
-                    accountBalances[UNALLOCATED_SUSPENSE_ACC].credit += amount;
-                }
+            if (tx.amount > 0) {
+                accountMovements[tx.bankAccountId].debit += tx.amount;
+                accountMovements[UNALLOCATED_SUSPENSE_ACC].credit += tx.amount;
+            } else {
+                accountMovements[tx.bankAccountId].credit += Math.abs(tx.amount);
+                accountMovements[UNALLOCATED_SUSPENSE_ACC].debit += Math.abs(tx.amount);
             }
         });
         
-        let reportLedger = Object.entries(accountBalances).map(([accountNumber, balances]) => {
+        const reportLedger = Object.entries(accountMovements).map(([accountNumber, movements]) => {
             const accountInfo = chartOfAccounts.find(a => a.accountNumber === accountNumber)!;
-            
-            if (accountNumber.startsWith('8400/')) {
-                const netBalance = balances.debit - balances.credit;
-                return {
-                    accountNumber,
-                    description: accountInfo.description,
-                    debit: netBalance > 0 ? netBalance : 0,
-                    credit: netBalance < 0 ? Math.abs(netBalance) : 0,
-                };
-            }
+            const netBalance = movements.debit - movements.credit;
 
             return {
                 accountNumber,
                 description: accountInfo.description,
-                debit: balances.debit,
-                credit: balances.credit,
+                debit: netBalance > 0 ? netBalance : 0,
+                credit: netBalance < 0 ? Math.abs(netBalance) : 0,
             };
         });
         
@@ -1146,12 +1128,12 @@ function AllocationTable({ transactions, onAllocate, selectedTransactions, onSel
         let sortableItems = [...transactions];
         if (sortConfig !== null) {
             sortableItems.sort((a, b) => {
-                let aValue = a[sortConfig.key];
-                let bValue = b[sortConfig.key];
+                let aValue: string | number = a[sortConfig.key];
+                let bValue: string | number = b[sortConfig.key];
                 
                 if (sortConfig.key === 'date') {
-                    const [dayA, monthA, yearA] = aValue.split('/').map(Number);
-                    const [dayB, monthB, yearB] = bValue.split('/').map(Number);
+                    const [dayA, monthA, yearA] = (aValue as string).split('/').map(Number);
+                    const [dayB, monthB, yearB] = (bValue as string).split('/').map(Number);
                     aValue = new Date(yearA, monthA - 1, dayA).getTime();
                     bValue = new Date(yearB, monthB - 1, yearB).getTime();
                 }
@@ -1222,7 +1204,7 @@ function AllocationTable({ transactions, onAllocate, selectedTransactions, onSel
                         <TableCell className="w-[300px]">
                             <AllocationCombobox value={allocations[tx.id]} onSelect={(value, type) => onAllocationSelect(tx.id, value, type)}/>
                         </TableCell>
-                        <TableCell className="w-[200px]">
+                        <TableCell className="w-[300px]">
                             <VatTypeCombobox value={vatTypes[tx.id]} onSelect={(value) => onVatTypeSelect(tx.id, value)} />
                         </TableCell>
                         <TableCell className="text-right">
@@ -2579,5 +2561,7 @@ export default function NumeraPage() {
     </div>
   );
 }
+
+
 
 
