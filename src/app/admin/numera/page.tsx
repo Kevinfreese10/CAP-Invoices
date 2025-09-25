@@ -1,11 +1,10 @@
 
-
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload, FileCheck2, ScanLine, Sprout, Search, ArrowUpDown, Edit, Sparkles, BrainCircuit, Copy } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload, FileCheck2, ScanLine, Sprout, Search, ArrowUpDown, Edit, Sparkles, BrainCircuit, Copy, MessageSquare } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -36,6 +35,7 @@ import Papa from 'papaparse';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { users as allUsers } from '@/lib/data';
 import { allocateTransaction } from '@/ai/flows/allocate-transaction';
+import { refineAllocationKnowledge } from '@/ai/flows/refine-allocation-knowledge';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -429,10 +429,10 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions,
         const UNALLOCATED_SUSPENSE_ACC = '9950/000';
         const VAT_RATE = 0.15;
 
-        const accountBalances: { [key: string]: { debit: number, credit: number } } = {};
+        const accountBalances: { [key: string]: number } = {};
 
         chartOfAccounts.forEach(acc => {
-            accountBalances[acc.accountNumber] = { debit: 0, credit: 0 };
+            accountBalances[acc.accountNumber] = 0;
         });
 
         const filterTxsByDate = (txs: (ImportedTransaction | AllocatedTransaction)[]) => {
@@ -460,31 +460,24 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions,
                 vatAmount = grossAmount - netAmount;
             }
             
-            if (grossAmount > 0) { // Income
-                accountBalances[bankAccNum].debit += grossAmount;
-                accountBalances[allocationAccNum].credit += netAmount;
-                accountBalances[VAT_CONTROL_ACC].credit += vatAmount;
-            } else { // Expense
-                accountBalances[bankAccNum].credit += Math.abs(grossAmount);
-                accountBalances[allocationAccNum].debit += Math.abs(netAmount);
-                accountBalances[VAT_CONTROL_ACC].debit += Math.abs(vatAmount);
-            }
+            // Debit bank for income, credit bank for expense
+            accountBalances[bankAccNum] += grossAmount;
+
+            // Credit income account, debit expense account
+            accountBalances[allocationAccNum] -= netAmount;
+            
+            // Credit VAT Control for sales, Debit for purchases
+            accountBalances[VAT_CONTROL_ACC] -= vatAmount;
         });
         
         filteredUnallocated.forEach(tx => {
-            if (tx.amount > 0) {
-                accountBalances[tx.bankAccountId].debit += tx.amount;
-                accountBalances[UNALLOCATED_SUSPENSE_ACC].credit += tx.amount;
-            } else {
-                accountBalances[tx.bankAccountId].credit += Math.abs(tx.amount);
-                accountBalances[UNALLOCATED_SUSPENSE_ACC].debit += Math.abs(tx.amount);
-            }
+            accountBalances[tx.bankAccountId] += tx.amount;
+            accountBalances[UNALLOCATED_SUSPENSE_ACC] -= tx.amount;
         });
         
-        const reportLedger = Object.entries(accountBalances).map(([accountNumber, movements]) => {
+        const reportLedger = Object.entries(accountBalances).map(([accountNumber, netBalance]) => {
             const accountInfo = chartOfAccounts.find(a => a.accountNumber === accountNumber)!;
-            const netBalance = movements.debit - movements.credit;
-
+            
             return {
                 accountNumber,
                 description: accountInfo.description,
@@ -1120,7 +1113,7 @@ function AllocationCombobox({ value, onSelect }: { value?: { value: string, type
 type SortableField = 'date' | 'description' | 'amount';
 type SortDirection = 'asc' | 'desc';
 
-function AllocationTable({ transactions, onAllocate, selectedTransactions, onSelectionChange, onAllocationSelect, allocations, onVatTypeSelect, vatTypes }: { 
+function AllocationTable({ transactions, onAllocate, selectedTransactions, onSelectionChange, onAllocationSelect, allocations, onVatTypeSelect, vatTypes, onFeedback }: { 
     transactions: ImportedTransaction[], 
     onAllocate: (transactionId: string) => void, 
     selectedTransactions: string[], 
@@ -1128,7 +1121,8 @@ function AllocationTable({ transactions, onAllocate, selectedTransactions, onSel
     onAllocationSelect: (transactionId: string, value: string, type: 'account'|'customer'|'supplier') => void,
     allocations: { [key: string]: { value: string, type: 'account'|'customer'|'supplier' } },
     onVatTypeSelect: (transactionId: string, vatType: VatType) => void,
-    vatTypes: { [key: string]: VatType }
+    vatTypes: { [key: string]: VatType },
+    onFeedback: (transaction: ImportedTransaction) => void,
 }) {
     const [sortConfig, setSortConfig] = useState<{ key: SortableField, direction: SortDirection } | null>({ key: 'date', direction: 'asc'});
 
@@ -1221,8 +1215,10 @@ function AllocationTable({ transactions, onAllocate, selectedTransactions, onSel
                         </TableCell>
                         <TableCell className="text-right">
                             <div className="flex gap-2 justify-end">
+                                <Button size="icon" variant="ghost" onClick={() => onFeedback(tx)}>
+                                    <MessageSquare className="h-4 w-4" />
+                                </Button>
                                 <Button size="sm" onClick={() => onAllocate(tx.id)} disabled={!allocations[tx.id]}>Allocate</Button>
-                                <Button size="sm" variant="outline" disabled>Split</Button>
                             </div>
                         </TableCell>
                     </TableRow>
@@ -1658,6 +1654,8 @@ export default function NumeraPage() {
   const [journals, setJournals] = useState<Journal[]>([]);
   const [isJournalFormOpen, setIsJournalFormOpen] = useState(false);
   const [selectedJournal, setSelectedJournal] = useState<Journal | null>(null);
+  const [feedbackTransaction, setFeedbackTransaction] = useState<ImportedTransaction | null>(null);
+
   
   const importForm = useForm();
   
@@ -1997,34 +1995,63 @@ export default function NumeraPage() {
     });
   };
 
+  const runAiAllocation = async (txns: ImportedTransaction[]) => {
+      setIsAiAllocating(true);
+      toast({ title: 'AI Allocation Started', description: `AI is analyzing ${txns.length} transaction(s).` });
+
+      let successCount = 0;
+      const allocationPromises = txns.map(async (tx) => {
+          try {
+              const result = await allocateTransaction({ description: tx.description });
+              if (result.accountNumber && chartOfAccounts.some(acc => acc.accountNumber === result.accountNumber)) {
+                  handleAllocationSelect(tx.id, result.accountNumber, 'account');
+                  handleVatTypeSelect(tx.id, result.vatType);
+                  successCount++;
+              }
+          } catch (error) {
+              console.error(`AI allocation failed for transaction ${tx.id}:`, error);
+          }
+      });
+
+      await Promise.all(allocationPromises);
+
+      setIsAiAllocating(false);
+      toast({ title: 'AI Allocation Complete', description: `AI successfully suggested allocations for ${successCount} of ${txns.length} transactions.` });
+  }
+
   const handleAiAllocate = async () => {
     const transactionsToProcess = unallocatedTransactions.filter(tx => selectedTransactions.includes(tx.id));
     if (transactionsToProcess.length === 0) {
         toast({ title: 'No Transactions Selected', description: 'Please select one or more transactions to allocate with AI.', variant: 'destructive'});
         return;
     }
+    await runAiAllocation(transactionsToProcess);
+  };
+
+  const handleFeedbackSubmit = async (feedbackData: {
+    transaction: ImportedTransaction;
+    correctAccount: string;
+    correctVatType: VatType;
+    rule: string;
+  }) => {
+    const { transaction, correctAccount, correctVatType, rule } = feedbackData;
+    const incorrectAccount = allocations[transaction.id]?.value;
+    const incorrectVatType = vatTypes[transaction.id];
+
+    toast({ title: "Learning from feedback...", description: "Updating AI knowledge and re-allocating." });
     
-    setIsAiAllocating(true);
-    toast({ title: 'AI Allocation Started', description: `AI is analyzing ${transactionsToProcess.length} transaction(s).`});
-
-    let successCount = 0;
-    const allocationPromises = transactionsToProcess.map(async (tx) => {
-        try {
-            const result = await allocateTransaction({ description: tx.description });
-            if (result.accountNumber && chartOfAccounts.some(acc => acc.accountNumber === result.accountNumber)) {
-                 handleAllocationSelect(tx.id, result.accountNumber, 'account');
-                 handleVatTypeSelect(tx.id, result.vatType);
-                 successCount++;
-            }
-        } catch (error) {
-            console.error(`AI allocation failed for transaction ${tx.id}:`, error);
-        }
+    // Simulate updating knowledge. In a real app, this would update a persistent knowledge base.
+    await refineAllocationKnowledge({
+      transactionDescription: transaction.description,
+      incorrectAllocation: `${incorrectAccount} (VAT: ${incorrectVatType})`,
+      correctAllocation: `${correctAccount} (VAT: ${correctVatType})`,
+      userProvidedRule: rule,
     });
-
-    await Promise.all(allocationPromises);
-
-    setIsAiAllocating(false);
-    toast({ title: 'AI Allocation Complete', description: `AI successfully suggested allocations for ${successCount} of ${transactionsToProcess.length} transactions.`});
+    
+    setFeedbackTransaction(null); // Close the dialog
+    
+    // Re-run AI allocation on the single transaction
+    await runAiAllocation([transaction]);
   };
 
 
@@ -2317,14 +2344,14 @@ export default function NumeraPage() {
                                         )}
                                         <TabsContent value="unallocated-income">
                                             {incomeTransactions.length > 0 ? (
-                                                <AllocationTable transactions={incomeTransactions} onAllocate={handleAllocate} selectedTransactions={selectedTransactions} onSelectionChange={handleSelectionChange} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes}/>
+                                                <AllocationTable transactions={incomeTransactions} onAllocate={handleAllocate} selectedTransactions={selectedTransactions} onSelectionChange={handleSelectionChange} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onFeedback={setFeedbackTransaction}/>
                                             ) : (
                                                 <p className="text-muted-foreground text-center py-10">No unallocated income transactions to display.</p>
                                             )}
                                         </TabsContent>
                                         <TabsContent value="unallocated-expenses">
                                              {expenseTransactions.length > 0 ? (
-                                                 <AllocationTable transactions={expenseTransactions} onAllocate={handleAllocate} selectedTransactions={selectedTransactions} onSelectionChange={handleSelectionChange} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes}/>
+                                                 <AllocationTable transactions={expenseTransactions} onAllocate={handleAllocate} selectedTransactions={selectedTransactions} onSelectionChange={handleSelectionChange} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onFeedback={setFeedbackTransaction}/>
                                              ) : (
                                                 <p className="text-muted-foreground text-center py-10">No unallocated expense transactions to display.</p>
                                              )}
@@ -2570,12 +2597,136 @@ export default function NumeraPage() {
                  />
             </DialogContent>
         </Dialog>
+         <AIFeedbackDialog
+            transaction={feedbackTransaction}
+            allocations={allocations}
+            vatTypes={vatTypes}
+            onClose={() => setFeedbackTransaction(null)}
+            onSubmit={handleFeedbackSubmit}
+        />
     </div>
   );
 }
 
+const feedbackSchema = z.object({
+    correctAccount: z.string().min(1, "Please select the correct account."),
+    correctVatType: z.custom<VatType>(),
+    rule: z.string().min(10, "Please provide a simple rule for the AI to learn."),
+});
 
+function AIFeedbackDialog({
+    transaction,
+    allocations,
+    vatTypes,
+    onClose,
+    onSubmit,
+}: {
+    transaction: ImportedTransaction | null;
+    allocations: { [key: string]: { value: string, type: 'account'|'customer'|'supplier' } };
+    vatTypes: { [key: string]: VatType };
+    onClose: () => void;
+    onSubmit: (data: {
+        transaction: ImportedTransaction;
+        correctAccount: string;
+        correctVatType: VatType;
+        rule: string;
+    }) => void;
+}) {
+    const form = useForm<z.infer<typeof feedbackSchema>>({
+        resolver: zodResolver(feedbackSchema),
+        defaultValues: {
+            correctAccount: '',
+            correctVatType: 'no_vat',
+            rule: '',
+        }
+    });
 
+    useEffect(() => {
+        form.reset();
+    }, [transaction]);
 
+    if (!transaction) return null;
+    
+    const currentAllocation = allocations[transaction.id];
+    const currentVatType = vatTypes[transaction.id];
 
+    const handleSubmit = (values: z.infer<typeof feedbackSchema>) => {
+        onSubmit({
+            transaction,
+            ...values,
+        });
+    }
 
+    return (
+        <Dialog open={!!transaction} onOpenChange={(open) => !open && onClose()}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Provide AI Feedback</DialogTitle>
+                    <DialogDescription>
+                        Help the AI learn by correcting this allocation.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                    <p className="text-sm">
+                        <strong>Transaction:</strong> {transaction.description}
+                    </p>
+                    <p className="text-sm">
+                        <strong>AI Suggestion:</strong>{' '}
+                        {currentAllocation ? `${chartOfAccounts.find(c => c.accountNumber === currentAllocation.value)?.description} (VAT: ${currentVatType})` : 'None'}
+                    </p>
+                    <Separator />
+                     <Form {...form}>
+                        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+                            <FormField
+                                control={form.control}
+                                name="correctAccount"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Correct Account</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <FormControl><SelectTrigger><SelectValue placeholder="Select correct account..." /></SelectTrigger></FormControl>
+                                            <SelectContent>
+                                                {chartOfAccounts.map(acc => <SelectItem key={acc.accountNumber} value={acc.accountNumber}>{acc.accountNumber} - {acc.description}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                             <FormField
+                                control={form.control}
+                                name="correctVatType"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Correct VAT Type</FormLabel>
+                                        <FormControl>
+                                            <VatTypeCombobox value={field.value} onSelect={field.onChange} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                             <FormField
+                                control={form.control}
+                                name="rule"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Explain the rule</FormLabel>
+                                        <FormControl>
+                                            <Textarea {...field} placeholder="e.g., 'Transactions with TELKOM should go to Telephone & Fax'" />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <DialogFooter>
+                                <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+                                <Button type="submit">Submit Feedback & Re-allocate</Button>
+                            </DialogFooter>
+                        </form>
+                    </Form>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
