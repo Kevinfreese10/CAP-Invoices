@@ -425,6 +425,10 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions,
     });
 
     const handleGenerate = (values: z.infer<typeof trialBalanceFormSchema>) => {
+        const VAT_CONTROL_ACC = '9500/000';
+        const UNALLOCATED_SUSPENSE_ACC = '9950/000';
+        const VAT_RATE = 0.15;
+
         const accountBalances: { [key: string]: { debit: number; credit: number } } = {};
 
         chartOfAccounts.forEach(acc => {
@@ -445,21 +449,37 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions,
             if (tx.allocatedTo.type === 'account') {
                 const allocationAccNum = tx.allocatedTo.value;
                 const bankAccNum = tx.bankAccountId;
-                const amount = Math.abs(tx.amount);
+                const grossAmount = Math.abs(tx.amount);
+                
+                let netAmount = grossAmount;
+                let vatAmount = 0;
 
-                if (accountBalances[allocationAccNum] && accountBalances[bankAccNum]) {
-                     if (tx.amount < 0) { // Expense
-                        accountBalances[allocationAccNum].debit += amount;
-                        accountBalances[bankAccNum].credit += amount;
-                    } else { // Income
-                        accountBalances[bankAccNum].debit += amount;
-                        accountBalances[allocationAccNum].credit += amount;
+                const isStandardVatSale = tx.vatType === 'standard_rated_sales';
+                const isStandardVatPurchase = tx.vatType === 'standard_rated_purchases' || tx.vatType === 'capital_goods_purchases';
+
+                if (isStandardVatSale || isStandardVatPurchase) {
+                    netAmount = grossAmount / (1 + VAT_RATE);
+                    vatAmount = grossAmount - netAmount;
+                }
+
+                if (accountBalances[allocationAccNum] && accountBalances[bankAccNum] && accountBalances[VAT_CONTROL_ACC]) {
+                     if (tx.amount < 0) { // Expense / Payment
+                        accountBalances[allocationAccNum].debit += netAmount;
+                        accountBalances[bankAccNum].credit += grossAmount;
+                        if(isStandardVatPurchase) {
+                            accountBalances[VAT_CONTROL_ACC].debit += vatAmount;
+                        }
+                    } else { // Income / Deposit
+                        accountBalances[bankAccNum].debit += grossAmount;
+                        accountBalances[allocationAccNum].credit += netAmount;
+                         if(isStandardVatSale) {
+                            accountBalances[VAT_CONTROL_ACC].credit += vatAmount;
+                        }
                     }
                 }
             }
         });
         
-        const UNALLOCATED_SUSPENSE_ACC = '9950/000';
         filteredUnallocated.forEach(tx => {
             const bankAccNum = tx.bankAccountId;
             const amount = Math.abs(tx.amount);
@@ -983,15 +1003,15 @@ function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions 
   );
 }
 
-const allVatTypes: { name: VatType, label: string, category: 'Output Tax' | 'Input Tax' }[] = [
-    { name: 'standard_rated_sales', label: 'Standard-rated supplies (15%)', category: 'Output Tax' },
-    { name: 'zero_rated_sales', label: 'Zero-rated supplies (0%)', category: 'Output Tax' },
-    { name: 'exempt_sales', label: 'Exempt supplies', category: 'Output Tax' },
+const allVatTypes: { name: VatType, label: string, category: 'Output Tax' | 'Input Tax' | 'Other' }[] = [
+    { name: 'standard_rated_sales', label: 'Standard-rated sales (15%)', category: 'Output Tax' },
+    { name: 'zero_rated_sales', label: 'Zero-rated sales (0%)', category: 'Output Tax' },
+    { name: 'exempt_sales', label: 'Exempt sales', category: 'Output Tax' },
     { name: 'standard_rated_purchases', label: 'Standard-rated purchases (15%)', category: 'Input Tax' },
-    { name: 'capital_goods_purchases', label: 'Capital goods', category: 'Input Tax' },
+    { name: 'capital_goods_purchases', label: 'Capital goods (15%)', category: 'Input Tax' },
     { name: 'zero_rated_purchases', label: 'Zero-rated purchases (0%)', category: 'Input Tax' },
     { name: 'exempt_purchases', label: 'Exempt purchases', category: 'Input Tax' },
-    { name: 'no_vat', label: 'No VAT', category: 'Input Tax' },
+    { name: 'no_vat', label: 'No VAT', category: 'Other' },
 ];
 
 function VatTypeCombobox({ value, onSelect }: { value?: VatType, onSelect: (value: VatType) => void }) {
@@ -1001,7 +1021,7 @@ function VatTypeCombobox({ value, onSelect }: { value?: VatType, onSelect: (valu
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-                <Button variant="outline" role="combobox" aria-expanded={open} className="w-[200px] justify-between">
+                <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between">
                     <span className="truncate">{displayValue}</span>
                     <MoreHorizontal className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
@@ -1020,6 +1040,13 @@ function VatTypeCombobox({ value, onSelect }: { value?: VatType, onSelect: (valu
                         </CommandGroup>
                         <CommandGroup heading="Input Tax (Purchases)">
                              {allVatTypes.filter(v => v.category === 'Input Tax').map(v => (
+                                <CommandItem key={v.name} onSelect={() => { onSelect(v.name); setOpen(false); }}>
+                                    {v.label}
+                                </CommandItem>
+                            ))}
+                        </CommandGroup>
+                         <CommandGroup heading="Other">
+                             {allVatTypes.filter(v => v.category === 'Other').map(v => (
                                 <CommandItem key={v.name} onSelect={() => { onSelect(v.name); setOpen(false); }}>
                                     {v.label}
                                 </CommandItem>
@@ -1195,7 +1222,7 @@ function AllocationTable({ transactions, onAllocate, selectedTransactions, onSel
                         <TableCell className="w-[300px]">
                             <AllocationCombobox value={allocations[tx.id]} onSelect={(value, type) => onAllocationSelect(tx.id, value, type)}/>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="w-[200px]">
                             <VatTypeCombobox value={vatTypes[tx.id]} onSelect={(value) => onVatTypeSelect(tx.id, value)} />
                         </TableCell>
                         <TableCell className="text-right">
@@ -1490,6 +1517,8 @@ function VatReportCard({ allocatedTransactions, activeClient }: { allocatedTrans
         const VAT_RATE = 0.15;
         let totalSales = 0;
         let totalPurchases = 0;
+        let outputVat = 0;
+        let inputVat = 0;
         let outputTransactions: AllocatedTransaction[] = [];
         let inputTransactions: AllocatedTransaction[] = [];
 
@@ -1499,29 +1528,34 @@ function VatReportCard({ allocatedTransactions, activeClient }: { allocatedTrans
         });
 
         filteredTxs.forEach(tx => {
-            const allocatedAcc = tx.allocatedTo.value;
-            // Sales (Output VAT)
-            if (allocatedAcc === '1000/000' && tx.amount > 0) {
+            const isStandardSale = tx.vatType === 'standard_rated_sales';
+            const isStandardPurchase = tx.vatType === 'standard_rated_purchases' || tx.vatType === 'capital_goods_purchases';
+
+            if (isStandardSale) {
+                const exclusiveAmount = tx.amount / (1 + VAT_RATE);
+                totalSales += exclusiveAmount;
+                outputVat += tx.amount - exclusiveAmount;
+                outputTransactions.push(tx);
+            } else if (tx.vatType === 'zero_rated_sales') {
                 totalSales += tx.amount;
                 outputTransactions.push(tx);
             }
-            // Purchases/Expenses (Input VAT - assuming all are vatable for this example)
-            const accNumberPrefix = parseInt(allocatedAcc.split('/')[0], 10);
-            if (accNumberPrefix >= 2000 && accNumberPrefix < 5000) {
-                 if(tx.amount < 0) { // Only count payments as purchases
-                    totalPurchases += Math.abs(tx.amount);
-                    inputTransactions.push(tx);
-                }
+
+            if (isStandardPurchase) {
+                const exclusiveAmount = Math.abs(tx.amount) / (1 + VAT_RATE);
+                totalPurchases += exclusiveAmount;
+                inputVat += Math.abs(tx.amount) - exclusiveAmount;
+                inputTransactions.push(tx);
+            } else if (tx.vatType === 'zero_rated_purchases') {
+                totalPurchases += Math.abs(tx.amount);
+                inputTransactions.push(tx);
             }
         });
 
-        const outputVat = totalSales * VAT_RATE / (1 + VAT_RATE);
-        const inputVat = totalPurchases * VAT_RATE / (1 + VAT_RATE);
-
         setReportData({
-            totalSales: totalSales - outputVat,
+            totalSales,
             outputVat,
-            totalPurchases: totalPurchases - inputVat,
+            totalPurchases,
             inputVat,
             vatPayable: outputVat - inputVat,
             transactions: { inputs: inputTransactions, outputs: outputTransactions }
@@ -2545,4 +2579,5 @@ export default function NumeraPage() {
     </div>
   );
 }
+
 
