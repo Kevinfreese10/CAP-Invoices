@@ -554,11 +554,9 @@ export default function AdminDashboardPage() {
             const taskRef = doc(db, 'tasks', taskId);
             await updateDoc(taskRef, { status });
             
-            // Optimistically update the UI before re-fetching
+            // This is the key fix: update the local state correctly
             setTasks(prevTasks =>
-                prevTasks.map(t =>
-                    t.id === taskId ? { ...t, status } : t
-                )
+                prevTasks.map(t => (t.id === taskId ? { ...t, status } : t))
             );
             
             if (status === 'Done') {
@@ -572,9 +570,6 @@ export default function AdminDashboardPage() {
                     description: `The task has been marked as "${status}".`,
                 });
             }
-
-            // Fetch to ensure full consistency, though UI is already updated
-            fetchDashboardData();
         } catch (error) {
             console.error("Error updating status:", error);
             toast({ title: 'Error', description: 'Could not update status.', variant: 'destructive'});
@@ -900,3 +895,4 @@ export default function AdminDashboardPage() {
 
     
     
+
