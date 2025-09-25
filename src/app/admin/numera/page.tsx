@@ -14,7 +14,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { User, ChartOfAccount, VatType } from '@/lib/types';
+import { User, ChartOfAccount, VatType, Supplier } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, query, where, writeBatch, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -1108,12 +1108,9 @@ function VatTypeCombobox({ value, onSelect }: { value?: VatType, onSelect: (valu
     )
 }
 
-function AllocationCombobox({ value, onSelect }: { value?: { value: string, type: string }, onSelect: (value: string, type: 'account'|'customer'|'supplier') => void }) {
+function AllocationCombobox({ value, onSelect, customers, suppliers }: { value?: { value: string, type: string }, onSelect: (value: string, type: 'account'|'customer'|'supplier') => void, customers: User[], suppliers: Supplier[] }) {
     const [open, setOpen] = useState(false);
-    const customers = allUsers.filter(u => u.role === 'client');
-    // Mock suppliers for now
-    const suppliers = [{id: 'supp-1', name: 'Telkom'}, {id: 'supp-2', name: 'Eskom'}];
-
+    
     const getDisplayValue = () => {
         if (!value) return "Select...";
         if (value.type === 'account') {
@@ -1147,7 +1144,6 @@ function AllocationCombobox({ value, onSelect }: { value?: { value: string, type
                                     {acc.accountNumber} - {acc.description}
                                 </CommandItem>
                             ))}
-                            <CommandItem onSelect={() => alert('Open create account modal...')}>+ Create new account</CommandItem>
                         </CommandGroup>
                         <CommandGroup heading="Customers">
                              {customers.map(customer => (
@@ -1155,7 +1151,6 @@ function AllocationCombobox({ value, onSelect }: { value?: { value: string, type
                                     {customer.name}
                                 </CommandItem>
                             ))}
-                            <CommandItem onSelect={() => alert('Open create customer modal...')}>+ Create new customer</CommandItem>
                         </CommandGroup>
                         <CommandGroup heading="Suppliers">
                              {suppliers.map(supplier => (
@@ -1163,7 +1158,6 @@ function AllocationCombobox({ value, onSelect }: { value?: { value: string, type
                                     {supplier.name}
                                 </CommandItem>
                             ))}
-                            <CommandItem onSelect={() => alert('Open create supplier modal...')}>+ Create new supplier</CommandItem>
                         </CommandGroup>
                     </CommandList>
                 </Command>
@@ -1175,7 +1169,7 @@ function AllocationCombobox({ value, onSelect }: { value?: { value: string, type
 type SortableField = 'date' | 'description' | 'amount';
 type SortDirection = 'asc' | 'desc';
 
-function AllocationTable({ transactions, onAllocate, selectedTransactions, onSelectionChange, onAllocationSelect, allocations, onVatTypeSelect, vatTypes, onFeedback, processingTxId }: { 
+function AllocationTable({ transactions, onAllocate, selectedTransactions, onSelectionChange, onAllocationSelect, allocations, onVatTypeSelect, vatTypes, onFeedback, processingTxId, customers, suppliers }: { 
     transactions: ImportedTransaction[], 
     onAllocate: (transactionId: string) => void, 
     selectedTransactions: string[], 
@@ -1186,6 +1180,8 @@ function AllocationTable({ transactions, onAllocate, selectedTransactions, onSel
     vatTypes: { [key: string]: VatType },
     onFeedback: (transaction: ImportedTransaction) => void,
     processingTxId?: string | null;
+    customers: User[];
+    suppliers: Supplier[];
 }) {
     const [sortConfig, setSortConfig] = useState<{ key: SortableField, direction: SortDirection } | null>({ key: 'date', direction: 'asc'});
 
@@ -1271,7 +1267,7 @@ function AllocationTable({ transactions, onAllocate, selectedTransactions, onSel
                         <TableCell>{tx.description}</TableCell>
                         <TableCell className="font-mono">{formatNumber(tx.amount)}</TableCell>
                         <TableCell className="w-[300px]">
-                            <AllocationCombobox value={allocations[tx.id]} onSelect={(value, type) => onAllocationSelect(tx.id, value, type)}/>
+                            <AllocationCombobox value={allocations[tx.id]} onSelect={(value, type) => onAllocationSelect(tx.id, value, type)} customers={customers} suppliers={suppliers} />
                         </TableCell>
                         <TableCell className="w-[300px]">
                             <VatTypeCombobox value={vatTypes[tx.id]} onSelect={(value) => onVatTypeSelect(tx.id, value)} />
@@ -1297,7 +1293,7 @@ function AllocationTable({ transactions, onAllocate, selectedTransactions, onSel
     );
 }
 
-function AllocatedTransactionTable({ transactions, onSaveAllocation }: { transactions: AllocatedTransaction[], onSaveAllocation: (transactionId: string, newAllocation: {value: string, type: 'account'|'customer'|'supplier'}, newVatType: VatType) => void }) {
+function AllocatedTransactionTable({ transactions, onSaveAllocation, customers, suppliers }: { transactions: AllocatedTransaction[], onSaveAllocation: (transactionId: string, newAllocation: {value: string, type: 'account'|'customer'|'supplier'}, newVatType: VatType) => void, customers: User[], suppliers: Supplier[] }) {
     
     const [editableAllocations, setEditableAllocations] = useState<{ [key: string]: { value: string, type: 'account'|'customer'|'supplier' } }>({});
     const [editableVatTypes, setEditableVatTypes] = useState<{ [key: string]: VatType }>({});
@@ -1335,7 +1331,7 @@ function AllocatedTransactionTable({ transactions, onSaveAllocation }: { transac
                         <TableCell>{tx.description}</TableCell>
                         <TableCell className="font-mono">{formatNumber(tx.amount)}</TableCell>
                         <TableCell>
-                           <AllocationCombobox value={editableAllocations[tx.id]} onSelect={(value, type) => setEditableAllocations(prev => ({ ...prev, [tx.id]: { value, type } }))}/>
+                           <AllocationCombobox value={editableAllocations[tx.id]} onSelect={(value, type) => setEditableAllocations(prev => ({ ...prev, [tx.id]: { value, type } }))} customers={customers} suppliers={suppliers}/>
                         </TableCell>
                          <TableCell>
                             <VatTypeCombobox value={editableVatTypes[tx.id]} onSelect={(value) => setEditableVatTypes(prev => ({...prev, [tx.id]: value}))} />
@@ -1757,10 +1753,40 @@ function VatReportCard({ allocatedTransactions, activeClient }: { allocatedTrans
     );
 }
 
+const supplierFormSchema = z.object({
+    id: z.string().optional(),
+    name: z.string().min(2, 'Supplier name is required.'),
+    contactPerson: z.string().optional(),
+    email: z.string().email('A valid email is required.').optional().or(z.literal('')),
+    phone: z.string().optional(),
+});
+
+function SupplierForm({ supplier, onSubmit, onCancel }: { supplier: Supplier | null, onSubmit: (data: any) => void, onCancel: () => void }) {
+    const form = useForm<z.infer<typeof supplierFormSchema>>({
+        resolver: zodResolver(supplierFormSchema),
+        defaultValues: supplier || { name: '', contactPerson: '', email: '', phone: '' },
+    });
+
+    return (
+        <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>Supplier Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="contactPerson" render={({ field }) => (<FormItem><FormLabel>Contact Person</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="email" render={({ field }) => (<FormItem><FormLabel>Email</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="phone" render={({ field }) => (<FormItem><FormLabel>Phone Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <DialogFooter>
+                    <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
+                    <Button type="submit">Save Supplier</Button>
+                </DialogFooter>
+            </form>
+        </Form>
+    )
+}
+
 export default function NumeraPage() {
   const [clients, setClients] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isClientFormOpen, setIsClientFormOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<User | null>(null);
   const [activeClient, setActiveClient] = useState<User | null>(null);
   const { toast } = useToast();
@@ -1786,7 +1812,9 @@ export default function NumeraPage() {
   const [feedbackTransaction, setFeedbackTransaction] = useState<ImportedTransaction | null>(null);
   const [isBulkAllocateOpen, setIsBulkAllocateOpen] = useState(false);
   const [customers, setCustomers] = useState<User[]>([]);
-  const [suppliers, setSuppliers] = useState<any[]>([]); // Using 'any' for mock data flexibility
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [isSupplierFormOpen, setIsSupplierFormOpen] = useState(false);
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
 
 
   
@@ -1800,7 +1828,9 @@ export default function NumeraPage() {
         let fetchedClients = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
         fetchedClients.sort((a, b) => a.name.localeCompare(b.name));
         setClients(fetchedClients);
+        // Using allUsers for customers as a stand-in
         setCustomers(allUsers.filter(u => u.role === 'client'));
+        // Using a mock list for suppliers for now
         setSuppliers([{id: 'supp-1', name: 'Telkom'}, {id: 'supp-2', name: 'Eskom'}]);
     } catch (error) {
         console.error("Error fetching clients:", error);
@@ -1853,17 +1883,17 @@ export default function NumeraPage() {
     }
   }, [activeClient]);
 
-  const handleAdd = () => {
+  const handleAddClient = () => {
     setSelectedClient(null);
-    setIsFormOpen(true);
+    setIsClientFormOpen(true);
   };
 
-  const handleEdit = (client: User) => {
+  const handleEditClient = (client: User) => {
     setSelectedClient(client);
-    setIsFormOpen(true);
+    setIsClientFormOpen(true);
   };
   
-  const handleDelete = async (clientId: string) => {
+  const handleDeleteClient = async (clientId: string) => {
     try {
         await deleteDoc(doc(db, "clients", clientId));
         fetchClients();
@@ -1881,7 +1911,7 @@ export default function NumeraPage() {
     }
   };
 
-  const handleFormSubmit = async (data: z.infer<typeof clientFormSchema>) => {
+  const handleClientFormSubmit = async (data: z.infer<typeof clientFormSchema>) => {
     if (!currentUser) return;
 
     const clientData = {
@@ -1912,7 +1942,7 @@ export default function NumeraPage() {
         });
       }
       fetchClients();
-      setIsFormOpen(false);
+      setIsClientFormOpen(false);
       setSelectedClient(null);
     } catch (error) {
         console.error("Error saving client:", error);
@@ -2242,6 +2272,33 @@ export default function NumeraPage() {
     toast({ title: "Journal Deleted", variant: "destructive" });
   };
 
+  const handleAddSupplier = () => {
+    setSelectedSupplier(null);
+    setIsSupplierFormOpen(true);
+  };
+  
+  const handleEditSupplier = (supplier: Supplier) => {
+      setSelectedSupplier(supplier);
+      setIsSupplierFormOpen(true);
+  };
+  
+  const handleDeleteSupplier = (supplierId: string) => {
+      setSuppliers(prev => prev.filter(s => s.id !== supplierId));
+      toast({ title: 'Supplier Deleted', variant: 'destructive'});
+  };
+  
+  const handleSupplierFormSubmit = (data: Omit<Supplier, 'id'>) => {
+      if (selectedSupplier) {
+          setSuppliers(prev => prev.map(s => s.id === selectedSupplier.id ? { ...s, ...data } : s));
+          toast({ title: 'Supplier Updated', description: 'The supplier details have been saved.' });
+      } else {
+          const newSupplier: Supplier = { ...data, id: `supp-${Date.now()}` };
+          setSuppliers(prev => [...prev, newSupplier]);
+          toast({ title: 'Supplier Created', description: 'The new supplier has been added.' });
+      }
+      setIsSupplierFormOpen(false);
+      setSelectedSupplier(null);
+  };
 
   const clientBankAccounts = activeClient
     ? chartOfAccounts.filter(acc => acc.description.startsWith(activeClient.name))
@@ -2295,9 +2352,9 @@ export default function NumeraPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Numera Accounting</h1>
         {!activeClient && (
-            <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+            <Dialog open={isClientFormOpen} onOpenChange={setIsClientFormOpen}>
             <DialogTrigger asChild>
-                    <Button onClick={handleAdd}>
+                    <Button onClick={handleAddClient}>
                         <PlusCircle className="mr-2 h-4 w-4" />
                         Create Client
                     </Button>
@@ -2311,8 +2368,8 @@ export default function NumeraPage() {
                     </DialogHeader>
                     <ClientForm 
                         client={selectedClient} 
-                        onSubmit={handleFormSubmit}
-                        onCancel={() => setIsFormOpen(false)}
+                        onSubmit={handleClientFormSubmit}
+                        onCancel={() => setIsClientFormOpen(false)}
                     />
             </DialogContent>
             </Dialog>
@@ -2504,28 +2561,28 @@ export default function NumeraPage() {
                                         )}
                                         <TabsContent value="unallocated-income">
                                             {incomeTransactions.length > 0 ? (
-                                                <AllocationTable transactions={incomeTransactions} onAllocate={handleAllocate} selectedTransactions={selectedTransactions} onSelectionChange={handleSelectionChange} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onFeedback={setFeedbackTransaction} processingTxId={processingTxId} />
+                                                <AllocationTable transactions={incomeTransactions} onAllocate={handleAllocate} selectedTransactions={selectedTransactions} onSelectionChange={handleSelectionChange} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onFeedback={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} />
                                             ) : (
                                                 <p className="text-muted-foreground text-center py-10">No unallocated income transactions to display.</p>
                                             )}
                                         </TabsContent>
                                         <TabsContent value="unallocated-expenses">
                                              {expenseTransactions.length > 0 ? (
-                                                 <AllocationTable transactions={expenseTransactions} onAllocate={handleAllocate} selectedTransactions={selectedTransactions} onSelectionChange={handleSelectionChange} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onFeedback={setFeedbackTransaction} processingTxId={processingTxId} />
+                                                 <AllocationTable transactions={expenseTransactions} onAllocate={handleAllocate} selectedTransactions={selectedTransactions} onSelectionChange={handleSelectionChange} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onFeedback={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} />
                                              ) : (
                                                 <p className="text-muted-foreground text-center py-10">No unallocated expense transactions to display.</p>
                                              )}
                                         </TabsContent>
                                         <TabsContent value="allocated-income">
                                             {allocatedIncome.length > 0 ? (
-                                                <AllocatedTransactionTable transactions={allocatedIncome} onSaveAllocation={handleSaveAllocation} />
+                                                <AllocatedTransactionTable transactions={allocatedIncome} onSaveAllocation={handleSaveAllocation} customers={customers} suppliers={suppliers} />
                                             ) : (
                                                 <p className="text-muted-foreground text-center py-10">No allocated income transactions to display.</p>
                                             )}
                                         </TabsContent>
                                          <TabsContent value="allocated-expenses">
                                             {allocatedExpenses.length > 0 ? (
-                                                <AllocatedTransactionTable transactions={allocatedExpenses} onSaveAllocation={handleSaveAllocation} />
+                                                <AllocatedTransactionTable transactions={allocatedExpenses} onSaveAllocation={handleSaveAllocation} customers={customers} suppliers={suppliers} />
                                             ) : (
                                                 <p className="text-muted-foreground text-center py-10">No allocated expense transactions to display.</p>
                                             )}
@@ -2609,10 +2666,41 @@ export default function NumeraPage() {
                         <VatReportCard allocatedTransactions={allocatedTransactions} activeClient={activeClient} />
                     </TabsContent>
                      <TabsContent value="suppliers">
-                         <Card>
-                            <CardHeader><CardTitle>Manage Suppliers</CardTitle></CardHeader>
-                            <CardContent><p className="text-muted-foreground text-center py-10">Supplier creation and management will be built here.</p></CardContent>
-                        </Card>
+                        <Card>
+                           <CardHeader className="flex flex-row items-center justify-between">
+                              <div>
+                                  <CardTitle>Manage Suppliers</CardTitle>
+                                  <CardDescription>Create, edit, and manage your suppliers.</CardDescription>
+                              </div>
+                              <Button onClick={handleAddSupplier}><PlusCircle className="mr-2 h-4 w-4" /> Create Supplier</Button>
+                          </CardHeader>
+                          <CardContent>
+                              {suppliers.length > 0 ? (
+                                  <Table>
+                                      <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Contact Person</TableHead><TableHead>Email</TableHead><TableHead>Phone</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+                                      <TableBody>
+                                          {suppliers.map(s => (
+                                              <TableRow key={s.id}>
+                                                  <TableCell>{s.name}</TableCell>
+                                                  <TableCell>{s.contactPerson}</TableCell>
+                                                  <TableCell>{s.email}</TableCell>
+                                                  <TableCell>{s.phone}</TableCell>
+                                                  <TableCell className="text-right">
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                                                        <DropdownMenuContent>
+                                                            <DropdownMenuItem onClick={() => handleEditSupplier(s)}>Edit</DropdownMenuItem>
+                                                            <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteSupplier(s.id)}>Delete</DropdownMenuItem>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                  </TableCell>
+                                              </TableRow>
+                                          ))}
+                                      </TableBody>
+                                  </Table>
+                              ) : <p className="text-muted-foreground text-center py-10">No suppliers created yet.</p>}
+                          </CardContent>
+                      </Card>
                     </TabsContent>
                      <TabsContent value="customers">
                          <Card>
@@ -2660,7 +2748,7 @@ export default function NumeraPage() {
                     clients.length === 0 ? (
                         <div className="text-center py-10">
                             <p className="text-muted-foreground">No clients have been added to Numera yet.</p>
-                            <Button onClick={handleAdd} className="mt-4">
+                            <Button onClick={handleAddClient} className="mt-4">
                                 <PlusCircle className="mr-2 h-4 w-4" />
                                 Create Your First Client
                             </Button>
@@ -2704,7 +2792,7 @@ export default function NumeraPage() {
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
                                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                        <DropdownMenuItem onClick={() => handleEdit(client)}>
+                                        <DropdownMenuItem onClick={() => handleEditClient(client)}>
                                             Edit
                                         </DropdownMenuItem>
                                         <DropdownMenuSeparator />
@@ -2725,7 +2813,7 @@ export default function NumeraPage() {
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={() => handleDelete(client.id)}>
+                                            <AlertDialogAction onClick={() => handleDeleteClient(client.id)}>
                                                 Continue
                                             </AlertDialogAction>
                                         </AlertDialogFooter>
@@ -2769,7 +2857,17 @@ export default function NumeraPage() {
             onClose={() => setIsBulkAllocateOpen(false)}
             onBulkAllocate={handleBulkAllocate}
             count={selectedTransactions.length}
+            customers={customers}
+            suppliers={suppliers}
         />
+         <Dialog open={isSupplierFormOpen} onOpenChange={setIsSupplierFormOpen}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>{selectedSupplier ? 'Edit Supplier' : 'Create Supplier'}</DialogTitle>
+                </DialogHeader>
+                <SupplierForm supplier={selectedSupplier} onSubmit={handleSupplierFormSubmit} onCancel={() => setIsSupplierFormOpen(false)} />
+            </DialogContent>
+        </Dialog>
     </div>
   );
 }
@@ -2905,7 +3003,7 @@ const bulkAllocateSchema = z.object({
     vatType: z.custom<VatType>()
 });
 
-function BulkAllocateDialog({ isOpen, onClose, onBulkAllocate, count }: { isOpen: boolean, onClose: () => void, onBulkAllocate: (alloc: { value: string, type: 'account'|'customer'|'supplier' }, vat: VatType) => void, count: number }) {
+function BulkAllocateDialog({ isOpen, onClose, onBulkAllocate, count, customers, suppliers }: { isOpen: boolean, onClose: () => void, onBulkAllocate: (alloc: { value: string, type: 'account'|'customer'|'supplier' }, vat: VatType) => void, count: number, customers: User[], suppliers: Supplier[] }) {
     const form = useForm<z.infer<typeof bulkAllocateSchema>>({
         resolver: zodResolver(bulkAllocateSchema),
         defaultValues: {
@@ -2939,6 +3037,8 @@ function BulkAllocateDialog({ isOpen, onClose, onBulkAllocate, count }: { isOpen
                                         <AllocationCombobox
                                             value={field.value}
                                             onSelect={(value, type) => field.onChange({ value, type })}
+                                            customers={customers}
+                                            suppliers={suppliers}
                                         />
                                     </FormControl>
                                     <FormMessage />

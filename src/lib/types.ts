@@ -202,3 +202,11 @@ export type AllocatedTransaction = {
     vatAmount: number;
     allocatedAt: any; // Using `any` for Firestore Timestamp compatibility
 };
+
+export type Supplier = {
+    id: string;
+    name: string;
+    contactPerson?: string;
+    email?: string;
+    phone?: string;
+};
