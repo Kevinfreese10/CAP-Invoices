@@ -429,11 +429,10 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions,
         const UNALLOCATED_SUSPENSE_ACC = '9950/000';
         const VAT_RATE = 0.15;
 
-        const accountMovements: { [key: string]: { debit: number, credit: number } } = {};
+        const accountBalances: { [key: string]: { debit: number, credit: number } } = {};
 
-        // Initialize all accounts from CoA
         chartOfAccounts.forEach(acc => {
-            accountMovements[acc.accountNumber] = { debit: 0, credit: 0 };
+            accountBalances[acc.accountNumber] = { debit: 0, credit: 0 };
         });
 
         const filterTxsByDate = (txs: (ImportedTransaction | AllocatedTransaction)[]) => {
@@ -447,46 +446,42 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions,
         const filteredUnallocated = filterTxsByDate(unallocatedTransactions);
         
         filteredAllocated.forEach(tx => {
-            if (tx.allocatedTo.type === 'account') {
-                const allocationAccNum = tx.allocatedTo.value;
-                const bankAccNum = tx.bankAccountId;
-                const grossAmount = tx.amount;
-                
-                let netAmount = grossAmount;
-                let vatAmount = 0;
+            const allocationAccNum = tx.allocatedTo.value;
+            const bankAccNum = tx.bankAccountId;
+            const grossAmount = tx.amount;
+            
+            const isStandardVat = tx.vatType === 'standard_rated_sales' || tx.vatType === 'standard_rated_purchases' || tx.vatType === 'capital_goods_purchases';
+            
+            let netAmount = grossAmount;
+            let vatAmount = 0;
 
-                const isStandardVatSale = tx.vatType === 'standard_rated_sales';
-                const isStandardVatPurchase = tx.vatType === 'standard_rated_purchases' || tx.vatType === 'capital_goods_purchases';
-
-                if (isStandardVatSale || isStandardVatPurchase) {
-                    netAmount = grossAmount / (1 + VAT_RATE);
-                    vatAmount = grossAmount - netAmount;
-                }
-                
-                // Bank movement
-                if(grossAmount > 0) { // Income
-                    accountMovements[bankAccNum].debit += grossAmount;
-                    accountMovements[allocationAccNum].credit += netAmount;
-                    accountMovements[VAT_CONTROL_ACC].credit += vatAmount;
-                } else { // Expense
-                    accountMovements[bankAccNum].credit += Math.abs(grossAmount);
-                    accountMovements[allocationAccNum].debit += Math.abs(netAmount);
-                    accountMovements[VAT_CONTROL_ACC].debit += Math.abs(vatAmount);
-                }
+            if (isStandardVat) {
+                netAmount = grossAmount / (1 + VAT_RATE);
+                vatAmount = grossAmount - netAmount;
+            }
+            
+            if (grossAmount > 0) { // Income
+                accountBalances[bankAccNum].debit += grossAmount;
+                accountBalances[allocationAccNum].credit += netAmount;
+                accountBalances[VAT_CONTROL_ACC].credit += vatAmount;
+            } else { // Expense
+                accountBalances[bankAccNum].credit += Math.abs(grossAmount);
+                accountBalances[allocationAccNum].debit += Math.abs(netAmount);
+                accountBalances[VAT_CONTROL_ACC].debit += Math.abs(vatAmount);
             }
         });
         
         filteredUnallocated.forEach(tx => {
             if (tx.amount > 0) {
-                accountMovements[tx.bankAccountId].debit += tx.amount;
-                accountMovements[UNALLOCATED_SUSPENSE_ACC].credit += tx.amount;
+                accountBalances[tx.bankAccountId].debit += tx.amount;
+                accountBalances[UNALLOCATED_SUSPENSE_ACC].credit += tx.amount;
             } else {
-                accountMovements[tx.bankAccountId].credit += Math.abs(tx.amount);
-                accountMovements[UNALLOCATED_SUSPENSE_ACC].debit += Math.abs(tx.amount);
+                accountBalances[tx.bankAccountId].credit += Math.abs(tx.amount);
+                accountBalances[UNALLOCATED_SUSPENSE_ACC].debit += Math.abs(tx.amount);
             }
         });
         
-        const reportLedger = Object.entries(accountMovements).map(([accountNumber, movements]) => {
+        const reportLedger = Object.entries(accountBalances).map(([accountNumber, movements]) => {
             const accountInfo = chartOfAccounts.find(a => a.accountNumber === accountNumber)!;
             const netBalance = movements.debit - movements.credit;
 
@@ -694,6 +689,8 @@ const generalLedgerFormSchema = z.object({
 function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions }: { activeClient: User, initialValues?: Partial<z.infer<typeof generalLedgerFormSchema>>, allocatedTransactions: AllocatedTransaction[] }) {
   
   const [reportData, setReportData] = useState<GeneralLedgerReportData | null>(null);
+  const VAT_CONTROL_ACC = '9500/000';
+  const VAT_RATE = 0.15;
 
   const getFinancialYear = (yearEnd: any) => {
     const toDate = yearEnd?.toDate ? yearEnd.toDate() : new Date(yearEnd);
@@ -721,45 +718,60 @@ function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions 
           const openingBalance = 0; // In a real app, this would be calculated or fetched
           let runningBalance = openingBalance;
 
-          const accountTransactions = allocatedTransactions.filter(tx => {
+          const transactionsForGL: GLTransaction[] = [];
+
+          // Get transactions related to this account
+           const relatedTransactions = allocatedTransactions.filter(tx => {
                 const txDate = new Date(tx.date.split('/').reverse().join('-'));
                 const isAllocation = tx.allocatedTo.type === 'account' && tx.allocatedTo.value === accNum;
                 const isBankContra = tx.bankAccountId === accNum;
-                return (isAllocation || isBankContra) && txDate >= values.fromDate && txDate <= values.toDate;
+                const isVatContra = accNum === VAT_CONTROL_ACC;
+                return (isAllocation || isBankContra || isVatContra) && txDate >= values.fromDate && txDate <= values.toDate;
             }).sort((a,b) => new Date(a.date.split('/').reverse().join('-')).getTime() - new Date(b.date.split('/').reverse().join('-')).getTime());
 
-          const transactions: GLTransaction[] = accountTransactions.map(tx => {
-              const isContra = tx.bankAccountId === accNum;
-              const amount = Math.abs(tx.amount);
-              let debit = 0;
-              let credit = 0;
+            relatedTransactions.forEach(tx => {
+                const grossAmount = tx.amount;
+                const isStandardVat = tx.vatType === 'standard_rated_sales' || tx.vatType === 'standard_rated_purchases' || tx.vatType === 'capital_goods_purchases';
+                let netAmount = grossAmount;
+                let vatAmount = 0;
 
-              if (isContra) {
-                // Bank is contra. If original amount was < 0 (payment), bank is credited.
-                if (tx.amount < 0) credit = amount;
-                else debit = amount;
-              } else {
-                // Allocation side. If original amount was < 0 (expense), allocation is debited.
-                if (tx.amount < 0) debit = amount;
-                else credit = amount;
-              }
+                if (isStandardVat) {
+                    netAmount = grossAmount / (1 + VAT_RATE);
+                    vatAmount = grossAmount - netAmount;
+                }
 
-              runningBalance += (debit - credit);
-              
-              return {
-                  date: tx.date,
-                  description: tx.description,
-                  reference: tx.id.substring(0, 8),
-                  debit,
-                  credit,
-                  balance: runningBalance,
-              };
-          });
+                let debit = 0;
+                let credit = 0;
+
+                if (accNum === tx.bankAccountId) { // Bank movement
+                    debit = grossAmount > 0 ? grossAmount : 0;
+                    credit = grossAmount < 0 ? Math.abs(grossAmount) : 0;
+                } else if (accNum === tx.allocatedTo.value) { // Main allocation account (Income/Expense)
+                    debit = grossAmount < 0 ? Math.abs(netAmount) : 0;
+                    credit = grossAmount > 0 ? netAmount : 0;
+                } else if (accNum === VAT_CONTROL_ACC && isStandardVat) { // VAT Control account
+                    debit = grossAmount < 0 ? Math.abs(vatAmount) : 0;
+                    credit = grossAmount > 0 ? vatAmount : 0;
+                }
+                
+                if (debit > 0 || credit > 0) {
+                    runningBalance += (debit - credit);
+                    transactionsForGL.push({
+                        date: tx.date,
+                        description: tx.description,
+                        reference: tx.id.substring(0, 8),
+                        debit,
+                        credit,
+                        balance: runningBalance,
+                    });
+                }
+            });
+
 
           return {
               accountNumber: accNum,
               description: accountInfo.description,
-              transactions,
+              transactions: transactionsForGL,
               openingBalance,
               closingBalance: runningBalance,
           };
@@ -2561,6 +2573,7 @@ export default function NumeraPage() {
     </div>
   );
 }
+
 
 
 
