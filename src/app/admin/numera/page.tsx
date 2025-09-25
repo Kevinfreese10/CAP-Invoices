@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload, FileCheck2, ScanLine, Sprout, Search, ArrowUpDown, Edit, Sparkles, BrainCircuit } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload, FileCheck2, ScanLine, Sprout, Search, ArrowUpDown, Edit, Sparkles, BrainCircuit, Copy } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -92,6 +92,20 @@ type GeneralLedgerReportData = {
         openingBalance: number;
         closingBalance: number;
     }[];
+};
+
+type JournalLine = {
+    accountId: string;
+    description: string;
+    debit: number;
+    credit: number;
+};
+
+type Journal = {
+    id: string;
+    date: Date;
+    narrative: string;
+    lines: JournalLine[];
 };
 
 const clientFormSchema = z.object({
@@ -1084,6 +1098,137 @@ function AllocatedTransactionTable({ transactions, onEditAllocation }: { transac
     );
 }
 
+const journalLineSchema = z.object({
+  accountId: z.string().min(1, "Account is required."),
+  description: z.string(),
+  debit: z.preprocess(v => parseFloat(v as string || '0'), z.number().min(0)),
+  credit: z.preprocess(v => parseFloat(v as string || '0'), z.number().min(0)),
+}).refine(data => data.debit === 0 || data.credit === 0, {
+  message: "Enter a debit or a credit, not both.",
+  path: ["debit"],
+});
+
+
+const journalFormSchema = z.object({
+  id: z.string().optional(),
+  date: z.date(),
+  narrative: z.string().min(5, "A narrative is required."),
+  lines: z.array(journalLineSchema).min(2, "A journal must have at least two lines."),
+}).refine(data => {
+    const totalDebits = data.lines.reduce((acc, line) => acc + line.debit, 0);
+    const totalCredits = data.lines.reduce((acc, line) => acc + line.credit, 0);
+    return Math.abs(totalDebits - totalCredits) < 0.001; // Use tolerance for float comparison
+}, {
+    message: "Total debits must equal total credits.",
+    path: ["lines"],
+});
+
+
+function JournalForm({ journal, onSubmit, onCancel }: { journal: Journal | null, onSubmit: (data: Journal) => void, onCancel: () => void }) {
+    const form = useForm<z.infer<typeof journalFormSchema>>({
+        resolver: zodResolver(journalFormSchema),
+        defaultValues: journal ? {
+            ...journal,
+            date: new Date(journal.date),
+        } : {
+            date: new Date(),
+            narrative: '',
+            lines: [
+                { accountId: '', description: '', debit: 0, credit: 0 },
+                { accountId: '', description: '', debit: 0, credit: 0 },
+            ],
+        }
+    });
+
+    const { fields, append, remove } = useFieldArray({
+        control: form.control,
+        name: "lines",
+    });
+
+    const watchedLines = form.watch('lines');
+    const totalDebits = watchedLines.reduce((acc, line) => acc + (line.debit || 0), 0);
+    const totalCredits = watchedLines.reduce((acc, line) => acc + (line.credit || 0), 0);
+    const difference = totalDebits - totalCredits;
+    const isBalanced = Math.abs(difference) < 0.001 && totalDebits > 0;
+    
+    const handleSubmit = (values: z.infer<typeof journalFormSchema>) => {
+        const finalData = {
+            ...values,
+            id: journal?.id || `JRN-${Date.now()}`,
+        };
+        onSubmit(finalData);
+    };
+
+    return (
+        <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="date" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Journal Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, "dd/MM/yyyy") : <span>Pick a date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="narrative" render={({ field }) => ( <FormItem><FormLabel>Narrative</FormLabel><FormControl><Input placeholder="e.g., To record monthly salaries" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                </div>
+                
+                <div className="space-y-2">
+                    <Label>Journal Lines</Label>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead className="w-2/5">Account</TableHead>
+                                <TableHead className="w-2/5">Description</TableHead>
+                                <TableHead className="text-right">Debit</TableHead>
+                                <TableHead className="text-right">Credit</TableHead>
+                                <TableHead></TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {fields.map((field, index) => (
+                                <TableRow key={field.id} className="align-top">
+                                    <TableCell className="p-1">
+                                        <FormField control={form.control} name={`lines.${index}.accountId`} render={({ field }) => ( <FormItem><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Account..." /></SelectTrigger></FormControl><SelectContent>{chartOfAccounts.map(acc => <SelectItem key={acc.accountNumber} value={acc.accountNumber}>{acc.accountNumber} - {acc.description}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
+                                    </TableCell>
+                                     <TableCell className="p-1">
+                                         <FormField control={form.control} name={`lines.${index}.description`} render={({ field }) => ( <FormItem><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                     </TableCell>
+                                     <TableCell className="p-1">
+                                         <FormField control={form.control} name={`lines.${index}.debit`} render={({ field }) => ( <FormItem><FormControl><Input type="number" step="0.01" className="text-right" {...field} onChange={e => { field.onChange(e.target.value); form.setValue(`lines.${index}.credit`, 0) }} /></FormControl><FormMessage /></FormItem>)} />
+                                     </TableCell>
+                                    <TableCell className="p-1">
+                                         <FormField control={form.control} name={`lines.${index}.credit`} render={({ field }) => ( <FormItem><FormControl><Input type="number" step="0.01" className="text-right" {...field} onChange={e => { field.onChange(e.target.value); form.setValue(`lines.${index}.debit`, 0) }} /></FormControl><FormMessage /></FormItem>)} />
+                                     </TableCell>
+                                     <TableCell className="p-1">
+                                        <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} disabled={fields.length <= 2}>
+                                            <X className="h-4 w-4" />
+                                        </Button>
+                                     </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                         <TableFooter>
+                            <TableRow>
+                                <TableCell colSpan={2} className="font-bold">Totals</TableCell>
+                                <TableCell className="text-right font-mono font-bold">{formatNumber(totalDebits)}</TableCell>
+                                <TableCell className="text-right font-mono font-bold">{formatNumber(totalCredits)}</TableCell>
+                                <TableCell></TableCell>
+                            </TableRow>
+                             <TableRow>
+                                <TableCell colSpan={2} className="font-bold">Difference</TableCell>
+                                <TableCell colSpan={2} className={`text-right font-mono font-bold ${Math.abs(difference) > 0.001 ? 'text-destructive' : ''}`}>{formatNumber(difference)}</TableCell>
+                                <TableCell></TableCell>
+                            </TableRow>
+                        </TableFooter>
+                    </Table>
+                     <Button type="button" variant="outline" size="sm" onClick={() => append({ accountId: '', description: '', debit: 0, credit: 0 })}>
+                        <PlusCircle className="mr-2 h-4 w-4" /> Add Line
+                    </Button>
+                </div>
+                
+                <DialogFooter>
+                    <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
+                    <Button type="submit" disabled={!isBalanced}>Save Journal</Button>
+                </DialogFooter>
+            </form>
+        </Form>
+    );
+}
 
 export default function NumeraPage() {
   const [clients, setClients] = useState<User[]>([]);
@@ -1106,6 +1251,9 @@ export default function NumeraPage() {
   const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
   const [allocations, setAllocations] = useState<{ [key: string]: { value: string, type: 'account'|'customer'|'supplier' } }>({});
   const [isAiAllocating, setIsAiAllocating] = useState(false);
+  const [journals, setJournals] = useState<Journal[]>([]);
+  const [isJournalFormOpen, setIsJournalFormOpen] = useState(false);
+  const [selectedJournal, setSelectedJournal] = useState<Journal | null>(null);
   
   const importForm = useForm();
   
@@ -1451,6 +1599,44 @@ export default function NumeraPage() {
   };
 
 
+  const handleJournalFormSubmit = (data: Journal) => {
+    if (selectedJournal) {
+      setJournals(prev => prev.map(j => (j.id === data.id ? data : j)));
+      toast({ title: "Journal Updated", description: "The journal entry has been saved." });
+    } else {
+      setJournals(prev => [...prev, data]);
+      toast({ title: "Journal Created", description: "The new journal entry has been added." });
+    }
+    setIsJournalFormOpen(false);
+    setSelectedJournal(null);
+  };
+
+  const handleAddJournal = () => {
+    setSelectedJournal(null);
+    setIsJournalFormOpen(true);
+  };
+  
+  const handleEditJournal = (journal: Journal) => {
+    setSelectedJournal(journal);
+    setIsJournalFormOpen(true);
+  };
+
+  const handleCopyJournal = (journal: Journal) => {
+    const newJournalData = {
+        ...journal,
+        id: '', // Remove ID to indicate it's a new entry
+        date: new Date(), // Set to current date
+    };
+    setSelectedJournal(newJournalData as unknown as Journal); // Cast because id is temporarily empty
+    setIsJournalFormOpen(true);
+  };
+
+  const handleDeleteJournal = (journalId: string) => {
+    setJournals(prev => prev.filter(j => j.id !== journalId));
+    toast({ title: "Journal Deleted", variant: "destructive" });
+  };
+
+
   const clientBankAccounts = activeClient
     ? chartOfAccounts.filter(acc => acc.description.startsWith(activeClient.name))
     : [];
@@ -1736,8 +1922,70 @@ export default function NumeraPage() {
                     </TabsContent>
                     <TabsContent value="journals">
                          <Card>
-                            <CardHeader><CardTitle>Manage Journals</CardTitle></CardHeader>
-                            <CardContent><p className="text-muted-foreground text-center py-10">Journal creation and management will be built here.</p></CardContent>
+                             <CardHeader className="flex flex-row items-center justify-between">
+                                <div>
+                                    <CardTitle>Manage Journals</CardTitle>
+                                    <CardDescription>Create and manage manual journal entries for adjustments and accruals.</CardDescription>
+                                </div>
+                                <Button onClick={handleAddJournal}><PlusCircle className="mr-2 h-4 w-4" /> Create Journal</Button>
+                            </CardHeader>
+                            <CardContent>
+                                {journals.length > 0 ? (
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Date</TableHead>
+                                            <TableHead>Journal ID</TableHead>
+                                            <TableHead>Narrative</TableHead>
+                                            <TableHead className="text-right">Amount</TableHead>
+                                            <TableHead className="text-right">Actions</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {journals.map(j => (
+                                            <TableRow key={j.id}>
+                                                <TableCell>{format(j.date, 'dd/MM/yyyy')}</TableCell>
+                                                <TableCell className="font-mono">{j.id}</TableCell>
+                                                <TableCell>{j.narrative}</TableCell>
+                                                <TableCell className="text-right font-mono">{formatNumber(j.lines.reduce((acc, l) => acc + l.debit, 0))}</TableCell>
+                                                <TableCell className="text-right">
+                                                     <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <Button variant="ghost" className="h-8 w-8 p-0">
+                                                                <span className="sr-only">Open menu</span>
+                                                                <MoreHorizontal className="h-4 w-4" />
+                                                            </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end">
+                                                            <DropdownMenuItem onClick={() => handleEditJournal(j)}><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
+                                                            <DropdownMenuItem onClick={() => handleCopyJournal(j)}><Copy className="mr-2 h-4 w-4" />Copy</DropdownMenuItem>
+                                                            <DropdownMenuSeparator />
+                                                            <AlertDialog>
+                                                                <AlertDialogTrigger asChild>
+                                                                    <DropdownMenuItem className="text-destructive"><X className="mr-2 h-4 w-4" />Delete</DropdownMenuItem>
+                                                                </AlertDialogTrigger>
+                                                                <AlertDialogContent>
+                                                                    <AlertDialogHeader>
+                                                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                                        <AlertDialogDescription>This will permanently delete journal {j.id}.</AlertDialogDescription>
+                                                                    </AlertDialogHeader>
+                                                                    <AlertDialogFooter>
+                                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                        <AlertDialogAction onClick={() => handleDeleteJournal(j.id)}>Delete</AlertDialogAction>
+                                                                    </AlertDialogFooter>
+                                                                </AlertDialogContent>
+                                                            </AlertDialog>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                                ) : (
+                                <p className="text-muted-foreground text-center py-10">No journals created yet.</p>
+                                )}
+                            </CardContent>
                         </Card>
                     </TabsContent>
                      <TabsContent value="suppliers">
@@ -1802,6 +2050,8 @@ export default function NumeraPage() {
                     <TableHeader>
                     <TableRow>
                         <TableHead>Client</TableHead>
+                        <TableHead>Contact Person</TableHead>
+                        <TableHead>Email</TableHead>
                         <TableHead>Financial Year End</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -1818,6 +2068,8 @@ export default function NumeraPage() {
                                 <span>{client.name}</span>
                             </div>
                         </TableCell>
+                        <TableCell>{client.contactPerson}</TableCell>
+                        <TableCell>{client.email}</TableCell>
                         <TableCell>{formatDate(client.yearEnd)}</TableCell>
                         <TableCell className="text-right">
                             <div className="flex gap-2 justify-end">
@@ -1870,6 +2122,21 @@ export default function NumeraPage() {
                 </CardContent>
             </Card>
         )}
+        <Dialog open={isJournalFormOpen} onOpenChange={setIsJournalFormOpen}>
+            <DialogContent className="sm:max-w-4xl">
+                <DialogHeader>
+                    <DialogTitle>{selectedJournal?.id ? 'Edit Journal' : 'Create New Journal'}</DialogTitle>
+                    <DialogDescription>
+                        {selectedJournal?.id ? `Editing Journal ${selectedJournal.id}` : 'Create a new manual journal entry. Debits must equal credits.'}
+                    </DialogDescription>
+                </DialogHeader>
+                 <JournalForm 
+                    journal={selectedJournal}
+                    onSubmit={handleJournalFormSubmit}
+                    onCancel={() => { setIsJournalFormOpen(false); setSelectedJournal(null); }}
+                 />
+            </DialogContent>
+        </Dialog>
     </div>
   );
 }
