@@ -473,7 +473,9 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions,
             // Post VAT amount to VAT control
             // Output VAT (sales) is a credit (negative sign), Input VAT (purchases) is a debit (positive sign)
             const vatPostAmount = tx.vatType === 'standard_rated_sales' ? -vatAmount : vatAmount;
-            accountBalances[VAT_CONTROL_ACC] = (accountBalances[VAT_CONTROL_ACC] || 0) + vatPostAmount;
+            if(vatPostAmount !== 0) {
+              accountBalances[VAT_CONTROL_ACC] = (accountBalances[VAT_CONTROL_ACC] || 0) + vatPostAmount;
+            }
         });
     
         filteredUnallocated.forEach(tx => {
@@ -757,9 +759,10 @@ function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions 
                 debit = exclusiveAmount < 0 ? Math.abs(exclusiveAmount) : 0;
                 credit = exclusiveAmount > 0 ? exclusiveAmount : 0;
             } else if (accNum === VAT_CONTROL_ACC && isStandardVat) {
-                // VAT Control: Debit for input VAT (purchases), Credit for output VAT (sales)
-                debit = vatAmount > 0 ? vatAmount : 0;
-                credit = vatAmount < 0 ? Math.abs(vatAmount) : 0;
+                 // VAT Control: Debit for input VAT (purchases), Credit for output VAT (sales)
+                const vatPostAmount = tx.vatType === 'standard_rated_sales' ? -vatAmount : vatAmount;
+                debit = vatPostAmount > 0 ? vatPostAmount : 0;
+                credit = vatPostAmount < 0 ? Math.abs(vatPostAmount) : 0;
             }
             
             if (debit > 0 || credit > 0) {
@@ -2779,18 +2782,15 @@ const bulkAllocateSchema = z.object({
 });
 
 function BulkAllocateDialog({ isOpen, onClose, onBulkAllocate, count }: { isOpen: boolean, onClose: () => void, onBulkAllocate: (alloc: { value: string, type: 'account'|'customer'|'supplier' }, vat: VatType) => void, count: number }) {
-    const form = useForm<{ allocation: { value: string, type: 'account'|'customer'|'supplier' }, vatType: VatType }>({
+    const form = useForm<z.infer<typeof bulkAllocateSchema>>({
+        resolver: zodResolver(bulkAllocateSchema),
         defaultValues: {
             allocation: undefined,
             vatType: 'no_vat'
         }
     });
 
-    const handleSubmit = (values: { allocation: { value: string, type: 'account'|'customer'|'supplier' }, vatType: VatType }) => {
-        if (!values.allocation) {
-            toast({ title: "Error", description: "Please select an account.", variant: "destructive" });
-            return;
-        }
+    const handleSubmit = (values: z.infer<typeof bulkAllocateSchema>) => {
         onBulkAllocate(values.allocation, values.vatType);
     };
 
@@ -2804,21 +2804,36 @@ function BulkAllocateDialog({ isOpen, onClose, onBulkAllocate, count }: { isOpen
                     </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 py-4">
-                        <FormItem>
-                            <FormLabel>Allocate To</FormLabel>
-                            <FormControl>
-                                <AllocationCombobox 
-                                    onSelect={(value, type) => form.setValue('allocation', { value, type })} 
-                                />
-                            </FormControl>
-                        </FormItem>
-                        <FormItem>
-                            <FormLabel>VAT Type</FormLabel>
-                             <FormControl>
-                                <VatTypeCombobox onSelect={(value) => form.setValue('vatType', value)} />
-                            </FormControl>
-                        </FormItem>
+                    <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 py-4">
+                         <FormField
+                            control={form.control}
+                            name="allocation"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Allocate To</FormLabel>
+                                    <FormControl>
+                                        <AllocationCombobox
+                                            value={field.value}
+                                            onSelect={(value, type) => field.onChange({ value, type })}
+                                        />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                         <FormField
+                            control={form.control}
+                            name="vatType"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>VAT Type</FormLabel>
+                                    <FormControl>
+                                        <VatTypeCombobox value={field.value} onSelect={field.onChange} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
                         <DialogFooter>
                             <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
                             <Button type="submit">Allocate All</Button>
@@ -2829,4 +2844,3 @@ function BulkAllocateDialog({ isOpen, onClose, onBulkAllocate, count }: { isOpen
         </Dialog>
     );
 }
-
