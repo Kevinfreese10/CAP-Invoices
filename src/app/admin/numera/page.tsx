@@ -1494,7 +1494,8 @@ function JournalForm({ journal, onSubmit, onCancel }: { journal: Journal | null,
 }
 
 const vatReportFormSchema = z.object({
-  period: z.string().min(1, 'A period must be selected.'),
+  fromDate: z.date(),
+  toDate: z.date(),
 });
 
 type VatTransaction = {
@@ -1523,77 +1524,32 @@ type ReportType = 'summary' | 'transactions';
 function VatReportCard({ allocatedTransactions, activeClient }: { allocatedTransactions: AllocatedTransaction[], activeClient: User }) {
     const [reportData, setReportData] = useState<VatReportData | null>(null);
     const [reportType, setReportType] = useState<ReportType | null>(null);
+    const reportRef = useRef(null);
+
+    const getFinancialYear = (yearEnd: any) => {
+        const toDate = yearEnd?.toDate ? yearEnd.toDate() : new Date(yearEnd);
+        const endDate = toDate;
+        const startDate = add(sub(endDate, { years: 1 }), { days: 1 });
+        return { startDate, endDate };
+    }
+
+    const { startDate, endDate } = getFinancialYear(activeClient.yearEnd);
 
     const form = useForm<z.infer<typeof vatReportFormSchema>>({
         resolver: zodResolver(vatReportFormSchema),
-        defaultValues: { period: '' }
+        defaultValues: { 
+            fromDate: startDate,
+            toDate: endDate,
+        }
     });
 
-    const vatPeriods = useMemo(() => {
-        if (!activeClient.isVatRegistered || !activeClient.vatRegistrationDate) return [];
-
-        const regDate = activeClient.vatRegistrationDate?.toDate ? activeClient.vatRegistrationDate.toDate() : new Date(activeClient.vatRegistrationDate);
-        const now = new Date();
-        let startDate: Date;
-        let periods = [];
-        
-        switch(activeClient.vatCategory) {
-            case 'A': // Jan-Feb, Mar-Apr...
-                startDate = startOfMonth(regDate);
-                while(startDate <= now) {
-                    const endDate = endOfMonth(addMonths(startDate, 1));
-                    periods.push({
-                        label: `${format(startDate, 'MMM')} - ${format(endDate, 'MMM yyyy')}`,
-                        value: `${startDate.toISOString()}|${endDate.toISOString()}`
-                    });
-                    startDate = addMonths(startDate, 2);
-                }
-                break;
-            case 'B': // Feb-Mar, Apr-May...
-                let startMonth = getMonth(regDate);
-                if (startMonth % 2 !== 1) startMonth++; // Ensure we start on an odd month index (Feb=1, Apr=3...)
-                startDate = startOfMonth(new Date(getYear(regDate), startMonth));
-                
-                while(startDate <= now) {
-                    const endDate = endOfMonth(addMonths(startDate, 1));
-                     periods.push({
-                        label: `${format(startDate, 'MMM')} - ${format(endDate, 'MMM yyyy')}`,
-                        value: `${startDate.toISOString()}|${endDate.toISOString()}`
-                    });
-                    startDate = addMonths(startDate, 2);
-                }
-                break;
-            case 'C': // Monthly
-                startDate = startOfMonth(regDate);
-                 while(startDate <= now) {
-                    const endDate = endOfMonth(startDate);
-                     periods.push({
-                        label: `${format(startDate, 'MMM yyyy')}`,
-                        value: `${startDate.toISOString()}|${endDate.toISOString()}`
-                    });
-                    startDate = addMonths(startDate, 1);
-                }
-                break;
-        }
-        return periods.reverse();
-
-    }, [activeClient]);
-
-    const handleGenerateVat = (reportType: ReportType) => {
-        const values = form.getValues();
-        if (!values.period) {
-            form.setError('period', { message: 'A period must be selected.'});
-            return;
-        }
-
+    const handleGenerateVat = (values: z.infer<typeof vatReportFormSchema>, type: ReportType) => {
         if (!activeClient.isVatRegistered || !activeClient.vatRegistrationDate) {
             toast({ title: "VAT Not Configured", description: "This client is not set up for VAT reporting.", variant: "destructive"});
             return;
         }
 
-        const [fromDateStr, toDateStr] = values.period.split('|');
-        const fromDate = new Date(fromDateStr);
-        const toDate = new Date(toDateStr);
+        const { fromDate, toDate } = values;
         const registrationDate = activeClient.vatRegistrationDate.toDate ? activeClient.vatRegistrationDate.toDate() : new Date(activeClient.vatRegistrationDate);
 
         const VAT_RATE = 0.15;
@@ -1613,24 +1569,24 @@ function VatReportCard({ allocatedTransactions, activeClient }: { allocatedTrans
             const isStandardSale = tx.vatType === 'standard_rated_sales';
             const isStandardPurchase = tx.vatType === 'standard_rated_purchases' || tx.vatType === 'capital_goods_purchases';
             
-            const grossAmount = tx.amount;
-            const exclusiveAmount = grossAmount / (1 + VAT_RATE);
-            const vatAmount = grossAmount - exclusiveAmount;
+            if (isStandardSale || isStandardPurchase) {
+                const grossAmount = tx.amount;
+                const exclusiveAmount = grossAmount / (1 + VAT_RATE);
+                const vatAmount = grossAmount - exclusiveAmount;
 
-            if (isStandardSale) {
-                totalSales += exclusiveAmount;
-                outputVat += vatAmount;
-                outputTransactions.push({ date: tx.date, description: tx.description, grossAmount: tx.amount, vatAmount });
+                if (isStandardSale) {
+                    totalSales += exclusiveAmount;
+                    outputVat += vatAmount;
+                    outputTransactions.push({ date: tx.date, description: tx.description, grossAmount: tx.amount, vatAmount });
+                } else {
+                    const absExclusive = Math.abs(tx.amount) / (1 + VAT_RATE);
+                    const absVat = Math.abs(tx.amount) - absExclusive;
+                    totalPurchases += absExclusive;
+                    inputVat += absVat;
+                    inputTransactions.push({ date: tx.date, description: tx.description, grossAmount: tx.amount, vatAmount: absVat });
+                }
             } else if (tx.vatType === 'zero_rated_sales') {
                 totalSales += tx.amount;
-            }
-
-            if (isStandardPurchase) {
-                const absExclusive = Math.abs(tx.amount) / (1 + VAT_RATE);
-                const absVat = Math.abs(tx.amount) - absExclusive;
-                totalPurchases += absExclusive;
-                inputVat += absVat;
-                inputTransactions.push({ date: tx.date, description: tx.description, grossAmount: tx.amount, vatAmount: absVat });
             } else if (tx.vatType === 'zero_rated_purchases') {
                 totalPurchases += Math.abs(tx.amount);
             }
@@ -1646,7 +1602,46 @@ function VatReportCard({ allocatedTransactions, activeClient }: { allocatedTrans
             vatPayable: outputVat - inputVat,
             transactions: { inputs: inputTransactions, outputs: outputTransactions }
         });
-        setReportType(reportType);
+        setReportType(type);
+    };
+
+    const handleDownloadExcel = () => {
+        if (!reportData) return;
+        const wb = XLSX.utils.book_new();
+
+        if (reportType === 'summary') {
+            const summaryData = [
+                { 'Box': '[4] Standard-rated sales (excl. VAT)', 'Amount': reportData.totalSales },
+                { 'Box': '[5] Output VAT on sales', 'Amount': reportData.outputVat },
+                {},
+                { 'Box': '[14] Standard-rated purchases (excl. VAT)', 'Amount': reportData.totalPurchases },
+                { 'Box': '[15] Input VAT on purchases', 'Amount': reportData.inputVat },
+                {},
+                { 'Box': '[12] VAT Payable / (Refundable)', 'Amount': reportData.vatPayable },
+            ];
+            const ws = XLSX.utils.json_to_sheet(summaryData);
+            ws['!cols'] = [{wch: 40}, {wch: 20}];
+            XLSX.utils.book_append_sheet(wb, ws, "VAT201 Summary");
+        }
+        
+        if (reportType === 'transactions') {
+            const outputData = reportData.transactions.outputs.map(tx => ({
+                'Date': tx.date, 'Description': tx.description, 'Gross Amount': tx.grossAmount, 'VAT Amount': tx.vatAmount
+            }));
+             const inputData = reportData.transactions.inputs.map(tx => ({
+                'Date': tx.date, 'Description': tx.description, 'Gross Amount': tx.grossAmount, 'VAT Amount': tx.vatAmount
+            }));
+
+            const wsOut = XLSX.utils.json_to_sheet(outputData);
+            const wsIn = XLSX.utils.json_to_sheet(inputData);
+            wsOut['!cols'] = [{wch: 15}, {wch: 40}, {wch: 15}, {wch: 15}];
+            wsIn['!cols'] = [{wch: 15}, {wch: 40}, {wch: 15}, {wch: 15}];
+            
+            XLSX.utils.book_append_sheet(wb, wsOut, "Output VAT Transactions");
+            XLSX.utils.book_append_sheet(wb, wsIn, "Input VAT Transactions");
+        }
+
+        XLSX.writeFile(wb, `VAT-Report-${activeClient.name}-${reportData.fromDate}-to-${reportData.toDate}.xlsx`);
     };
 
     return (
@@ -1662,7 +1657,7 @@ function VatReportCard({ allocatedTransactions, activeClient }: { allocatedTrans
                    </DialogDescription>
                 </DialogHeader>
                 {reportData && (
-                     <>
+                    <div ref={reportRef} className="printable-area bg-white p-2">
                         {reportType === 'summary' && (
                              <div className="border rounded-lg p-4 space-y-3">
                                 <div className="flex justify-between items-center">
@@ -1717,12 +1712,11 @@ function VatReportCard({ allocatedTransactions, activeClient }: { allocatedTrans
                                 </div>
                             </div>
                         )}
-                    </>
+                    </div>
                 )}
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => window.print()}>
-                        <Printer className="mr-2 h-4 w-4" /> Print Report
-                    </Button>
+                <DialogFooter className="print:hidden">
+                     <Button variant="outline" onClick={handleDownloadExcel}><Download className="mr-2 h-4 w-4"/>Download Excel</Button>
+                    <Button variant="outline" onClick={() => window.print()}><Printer className="mr-2 h-4 w-4" /> Print Report</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
@@ -1739,17 +1733,20 @@ function VatReportCard({ allocatedTransactions, activeClient }: { allocatedTrans
                     </Alert>
                 ) : (
                 <Form {...form}>
-                    <form className="space-y-4" onSubmit={e => e.preventDefault()}>
-                        <FormField control={form.control} name="period" render={({ field }) => ( <FormItem><FormLabel>Select VAT Period</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a period..." /></SelectTrigger></FormControl><SelectContent>{vatPeriods.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
+                    <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <FormField control={form.control} name="fromDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>From Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd/MM/yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem> )} />
+                            <FormField control={form.control} name="toDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>To Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd/MM/yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem> )} />
+                        </div>
                          <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button>Generate Report <ChevronDown className="ml-2 h-4 w-4" /></Button>
+                                <Button type="button">Generate Report <ChevronDown className="ml-2 h-4 w-4" /></Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent>
-                                <DropdownMenuItem onClick={() => handleGenerateVat('summary')}>
+                                <DropdownMenuItem onClick={form.handleSubmit((values) => handleGenerateVat(values, 'summary'))}>
                                     Generate VAT201 Summary
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleGenerateVat('transactions')}>
+                                <DropdownMenuItem onClick={form.handleSubmit((values) => handleGenerateVat(values, 'transactions'))}>
                                     Generate VAT Transactions Report
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
