@@ -603,6 +603,22 @@ export default function AdminClientsPage() {
     }
   };
 
+  const formatYearEnd = (yearEnd: any): string => {
+    if (!yearEnd) return 'N/A';
+    // Check if it's a Firestore Timestamp
+    if (yearEnd.toDate && typeof yearEnd.toDate === 'function') {
+      const date = yearEnd.toDate();
+      // Assuming you want to display the month name
+      return format(date, 'MMMM');
+    }
+    // If it's already a string (like from the form default)
+    if (typeof yearEnd === 'string') {
+      return yearEnd;
+    }
+    // Fallback for other unexpected types
+    return 'Invalid Date';
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -669,7 +685,7 @@ export default function AdminClientsPage() {
                   </TableCell>
                   <TableCell>{client.email}</TableCell>
                   <TableCell>{client.cellNumber}</TableCell>
-                   <TableCell>{client.yearEnd}</TableCell>
+                   <TableCell>{formatYearEnd(client.yearEnd)}</TableCell>
                     <TableCell>
                       {client.isVatRegistered ? (
                           <Badge variant="success">Yes ({client.vatCategory})</Badge>
