@@ -1497,15 +1497,24 @@ const vatReportFormSchema = z.object({
   period: z.string().min(1, 'A period must be selected.'),
 });
 
+type VatTransaction = {
+    date: string;
+    description: string;
+    grossAmount: number;
+    vatAmount: number;
+};
+
 type VatReportData = {
+    fromDate: string;
+    toDate: string;
     totalSales: number;
     outputVat: number;
     totalPurchases: number;
     inputVat: number;
     vatPayable: number;
     transactions: {
-        inputs: AllocatedTransaction[];
-        outputs: AllocatedTransaction[];
+        inputs: VatTransaction[];
+        outputs: VatTransaction[];
     }
 };
 
@@ -1583,8 +1592,8 @@ function VatReportCard({ allocatedTransactions, activeClient }: { allocatedTrans
         let totalPurchases = 0;
         let outputVat = 0;
         let inputVat = 0;
-        let outputTransactions: AllocatedTransaction[] = [];
-        let inputTransactions: AllocatedTransaction[] = [];
+        let outputTransactions: VatTransaction[] = [];
+        let inputTransactions: VatTransaction[] = [];
 
         const filteredTxs = allocatedTransactions.filter(tx => {
             const txDate = new Date(tx.date.split('/').reverse().join('-'));
@@ -1594,29 +1603,33 @@ function VatReportCard({ allocatedTransactions, activeClient }: { allocatedTrans
         filteredTxs.forEach(tx => {
             const isStandardSale = tx.vatType === 'standard_rated_sales';
             const isStandardPurchase = tx.vatType === 'standard_rated_purchases' || tx.vatType === 'capital_goods_purchases';
+            
+            const grossAmount = tx.amount;
+            const exclusiveAmount = grossAmount / (1 + VAT_RATE);
+            const vatAmount = grossAmount - exclusiveAmount;
 
             if (isStandardSale) {
-                const exclusiveAmount = tx.amount / (1 + VAT_RATE);
                 totalSales += exclusiveAmount;
-                outputVat += tx.amount - exclusiveAmount;
-                outputTransactions.push(tx);
+                outputVat += vatAmount;
+                outputTransactions.push({ date: tx.date, description: tx.description, grossAmount: tx.amount, vatAmount });
             } else if (tx.vatType === 'zero_rated_sales') {
                 totalSales += tx.amount;
-                outputTransactions.push(tx);
             }
 
             if (isStandardPurchase) {
-                const exclusiveAmount = Math.abs(tx.amount) / (1 + VAT_RATE);
-                totalPurchases += exclusiveAmount;
-                inputVat += Math.abs(tx.amount) - exclusiveAmount;
-                inputTransactions.push(tx);
+                const absExclusive = Math.abs(tx.amount) / (1 + VAT_RATE);
+                const absVat = Math.abs(tx.amount) - absExclusive;
+                totalPurchases += absExclusive;
+                inputVat += absVat;
+                inputTransactions.push({ date: tx.date, description: tx.description, grossAmount: tx.amount, vatAmount: absVat });
             } else if (tx.vatType === 'zero_rated_purchases') {
                 totalPurchases += Math.abs(tx.amount);
-                inputTransactions.push(tx);
             }
         });
 
         setReportData({
+            fromDate: format(fromDate, 'dd MMMM yyyy'),
+            toDate: format(toDate, 'dd MMMM yyyy'),
             totalSales,
             outputVat,
             totalPurchases,
@@ -1627,6 +1640,84 @@ function VatReportCard({ allocatedTransactions, activeClient }: { allocatedTrans
     };
 
     return (
+        <>
+        <Dialog open={!!reportData} onOpenChange={(isOpen) => !isOpen && setReportData(null)}>
+            <DialogContent className="sm:max-w-4xl">
+                 <DialogHeader>
+                   <DialogTitle>VAT Report</DialogTitle>
+                   <DialogDescription>
+                       VAT calculation for {activeClient.name} for the period {reportData?.fromDate} to {reportData?.toDate}.
+                   </DialogDescription>
+                </DialogHeader>
+                {reportData && (
+                     <Tabs defaultValue="summary" className="w-full">
+                        <TabsList className="grid w-full grid-cols-2">
+                            <TabsTrigger value="summary">VAT201 Summary</TabsTrigger>
+                            <TabsTrigger value="transactions">VAT Transactions</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="summary" className="mt-4">
+                            <div className="border rounded-lg p-4 space-y-3">
+                                <div className="flex justify-between items-center">
+                                    <p>[Box 4] Standard-rated sales (excl. VAT)</p>
+                                    <p className="font-mono">{formatNumber(reportData.totalSales)}</p>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <p>[Box 5] Output VAT on sales</p>
+                                    <p className="font-mono">{formatNumber(reportData.outputVat)}</p>
+                                </div>
+                                <Separator />
+                                <div className="flex justify-between items-center">
+                                    <p>[Box 14] Standard-rated purchases (excl. VAT)</p>
+                                    <p className="font-mono">{formatNumber(reportData.totalPurchases)}</p>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <p>[Box 15] Input VAT on purchases</p>
+                                    <p className="font-mono">{formatNumber(reportData.inputVat)}</p>
+                                </div>
+                                <Separator />
+                                <div className="flex justify-between items-center font-bold text-lg">
+                                    <p>[Box 12] VAT Payable / (Refundable)</p>
+                                    <p className="font-mono">{formatNumber(reportData.vatPayable)}</p>
+                                </div>
+                            </div>
+                        </TabsContent>
+                        <TabsContent value="transactions" className="mt-4 max-h-[50vh] overflow-y-auto">
+                            <div className="space-y-6">
+                                <div>
+                                    <h4 className="font-semibold mb-2">Output VAT Transactions ({reportData.transactions.outputs.length})</h4>
+                                    <Table>
+                                        <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Gross Amount</TableHead><TableHead className="text-right">VAT Amount</TableHead></TableRow></TableHeader>
+                                        <TableBody>
+                                            {reportData.transactions.outputs.map((tx, i) => (
+                                                <TableRow key={`out-${i}`}><TableCell>{tx.date}</TableCell><TableCell>{tx.description}</TableCell><TableCell className="text-right font-mono">{formatNumber(tx.grossAmount)}</TableCell><TableCell className="text-right font-mono">{formatNumber(tx.vatAmount)}</TableCell></TableRow>
+                                            ))}
+                                        </TableBody>
+                                         <TableFooter><TableRow><TableCell colSpan={3} className="text-right font-bold">Total Output VAT</TableCell><TableCell className="text-right font-bold font-mono">{formatNumber(reportData.outputVat)}</TableCell></TableRow></TableFooter>
+                                    </Table>
+                                </div>
+                                <div>
+                                    <h4 className="font-semibold mb-2">Input VAT Transactions ({reportData.transactions.inputs.length})</h4>
+                                    <Table>
+                                        <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Gross Amount</TableHead><TableHead className="text-right">VAT Amount</TableHead></TableRow></TableHeader>
+                                        <TableBody>
+                                            {reportData.transactions.inputs.map((tx, i) => (
+                                                <TableRow key={`in-${i}`}><TableCell>{tx.date}</TableCell><TableCell>{tx.description}</TableCell><TableCell className="text-right font-mono">{formatNumber(tx.grossAmount)}</TableCell><TableCell className="text-right font-mono">{formatNumber(tx.vatAmount)}</TableCell></TableRow>
+                                            ))}
+                                        </TableBody>
+                                        <TableFooter><TableRow><TableCell colSpan={3} className="text-right font-bold">Total Input VAT</TableCell><TableCell className="text-right font-bold font-mono">{formatNumber(reportData.inputVat)}</TableCell></TableRow></TableFooter>
+                                    </Table>
+                                </div>
+                            </div>
+                        </TabsContent>
+                    </Tabs>
+                )}
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => window.print()}>
+                        <Printer className="mr-2 h-4 w-4" /> Print Report
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
         <Card>
             <CardHeader>
                 <CardTitle>VAT201 Report</CardTitle>
@@ -1646,60 +1737,9 @@ function VatReportCard({ allocatedTransactions, activeClient }: { allocatedTrans
                     </form>
                 </Form>
                 )}
-                {reportData && (
-                    <div className="pt-6">
-                        <h3 className="text-lg font-semibold mb-4">VAT201 Calculation Summary</h3>
-                        <div className="border rounded-lg p-4 space-y-3">
-                            <div className="flex justify-between items-center">
-                                <p>[Box 4] Standard-rated sales (excl. VAT)</p>
-                                <p className="font-mono">{formatNumber(reportData.totalSales)}</p>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <p>[Box 5] Output VAT on sales</p>
-                                <p className="font-mono">{formatNumber(reportData.outputVat)}</p>
-                            </div>
-                            <Separator />
-                             <div className="flex justify-between items-center">
-                                <p>[Box 14] Input VAT on purchases</p>
-                                <p className="font-mono">{formatNumber(reportData.inputVat)}</p>
-                            </div>
-                             <Separator />
-                              <div className="flex justify-between items-center font-bold text-lg">
-                                <p>[Box 12] VAT Payable / (Refundable)</p>
-                                <p className="font-mono">{formatNumber(reportData.vatPayable)}</p>
-                            </div>
-                        </div>
-                        <Button variant="outline" className="mt-4" onClick={() => window.print()}>
-                            <Printer className="mr-2 h-4 w-4" /> Print Report
-                        </Button>
-                        <div className="mt-6 space-y-4">
-                            <div>
-                                <h4 className="font-semibold">Output VAT Transactions ({reportData.transactions.outputs.length})</h4>
-                                <Table>
-                                    <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Amount (incl.)</TableHead></TableRow></TableHeader>
-                                    <TableBody>
-                                        {reportData.transactions.outputs.map(tx => (
-                                            <TableRow key={tx.id}><TableCell>{tx.date}</TableCell><TableCell>{tx.description}</TableCell><TableCell className="text-right font-mono">{formatNumber(tx.amount)}</TableCell></TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </div>
-                             <div>
-                                <h4 className="font-semibold">Input VAT Transactions ({reportData.transactions.inputs.length})</h4>
-                                <Table>
-                                    <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Amount (incl.)</TableHead></TableRow></TableHeader>
-                                    <TableBody>
-                                        {reportData.transactions.inputs.map(tx => (
-                                            <TableRow key={tx.id}><TableCell>{tx.date}</TableCell><TableCell>{tx.description}</TableCell><TableCell className="text-right font-mono">{formatNumber(Math.abs(tx.amount))}</TableCell></TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </div>
-                        </div>
-                    </div>
-                )}
             </CardContent>
         </Card>
+        </>
     );
 }
 
@@ -2912,3 +2952,4 @@ function BulkAllocateDialog({ isOpen, onClose, onBulkAllocate, count }: { isOpen
         </Dialog>
     );
 }
+
