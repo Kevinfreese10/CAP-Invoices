@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload, FileCheck2, ScanLine, Sprout, Search, ArrowUpDown, Edit, Sparkles, BrainCircuit, Copy, MessageSquare } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload, FileCheck2, ScanLine, Sprout, Search, ArrowUpDown, Edit, Sparkles, BrainCircuit, Copy, MessageSquare, RefreshCw } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -452,29 +452,27 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions,
             const bankAccNum = tx.bankAccountId;
             const grossAmount = tx.amount;
             
-            const isStandardVatSale = tx.vatType === 'standard_rated_sales';
-            const isStandardVatPurchase = tx.vatType === 'standard_rated_purchases' || tx.vatType === 'capital_goods_purchases';
+            const isStandardVat = tx.vatType === 'standard_rated_sales' || tx.vatType === 'standard_rated_purchases' || tx.vatType === 'capital_goods_purchases';
             
-            let netAmount = grossAmount;
+            let exclusiveAmount = grossAmount;
             let vatAmount = 0;
 
-            if (isStandardVatSale || isStandardVatPurchase) {
-                // For sales (positive amount), credit income (negative)
-                // For purchases (negative amount), debit expense (positive)
-                netAmount = grossAmount / (1 + VAT_RATE);
-                vatAmount = grossAmount - netAmount;
+            if (isStandardVat) {
+                exclusiveAmount = grossAmount / (1 + VAT_RATE);
+                vatAmount = grossAmount - exclusiveAmount;
             }
             
             // Post gross amount to bank account
             accountBalances[bankAccNum] = (accountBalances[bankAccNum] || 0) + grossAmount;
             
-            // Post net amount to the allocation account
+            // Post exclusive amount to the allocation account
             // Income (positive gross) becomes credit (negative balance), Expense (negative gross) becomes debit (positive balance)
-            const postAmount = isStandardVatSale ? -netAmount : isStandardVatPurchase ? -netAmount : -grossAmount;
+            const postAmount = -exclusiveAmount;
             accountBalances[allocationAccNum] = (accountBalances[allocationAccNum] || 0) + postAmount;
 
             // Post VAT amount to VAT control
-            const vatPostAmount = isStandardVatSale ? -vatAmount : isStandardVatPurchase ? -vatAmount : 0;
+            // Output VAT (sales) is a credit, Input VAT (purchases) is a debit
+            const vatPostAmount = tx.vatType === 'standard_rated_sales' ? -vatAmount : vatAmount;
             accountBalances[VAT_CONTROL_ACC] = (accountBalances[VAT_CONTROL_ACC] || 0) + vatPostAmount;
         });
         
@@ -733,12 +731,12 @@ function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions 
             relatedTransactions.forEach(tx => {
                 const grossAmount = tx.amount;
                 const isStandardVat = tx.vatType === 'standard_rated_sales' || tx.vatType === 'standard_rated_purchases' || tx.vatType === 'capital_goods_purchases';
-                let netAmount = grossAmount;
+                let exclusiveAmount = grossAmount;
                 let vatAmount = 0;
 
                 if (isStandardVat) {
-                    netAmount = grossAmount / (1 + VAT_RATE);
-                    vatAmount = grossAmount - netAmount;
+                    exclusiveAmount = grossAmount / (1 + VAT_RATE);
+                    vatAmount = grossAmount - exclusiveAmount;
                 }
 
                 let debit = 0;
@@ -750,12 +748,12 @@ function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions 
                     credit = grossAmount < 0 ? Math.abs(grossAmount) : 0;
                 } else if (accNum === tx.allocatedTo.value) {
                     // Allocation Account (Expense/Income): Debit for expenses, Credit for income
-                    debit = grossAmount < 0 ? Math.abs(netAmount) : 0;
-                    credit = grossAmount > 0 ? netAmount : 0;
+                    debit = exclusiveAmount < 0 ? Math.abs(exclusiveAmount) : 0;
+                    credit = exclusiveAmount > 0 ? exclusiveAmount : 0;
                 } else if (accNum === VAT_CONTROL_ACC && isStandardVat) {
                     // VAT Control: Debit for input VAT (purchases), Credit for output VAT (sales)
-                    debit = grossAmount < 0 ? Math.abs(vatAmount) : 0;
-                    credit = grossAmount > 0 ? vatAmount : 0;
+                    debit = vatAmount < 0 ? Math.abs(vatAmount) : 0;
+                    credit = vatAmount > 0 ? vatAmount : 0;
                 }
                 
                 if (debit > 0 || credit > 0) {
@@ -1992,6 +1990,16 @@ export default function NumeraPage() {
 
     toast({ title: 'Bulk Allocation Successful', description: `${newAllocatedTransactions.length} transactions have been allocated.` });
   };
+  
+   const handleClearAllocations = () => {
+    setAllocations({});
+    setVatTypes({});
+    setSelectedTransactions([]);
+    toast({
+      title: 'Allocations Cleared',
+      description: 'All suggested allocations and selections have been reset.',
+    });
+  };
 
   const handleSelectionChange = (id: string, isSelected: boolean) => {
     setSelectedTransactions(prev => {
@@ -2018,7 +2026,6 @@ export default function NumeraPage() {
     setIsAiAllocating(true);
     toast({ title: 'AI Allocation Started', description: `AI is analyzing ${txns.length} transaction(s).` });
 
-    let successCount = 0;
     for (const tx of txns) {
         setProcessingTxId(tx.id);
         try {
@@ -2026,7 +2033,6 @@ export default function NumeraPage() {
             if (result.accountNumber && chartOfAccounts.some(acc => acc.accountNumber === result.accountNumber)) {
                 handleAllocationSelect(tx.id, result.accountNumber, 'account');
                 handleVatTypeSelect(tx.id, result.vatType);
-                successCount++;
             }
         } catch (error) {
             console.error(`AI allocation failed for transaction ${tx.id}:`, error);
@@ -2035,7 +2041,7 @@ export default function NumeraPage() {
 
     setProcessingTxId(null);
     setIsAiAllocating(false);
-    toast({ title: 'AI Allocation Complete', description: `AI successfully suggested allocations for ${successCount} of ${txns.length} transactions.` });
+    toast({ title: 'AI Allocation Complete', description: `AI successfully suggested allocations for ${txns.length} transactions.` });
   }
 
   const handleAiAllocate = async () => {
@@ -2318,20 +2324,26 @@ export default function NumeraPage() {
                         
                         <Card>
                             <CardHeader>
-                                <div className="flex flex-col sm:flex-row justify-between gap-2">
+                                <div className="flex flex-col sm:flex-row justify-between gap-4">
                                     <div>
                                         <CardTitle>Transaction Processing</CardTitle>
                                         <CardDescription>Allocate imported transactions to your Chart of Accounts.</CardDescription>
                                     </div>
-                                    <div className="relative">
-                                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                                        <Input
-                                            type="search"
-                                            placeholder="Search transactions..."
-                                            className="w-full sm:w-[250px] pl-8"
-                                            value={unallocatedSearch}
-                                            onChange={(e) => setUnallocatedSearch(e.target.value)}
-                                        />
+                                    <div className="flex gap-2 items-center">
+                                         <Button variant="outline" size="sm" onClick={handleClearAllocations}>
+                                            <RefreshCw className="mr-2 h-4 w-4" />
+                                            Clear Allocations
+                                        </Button>
+                                        <div className="relative">
+                                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                            <Input
+                                                type="search"
+                                                placeholder="Search transactions..."
+                                                className="w-full sm:w-[250px] pl-8"
+                                                value={unallocatedSearch}
+                                                onChange={(e) => setUnallocatedSearch(e.target.value)}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             </CardHeader>
