@@ -15,7 +15,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { User, ChartOfAccount } from '@/lib/types';
+import { User, ChartOfAccount, VatType } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, query, where, writeBatch, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -59,6 +59,8 @@ type AllocatedTransaction = ImportedTransaction & {
         value: string; // Account number, customer id, or supplier id
         type: 'account' | 'customer' | 'supplier';
     };
+    vatType: VatType;
+    vatAmount: number;
     allocatedAt: Date;
 };
 
@@ -101,6 +103,7 @@ type JournalLine = {
     description: string;
     debit: number;
     credit: number;
+    vatType: VatType;
 };
 
 type Journal = {
@@ -980,6 +983,55 @@ function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions 
   );
 }
 
+const allVatTypes: { name: VatType, label: string, category: 'Output Tax' | 'Input Tax' }[] = [
+    { name: 'standard_rated_sales', label: 'Standard-rated supplies (15%)', category: 'Output Tax' },
+    { name: 'zero_rated_sales', label: 'Zero-rated supplies (0%)', category: 'Output Tax' },
+    { name: 'exempt_sales', label: 'Exempt supplies', category: 'Output Tax' },
+    { name: 'standard_rated_purchases', label: 'Standard-rated purchases (15%)', category: 'Input Tax' },
+    { name: 'capital_goods_purchases', label: 'Capital goods', category: 'Input Tax' },
+    { name: 'zero_rated_purchases', label: 'Zero-rated purchases (0%)', category: 'Input Tax' },
+    { name: 'exempt_purchases', label: 'Exempt purchases', category: 'Input Tax' },
+    { name: 'no_vat', label: 'No VAT', category: 'Input Tax' },
+];
+
+function VatTypeCombobox({ value, onSelect }: { value?: VatType, onSelect: (value: VatType) => void }) {
+    const [open, setOpen] = useState(false);
+    const displayValue = value ? allVatTypes.find(v => v.name === value)?.label : "Select VAT type...";
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <Button variant="outline" role="combobox" aria-expanded={open} className="w-[200px] justify-between">
+                    <span className="truncate">{displayValue}</span>
+                    <MoreHorizontal className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[300px] p-0">
+                <Command>
+                    <CommandInput placeholder="Search VAT type..." />
+                    <CommandList>
+                        <CommandEmpty>No results found.</CommandEmpty>
+                        <CommandGroup heading="Output Tax (Sales)">
+                            {allVatTypes.filter(v => v.category === 'Output Tax').map(v => (
+                                <CommandItem key={v.name} onSelect={() => { onSelect(v.name); setOpen(false); }}>
+                                    {v.label}
+                                </CommandItem>
+                            ))}
+                        </CommandGroup>
+                        <CommandGroup heading="Input Tax (Purchases)">
+                             {allVatTypes.filter(v => v.category === 'Input Tax').map(v => (
+                                <CommandItem key={v.name} onSelect={() => { onSelect(v.name); setOpen(false); }}>
+                                    {v.label}
+                                </CommandItem>
+                            ))}
+                        </CommandGroup>
+                    </CommandList>
+                </Command>
+            </PopoverContent>
+        </Popover>
+    )
+}
+
 function AllocationCombobox({ value, onSelect }: { value?: { value: string, type: string }, onSelect: (value: string, type: 'account'|'customer'|'supplier') => void }) {
     const [open, setOpen] = useState(false);
     const customers = allUsers.filter(u => u.role === 'client');
@@ -1047,13 +1099,15 @@ function AllocationCombobox({ value, onSelect }: { value?: { value: string, type
 type SortableField = 'date' | 'description' | 'amount';
 type SortDirection = 'asc' | 'desc';
 
-function AllocationTable({ transactions, onAllocate, selectedTransactions, onSelectionChange, onAllocationSelect, allocations }: { 
+function AllocationTable({ transactions, onAllocate, selectedTransactions, onSelectionChange, onAllocationSelect, allocations, onVatTypeSelect, vatTypes }: { 
     transactions: ImportedTransaction[], 
     onAllocate: (transactionId: string) => void, 
     selectedTransactions: string[], 
     onSelectionChange: (id: string, isSelected: boolean) => void,
     onAllocationSelect: (transactionId: string, value: string, type: 'account'|'customer'|'supplier') => void,
-    allocations: { [key: string]: { value: string, type: string } }
+    allocations: { [key: string]: { value: string, type: 'account'|'customer'|'supplier' } },
+    onVatTypeSelect: (transactionId: string, vatType: VatType) => void,
+    vatTypes: { [key: string]: VatType }
 }) {
     const [sortConfig, setSortConfig] = useState<{ key: SortableField, direction: SortDirection } | null>({ key: 'date', direction: 'asc'});
 
@@ -1068,7 +1122,6 @@ function AllocationTable({ transactions, onAllocate, selectedTransactions, onSel
                 let aValue = a[sortConfig.key];
                 let bValue = b[sortConfig.key];
                 
-                // Handle date strings
                 if (sortConfig.key === 'date') {
                     const [dayA, monthA, yearA] = aValue.split('/').map(Number);
                     const [dayB, monthB, yearB] = bValue.split('/').map(Number);
@@ -1122,6 +1175,7 @@ function AllocationTable({ transactions, onAllocate, selectedTransactions, onSel
                     <SortableHeader field="description" label="Description" />
                     <SortableHeader field="amount" label="Amount" />
                     <TableHead>Allocate To</TableHead>
+                    <TableHead>VAT Type</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
             </TableHeader>
@@ -1140,6 +1194,9 @@ function AllocationTable({ transactions, onAllocate, selectedTransactions, onSel
                         <TableCell className="font-mono">{formatNumber(tx.amount)}</TableCell>
                         <TableCell className="w-[300px]">
                             <AllocationCombobox value={allocations[tx.id]} onSelect={(value, type) => onAllocationSelect(tx.id, value, type)}/>
+                        </TableCell>
+                        <TableCell>
+                            <VatTypeCombobox value={vatTypes[tx.id]} onSelect={(value) => onVatTypeSelect(tx.id, value)} />
                         </TableCell>
                         <TableCell className="text-right">
                             <div className="flex gap-2 justify-end">
@@ -1213,6 +1270,7 @@ const journalLineSchema = z.object({
   description: z.string(),
   debit: z.preprocess(v => parseFloat(v as string || '0'), z.number().min(0)),
   credit: z.preprocess(v => parseFloat(v as string || '0'), z.number().min(0)),
+  vatType: z.custom<VatType>(),
 }).refine(data => data.debit === 0 || data.credit === 0, {
   message: "Enter a debit or a credit, not both.",
   path: ["debit"],
@@ -1244,8 +1302,8 @@ function JournalForm({ journal, onSubmit, onCancel }: { journal: Journal | null,
             date: new Date(),
             narrative: '',
             lines: [
-                { accountId: '', description: '', debit: 0, credit: 0 },
-                { accountId: '', description: '', debit: 0, credit: 0 },
+                { accountId: '', description: '', debit: 0, credit: 0, vatType: 'no_vat' },
+                { accountId: '', description: '', debit: 0, credit: 0, vatType: 'no_vat' },
             ],
         }
     });
@@ -1282,8 +1340,9 @@ function JournalForm({ journal, onSubmit, onCancel }: { journal: Journal | null,
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead className="w-2/5">Account</TableHead>
-                                <TableHead className="w-2/5">Description</TableHead>
+                                <TableHead className="w-1/3">Account</TableHead>
+                                <TableHead className="w-1/3">Description</TableHead>
+                                <TableHead>VAT Type</TableHead>
                                 <TableHead className="text-right">Debit</TableHead>
                                 <TableHead className="text-right">Credit</TableHead>
                                 <TableHead></TableHead>
@@ -1297,6 +1356,9 @@ function JournalForm({ journal, onSubmit, onCancel }: { journal: Journal | null,
                                     </TableCell>
                                      <TableCell className="p-1">
                                          <FormField control={form.control} name={`lines.${index}.description`} render={({ field }) => ( <FormItem><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                     </TableCell>
+                                     <TableCell className="p-1">
+                                        <FormField control={form.control} name={`lines.${index}.vatType`} render={({ field }) => ( <FormItem><VatTypeCombobox value={field.value} onSelect={field.onChange} /></FormItem> )} />
                                      </TableCell>
                                      <TableCell className="p-1">
                                          <FormField control={form.control} name={`lines.${index}.debit`} render={({ field }) => ( <FormItem><FormControl><Input type="number" step="0.01" className="text-right" {...field} onChange={e => { field.onChange(e.target.value); form.setValue(`lines.${index}.credit`, 0) }} /></FormControl><FormMessage /></FormItem>)} />
@@ -1314,19 +1376,19 @@ function JournalForm({ journal, onSubmit, onCancel }: { journal: Journal | null,
                         </TableBody>
                          <TableFooter>
                             <TableRow>
-                                <TableCell colSpan={2} className="font-bold">Totals</TableCell>
+                                <TableCell colSpan={3} className="font-bold">Totals</TableCell>
                                 <TableCell className="text-right font-mono font-bold">{formatNumber(totalDebits)}</TableCell>
                                 <TableCell className="text-right font-mono font-bold">{formatNumber(totalCredits)}</TableCell>
                                 <TableCell></TableCell>
                             </TableRow>
                              <TableRow>
-                                <TableCell colSpan={2} className="font-bold">Difference</TableCell>
+                                <TableCell colSpan={3} className="font-bold">Difference</TableCell>
                                 <TableCell colSpan={2} className={`text-right font-mono font-bold ${Math.abs(difference) > 0.001 ? 'text-destructive' : ''}`}>{formatNumber(difference)}</TableCell>
                                 <TableCell></TableCell>
                             </TableRow>
                         </TableFooter>
                     </Table>
-                     <Button type="button" variant="outline" size="sm" onClick={() => append({ accountId: '', description: '', debit: 0, credit: 0 })}>
+                     <Button type="button" variant="outline" size="sm" onClick={() => append({ accountId: '', description: '', debit: 0, credit: 0, vatType: 'no_vat' })}>
                         <PlusCircle className="mr-2 h-4 w-4" /> Add Line
                     </Button>
                 </div>
@@ -1563,6 +1625,7 @@ export default function NumeraPage() {
   const [unallocatedSearch, setUnallocatedSearch] = useState('');
   const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
   const [allocations, setAllocations] = useState<{ [key: string]: { value: string, type: 'account'|'customer'|'supplier' } }>({});
+  const [vatTypes, setVatTypes] = useState<{ [key: string]: VatType }>({});
   const [isAiAllocating, setIsAiAllocating] = useState(false);
   const [journals, setJournals] = useState<Journal[]>([]);
   const [isJournalFormOpen, setIsJournalFormOpen] = useState(false);
@@ -1807,6 +1870,8 @@ export default function NumeraPage() {
           ...transactionToAllocate,
           allocatedTo: allocation,
           allocatedAt: new Date(),
+          vatType: vatTypes[transactionId] || 'no_vat',
+          vatAmount: 0, // Placeholder for now
       };
       
       setAllocatedTransactions(prev => [...prev, newAllocatedTransaction]);
@@ -1816,6 +1881,11 @@ export default function NumeraPage() {
           delete newAllocations[transactionId];
           return newAllocations;
       });
+      setVatTypes(prev => {
+        const newVatTypes = { ...prev };
+        delete newVatTypes[transactionId];
+        return newVatTypes;
+      });
 
       toast({ title: 'Transaction Allocated', description: 'The transaction has been successfully allocated.' });
   }
@@ -1824,6 +1894,13 @@ export default function NumeraPage() {
       setAllocations(prev => ({
           ...prev,
           [transactionId]: { value, type }
+      }));
+  }
+  
+  const handleVatTypeSelect = (transactionId: string, vatType: VatType) => {
+      setVatTypes(prev => ({
+          ...prev,
+          [transactionId]: vatType
       }));
   }
 
@@ -1840,6 +1917,8 @@ export default function NumeraPage() {
                 ...tx,
                 allocatedTo: allocation,
                 allocatedAt: new Date(),
+                vatType: vatTypes[tx.id] || 'no_vat',
+                vatAmount: 0,
             });
         } else {
             unallocatedStill.push(tx.id);
@@ -1859,6 +1938,11 @@ export default function NumeraPage() {
         const newAllocations = { ...prev };
         newAllocatedTransactions.forEach(tx => delete newAllocations[tx.id]);
         return newAllocations;
+    });
+    setVatTypes(prev => {
+        const newVatTypes = { ...prev };
+        newAllocatedTransactions.forEach(tx => delete newVatTypes[tx.id]);
+        return newVatTypes;
     });
 
     toast({ title: 'Bulk Allocation Successful', description: `${newAllocatedTransactions.length} transactions have been allocated.` });
@@ -1901,6 +1985,7 @@ export default function NumeraPage() {
             const result = await allocateTransaction({ description: tx.description });
             if (result.accountNumber && chartOfAccounts.some(acc => acc.accountNumber === result.accountNumber)) {
                  handleAllocationSelect(tx.id, result.accountNumber, 'account');
+                 handleVatTypeSelect(tx.id, result.vatType);
                  successCount++;
             }
         } catch (error) {
@@ -2204,14 +2289,14 @@ export default function NumeraPage() {
                                         )}
                                         <TabsContent value="unallocated-income">
                                             {incomeTransactions.length > 0 ? (
-                                                <AllocationTable transactions={incomeTransactions} onAllocate={handleAllocate} selectedTransactions={selectedTransactions} onSelectionChange={handleSelectionChange} onAllocationSelect={handleAllocationSelect} allocations={allocations} />
+                                                <AllocationTable transactions={incomeTransactions} onAllocate={handleAllocate} selectedTransactions={selectedTransactions} onSelectionChange={handleSelectionChange} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes}/>
                                             ) : (
                                                 <p className="text-muted-foreground text-center py-10">No unallocated income transactions to display.</p>
                                             )}
                                         </TabsContent>
                                         <TabsContent value="unallocated-expenses">
                                              {expenseTransactions.length > 0 ? (
-                                                 <AllocationTable transactions={expenseTransactions} onAllocate={handleAllocate} selectedTransactions={selectedTransactions} onSelectionChange={handleSelectionChange} onAllocationSelect={handleAllocationSelect} allocations={allocations} />
+                                                 <AllocationTable transactions={expenseTransactions} onAllocate={handleAllocate} selectedTransactions={selectedTransactions} onSelectionChange={handleSelectionChange} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes}/>
                                              ) : (
                                                 <p className="text-muted-foreground text-center py-10">No unallocated expense transactions to display.</p>
                                              )}
@@ -2460,3 +2545,4 @@ export default function NumeraPage() {
     </div>
   );
 }
+
