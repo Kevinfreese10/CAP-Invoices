@@ -668,7 +668,7 @@ function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions 
       form.reset(newValues);
       handleGenerate(newValues as z.infer<typeof generalLedgerFormSchema>);
     }
-  }, [JSON.stringify(initialValues?.accounts), initialValues?.fromDate, initialValues?.toDate]);
+  }, [initialValues?.accounts, initialValues?.fromDate, initialValues?.toDate]);
 
 
   const handleDownloadExcel = () => {
@@ -1230,6 +1230,125 @@ function JournalForm({ journal, onSubmit, onCancel }: { journal: Journal | null,
     );
 }
 
+const vatReportFormSchema = z.object({
+  fromDate: z.date(),
+  toDate: z.date(),
+});
+
+type VatReportData = {
+    totalSales: number;
+    outputVat: number;
+    totalPurchases: number;
+    inputVat: number;
+    vatPayable: number;
+};
+
+function VatReportCard({ allocatedTransactions, activeClient }: { allocatedTransactions: AllocatedTransaction[], activeClient: User }) {
+    const [reportData, setReportData] = useState<VatReportData | null>(null);
+
+    const getFinancialYear = (yearEnd: any) => {
+        const toDate = yearEnd?.toDate ? yearEnd.toDate() : new Date(yearEnd);
+        const endDate = toDate;
+        const startDate = add(sub(endDate, { years: 1 }), { days: 1 });
+        return { startDate, endDate };
+    }
+
+    const { startDate, endDate } = getFinancialYear(activeClient.yearEnd);
+    
+    const form = useForm<z.infer<typeof vatReportFormSchema>>({
+        resolver: zodResolver(vatReportFormSchema),
+        defaultValues: {
+            fromDate: startDate,
+            toDate: endDate,
+        }
+    });
+
+    const handleGenerateVat = (values: z.infer<typeof vatReportFormSchema>) => {
+        const VAT_RATE = 0.15;
+        let totalSales = 0;
+        let totalPurchases = 0;
+
+        const filteredTxs = allocatedTransactions.filter(tx => {
+            const txDate = new Date(tx.date.split('/').reverse().join('-'));
+            return txDate >= values.fromDate && txDate <= values.toDate;
+        });
+
+        filteredTxs.forEach(tx => {
+            const allocatedAcc = tx.allocatedTo.value;
+            // Sales
+            if (allocatedAcc === '1000/000') {
+                totalSales += tx.amount;
+            }
+            // Purchases/Expenses (assuming all are vatable for this example)
+            const accNumberPrefix = parseInt(allocatedAcc.split('/')[0], 10);
+            if (accNumberPrefix >= 2000 && accNumberPrefix < 5000) {
+                 if(tx.amount < 0) { // Only count payments as purchases
+                    totalPurchases += Math.abs(tx.amount);
+                }
+            }
+        });
+
+        const outputVat = totalSales * VAT_RATE / (1 + VAT_RATE);
+        const inputVat = totalPurchases * VAT_RATE / (1 + VAT_RATE);
+
+        setReportData({
+            totalSales: totalSales - outputVat,
+            outputVat,
+            totalPurchases: totalPurchases - inputVat,
+            inputVat,
+            vatPayable: outputVat - inputVat,
+        });
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>VAT201 Report</CardTitle>
+                <CardDescription>Generate a VAT201 calculation based on allocated transactions for a selected period.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleGenerateVat)} className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             <FormField control={form.control} name="fromDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>From Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd/MM/yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem> )} />
+                             <FormField control={form.control} name="toDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>To Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd/MM/yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem> )} />
+                        </div>
+                        <Button type="submit">Generate VAT Report</Button>
+                    </form>
+                </Form>
+                {reportData && (
+                    <div className="pt-6">
+                        <h3 className="text-lg font-semibold mb-4">VAT201 Calculation Summary</h3>
+                        <div className="border rounded-lg p-4 space-y-3">
+                            <div className="flex justify-between items-center">
+                                <p>[Box 4] Standard-rated sales (excl. VAT)</p>
+                                <p className="font-mono">{formatNumber(reportData.totalSales)}</p>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <p>[Box 5] Output VAT on sales</p>
+                                <p className="font-mono">{formatNumber(reportData.outputVat)}</p>
+                            </div>
+                            <Separator />
+                             <div className="flex justify-between items-center">
+                                <p>[Box 14] Input VAT on purchases</p>
+                                <p className="font-mono">{formatNumber(reportData.inputVat)}</p>
+                            </div>
+                             <Separator />
+                              <div className="flex justify-between items-center font-bold text-lg">
+                                <p>[Box 12] VAT Payable / (Refundable)</p>
+                                <p className="font-mono">{formatNumber(reportData.vatPayable)}</p>
+                            </div>
+                        </div>
+                         <Button variant="outline" className="mt-4" onClick={() => window.print()}>
+                            <Printer className="mr-2 h-4 w-4" /> Print Report
+                        </Button>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
 export default function NumeraPage() {
   const [clients, setClients] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -1729,6 +1848,7 @@ export default function NumeraPage() {
                         <TabsTrigger value="reporting">Reporting</TabsTrigger>
                         <TabsTrigger value="banking">Banking</TabsTrigger>
                         <TabsTrigger value="journals">Journals</TabsTrigger>
+                        <TabsTrigger value="vat">VAT</TabsTrigger>
                         <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
                         <TabsTrigger value="customers">Customers</TabsTrigger>
                         <TabsTrigger value="train-ai">Train AI</TabsTrigger>
@@ -1987,6 +2107,9 @@ export default function NumeraPage() {
                                 )}
                             </CardContent>
                         </Card>
+                    </TabsContent>
+                    <TabsContent value="vat">
+                        <VatReportCard allocatedTransactions={allocatedTransactions} activeClient={activeClient} />
                     </TabsContent>
                      <TabsContent value="suppliers">
                          <Card>
