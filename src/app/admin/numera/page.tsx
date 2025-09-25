@@ -303,25 +303,32 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions 
             accountBalances[acc.accountNumber] = { debit: 0, credit: 0 };
         });
 
-        allocatedTransactions.forEach(tx => {
+        const transactionsInPeriod = allocatedTransactions.filter(tx => {
+            const txDate = new Date(tx.date.split('/').reverse().join('-'));
+            return txDate >= values.fromDate && txDate <= values.toDate;
+        });
+
+        transactionsInPeriod.forEach(tx => {
             if (tx.allocatedTo.type === 'account') {
-                const accNum = tx.allocatedTo.value;
-                if (accountBalances[accNum]) {
-                    if (tx.amount > 0) { // Assume income/credit to bank is a debit in the GL account
-                        accountBalances[accNum].debit += tx.amount;
-                    } else { // Assume expense/debit from bank is a credit in the GL account
-                        accountBalances[accNum].credit += Math.abs(tx.amount);
+                const allocationAccNum = tx.allocatedTo.value;
+                const bankAccNum = tx.bankAccountId;
+                const amount = Math.abs(tx.amount);
+
+                if (accountBalances[allocationAccNum] && accountBalances[bankAccNum]) {
+                    // Double entry:
+                    // If amount is negative, it's an expense/payment.
+                    // Debit the Expense/Asset account, Credit the Bank account.
+                    if (tx.amount < 0) {
+                        accountBalances[allocationAccNum].debit += amount;
+                        accountBalances[bankAccNum].credit += amount;
+                    } 
+                    // If amount is positive, it's income/deposit.
+                    // Debit the Bank account, Credit the Income/Liability account.
+                    else {
+                        accountBalances[bankAccNum].debit += amount;
+                        accountBalances[allocationAccNum].credit += amount;
                     }
                 }
-                 // Handle the bank side of the transaction
-                const bankAccNum = tx.bankAccountId;
-                 if (accountBalances[bankAccNum]) {
-                    if (tx.amount > 0) {
-                        accountBalances[bankAccNum].debit += tx.amount;
-                    } else {
-                        accountBalances[bankAccNum].credit += Math.abs(tx.amount);
-                    }
-                 }
             }
         });
         
@@ -334,20 +341,6 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions 
                 credit: balances.credit,
             };
         });
-
-        // Basic balancing with suspense account for demo purposes
-        const totalDebits = reportLedger.reduce((acc, item) => acc + item.debit, 0);
-        const totalCredits = reportLedger.reduce((acc, item) => acc + item.credit, 0);
-        const difference = totalDebits - totalCredits;
-
-        const suspenseAccount = reportLedger.find(acc => acc.accountNumber === '9990/000');
-        if (suspenseAccount) {
-            if (difference > 0) {
-                suspenseAccount.credit += difference;
-            } else {
-                suspenseAccount.debit -= difference;
-            }
-        }
         
         const filteredData = values.showZeroItems ? reportLedger : reportLedger.filter(d => d.debit !== 0 || d.credit !== 0);
 
@@ -574,23 +567,25 @@ function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions 
 
           const accountTransactions = allocatedTransactions.filter(tx => {
                 const txDate = new Date(tx.date.split('/').reverse().join('-'));
-                const isCorrectAccount = tx.allocatedTo.type === 'account' && tx.allocatedTo.value === accNum;
+                const isAllocation = tx.allocatedTo.type === 'account' && tx.allocatedTo.value === accNum;
                 const isBankContra = tx.bankAccountId === accNum;
-                return (isCorrectAccount || isBankContra) && txDate >= values.fromDate && txDate <= values.toDate;
-            });
+                return (isAllocation || isBankContra) && txDate >= values.fromDate && txDate <= values.toDate;
+            }).sort((a,b) => new Date(a.date.split('/').reverse().join('-')).getTime() - new Date(b.date.split('/').reverse().join('-')).getTime());
 
           const transactions: GLTransaction[] = accountTransactions.map(tx => {
               const isContra = tx.bankAccountId === accNum;
-              const amount = tx.amount;
+              const amount = Math.abs(tx.amount);
               let debit = 0;
               let credit = 0;
 
-              if (isContra) { // This is the bank side of the transaction
-                  if(amount > 0) debit = amount;
-                  else credit = Math.abs(amount);
-              } else { // This is the allocation side of the transaction
-                  if(amount > 0) credit = amount;
-                  else debit = Math.abs(amount);
+              if (isContra) {
+                // Bank is contra. If original amount was < 0 (payment), bank is credited.
+                if (tx.amount < 0) credit = amount;
+                else debit = amount;
+              } else {
+                // Allocation side. If original amount was < 0 (expense), allocation is debited.
+                if (tx.amount < 0) debit = amount;
+                else credit = amount;
               }
 
               runningBalance += (debit - credit);
@@ -1852,4 +1847,3 @@ export default function NumeraPage() {
     </div>
   );
 }
-
