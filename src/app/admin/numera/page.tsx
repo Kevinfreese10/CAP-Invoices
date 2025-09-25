@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
@@ -22,7 +23,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
-import { format, add, sub } from 'date-fns';
+import { format, add, sub, getMonth, getYear, startOfYear, endOfYear, startOfMonth, endOfMonth, addMonths } from 'date-fns';
 import { chartOfAccounts } from '@/lib/chart-of-accounts';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -1231,8 +1232,7 @@ function JournalForm({ journal, onSubmit, onCancel }: { journal: Journal | null,
 }
 
 const vatReportFormSchema = z.object({
-  fromDate: z.date(),
-  toDate: z.date(),
+  period: z.string().min(1, 'A period must be selected.'),
 });
 
 type VatReportData = {
@@ -1241,49 +1241,105 @@ type VatReportData = {
     totalPurchases: number;
     inputVat: number;
     vatPayable: number;
+    transactions: {
+        inputs: AllocatedTransaction[];
+        outputs: AllocatedTransaction[];
+    }
 };
 
 function VatReportCard({ allocatedTransactions, activeClient }: { allocatedTransactions: AllocatedTransaction[], activeClient: User }) {
     const [reportData, setReportData] = useState<VatReportData | null>(null);
 
-    const getFinancialYear = (yearEnd: any) => {
-        const toDate = yearEnd?.toDate ? yearEnd.toDate() : new Date(yearEnd);
-        const endDate = toDate;
-        const startDate = add(sub(endDate, { years: 1 }), { days: 1 });
-        return { startDate, endDate };
-    }
-
-    const { startDate, endDate } = getFinancialYear(activeClient.yearEnd);
-    
     const form = useForm<z.infer<typeof vatReportFormSchema>>({
         resolver: zodResolver(vatReportFormSchema),
-        defaultValues: {
-            fromDate: startDate,
-            toDate: endDate,
-        }
+        defaultValues: { period: '' }
     });
 
+    const vatPeriods = useMemo(() => {
+        if (!activeClient.isVatRegistered || !activeClient.vatCategory) return [];
+
+        const regDate = activeClient.vatRegistrationDate?.toDate ? activeClient.vatRegistrationDate.toDate() : new Date(activeClient.vatRegistrationDate);
+        const now = new Date();
+        let startDate: Date;
+        let periods = [];
+        
+        switch(activeClient.vatCategory) {
+            case 'A': // Jan-Feb, Mar-Apr...
+                startDate = startOfMonth(regDate);
+                while(startDate <= now) {
+                    const endDate = endOfMonth(addMonths(startDate, 1));
+                    periods.push({
+                        label: `${format(startDate, 'MMM')} - ${format(endDate, 'MMM yyyy')}`,
+                        value: `${startDate.toISOString()}|${endDate.toISOString()}`
+                    });
+                    startDate = addMonths(startDate, 2);
+                }
+                break;
+            case 'B': // Feb-Mar, Apr-May...
+                let startMonth = getMonth(regDate);
+                if (startMonth % 2 !== 1) startMonth++; // Ensure we start on an odd month index (Feb=1, Apr=3...)
+                startDate = startOfMonth(new Date(getYear(regDate), startMonth));
+                
+                while(startDate <= now) {
+                    const endDate = endOfMonth(addMonths(startDate, 1));
+                     periods.push({
+                        label: `${format(startDate, 'MMM')} - ${format(endDate, 'MMM yyyy')}`,
+                        value: `${startDate.toISOString()}|${endDate.toISOString()}`
+                    });
+                    startDate = addMonths(startDate, 2);
+                }
+                break;
+            case 'C': // Monthly
+                startDate = startOfMonth(regDate);
+                 while(startDate <= now) {
+                    const endDate = endOfMonth(startDate);
+                     periods.push({
+                        label: `${format(startDate, 'MMM yyyy')}`,
+                        value: `${startDate.toISOString()}|${endDate.toISOString()}`
+                    });
+                    startDate = addMonths(startDate, 1);
+                }
+                break;
+        }
+        return periods.reverse();
+
+    }, [activeClient]);
+
     const handleGenerateVat = (values: z.infer<typeof vatReportFormSchema>) => {
+        if (!activeClient.isVatRegistered || !activeClient.vatRegistrationDate) {
+            toast({ title: "VAT Not Configured", description: "This client is not set up for VAT reporting.", variant: "destructive"});
+            return;
+        }
+
+        const [fromDateStr, toDateStr] = values.period.split('|');
+        const fromDate = new Date(fromDateStr);
+        const toDate = new Date(toDateStr);
+        const registrationDate = activeClient.vatRegistrationDate.toDate ? activeClient.vatRegistrationDate.toDate() : new Date(activeClient.vatRegistrationDate);
+
         const VAT_RATE = 0.15;
         let totalSales = 0;
         let totalPurchases = 0;
+        let outputTransactions: AllocatedTransaction[] = [];
+        let inputTransactions: AllocatedTransaction[] = [];
 
         const filteredTxs = allocatedTransactions.filter(tx => {
             const txDate = new Date(tx.date.split('/').reverse().join('-'));
-            return txDate >= values.fromDate && txDate <= values.toDate;
+            return txDate >= fromDate && txDate <= toDate && txDate >= registrationDate;
         });
 
         filteredTxs.forEach(tx => {
             const allocatedAcc = tx.allocatedTo.value;
-            // Sales
-            if (allocatedAcc === '1000/000') {
+            // Sales (Output VAT)
+            if (allocatedAcc === '1000/000' && tx.amount > 0) {
                 totalSales += tx.amount;
+                outputTransactions.push(tx);
             }
-            // Purchases/Expenses (assuming all are vatable for this example)
+            // Purchases/Expenses (Input VAT - assuming all are vatable for this example)
             const accNumberPrefix = parseInt(allocatedAcc.split('/')[0], 10);
             if (accNumberPrefix >= 2000 && accNumberPrefix < 5000) {
                  if(tx.amount < 0) { // Only count payments as purchases
                     totalPurchases += Math.abs(tx.amount);
+                    inputTransactions.push(tx);
                 }
             }
         });
@@ -1297,6 +1353,7 @@ function VatReportCard({ allocatedTransactions, activeClient }: { allocatedTrans
             totalPurchases: totalPurchases - inputVat,
             inputVat,
             vatPayable: outputVat - inputVat,
+            transactions: { inputs: inputTransactions, outputs: outputTransactions }
         });
     };
 
@@ -1307,15 +1364,19 @@ function VatReportCard({ allocatedTransactions, activeClient }: { allocatedTrans
                 <CardDescription>Generate a VAT201 calculation based on allocated transactions for a selected period.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+                {!activeClient.isVatRegistered ? (
+                     <Alert variant="destructive">
+                        <AlertTitle>VAT Not Enabled</AlertTitle>
+                        <AlertDescription>This client is not marked as VAT registered. Please update their profile in the main Client Management screen to enable VAT reporting.</AlertDescription>
+                    </Alert>
+                ) : (
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleGenerateVat)} className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                             <FormField control={form.control} name="fromDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>From Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd/MM/yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem> )} />
-                             <FormField control={form.control} name="toDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>To Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd/MM/yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem> )} />
-                        </div>
+                        <FormField control={form.control} name="period" render={({ field }) => ( <FormItem><FormLabel>Select VAT Period</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a period..." /></SelectTrigger></FormControl><SelectContent>{vatPeriods.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
                         <Button type="submit">Generate VAT Report</Button>
                     </form>
                 </Form>
+                )}
                 {reportData && (
                     <div className="pt-6">
                         <h3 className="text-lg font-semibold mb-4">VAT201 Calculation Summary</h3>
@@ -1339,9 +1400,33 @@ function VatReportCard({ allocatedTransactions, activeClient }: { allocatedTrans
                                 <p className="font-mono">{formatNumber(reportData.vatPayable)}</p>
                             </div>
                         </div>
-                         <Button variant="outline" className="mt-4" onClick={() => window.print()}>
+                        <Button variant="outline" className="mt-4" onClick={() => window.print()}>
                             <Printer className="mr-2 h-4 w-4" /> Print Report
                         </Button>
+                        <div className="mt-6 space-y-4">
+                            <div>
+                                <h4 className="font-semibold">Output VAT Transactions ({reportData.transactions.outputs.length})</h4>
+                                <Table>
+                                    <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Amount (incl.)</TableHead></TableRow></TableHeader>
+                                    <TableBody>
+                                        {reportData.transactions.outputs.map(tx => (
+                                            <TableRow key={tx.id}><TableCell>{tx.date}</TableCell><TableCell>{tx.description}</TableCell><TableCell className="text-right font-mono">{formatNumber(tx.amount)}</TableCell></TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                             <div>
+                                <h4 className="font-semibold">Input VAT Transactions ({reportData.transactions.inputs.length})</h4>
+                                <Table>
+                                    <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Amount (incl.)</TableHead></TableRow></TableHeader>
+                                    <TableBody>
+                                        {reportData.transactions.inputs.map(tx => (
+                                            <TableRow key={tx.id}><TableCell>{tx.date}</TableCell><TableCell>{tx.description}</TableCell><TableCell className="text-right font-mono">{formatNumber(Math.abs(tx.amount))}</TableCell></TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </div>
                     </div>
                 )}
             </CardContent>

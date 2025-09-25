@@ -75,6 +75,7 @@ const formSchema = z.object({
   managementAccountsDueDate: z.date().optional(),
   isVatRegistered: z.boolean().default(false),
   vatCategory: z.enum(vatCategories).optional(),
+  vatRegistrationDate: z.date().optional(),
   preparesPayroll: z.boolean().default(false),
   payrollDueDate: z.date().optional(),
   submitsEmp201: z.boolean().default(false),
@@ -108,6 +109,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
             managementAccountsDueDate: toDate(client?.managementAccountsDueDate),
             isVatRegistered: client?.isVatRegistered || false,
             vatCategory: client?.vatCategory || undefined,
+            vatRegistrationDate: toDate(client?.vatRegistrationDate),
             preparesPayroll: client?.preparesPayroll || false,
             payrollDueDate: toDate(client?.payrollDueDate),
             submitsEmp201: client?.submitsEmp201 || false,
@@ -192,33 +194,73 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                     )} />
 
                     {watchIsVatRegistered && (
-                        <FormField
-                        control={form.control}
-                        name="vatCategory"
-                        render={({ field }) => (
-                            <FormItem>
-                            <FormLabel>VAT Category</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select VAT category..." />
-                                </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                {vatCategories.map(c => (
-                                    <SelectItem key={c} value={c}>
-                                        <div className="flex flex-col">
-                                            <span>{vatCategoryLabels[c].name}</span>
-                                            <span className="text-xs text-muted-foreground">{vatCategoryLabels[c].description}</span>
-                                        </div>
-                                    </SelectItem>
-                                ))}
-                                </SelectContent>
-                            </Select>
-                            <FormMessage />
-                            </FormItem>
-                        )}
+                        <div className="grid grid-cols-2 gap-4">
+                            <FormField
+                            control={form.control}
+                            name="vatCategory"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>VAT Category</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select VAT category..." />
+                                    </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                    {vatCategories.map(c => (
+                                        <SelectItem key={c} value={c}>
+                                            <div className="flex flex-col">
+                                                <span>{vatCategoryLabels[c].name}</span>
+                                                <span className="text-xs text-muted-foreground">{vatCategoryLabels[c].description}</span>
+                                            </div>
+                                        </SelectItem>
+                                    ))}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                            />
+                            <FormField
+                            control={form.control}
+                            name="vatRegistrationDate"
+                            render={({ field }) => (
+                                <FormItem className="flex flex-col">
+                                <FormLabel>VAT Registration Date</FormLabel>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                    <FormControl>
+                                        <Button
+                                        variant={'outline'}
+                                        className={cn(
+                                            'pl-3 text-left font-normal',
+                                            !field.value && 'text-muted-foreground'
+                                        )}
+                                        >
+                                        {field.value ? (
+                                            format(field.value, 'dd MMM yyyy')
+                                        ) : (
+                                            <span>Pick a date</span>
+                                        )}
+                                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                        </Button>
+                                    </FormControl>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar
+                                        mode="single"
+                                        selected={field.value}
+                                        onSelect={field.onChange}
+                                        initialFocus
+                                    />
+                                    </PopoverContent>
+                                </Popover>
+                                <FormMessage />
+                                </FormItem>
+                            )}
                         />
+                        </div>
                     )}
 
                     <Separator />
@@ -605,17 +647,13 @@ export default function AdminClientsPage() {
 
   const formatYearEnd = (yearEnd: any): string => {
     if (!yearEnd) return 'N/A';
-    // Check if it's a Firestore Timestamp
     if (yearEnd.toDate && typeof yearEnd.toDate === 'function') {
       const date = yearEnd.toDate();
-      // Assuming you want to display the month name
       return format(date, 'MMMM');
     }
-    // If it's already a string (like from the form default)
     if (typeof yearEnd === 'string') {
       return yearEnd;
     }
-    // Fallback for other unexpected types
     return 'Invalid Date';
   };
 
