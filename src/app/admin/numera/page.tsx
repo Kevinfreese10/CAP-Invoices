@@ -303,12 +303,16 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions,
             accountBalances[acc.accountNumber] = { debit: 0, credit: 0 };
         });
 
-        // Process allocated transactions
-        const filteredAllocated = allocatedTransactions.filter(tx => {
-            const txDate = new Date(tx.date.split('/').reverse().join('-'));
-            return txDate >= values.fromDate && txDate <= values.toDate;
-        });
-
+        const filterTxsByDate = (txs: (ImportedTransaction | AllocatedTransaction)[]) => {
+            return txs.filter(tx => {
+                const txDate = new Date(tx.date.split('/').reverse().join('-'));
+                return txDate >= values.fromDate && txDate <= values.toDate;
+            });
+        }
+        
+        const filteredAllocated = filterTxsByDate(allocatedTransactions) as AllocatedTransaction[];
+        const filteredUnallocated = filterTxsByDate(unallocatedTransactions);
+        
         filteredAllocated.forEach(tx => {
             if (tx.allocatedTo.type === 'account') {
                 const allocationAccNum = tx.allocatedTo.value;
@@ -316,7 +320,7 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions,
                 const amount = Math.abs(tx.amount);
 
                 if (accountBalances[allocationAccNum] && accountBalances[bankAccNum]) {
-                    if (tx.amount < 0) { // Expense
+                     if (tx.amount < 0) { // Expense
                         accountBalances[allocationAccNum].debit += amount;
                         accountBalances[bankAccNum].credit += amount;
                     } else { // Income
@@ -326,14 +330,8 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions,
                 }
             }
         });
-
-        // Process unallocated transactions
+        
         const UNALLOCATED_SUSPENSE_ACC = '9950/000';
-        const filteredUnallocated = unallocatedTransactions.filter(tx => {
-            const txDate = new Date(tx.date.split('/').reverse().join('-'));
-            return txDate >= values.fromDate && txDate <= values.toDate;
-        });
-
         filteredUnallocated.forEach(tx => {
             const bankAccNum = tx.bankAccountId;
             const amount = Math.abs(tx.amount);
@@ -351,6 +349,18 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions,
         
         let reportLedger = Object.entries(accountBalances).map(([accountNumber, balances]) => {
             const accountInfo = chartOfAccounts.find(a => a.accountNumber === accountNumber)!;
+            
+            // For bank accounts, show closing balance not total debits/credits
+            if (accountNumber.startsWith('8400/')) {
+                const netBalance = balances.debit - balances.credit;
+                return {
+                    accountNumber,
+                    description: accountInfo.description,
+                    debit: netBalance > 0 ? netBalance : 0,
+                    credit: netBalance < 0 ? Math.abs(netBalance) : 0,
+                };
+            }
+
             return {
                 accountNumber,
                 description: accountInfo.description,
@@ -635,7 +645,6 @@ function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions 
   };
 
   useEffect(() => {
-    const stringifiedAccounts = JSON.stringify(initialValues?.accounts);
     if (initialValues && initialValues.accounts && initialValues.accounts.length > 0) {
       const newValues = {
         fromDate: initialValues.fromDate || startDate,
@@ -1443,7 +1452,7 @@ export default function NumeraPage() {
 
 
   const clientBankAccounts = activeClient
-    ? chartOfAccounts.filter(acc => acc.id.startsWith(`cashbook-${activeClient.id}`))
+    ? chartOfAccounts.filter(acc => acc.description.startsWith(activeClient.name))
     : [];
 
   const incomeTransactions = useMemo(() => {
