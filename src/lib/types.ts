@@ -177,3 +177,28 @@ export type Task = {
   clientId?: string;
   comments?: TaskComment[];
 };
+
+export type ImportedTransaction = {
+    id: string;
+    clientId: string;
+    date: string;
+    description: string;
+    amount: number;
+    bankAccountId: string;
+};
+
+export type AllocatedTransaction = {
+    id: string;
+    clientId: string;
+    date: string;
+    description: string;
+    amount: number;
+    bankAccountId: string;
+    allocatedTo: {
+        value: string;
+        type: 'account' | 'customer' | 'supplier';
+    };
+    vatType: VatType;
+    vatAmount: number;
+    allocatedAt: any; // Using `any` for Firestore Timestamp compatibility
+};

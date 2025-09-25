@@ -50,20 +50,22 @@ const formatNumber = (value: number) => {
 
 type ImportedTransaction = {
     id: string;
+    clientId: string;
     date: string;
     description: string;
     amount: number;
     bankAccountId: string; // The account number of the bank it was imported into
 };
 
-type AllocatedTransaction = ImportedTransaction & {
+type AllocatedTransaction = Omit<ImportedTransaction, 'id'> & {
+    id: string; // Keep id optional for creation
     allocatedTo: {
         value: string; // Account number, customer id, or supplier id
         type: 'account' | 'customer' | 'supplier';
     };
     vatType: VatType;
     vatAmount: number;
-    allocatedAt: Date;
+    allocatedAt: Timestamp;
 };
 
 type TrialBalanceReportData = {
@@ -1210,7 +1212,7 @@ function AllocationTable({ transactions, onAllocate, selectedTransactions, onSel
                     const [dayA, monthA, yearA] = (aValue as string).split('/').map(Number);
                     const [dayB, monthB, yearB] = (bValue as string).split('/').map(Number);
                     aValue = new Date(yearA, monthA - 1, dayA).getTime();
-                    bValue = new Date(yearB, monthB - 1, yearB).getTime();
+                    bValue = new Date(yearB, monthB - 1, dayB).getTime();
                 }
 
                 if (aValue < bValue) {
@@ -1753,6 +1755,46 @@ export default function NumeraPage() {
     fetchClients();
   }, []);
 
+  const fetchTransactions = async (clientId: string) => {
+    try {
+        const unallocatedQ = query(collection(db, 'unallocatedTransactions'), where('clientId', '==', clientId));
+        const allocatedQ = query(collection(db, 'allocatedTransactions'), where('clientId', '==', clientId));
+
+        const [unallocatedSnapshot, allocatedSnapshot] = await Promise.all([
+            getDocs(unallocatedQ),
+            getDocs(allocatedQ),
+        ]);
+
+        const unallocated = unallocatedSnapshot.docs.map(doc => ({...doc.data(), id: doc.id} as ImportedTransaction));
+        const allocated = allocatedSnapshot.docs.map(doc => ({...doc.data(), id: doc.id} as AllocatedTransaction));
+
+        setUnallocatedTransactions(unallocated);
+        setAllocatedTransactions(allocated);
+        
+        // Calculate bank balances from all transactions
+        const allTx = [...unallocated, ...allocated];
+        const balances = allTx.reduce((acc, tx) => {
+            acc[tx.bankAccountId] = (acc[tx.bankAccountId] || 0) + tx.amount;
+            return acc;
+        }, {} as { [key: string]: number });
+        setBankBalances(balances);
+
+    } catch (error) {
+        console.error("Error fetching transactions:", error);
+        toast({ title: 'Error', description: 'Could not fetch transactions for this client.', variant: 'destructive'});
+    }
+  }
+
+  useEffect(() => {
+    if (activeClient) {
+        fetchTransactions(activeClient.id);
+    } else {
+        setUnallocatedTransactions([]);
+        setAllocatedTransactions([]);
+        setBankBalances({});
+    }
+  }, [activeClient]);
+
   const handleAdd = () => {
     setSelectedClient(null);
     setIsFormOpen(true);
@@ -1842,7 +1884,7 @@ export default function NumeraPage() {
   };
 
   const handleImport = () => {
-    if (!selectedBankAccount || !importPreview || !selectedFile) {
+    if (!selectedBankAccount || !importPreview || !selectedFile || !activeClient) {
         toast({ title: 'Import Error', description: 'No account or file selected for import.', variant: 'destructive' });
         return;
     }
@@ -1850,24 +1892,27 @@ export default function NumeraPage() {
     Papa.parse(selectedFile, {
       header: true,
       skipEmptyLines: true,
-      complete: (results) => {
+      complete: async (results) => {
+          const batch = writeBatch(db);
           const parsedTransactions = (results.data as { Date: string; Description: string; Amount: string }[])
-              .map((row, index) => ({
-                  id: `tx-${Date.now()}-${index}`,
+              .map((row) => ({
+                  clientId: activeClient.id,
                   date: row.Date,
                   description: row.Description,
                   amount: parseFloat(row.Amount) || 0,
                   bankAccountId: selectedBankAccount,
               }));
+          
+          parsedTransactions.forEach(tx => {
+              const docRef = doc(collection(db, 'unallocatedTransactions'));
+              batch.set(docRef, tx);
+          });
+          
+          await batch.commit();
 
-          setUnallocatedTransactions(prev => [...prev, ...parsedTransactions]);
+          await fetchTransactions(activeClient.id);
           
-          setBankBalances(prev => ({
-              ...prev,
-              [selectedBankAccount]: importPreview.balance
-          }));
-          
-          toast({ title: 'Import Successful', description: `${importPreview.count} transactions have been added to the allocation list.` });
+          toast({ title: 'Import Successful', description: `${importPreview.count} transactions have been added to the database.` });
           
           setImportPreview(null);
           setSelectedFile(null);
@@ -1934,36 +1979,33 @@ export default function NumeraPage() {
     document.body.removeChild(link);
   };
   
-  const handleAllocate = (transactionId: string) => {
+  const handleAllocate = async (transactionId: string) => {
       const allocation = allocations[transactionId];
-      if (!allocation) {
+      if (!allocation || !activeClient) {
           toast({ title: 'Allocation Error', description: 'Please select an account to allocate to.', variant: 'destructive' });
           return;
       }
       
       const transactionToAllocate = unallocatedTransactions.find(tx => tx.id === transactionId);
       if (!transactionToAllocate) return;
+      
+      const { id, ...restOfTx } = transactionToAllocate;
 
-      const newAllocatedTransaction: AllocatedTransaction = {
-          ...transactionToAllocate,
+      const newAllocatedTransaction: Omit<AllocatedTransaction, 'id'> = {
+          ...restOfTx,
           allocatedTo: allocation,
-          allocatedAt: new Date(),
+          allocatedAt: Timestamp.now(),
           vatType: vatTypes[transactionId] || 'no_vat',
-          vatAmount: 0, // Placeholder for now
+          vatAmount: 0, // Placeholder
       };
       
-      setAllocatedTransactions(prev => [...prev, newAllocatedTransaction]);
-      setUnallocatedTransactions(prev => prev.filter(tx => tx.id !== transactionId));
-      setAllocations(prev => {
-          const newAllocations = { ...prev };
-          delete newAllocations[transactionId];
-          return newAllocations;
-      });
-      setVatTypes(prev => {
-        const newVatTypes = { ...prev };
-        delete newVatTypes[transactionId];
-        return newVatTypes;
-      });
+      const batch = writeBatch(db);
+      batch.set(doc(collection(db, 'allocatedTransactions')), newAllocatedTransaction);
+      batch.delete(doc(db, 'unallocatedTransactions', transactionId));
+      
+      await batch.commit();
+
+      await fetchTransactions(activeClient.id);
 
       toast({ title: 'Transaction Allocated', description: 'The transaction has been successfully allocated.' });
   }
@@ -1982,34 +2024,32 @@ export default function NumeraPage() {
       }));
   }
 
-  const handleBulkAllocate = (bulkAllocation: { value: string, type: 'account'|'customer'|'supplier' }, bulkVatType: VatType) => {
+  const handleBulkAllocate = async (bulkAllocation: { value: string, type: 'account'|'customer'|'supplier' }, bulkVatType: VatType) => {
+    if (!activeClient) return;
+
     const transactionsToAllocate = unallocatedTransactions.filter(tx => selectedTransactions.includes(tx.id));
     
-    const newAllocatedTransactions: AllocatedTransaction[] = transactionsToAllocate.map(tx => ({
-        ...tx,
-        allocatedTo: bulkAllocation,
-        allocatedAt: new Date(),
-        vatType: bulkVatType,
-        vatAmount: 0,
-    }));
+    const batch = writeBatch(db);
     
-    setAllocatedTransactions(prev => [...prev, ...newAllocatedTransactions]);
-    setUnallocatedTransactions(prev => prev.filter(tx => !newAllocatedTransactions.some(at => at.id === tx.id)));
-    setSelectedTransactions([]);
+    transactionsToAllocate.forEach(tx => {
+        const { id, ...restOfTx } = tx;
+        const newAllocated: Omit<AllocatedTransaction, 'id'> = {
+            ...restOfTx,
+            allocatedTo: bulkAllocation,
+            allocatedAt: Timestamp.now(),
+            vatType: bulkVatType,
+            vatAmount: 0,
+        };
+        batch.set(doc(collection(db, 'allocatedTransactions')), newAllocated);
+        batch.delete(doc(db, 'unallocatedTransactions', id));
+    });
     
-    setAllocations(prev => {
-        const newAllocations = { ...prev };
-        newAllocatedTransactions.forEach(tx => delete newAllocations[tx.id]);
-        return newAllocations;
-    });
-    setVatTypes(prev => {
-        const newVatTypes = { ...prev };
-        newAllocatedTransactions.forEach(tx => delete newVatTypes[tx.id]);
-        return newVatTypes;
-    });
+    await batch.commit();
+    await fetchTransactions(activeClient.id);
 
-    toast({ title: 'Bulk Allocation Successful', description: `${newAllocatedTransactions.length} transactions have been allocated.` });
+    toast({ title: 'Bulk Allocation Successful', description: `${transactionsToAllocate.length} transactions have been allocated.` });
     setIsBulkAllocateOpen(false);
+    setSelectedTransactions([]);
   };
   
    const handleClearAllocations = () => {
@@ -2034,18 +2074,21 @@ export default function NumeraPage() {
     });
   };
 
- const handleSaveAllocation = (transactionId: string, newAllocation: {value: string, type: 'account'|'customer'|'supplier'}, newVatType: VatType) => {
-    setAllocatedTransactions(prev => prev.map(tx => {
-        if (tx.id === transactionId) {
-            return {
-                ...tx,
-                allocatedTo: newAllocation,
-                vatType: newVatType,
-            };
-        }
-        return tx;
-    }));
-    toast({ title: 'Allocation Updated', description: 'The transaction allocation has been successfully saved.' });
+ const handleSaveAllocation = async (transactionId: string, newAllocation: {value: string, type: 'account'|'customer'|'supplier'}, newVatType: VatType) => {
+    if(!activeClient) return;
+    try {
+        const docRef = doc(db, "allocatedTransactions", transactionId);
+        await setDoc(docRef, { 
+            allocatedTo: newAllocation,
+            vatType: newVatType
+        }, { merge: true });
+
+        await fetchTransactions(activeClient.id);
+        toast({ title: 'Allocation Updated', description: 'The transaction allocation has been successfully saved.' });
+    } catch (error) {
+        console.error("Error saving allocation:", error);
+        toast({ title: 'Error', description: 'Could not save the allocation.', variant: 'destructive'});
+    }
   };
 
   const runAiAllocation = async (txns: ImportedTransaction[]) => {
@@ -2869,5 +2912,3 @@ function BulkAllocateDialog({ isOpen, onClose, onBulkAllocate, count }: { isOpen
         </Dialog>
     );
 }
-
-    
