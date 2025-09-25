@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload, FileCheck2, ScanLine, Sprout, Search, ArrowUpDown, Edit, Sparkles, BrainCircuit, Copy, MessageSquare, RefreshCw } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload, FileCheck2, ScanLine, Sprout, Search, ArrowUpDown, Edit, Sparkles, BrainCircuit, Copy, MessageSquare, RefreshCw, ChevronDown } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -1518,8 +1518,11 @@ type VatReportData = {
     }
 };
 
+type ReportType = 'summary' | 'transactions';
+
 function VatReportCard({ allocatedTransactions, activeClient }: { allocatedTransactions: AllocatedTransaction[], activeClient: User }) {
     const [reportData, setReportData] = useState<VatReportData | null>(null);
+    const [reportType, setReportType] = useState<ReportType | null>(null);
 
     const form = useForm<z.infer<typeof vatReportFormSchema>>({
         resolver: zodResolver(vatReportFormSchema),
@@ -1576,7 +1579,13 @@ function VatReportCard({ allocatedTransactions, activeClient }: { allocatedTrans
 
     }, [activeClient]);
 
-    const handleGenerateVat = (values: z.infer<typeof vatReportFormSchema>) => {
+    const handleGenerateVat = (reportType: ReportType) => {
+        const values = form.getValues();
+        if (!values.period) {
+            form.setError('period', { message: 'A period must be selected.'});
+            return;
+        }
+
         if (!activeClient.isVatRegistered || !activeClient.vatRegistrationDate) {
             toast({ title: "VAT Not Configured", description: "This client is not set up for VAT reporting.", variant: "destructive"});
             return;
@@ -1637,6 +1646,7 @@ function VatReportCard({ allocatedTransactions, activeClient }: { allocatedTrans
             vatPayable: outputVat - inputVat,
             transactions: { inputs: inputTransactions, outputs: outputTransactions }
         });
+        setReportType(reportType);
     };
 
     return (
@@ -1644,19 +1654,17 @@ function VatReportCard({ allocatedTransactions, activeClient }: { allocatedTrans
         <Dialog open={!!reportData} onOpenChange={(isOpen) => !isOpen && setReportData(null)}>
             <DialogContent className="sm:max-w-4xl">
                  <DialogHeader>
-                   <DialogTitle>VAT Report</DialogTitle>
+                   <DialogTitle>
+                        {reportType === 'summary' ? 'VAT201 Summary Report' : 'VAT Transaction Report'}
+                   </DialogTitle>
                    <DialogDescription>
                        VAT calculation for {activeClient.name} for the period {reportData?.fromDate} to {reportData?.toDate}.
                    </DialogDescription>
                 </DialogHeader>
                 {reportData && (
-                     <Tabs defaultValue="summary" className="w-full">
-                        <TabsList className="grid w-full grid-cols-2">
-                            <TabsTrigger value="summary">VAT201 Summary</TabsTrigger>
-                            <TabsTrigger value="transactions">VAT Transactions</TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="summary" className="mt-4">
-                            <div className="border rounded-lg p-4 space-y-3">
+                     <>
+                        {reportType === 'summary' && (
+                             <div className="border rounded-lg p-4 space-y-3">
                                 <div className="flex justify-between items-center">
                                     <p>[Box 4] Standard-rated sales (excl. VAT)</p>
                                     <p className="font-mono">{formatNumber(reportData.totalSales)}</p>
@@ -1680,9 +1688,9 @@ function VatReportCard({ allocatedTransactions, activeClient }: { allocatedTrans
                                     <p className="font-mono">{formatNumber(reportData.vatPayable)}</p>
                                 </div>
                             </div>
-                        </TabsContent>
-                        <TabsContent value="transactions" className="mt-4 max-h-[50vh] overflow-y-auto">
-                            <div className="space-y-6">
+                        )}
+                        {reportType === 'transactions' && (
+                             <div className="max-h-[50vh] overflow-y-auto space-y-6">
                                 <div>
                                     <h4 className="font-semibold mb-2">Output VAT Transactions ({reportData.transactions.outputs.length})</h4>
                                     <Table>
@@ -1708,8 +1716,8 @@ function VatReportCard({ allocatedTransactions, activeClient }: { allocatedTrans
                                     </Table>
                                 </div>
                             </div>
-                        </TabsContent>
-                    </Tabs>
+                        )}
+                    </>
                 )}
                 <DialogFooter>
                     <Button variant="outline" onClick={() => window.print()}>
@@ -1720,8 +1728,8 @@ function VatReportCard({ allocatedTransactions, activeClient }: { allocatedTrans
         </Dialog>
         <Card>
             <CardHeader>
-                <CardTitle>VAT201 Report</CardTitle>
-                <CardDescription>Generate a VAT201 calculation based on allocated transactions for a selected period.</CardDescription>
+                <CardTitle>VAT Report</CardTitle>
+                <CardDescription>Generate a VAT calculation based on allocated transactions for a selected period.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
                 {!activeClient.isVatRegistered ? (
@@ -1731,9 +1739,21 @@ function VatReportCard({ allocatedTransactions, activeClient }: { allocatedTrans
                     </Alert>
                 ) : (
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(handleGenerateVat)} className="space-y-4">
+                    <form className="space-y-4" onSubmit={e => e.preventDefault()}>
                         <FormField control={form.control} name="period" render={({ field }) => ( <FormItem><FormLabel>Select VAT Period</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a period..." /></SelectTrigger></FormControl><SelectContent>{vatPeriods.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
-                        <Button type="submit">Generate VAT Report</Button>
+                         <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button>Generate Report <ChevronDown className="ml-2 h-4 w-4" /></Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                                <DropdownMenuItem onClick={() => handleGenerateVat('summary')}>
+                                    Generate VAT201 Summary
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleGenerateVat('transactions')}>
+                                    Generate VAT Transactions Report
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </form>
                 </Form>
                 )}
@@ -2953,3 +2973,5 @@ function BulkAllocateDialog({ isOpen, onClose, onBulkAllocate, count }: { isOpen
     );
 }
 
+
+    
