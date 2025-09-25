@@ -10,15 +10,22 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { chartOfAccounts } from '@/lib/chart-of-accounts';
+import { VatType } from '@/lib/types';
 
 const AllocateTransactionInputSchema = z.object({
   description: z.string().describe('The transaction description from the bank statement.'),
 });
 export type AllocateTransactionInput = z.infer<typeof AllocateTransactionInputSchema>;
 
+const vatTypes: z.ZodType<VatType> = z.enum([
+    'standard_rated_sales', 'zero_rated_sales', 'exempt_sales',
+    'standard_rated_purchases', 'capital_goods_purchases', 'zero_rated_purchases', 'exempt_purchases', 'no_vat'
+]);
+
 const AllocateTransactionOutputSchema = z.object({
   accountNumber: z.string().describe("The suggested account number from the Chart of Accounts."),
   reasoning: z.string().describe("A brief explanation for the suggested allocation."),
+  vatType: vatTypes.describe("The suggested VAT type based on the transaction and account. Default to 'no_vat' if unsure or not applicable."),
 });
 export type AllocateTransactionOutput = z.infer<typeof AllocateTransactionOutputSchema>;
 
@@ -36,19 +43,43 @@ const prompt = ai.definePrompt({
   name: 'allocateTransactionPrompt',
   input: {schema: AllocateTransactionInputSchema},
   output: {schema: AllocateTransactionOutputSchema},
-  prompt: `You are an expert chartered accountant with over 50 years of experience in South African finance. Your task is to analyze a bank transaction description and allocate it to the most appropriate account from the provided Chart of Accounts.
-
-You should use your vast knowledge to understand the nature of the transaction based on common South African merchant names, service providers, and transaction types. If the description is ambiguous, make the most logical inference.
+  prompt: `You are an expert South African chartered accountant. Your task is to analyze a bank transaction and suggest the most appropriate General Ledger account and VAT treatment.
 
 Transaction Description:
 "{{{description}}}"
 
-Here is the Chart of Accounts you must choose from:
+Here is the Chart of Accounts you must use:
 ---
 ${serializedChartOfAccounts}
 ---
 
-Based on the description, provide the single most appropriate account number and a brief justification for your choice.
+Here are the South African VAT rules you must follow:
+---
+**VAT Rules**
+
+**Output Tax (VAT on Income)**
+- **standard_rated_sales**: Sales of goods/services (15% VAT). Most income falls here.
+- **zero_rated_sales**: Exports, certain basic foodstuffs.
+- **exempt_sales**: Interest, dividends, residential rent, certain financial services.
+
+**Input Tax (VAT on Expenses)**
+- **standard_rated_purchases**: Most operational expenses (stationery, advertising, professional fees, repairs, etc.).
+- **capital_goods_purchases**: On fixed assets like machinery, computers, furniture.
+- **zero_rated_purchases**: e.g., Diesel.
+- **exempt_purchases**: Insurance premiums, interest paid.
+- **no_vat**: Not subject to VAT (e.g., salaries, SARS payments, bank account fees, fines, donations, entertainment).
+
+**Key Expense Categories & VAT Treatment**
+- **VAT Claimable (standard_rated_purchases)**: Stationery, office supplies, telephone, internet, advertising, consulting, legal fees, repairs & maintenance (excluding passenger cars). Bank merchant fees.
+- **NO VAT (no_vat or exempt_purchases)**: Salaries, wages, PAYE/UIF/SDL, interest paid, insurance premiums, bank account fees (not merchant fees), fines, donations, entertainment expenses.
+- **Passenger Vehicles**: Input VAT is NOT claimable. Use 'no_vat'.
+- **Commercial Property**: VATable. **Residential Property**: Exempt.
+---
+
+**Your Task:**
+1.  **Allocate Account**: Based on the transaction description, choose the single most appropriate account number from the Chart of Accounts.
+2.  **Determine VAT Type**: Based on the allocated account and the VAT rules, select the correct 'vatType'. If no VAT is applicable, use 'no_vat'.
+3.  **Provide Reasoning**: Give a very brief justification for your choices.
   `,
 });
 

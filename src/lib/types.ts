@@ -1,17 +1,15 @@
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+export type VatType =
+  // Output Tax
+  | 'standard_rated_sales'
+  | 'zero_rated_sales'
+  | 'exempt_sales'
+  // Input Tax
+  | 'standard_rated_purchases'
+  | 'capital_goods_purchases'
+  | 'zero_rated_purchases'
+  | 'exempt_purchases'
+  | 'no_vat';
 
 export type ChartOfAccount = {
   id: string;
@@ -115,6 +113,7 @@ export type User = {
   // Reseller specific fields or contact person for Numera
   companyName?: string;
   contactPerson?: string;
+  contactEmail?: string;
   contactNumber?: string;
   address?: {
     street: string;
@@ -178,18 +177,3 @@ export type Task = {
   clientId?: string;
   comments?: TaskComment[];
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
