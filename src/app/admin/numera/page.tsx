@@ -1297,9 +1297,6 @@ function AllocationTable({ transactions, onAllocate, selectedTransactions, onSel
     );
 }
 
-const customers = allUsers.filter(u => u.role === 'client');
-const suppliers = [{id: 'supp-1', name: 'Telkom'}, {id: 'supp-2', name: 'Eskom'}]; // Mock suppliers
-
 function AllocatedTransactionTable({ transactions, onSaveAllocation }: { transactions: AllocatedTransaction[], onSaveAllocation: (transactionId: string, newAllocation: {value: string, type: 'account'|'customer'|'supplier'}, newVatType: VatType) => void }) {
     
     const [editableAllocations, setEditableAllocations] = useState<{ [key: string]: { value: string, type: 'account'|'customer'|'supplier' } }>({});
@@ -1788,6 +1785,9 @@ export default function NumeraPage() {
   const [selectedJournal, setSelectedJournal] = useState<Journal | null>(null);
   const [feedbackTransaction, setFeedbackTransaction] = useState<ImportedTransaction | null>(null);
   const [isBulkAllocateOpen, setIsBulkAllocateOpen] = useState(false);
+  const [customers, setCustomers] = useState<User[]>([]);
+  const [suppliers, setSuppliers] = useState<any[]>([]); // Using 'any' for mock data flexibility
+
 
   
   const importForm = useForm();
@@ -1800,6 +1800,8 @@ export default function NumeraPage() {
         let fetchedClients = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
         fetchedClients.sort((a, b) => a.name.localeCompare(b.name));
         setClients(fetchedClients);
+        setCustomers(allUsers.filter(u => u.role === 'client'));
+        setSuppliers([{id: 'supp-1', name: 'Telkom'}, {id: 'supp-2', name: 'Eskom'}]);
     } catch (error) {
         console.error("Error fetching clients:", error);
         toast({ title: 'Error', description: 'Could not fetch clients from the database.', variant: 'destructive'});
@@ -1828,7 +1830,6 @@ export default function NumeraPage() {
         setUnallocatedTransactions(unallocated);
         setAllocatedTransactions(allocated);
         
-        // Calculate bank balances from all transactions
         const allTx = [...unallocated, ...allocated];
         const balances = allTx.reduce((acc, tx) => {
             acc[tx.bankAccountId] = (acc[tx.bankAccountId] || 0) + tx.amount;
@@ -2191,7 +2192,6 @@ export default function NumeraPage() {
 
     toast({ title: "Learning from feedback...", description: "Updating AI knowledge and re-allocating." });
     
-    // Simulate updating knowledge. In a real app, this would update a persistent knowledge base.
     await refineAllocationKnowledge({
       transactionDescription: transaction.description,
       incorrectAllocation: `${incorrectAccount} (VAT: ${incorrectVatType})`,
@@ -2199,9 +2199,8 @@ export default function NumeraPage() {
       userProvidedRule: rule,
     });
     
-    setFeedbackTransaction(null); // Close the dialog
+    setFeedbackTransaction(null);
     
-    // Re-run AI allocation on the single transaction
     await runAiAllocation([transaction]);
   };
 
@@ -2231,10 +2230,10 @@ export default function NumeraPage() {
   const handleCopyJournal = (journal: Journal) => {
     const newJournalData = {
         ...journal,
-        id: '', // Remove ID to indicate it's a new entry
-        date: new Date(), // Set to current date
+        id: '', 
+        date: new Date(), 
     };
-    setSelectedJournal(newJournalData as unknown as Journal); // Cast because id is temporarily empty
+    setSelectedJournal(newJournalData as unknown as Journal); 
     setIsJournalFormOpen(true);
   };
 
@@ -2969,6 +2968,3 @@ function BulkAllocateDialog({ isOpen, onClose, onBulkAllocate, count }: { isOpen
         </Dialog>
     );
 }
-
-
-    
