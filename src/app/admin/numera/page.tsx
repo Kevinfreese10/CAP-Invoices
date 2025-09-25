@@ -432,7 +432,6 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions,
     
         const accountBalances: { [key: string]: number } = {};
     
-        // Initialize all accounts from CoA with a balance of 0
         chartOfAccounts.forEach(acc => {
             accountBalances[acc.accountNumber] = 0;
         });
@@ -462,16 +461,11 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions,
                 vatAmount = grossAmount - exclusiveAmount;
             }
     
-            // Post gross amount to bank account
             accountBalances[bankAccNum] = (accountBalances[bankAccNum] || 0) + grossAmount;
     
-            // Post exclusive amount to the allocation account
-            // Income (positive gross) becomes credit (negative balance), Expense (negative gross) becomes debit (positive balance)
             const postAmount = -exclusiveAmount;
             accountBalances[allocationAccNum] = (accountBalances[allocationAccNum] || 0) + postAmount;
     
-            // Post VAT amount to VAT control
-            // Output VAT (sales) is a credit (negative sign), Input VAT (purchases) is a debit (positive sign)
             const vatPostAmount = tx.vatType === 'standard_rated_sales' ? -vatAmount : vatAmount;
             if(vatPostAmount !== 0) {
               accountBalances[VAT_CONTROL_ACC] = (accountBalances[VAT_CONTROL_ACC] || 0) + vatPostAmount;
@@ -721,7 +715,6 @@ function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions 
 
         const transactionsForGL: GLTransaction[] = [];
 
-        // Get transactions related to this account within the date range
         const relatedTransactions = allocatedTransactions.filter(tx => {
             const txDate = new Date(tx.date.split('/').reverse().join('-'));
             const isWithinDateRange = txDate >= values.fromDate && txDate <= values.toDate;
@@ -751,15 +744,12 @@ function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions 
             let credit = 0;
             
             if (accNum === tx.bankAccountId) {
-                // Bank Account: Debit for deposits, Credit for payments
                 debit = grossAmount > 0 ? grossAmount : 0;
                 credit = grossAmount < 0 ? Math.abs(grossAmount) : 0;
             } else if (accNum === tx.allocatedTo.value) {
-                // Allocation Account (Expense/Income): Debit for expenses, Credit for income
                 debit = exclusiveAmount < 0 ? Math.abs(exclusiveAmount) : 0;
                 credit = exclusiveAmount > 0 ? exclusiveAmount : 0;
             } else if (accNum === VAT_CONTROL_ACC && isStandardVat) {
-                 // VAT Control: Debit for input VAT (purchases), Credit for output VAT (sales)
                 const vatPostAmount = tx.vatType === 'standard_rated_sales' ? -vatAmount : vatAmount;
                 debit = vatPostAmount > 0 ? vatPostAmount : 0;
                 credit = vatPostAmount < 0 ? Math.abs(vatPostAmount) : 0;
@@ -815,7 +805,7 @@ function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions 
     
     reportData.accounts.forEach(account => {
         if (worksheetData.length > 0) {
-            worksheetData.push({}); // Add a blank row between accounts
+            worksheetData.push({});
         }
         worksheetData.push({ A: `${account.accountNumber} - ${account.description}` });
         worksheetData.push({
@@ -849,14 +839,14 @@ function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions 
     let rowIndex = 0;
     reportData.accounts.forEach(account => {
         if (rowIndex > 0) {
-          rowIndex++; // Skip blank row
+          rowIndex++;
         }
-        rowIndex++; // Account header row
+        rowIndex++;
         if (worksheet[`A${rowIndex}`]) worksheet[`A${rowIndex}`].s = { font: { bold: true } };
 
-        rowIndex++; // Column headers row
+        rowIndex++;
         
-        rowIndex++; // Opening Balance row
+        rowIndex++;
         worksheet[`F${rowIndex}`] = { t: 'n', v: account.openingBalance, z: '#,##0.00' };
         
         account.transactions.forEach(() => {
@@ -869,7 +859,7 @@ function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions 
              if(balanceCell) balanceCell.z = '#,##0.00';
         });
         
-        rowIndex++; // Closing Balance row
+        rowIndex++;
         worksheet[`F${rowIndex}`] = { t: 'n', v: account.closingBalance, z: '#,##0.00' };
     });
 

@@ -311,7 +311,7 @@ export default function AdminClientsPage() {
   const fetchClients = async () => {
     setIsLoading(true);
     try {
-        const q = query(collection(db, "clients"), orderBy("name"));
+        const q = query(collection(db, "clients"), where("source", "==", "Client Management"), orderBy("name"));
         const querySnapshot = await getDocs(q);
         const fetchedClients = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Client));
         setClients(fetchedClients);
@@ -353,14 +353,17 @@ export default function AdminClientsPage() {
   };
 
    const createRecurringTasks = async (client: Client, creatorId: string) => {
-    if (!client.yearEnd || !client.id) {
-      toast({
-        title: 'Task Creation Skipped',
-        description: 'Financial year-end is required to automate tasks.',
-        variant: 'destructive'
-      });
-      return 0;
+    if (client.status === 'Inactive' || !client.yearEnd || !client.id) {
+        if (client.status === 'Inactive') {
+            toast({
+                title: 'Task Creation Skipped',
+                description: 'No tasks created for an inactive client.',
+                variant: 'default'
+            });
+        }
+        return 0;
     }
+
     const getDepartmentStaffIds = (department: string): string[] => {
         return allUsers.filter(u => u.department === department && (u.role === 'staff' || u.role === 'admin')).map(u => u.id);
     };
