@@ -647,12 +647,20 @@ export default function AdminClientsPage() {
 
   const formatYearEnd = (yearEnd: any): string => {
     if (!yearEnd) return 'N/A';
+    if (typeof yearEnd === 'string') {
+      return yearEnd;
+    }
     if (yearEnd.toDate && typeof yearEnd.toDate === 'function') {
       const date = yearEnd.toDate();
       return format(date, 'MMMM');
     }
-    if (typeof yearEnd === 'string') {
-      return yearEnd;
+    try {
+        const d = new Date(yearEnd);
+        if (!isNaN(d.getTime())) {
+             return format(d, 'MMMM');
+        }
+    } catch (e) {
+        // fall through
     }
     return 'Invalid Date';
   };
