@@ -3,6 +3,8 @@ import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import AppShell from '@/components/layout/AppShell';
 import ClientProviders from '@/contexts/ClientProviders';
+import { bodyFont, headlineFont } from '@/app/fonts';
+import { cn } from '@/lib/utils';
 
 export const metadata: Metadata = {
   title: 'My Accountant',
@@ -18,7 +20,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
       </head>
-      <body className="font-body antialiased">
+      <body className={cn("antialiased", bodyFont.variable, headlineFont.variable)}>
         <AuthProvider>
             <ClientProviders>
                 <AppShell>

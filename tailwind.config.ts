@@ -17,8 +17,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        body: ['"Helvetica Neue"', 'Arial', 'sans-serif'],
-        headline: ['"Helvetica Neue"', 'Arial', 'sans-serif'],
+        body: ['var(--font-body)'],
+        headline: ['var(--font-headline)'],
         code: ['monospace'],
       },
       colors: {
