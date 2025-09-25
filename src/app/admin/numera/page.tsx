@@ -1,6 +1,6 @@
 
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
@@ -39,6 +39,8 @@ import { refineAllocationKnowledge } from '@/ai/flows/refine-allocation-knowledg
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 const db = getFirestore(firebaseApp);
 
@@ -405,6 +407,7 @@ const trialBalanceFormSchema = z.object({
 function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions, unallocatedTransactions }: { activeClient: User; onAccountClick: (accountNumber: string, from: Date, to: Date) => void; allocatedTransactions: AllocatedTransaction[]; unallocatedTransactions: ImportedTransaction[] }) {
     
     const [reportData, setReportData] = useState<TrialBalanceReportData | null>(null);
+    const reportRef = useRef(null);
 
     const getFinancialYear = (yearEnd: any) => {
         const toDate = yearEnd?.toDate ? yearEnd.toDate() : new Date(yearEnd);
@@ -535,6 +538,24 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions,
         XLSX.writeFile(workbook, `Trial-Balance-${activeClient.name}-${reportData.fromDate}-to-${reportData.toDate}.xlsx`);
     };
 
+    const handleDownloadPdf = () => {
+        const input = reportRef.current;
+        if (!input) return;
+        html2canvas(input).then((canvas) => {
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            const canvasWidth = canvas.width;
+            const canvasHeight = canvas.height;
+            const ratio = canvasWidth / canvasHeight;
+            const width = pdfWidth;
+            const height = width / ratio;
+            pdf.addImage(imgData, 'PNG', 0, 0, width, height > pdfHeight ? pdfHeight : height);
+            pdf.save(`Trial-Balance-${activeClient.name}-${reportData?.fromDate}-to-${reportData?.toDate}.pdf`);
+        });
+    };
+
     const totalDebits = reportData?.data.reduce((acc, item) => acc + item.debit, 0) || 0;
     const totalCredits = reportData?.data.reduce((acc, item) => acc + item.credit, 0) || 0;
 
@@ -549,65 +570,71 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions,
                    </DialogDescription>
                 </DialogHeader>
                  {reportData && (
-                    <div className="printable-area p-2 bg-white max-h-[70vh] overflow-y-auto">
-                        <Card className="w-full shadow-none border-none">
-                            <CardHeader className="text-center">
-                                <CardTitle className="text-2xl">{reportData.clientName}</CardTitle>
-                                <CardDescription className="text-lg">Trial Balance</CardDescription>
-                                <CardDescription>
-                                    For the period: {reportData.fromDate} to {reportData.toDate}
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="flex justify-end gap-2 mb-4 print:hidden">
-                                    <Button variant="outline" onClick={handleDownloadExcel}>
-                                        <Download className="mr-2 h-4 w-4" />
-                                        Download Excel
-                                    </Button>
-                                    <Button variant="outline" onClick={() => window.print()}>
-                                        <Printer className="mr-2 h-4 w-4" />
-                                        Print
-                                    </Button>
-                                </div>
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead className="w-[150px]">Account</TableHead>
-                                            <TableHead>Description</TableHead>
-                                            <TableHead className="text-right w-[150px]">Debit</TableHead>
-                                            <TableHead className="text-right w-[150px]">Credit</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {reportData.data.map(item => (
-                                            <TableRow key={item.accountNumber}>
-                                                <TableCell className="font-mono">{item.accountNumber}</TableCell>
-                                                <TableCell>{item.description}</TableCell>
-                                                <TableCell className="text-right font-mono">
-                                                    <Button variant="link" className="p-0 h-auto" onClick={() => { onAccountClick(item.accountNumber, form.getValues('fromDate'), form.getValues('toDate')); setReportData(null); }}>
-                                                        {item.debit > 0 ? formatNumber(item.debit) : '-'}
-                                                    </Button>
-                                                </TableCell>
-                                                <TableCell className="text-right font-mono">
-                                                    <Button variant="link" className="p-0 h-auto" onClick={() => { onAccountClick(item.accountNumber, form.getValues('fromDate'), form.getValues('toDate')); setReportData(null); }}>
-                                                        {item.credit > 0 ? formatNumber(item.credit) : '-'}
-                                                    </Button>
-                                                </TableCell>
+                    <div className="max-h-[70vh] overflow-y-auto">
+                        <div ref={reportRef} className="printable-area p-2 bg-white">
+                            <Card className="w-full shadow-none border-none">
+                                <CardHeader className="text-center">
+                                    <CardTitle className="text-2xl">{reportData.clientName}</CardTitle>
+                                    <CardDescription className="text-lg">Trial Balance</CardDescription>
+                                    <CardDescription>
+                                        For the period: {reportData.fromDate} to {reportData.toDate}
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead className="w-[150px]">Account</TableHead>
+                                                <TableHead>Description</TableHead>
+                                                <TableHead className="text-right w-[150px]">Debit</TableHead>
+                                                <TableHead className="text-right w-[150px]">Credit</TableHead>
                                             </TableRow>
-                                        ))}
-                                    </TableBody>
-                                    <TableFooter>
-                                        <TableRow>
-                                            <TableCell colSpan={2} className="font-bold text-base">Totals</TableCell>
-                                            <TableCell className="text-right font-bold font-mono text-base">{formatNumber(totalDebits)}</TableCell>
-                                            <TableCell className="text-right font-bold font-mono text-base">{formatNumber(totalCredits)}</TableCell>
-                                        </TableRow>
-                                    </TableFooter>
-                                </Table>
-                            </CardContent>
-                        </Card>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {reportData.data.map(item => (
+                                                <TableRow key={item.accountNumber}>
+                                                    <TableCell className="font-mono">{item.accountNumber}</TableCell>
+                                                    <TableCell>{item.description}</TableCell>
+                                                    <TableCell className="text-right font-mono">
+                                                        <Button variant="link" className="p-0 h-auto" onClick={() => { onAccountClick(item.accountNumber, form.getValues('fromDate'), form.getValues('toDate')); setReportData(null); }}>
+                                                            {item.debit > 0 ? formatNumber(item.debit) : '-'}
+                                                        </Button>
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-mono">
+                                                        <Button variant="link" className="p-0 h-auto" onClick={() => { onAccountClick(item.accountNumber, form.getValues('fromDate'), form.getValues('toDate')); setReportData(null); }}>
+                                                            {item.credit > 0 ? formatNumber(item.credit) : '-'}
+                                                        </Button>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                        <TableFooter>
+                                            <TableRow>
+                                                <TableCell colSpan={2} className="font-bold text-base">Totals</TableCell>
+                                                <TableCell className="text-right font-bold font-mono text-base">{formatNumber(totalDebits)}</TableCell>
+                                                <TableCell className="text-right font-bold font-mono text-base">{formatNumber(totalCredits)}</TableCell>
+                                            </TableRow>
+                                        </TableFooter>
+                                    </Table>
+                                </CardContent>
+                            </Card>
+                        </div>
                     </div>
                  )}
+                <DialogFooter className="print:hidden">
+                    <Button variant="outline" onClick={handleDownloadPdf}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Download PDF
+                    </Button>
+                    <Button variant="outline" onClick={handleDownloadExcel}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Download Excel
+                    </Button>
+                    <Button variant="outline" onClick={() => window.print()}>
+                        <Printer className="mr-2 h-4 w-4" />
+                        Print
+                    </Button>
+                </DialogFooter>
              </DialogContent>
          </Dialog>
         <Card>
@@ -683,6 +710,7 @@ const generalLedgerFormSchema = z.object({
 function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions }: { activeClient: User, initialValues?: Partial<z.infer<typeof generalLedgerFormSchema>>, allocatedTransactions: AllocatedTransaction[] }) {
   
   const [reportData, setReportData] = useState<GeneralLedgerReportData | null>(null);
+  const reportRef = useRef(null);
   const VAT_CONTROL_ACC = '9500/000';
   const VAT_RATE = 0.15;
 
@@ -748,8 +776,8 @@ function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions 
                 credit = grossAmount < 0 ? Math.abs(grossAmount) : 0;
             } else if (accNum === tx.allocatedTo.value) {
                 // Allocation is always Net
-                debit = exclusiveAmount < 0 ? Math.abs(exclusiveAmount) : 0;
-                credit = exclusiveAmount > 0 ? exclusiveAmount : 0;
+                debit = -exclusiveAmount > 0 ? -exclusiveAmount : 0;
+                credit = -exclusiveAmount < 0 ? Math.abs(-exclusiveAmount) : 0;
             } else if (accNum === VAT_CONTROL_ACC && isStandardVat) {
                 // VAT account is always the VAT portion
                 const vatPostAmount = tx.vatType === 'standard_rated_sales' ? -vatAmount : vatAmount;
@@ -870,6 +898,24 @@ function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions 
     XLSX.writeFile(workbook, `General-Ledger-${activeClient.name}-${reportData.fromDate}-to-${reportData.toDate}.xlsx`);
   };
 
+  const handleDownloadPdf = () => {
+    const input = reportRef.current;
+    if (!input) return;
+    html2canvas(input).then((canvas) => {
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = pdf.internal.pageSize.getHeight();
+        const canvasWidth = canvas.width;
+        const canvasHeight = canvas.height;
+        const ratio = canvasWidth / canvasHeight;
+        const width = pdfWidth;
+        const height = width / ratio;
+        pdf.addImage(imgData, 'PNG', 0, 0, width, height > pdfHeight ? pdfHeight : height);
+        pdf.save(`General-Ledger-${activeClient.name}-${reportData?.fromDate}-to-${reportData?.toDate}.pdf`);
+    });
+  };
+
   return (
     <>
       <Dialog open={!!reportData} onOpenChange={(isOpen) => !isOpen && setReportData(null)}>
@@ -881,69 +927,74 @@ function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions 
             </DialogDescription>
           </DialogHeader>
           {reportData && (
-            <div className="printable-area p-2 bg-white max-h-[70vh] overflow-y-auto">
-              <Card className="w-full shadow-none border-none">
-                <CardHeader className="text-center">
-                  <CardTitle className="text-2xl">{reportData.clientName}</CardTitle>
-                  <CardDescription className="text-lg">General Ledger</CardDescription>
-                  <CardDescription>
-                    For the period: {reportData.fromDate} to {reportData.toDate}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex justify-end gap-2 mb-4 print:hidden">
-                    <Button variant="outline" onClick={handleDownloadExcel}>
-                        <Download className="mr-2 h-4 w-4" /> Download Excel
-                    </Button>
-                    <Button variant="outline" onClick={() => window.print()}>
-                      <Printer className="mr-2 h-4 w-4" /> Print
-                    </Button>
-                  </div>
-                  <div className="space-y-8">
-                    {reportData.accounts.map(account => (
-                      <div key={account.accountNumber}>
-                        <h3 className="text-lg font-bold">{account.accountNumber} - {account.description}</h3>
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Date</TableHead>
-                              <TableHead>Description</TableHead>
-                              <TableHead>Reference</TableHead>
-                              <TableHead className="text-right">Debit</TableHead>
-                              <TableHead className="text-right">Credit</TableHead>
-                              <TableHead className="text-right">Balance</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            <TableRow>
-                                <TableCell colSpan={5} className="font-bold">Opening Balance</TableCell>
-                                <TableCell className="text-right font-bold font-mono">{formatNumber(account.openingBalance)}</TableCell>
-                            </TableRow>
-                            {account.transactions.map((tx, i) => (
-                              <TableRow key={i}>
-                                <TableCell>{tx.date}</TableCell>
-                                <TableCell>{tx.description}</TableCell>
-                                <TableCell>{tx.reference}</TableCell>
-                                <TableCell className="text-right font-mono">{tx.debit > 0 ? formatNumber(tx.debit) : '-'}</TableCell>
-                                <TableCell className="text-right font-mono">{tx.credit > 0 ? formatNumber(tx.credit) : '-'}</TableCell>
-                                <TableCell className="text-right font-mono">{formatNumber(tx.balance)}</TableCell>
+            <div className="max-h-[70vh] overflow-y-auto">
+              <div ref={reportRef} className="printable-area p-2 bg-white">
+                <Card className="w-full shadow-none border-none">
+                  <CardHeader className="text-center">
+                    <CardTitle className="text-2xl">{reportData.clientName}</CardTitle>
+                    <CardDescription className="text-lg">General Ledger</CardDescription>
+                    <CardDescription>
+                      For the period: {reportData.fromDate} to {reportData.toDate}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-8">
+                      {reportData.accounts.map(account => (
+                        <div key={account.accountNumber}>
+                          <h3 className="text-lg font-bold">{account.accountNumber} - {account.description}</h3>
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Description</TableHead>
+                                <TableHead>Reference</TableHead>
+                                <TableHead className="text-right">Debit</TableHead>
+                                <TableHead className="text-right">Credit</TableHead>
+                                <TableHead className="text-right">Balance</TableHead>
                               </TableRow>
-                            ))}
-                          </TableBody>
-                          <TableFooter>
-                            <TableRow>
-                              <TableCell colSpan={5} className="font-bold text-base">Closing Balance</TableCell>
-                              <TableCell className="text-right font-bold font-mono text-base">{formatNumber(account.closingBalance)}</TableCell>
-                            </TableRow>
-                          </TableFooter>
-                        </Table>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+                            </TableHeader>
+                            <TableBody>
+                              <TableRow>
+                                  <TableCell colSpan={5} className="font-bold">Opening Balance</TableCell>
+                                  <TableCell className="text-right font-bold font-mono">{formatNumber(account.openingBalance)}</TableCell>
+                              </TableRow>
+                              {account.transactions.map((tx, i) => (
+                                <TableRow key={i}>
+                                  <TableCell>{tx.date}</TableCell>
+                                  <TableCell>{tx.description}</TableCell>
+                                  <TableCell>{tx.reference}</TableCell>
+                                  <TableCell className="text-right font-mono">{tx.debit > 0 ? formatNumber(tx.debit) : '-'}</TableCell>
+                                  <TableCell className="text-right font-mono">{tx.credit > 0 ? formatNumber(tx.credit) : '-'}</TableCell>
+                                  <TableCell className="text-right font-mono">{formatNumber(tx.balance)}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                            <TableFooter>
+                              <TableRow>
+                                <TableCell colSpan={5} className="font-bold text-base">Closing Balance</TableCell>
+                                <TableCell className="text-right font-bold font-mono text-base">{formatNumber(account.closingBalance)}</TableCell>
+                              </TableRow>
+                            </TableFooter>
+                          </Table>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           )}
+          <DialogFooter className="print:hidden">
+              <Button variant="outline" onClick={handleDownloadPdf}>
+                  <Download className="mr-2 h-4 w-4" /> Download PDF
+              </Button>
+              <Button variant="outline" onClick={handleDownloadExcel}>
+                  <Download className="mr-2 h-4 w-4" /> Download Excel
+              </Button>
+              <Button variant="outline" onClick={() => window.print()}>
+                  <Printer className="mr-2 h-4 w-4" /> Print
+              </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
       <Card>
@@ -1138,6 +1189,14 @@ function AllocationTable({ transactions, onAllocate, selectedTransactions, onSel
 
     const handleSelectAll = (checked: boolean) => {
         transactions.forEach(tx => onSelectionChange(tx.id, checked));
+    };
+
+    const requestSort = (key: SortableField) => {
+        let direction: SortDirection = 'asc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
     };
 
     const sortedTransactions = useMemo(() => {
@@ -1692,7 +1751,7 @@ export default function NumeraPage() {
 
   useEffect(() => {
     fetchClients();
-  }, [toast]);
+  }, []);
 
   const handleAdd = () => {
     setSelectedClient(null);
@@ -2127,6 +2186,10 @@ export default function NumeraPage() {
                 left: 0;
                 top: 0;
                 width: 100%;
+                height: 100%;
+              }
+              .no-print {
+                display: none;
               }
             }
         `}</style>
