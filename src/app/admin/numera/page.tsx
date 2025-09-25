@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
@@ -431,6 +432,7 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions,
 
         const accountBalances: { [key: string]: number } = {};
 
+        // Initialize all accounts from CoA with a balance of 0
         chartOfAccounts.forEach(acc => {
             accountBalances[acc.accountNumber] = 0;
         });
@@ -450,29 +452,35 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions,
             const bankAccNum = tx.bankAccountId;
             const grossAmount = tx.amount;
             
-            const isStandardVat = tx.vatType === 'standard_rated_sales' || tx.vatType === 'standard_rated_purchases' || tx.vatType === 'capital_goods_purchases';
+            const isStandardVatSale = tx.vatType === 'standard_rated_sales';
+            const isStandardVatPurchase = tx.vatType === 'standard_rated_purchases' || tx.vatType === 'capital_goods_purchases';
             
             let netAmount = grossAmount;
             let vatAmount = 0;
 
-            if (isStandardVat) {
+            if (isStandardVatSale || isStandardVatPurchase) {
+                // For sales (positive amount), credit income (negative)
+                // For purchases (negative amount), debit expense (positive)
                 netAmount = grossAmount / (1 + VAT_RATE);
                 vatAmount = grossAmount - netAmount;
             }
             
-            // Debit bank for income, credit bank for expense
-            accountBalances[bankAccNum] += grossAmount;
-
-            // Credit income account, debit expense account
-            accountBalances[allocationAccNum] -= netAmount;
+            // Post gross amount to bank account
+            accountBalances[bankAccNum] = (accountBalances[bankAccNum] || 0) + grossAmount;
             
-            // Credit VAT Control for sales, Debit for purchases
-            accountBalances[VAT_CONTROL_ACC] -= vatAmount;
+            // Post net amount to the allocation account
+            // Income (positive gross) becomes credit (negative balance), Expense (negative gross) becomes debit (positive balance)
+            const postAmount = isStandardVatSale ? -netAmount : isStandardVatPurchase ? -netAmount : -grossAmount;
+            accountBalances[allocationAccNum] = (accountBalances[allocationAccNum] || 0) + postAmount;
+
+            // Post VAT amount to VAT control
+            const vatPostAmount = isStandardVatSale ? -vatAmount : isStandardVatPurchase ? -vatAmount : 0;
+            accountBalances[VAT_CONTROL_ACC] = (accountBalances[VAT_CONTROL_ACC] || 0) + vatPostAmount;
         });
         
         filteredUnallocated.forEach(tx => {
-            accountBalances[tx.bankAccountId] += tx.amount;
-            accountBalances[UNALLOCATED_SUSPENSE_ACC] -= tx.amount;
+            accountBalances[tx.bankAccountId] = (accountBalances[tx.bankAccountId] || 0) + tx.amount;
+            accountBalances[UNALLOCATED_SUSPENSE_ACC] = (accountBalances[UNALLOCATED_SUSPENSE_ACC] || 0) - tx.amount;
         });
         
         const reportLedger = Object.entries(accountBalances).map(([accountNumber, netBalance]) => {
@@ -480,7 +488,7 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions,
             
             return {
                 accountNumber,
-                description: accountInfo.description,
+                description: accountInfo?.description || 'Unknown Account',
                 debit: netBalance > 0 ? netBalance : 0,
                 credit: netBalance < 0 ? Math.abs(netBalance) : 0,
             };
@@ -735,14 +743,17 @@ function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions 
 
                 let debit = 0;
                 let credit = 0;
-
-                if (accNum === tx.bankAccountId) { // Bank movement
+                
+                if (accNum === tx.bankAccountId) {
+                    // Bank Account: Debit for deposits, Credit for payments
                     debit = grossAmount > 0 ? grossAmount : 0;
                     credit = grossAmount < 0 ? Math.abs(grossAmount) : 0;
-                } else if (accNum === tx.allocatedTo.value) { // Main allocation account (Income/Expense)
+                } else if (accNum === tx.allocatedTo.value) {
+                    // Allocation Account (Expense/Income): Debit for expenses, Credit for income
                     debit = grossAmount < 0 ? Math.abs(netAmount) : 0;
                     credit = grossAmount > 0 ? netAmount : 0;
-                } else if (accNum === VAT_CONTROL_ACC && isStandardVat) { // VAT Control account
+                } else if (accNum === VAT_CONTROL_ACC && isStandardVat) {
+                    // VAT Control: Debit for input VAT (purchases), Credit for output VAT (sales)
                     debit = grossAmount < 0 ? Math.abs(vatAmount) : 0;
                     credit = grossAmount > 0 ? vatAmount : 0;
                 }
@@ -1113,7 +1124,7 @@ function AllocationCombobox({ value, onSelect }: { value?: { value: string, type
 type SortableField = 'date' | 'description' | 'amount';
 type SortDirection = 'asc' | 'desc';
 
-function AllocationTable({ transactions, onAllocate, selectedTransactions, onSelectionChange, onAllocationSelect, allocations, onVatTypeSelect, vatTypes, onFeedback }: { 
+function AllocationTable({ transactions, onAllocate, selectedTransactions, onSelectionChange, onAllocationSelect, allocations, onVatTypeSelect, vatTypes, onFeedback, processingTxId }: { 
     transactions: ImportedTransaction[], 
     onAllocate: (transactionId: string) => void, 
     selectedTransactions: string[], 
@@ -1123,6 +1134,7 @@ function AllocationTable({ transactions, onAllocate, selectedTransactions, onSel
     onVatTypeSelect: (transactionId: string, vatType: VatType) => void,
     vatTypes: { [key: string]: VatType },
     onFeedback: (transaction: ImportedTransaction) => void,
+    processingTxId?: string | null;
 }) {
     const [sortConfig, setSortConfig] = useState<{ key: SortableField, direction: SortDirection } | null>({ key: 'date', direction: 'asc'});
 
@@ -1215,10 +1227,16 @@ function AllocationTable({ transactions, onAllocate, selectedTransactions, onSel
                         </TableCell>
                         <TableCell className="text-right">
                             <div className="flex gap-2 justify-end">
-                                <Button size="icon" variant="ghost" onClick={() => onFeedback(tx)}>
-                                    <MessageSquare className="h-4 w-4" />
-                                </Button>
-                                <Button size="sm" onClick={() => onAllocate(tx.id)} disabled={!allocations[tx.id]}>Allocate</Button>
+                                {processingTxId === tx.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                    <>
+                                    <Button size="icon" variant="ghost" onClick={() => onFeedback(tx)}>
+                                        <MessageSquare className="h-4 w-4" />
+                                    </Button>
+                                    <Button size="sm" onClick={() => onAllocate(tx.id)} disabled={!allocations[tx.id]}>Allocate</Button>
+                                    </>
+                                )}
                             </div>
                         </TableCell>
                     </TableRow>
@@ -1651,6 +1669,7 @@ export default function NumeraPage() {
   const [allocations, setAllocations] = useState<{ [key: string]: { value: string, type: 'account'|'customer'|'supplier' } }>({});
   const [vatTypes, setVatTypes] = useState<{ [key: string]: VatType }>({});
   const [isAiAllocating, setIsAiAllocating] = useState(false);
+  const [processingTxId, setProcessingTxId] = useState<string | null>(null);
   const [journals, setJournals] = useState<Journal[]>([]);
   const [isJournalFormOpen, setIsJournalFormOpen] = useState(false);
   const [selectedJournal, setSelectedJournal] = useState<Journal | null>(null);
@@ -1996,27 +2015,27 @@ export default function NumeraPage() {
   };
 
   const runAiAllocation = async (txns: ImportedTransaction[]) => {
-      setIsAiAllocating(true);
-      toast({ title: 'AI Allocation Started', description: `AI is analyzing ${txns.length} transaction(s).` });
+    setIsAiAllocating(true);
+    toast({ title: 'AI Allocation Started', description: `AI is analyzing ${txns.length} transaction(s).` });
 
-      let successCount = 0;
-      const allocationPromises = txns.map(async (tx) => {
-          try {
-              const result = await allocateTransaction({ description: tx.description });
-              if (result.accountNumber && chartOfAccounts.some(acc => acc.accountNumber === result.accountNumber)) {
-                  handleAllocationSelect(tx.id, result.accountNumber, 'account');
-                  handleVatTypeSelect(tx.id, result.vatType);
-                  successCount++;
-              }
-          } catch (error) {
-              console.error(`AI allocation failed for transaction ${tx.id}:`, error);
-          }
-      });
+    let successCount = 0;
+    for (const tx of txns) {
+        setProcessingTxId(tx.id);
+        try {
+            const result = await allocateTransaction({ description: tx.description });
+            if (result.accountNumber && chartOfAccounts.some(acc => acc.accountNumber === result.accountNumber)) {
+                handleAllocationSelect(tx.id, result.accountNumber, 'account');
+                handleVatTypeSelect(tx.id, result.vatType);
+                successCount++;
+            }
+        } catch (error) {
+            console.error(`AI allocation failed for transaction ${tx.id}:`, error);
+        }
+    }
 
-      await Promise.all(allocationPromises);
-
-      setIsAiAllocating(false);
-      toast({ title: 'AI Allocation Complete', description: `AI successfully suggested allocations for ${successCount} of ${txns.length} transactions.` });
+    setProcessingTxId(null);
+    setIsAiAllocating(false);
+    toast({ title: 'AI Allocation Complete', description: `AI successfully suggested allocations for ${successCount} of ${txns.length} transactions.` });
   }
 
   const handleAiAllocate = async () => {
@@ -2344,14 +2363,14 @@ export default function NumeraPage() {
                                         )}
                                         <TabsContent value="unallocated-income">
                                             {incomeTransactions.length > 0 ? (
-                                                <AllocationTable transactions={incomeTransactions} onAllocate={handleAllocate} selectedTransactions={selectedTransactions} onSelectionChange={handleSelectionChange} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onFeedback={setFeedbackTransaction}/>
+                                                <AllocationTable transactions={incomeTransactions} onAllocate={handleAllocate} selectedTransactions={selectedTransactions} onSelectionChange={handleSelectionChange} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onFeedback={setFeedbackTransaction} processingTxId={processingTxId} />
                                             ) : (
                                                 <p className="text-muted-foreground text-center py-10">No unallocated income transactions to display.</p>
                                             )}
                                         </TabsContent>
                                         <TabsContent value="unallocated-expenses">
                                              {expenseTransactions.length > 0 ? (
-                                                 <AllocationTable transactions={expenseTransactions} onAllocate={handleAllocate} selectedTransactions={selectedTransactions} onSelectionChange={handleSelectionChange} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onFeedback={setFeedbackTransaction}/>
+                                                 <AllocationTable transactions={expenseTransactions} onAllocate={handleAllocate} selectedTransactions={selectedTransactions} onSelectionChange={handleSelectionChange} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onFeedback={setFeedbackTransaction} processingTxId={processingTxId} />
                                              ) : (
                                                 <p className="text-muted-foreground text-center py-10">No unallocated expense transactions to display.</p>
                                              )}
