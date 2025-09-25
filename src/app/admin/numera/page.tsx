@@ -38,6 +38,7 @@ import { users as allUsers } from '@/lib/data';
 import { allocateTransaction } from '@/ai/flows/allocate-transaction';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 
 const db = getFirestore(firebaseApp);
 
@@ -109,15 +110,41 @@ type Journal = {
     lines: JournalLine[];
 };
 
+const vatCategories = ['A', 'B', 'C'] as const;
+
+const vatCategoryLabels = {
+    A: {
+        name: 'Category A (Even Months)',
+        description: 'e.g., Jan–Feb, Mar–Apr'
+    },
+    B: {
+        name: 'Category B (Odd Months)',
+        description: 'e.g., Feb–Mar, Apr–May'
+    },
+    C: {
+        name: 'Category C (Monthly)',
+        description: 'e.g., January, February'
+    },
+};
+
 const clientFormSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(2, 'Client name is required.'),
   contactPerson: z.string().optional(),
   email: z.string().email('A valid contact email is required.'),
   yearEnd: z.date({ required_error: 'Financial year end is required.'}),
+  isVatRegistered: z.boolean().default(false),
+  vatCategory: z.enum(vatCategories).optional(),
+  vatRegistrationDate: z.date().optional(),
 });
 
 function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSubmit: (data: any) => void, onCancel: () => void }) {
+    
+    const toDate = (value: any) => {
+        if (!value) return undefined;
+        if (value.toDate) return value.toDate(); // Firestore Timestamp
+        return new Date(value);
+    }
     
     const form = useForm<z.infer<typeof clientFormSchema>>({
         resolver: zodResolver(clientFormSchema),
@@ -126,9 +153,14 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
             name: client?.name || '',
             contactPerson: client?.contactPerson || '',
             email: client?.email || '',
-            yearEnd: client?.yearEnd ? (client.yearEnd.toDate ? client.yearEnd.toDate() : new Date(client.yearEnd)) : undefined,
+            yearEnd: toDate(client?.yearEnd),
+            isVatRegistered: client?.isVatRegistered || false,
+            vatCategory: client?.vatCategory || undefined,
+            vatRegistrationDate: toDate(client?.vatRegistrationDate),
         },
     });
+    
+    const watchIsVatRegistered = form.watch('isVatRegistered');
 
     const handleSubmit = (values: z.infer<typeof clientFormSchema>) => {
         onSubmit(values);
@@ -179,6 +211,84 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
                         </FormItem>
                     )}
                 />
+                 <Separator />
+                  <FormField control={form.control} name="isVatRegistered" render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                            <div className="space-y-0.5"><FormLabel>Are you registered for VAT?</FormLabel></div>
+                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                        </FormItem>
+                    )} />
+
+                    {watchIsVatRegistered && (
+                        <div className="grid grid-cols-2 gap-4">
+                            <FormField
+                            control={form.control}
+                            name="vatCategory"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>VAT Category</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select VAT category..." />
+                                    </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                    {vatCategories.map(c => (
+                                        <SelectItem key={c} value={c}>
+                                            <div className="flex flex-col">
+                                                <span>{vatCategoryLabels[c].name}</span>
+                                                <span className="text-xs text-muted-foreground">{vatCategoryLabels[c].description}</span>
+                                            </div>
+                                        </SelectItem>
+                                    ))}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                            />
+                            <FormField
+                            control={form.control}
+                            name="vatRegistrationDate"
+                            render={({ field }) => (
+                                <FormItem className="flex flex-col">
+                                <FormLabel>VAT Registration Date</FormLabel>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                    <FormControl>
+                                        <Button
+                                        variant={'outline'}
+                                        className={cn(
+                                            'pl-3 text-left font-normal',
+                                            !field.value && 'text-muted-foreground'
+                                        )}
+                                        >
+                                        {field.value ? (
+                                            format(field.value, 'dd MMM yyyy')
+                                        ) : (
+                                            <span>Pick a date</span>
+                                        )}
+                                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                        </Button>
+                                    </FormControl>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar
+                                        mode="single"
+                                        selected={field.value}
+                                        onSelect={field.onChange}
+                                        initialFocus
+                                    />
+                                    </PopoverContent>
+                                </Popover>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        </div>
+                    )}
+
 
                 <div className="flex justify-end gap-2 pt-4">
                     <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
@@ -365,7 +475,6 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions,
         let reportLedger = Object.entries(accountBalances).map(([accountNumber, balances]) => {
             const accountInfo = chartOfAccounts.find(a => a.accountNumber === accountNumber)!;
             
-            // For bank accounts, show closing balance not total debits/credits
             if (accountNumber.startsWith('8400/')) {
                 const netBalance = balances.debit - balances.credit;
                 return {
@@ -1538,6 +1647,9 @@ export default function NumeraPage() {
       contactPerson: data.contactPerson,
       email: data.email,
       yearEnd: data.yearEnd,
+      isVatRegistered: data.isVatRegistered,
+      vatCategory: data.vatCategory,
+      vatRegistrationDate: data.vatRegistrationDate,
       role: 'client' as const,
       source: 'Numera' as const,
     };
