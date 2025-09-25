@@ -79,5 +79,6 @@ export let chartOfAccounts: ChartOfAccount[] = [
     { id: '9400/020', accountNumber: '9400/020', description: 'Provision for Salary Bonus', section: 'Balance Sheet' },
     { id: '9500/000', accountNumber: '9500/000', description: 'Vat / Tax Control Account', section: 'Balance Sheet' },
     { id: '9510/000', accountNumber: '9510/000', description: 'Vat / Tax Provision Account', section: 'Balance Sheet' },
+    { id: '9950/000', accountNumber: '9950/000', description: 'Un-allocated Suspense', section: 'Balance Sheet' },
     { id: '9990/000', accountNumber: '9990/000', description: 'Opening Balance / Suspense Account', section: 'Balance Sheet' },
 ];

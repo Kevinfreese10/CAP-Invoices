@@ -16,7 +16,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { User, ChartOfAccount } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, query, where, writeBatch } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, query, where, writeBatch, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -274,7 +274,7 @@ const trialBalanceFormSchema = z.object({
     showZeroItems: z.boolean().default(true),
 });
 
-function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions }: { activeClient: User; onAccountClick: (accountNumber: string, from: Date, to: Date) => void; allocatedTransactions: AllocatedTransaction[] }) {
+function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions, unallocatedTransactions }: { activeClient: User; onAccountClick: (accountNumber: string, from: Date, to: Date) => void; allocatedTransactions: AllocatedTransaction[]; unallocatedTransactions: ImportedTransaction[] }) {
     
     const [reportData, setReportData] = useState<TrialBalanceReportData | null>(null);
 
@@ -303,31 +303,48 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions 
             accountBalances[acc.accountNumber] = { debit: 0, credit: 0 };
         });
 
-        const transactionsInPeriod = allocatedTransactions.filter(tx => {
+        // Process allocated transactions
+        const filteredAllocated = allocatedTransactions.filter(tx => {
             const txDate = new Date(tx.date.split('/').reverse().join('-'));
             return txDate >= values.fromDate && txDate <= values.toDate;
         });
 
-        transactionsInPeriod.forEach(tx => {
+        filteredAllocated.forEach(tx => {
             if (tx.allocatedTo.type === 'account') {
                 const allocationAccNum = tx.allocatedTo.value;
                 const bankAccNum = tx.bankAccountId;
                 const amount = Math.abs(tx.amount);
 
                 if (accountBalances[allocationAccNum] && accountBalances[bankAccNum]) {
-                    // Double entry:
-                    // If amount is negative, it's an expense/payment.
-                    // Debit the Expense/Asset account, Credit the Bank account.
-                    if (tx.amount < 0) {
+                    if (tx.amount < 0) { // Expense
                         accountBalances[allocationAccNum].debit += amount;
                         accountBalances[bankAccNum].credit += amount;
-                    } 
-                    // If amount is positive, it's income/deposit.
-                    // Debit the Bank account, Credit the Income/Liability account.
-                    else {
+                    } else { // Income
                         accountBalances[bankAccNum].debit += amount;
                         accountBalances[allocationAccNum].credit += amount;
                     }
+                }
+            }
+        });
+
+        // Process unallocated transactions
+        const UNALLOCATED_SUSPENSE_ACC = '9950/000';
+        const filteredUnallocated = unallocatedTransactions.filter(tx => {
+            const txDate = new Date(tx.date.split('/').reverse().join('-'));
+            return txDate >= values.fromDate && txDate <= values.toDate;
+        });
+
+        filteredUnallocated.forEach(tx => {
+            const bankAccNum = tx.bankAccountId;
+            const amount = Math.abs(tx.amount);
+
+            if(accountBalances[bankAccNum] && accountBalances[UNALLOCATED_SUSPENSE_ACC]) {
+                if (tx.amount < 0) { // Payment
+                    accountBalances[UNALLOCATED_SUSPENSE_ACC].debit += amount;
+                    accountBalances[bankAccNum].credit += amount;
+                } else { // Deposit
+                    accountBalances[bankAccNum].debit += amount;
+                    accountBalances[UNALLOCATED_SUSPENSE_ACC].credit += amount;
                 }
             }
         });
@@ -1522,7 +1539,7 @@ export default function NumeraPage() {
                         <TabsTrigger value="train-ai">Train AI</TabsTrigger>
                     </TabsList>
                     <TabsContent value="reporting" className="space-y-4">
-                        <TrialBalanceCard activeClient={activeClient} onAccountClick={handleTBAccountClick} allocatedTransactions={allocatedTransactions} />
+                        <TrialBalanceCard activeClient={activeClient} onAccountClick={handleTBAccountClick} allocatedTransactions={allocatedTransactions} unallocatedTransactions={unallocatedTransactions} />
                         <GeneralLedgerCard activeClient={activeClient} initialValues={glInitialValues} allocatedTransactions={allocatedTransactions} />
                     </TabsContent>
                     <TabsContent value="banking" className="space-y-4">
