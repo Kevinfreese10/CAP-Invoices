@@ -1783,6 +1783,43 @@ function SupplierForm({ supplier, onSubmit, onCancel }: { supplier: Supplier | n
     )
 }
 
+const customerFormSchema = z.object({
+    id: z.string().optional(),
+    name: z.string().min(2, 'Customer name is required.'),
+    contactPerson: z.string().optional(),
+    email: z.string().email('A valid email is required.').optional().or(z.literal('')),
+    phone: z.string().optional(),
+});
+
+function CustomerForm({ customer, onSubmit, onCancel }: { customer: User | null, onSubmit: (data: any) => void, onCancel: () => void }) {
+    const form = useForm<z.infer<typeof customerFormSchema>>({
+        resolver: zodResolver(customerFormSchema),
+        defaultValues: customer ? {
+            id: customer.id,
+            name: customer.name,
+            contactPerson: customer.contactPerson,
+            email: customer.email,
+            phone: customer.contactNumber
+        } : { name: '', contactPerson: '', email: '', phone: '' },
+    });
+
+    return (
+        <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>Customer Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="contactPerson" render={({ field }) => (<FormItem><FormLabel>Contact Person</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="email" render={({ field }) => (<FormItem><FormLabel>Email</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="phone" render={({ field }) => (<FormItem><FormLabel>Phone Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <DialogFooter>
+                    <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
+                    <Button type="submit">Save Customer</Button>
+                </DialogFooter>
+            </form>
+        </Form>
+    )
+}
+
+
 export default function NumeraPage() {
   const [clients, setClients] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -1815,6 +1852,8 @@ export default function NumeraPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [isSupplierFormOpen, setIsSupplierFormOpen] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
+  const [isCustomerFormOpen, setIsCustomerFormOpen] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<User | null>(null);
 
 
   
@@ -1828,8 +1867,8 @@ export default function NumeraPage() {
         let fetchedClients = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
         fetchedClients.sort((a, b) => a.name.localeCompare(b.name));
         setClients(fetchedClients);
-        // Using allUsers for customers as a stand-in
-        setCustomers(allUsers.filter(u => u.role === 'client'));
+        // Using allUsers for customers as a stand-in for now
+        setCustomers(allUsers.filter(u => u.role === 'client' && u.source === 'Numera'));
         // Using a mock list for suppliers for now
         setSuppliers([{id: 'supp-1', name: 'Telkom'}, {id: 'supp-2', name: 'Eskom'}]);
     } catch (error) {
@@ -2300,6 +2339,34 @@ export default function NumeraPage() {
       setSelectedSupplier(null);
   };
 
+    const handleAddCustomer = () => {
+    setSelectedCustomer(null);
+    setIsCustomerFormOpen(true);
+  };
+
+  const handleEditCustomer = (customer: User) => {
+      setSelectedCustomer(customer);
+      setIsCustomerFormOpen(true);
+  };
+  
+  const handleDeleteCustomer = (customerId: string) => {
+      setCustomers(prev => prev.filter(s => s.id !== customerId));
+      toast({ title: 'Customer Deleted', variant: 'destructive'});
+  };
+  
+  const handleCustomerFormSubmit = (data: Omit<User, 'id' | 'role'>) => {
+      if (selectedCustomer) {
+          setCustomers(prev => prev.map(s => s.id === selectedCustomer.id ? { ...s, ...data, role: 'client' } : s));
+          toast({ title: 'Customer Updated', description: 'The customer details have been saved.' });
+      } else {
+          const newCustomer: User = { ...data, id: `cust-${Date.now()}`, role: 'client' };
+          setCustomers(prev => [...prev, newCustomer]);
+          toast({ title: 'Customer Created', description: 'The new customer has been added.' });
+      }
+      setIsCustomerFormOpen(false);
+      setSelectedCustomer(null);
+  };
+
   const clientBankAccounts = activeClient
     ? chartOfAccounts.filter(acc => acc.description.startsWith(activeClient.name))
     : [];
@@ -2704,8 +2771,39 @@ export default function NumeraPage() {
                     </TabsContent>
                      <TabsContent value="customers">
                          <Card>
-                            <CardHeader><CardTitle>Manage Customers</CardTitle></CardHeader>
-                            <CardContent><p className="text-muted-foreground text-center py-10">Customer creation and management will be built here.</p></CardContent>
+                            <CardHeader className="flex flex-row items-center justify-between">
+                              <div>
+                                  <CardTitle>Manage Customers</CardTitle>
+                                  <CardDescription>Create, edit, and manage your customers.</CardDescription>
+                              </div>
+                              <Button onClick={handleAddCustomer}><PlusCircle className="mr-2 h-4 w-4" /> Create Customer</Button>
+                           </CardHeader>
+                           <CardContent>
+                              {customers.length > 0 ? (
+                                  <Table>
+                                      <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Contact Person</TableHead><TableHead>Email</TableHead><TableHead>Phone</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+                                      <TableBody>
+                                          {customers.map(c => (
+                                              <TableRow key={c.id}>
+                                                  <TableCell>{c.name}</TableCell>
+                                                  <TableCell>{c.contactPerson}</TableCell>
+                                                  <TableCell>{c.email}</TableCell>
+                                                  <TableCell>{c.contactNumber}</TableCell>
+                                                  <TableCell className="text-right">
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                                                        <DropdownMenuContent>
+                                                            <DropdownMenuItem onClick={() => handleEditCustomer(c)}>Edit</DropdownMenuItem>
+                                                            <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteCustomer(c.id)}>Delete</DropdownMenuItem>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                  </TableCell>
+                                              </TableRow>
+                                          ))}
+                                      </TableBody>
+                                  </Table>
+                              ) : <p className="text-muted-foreground text-center py-10">No customers created yet.</p>}
+                           </CardContent>
                         </Card>
                     </TabsContent>
                     <TabsContent value="train-ai">
@@ -2866,6 +2964,14 @@ export default function NumeraPage() {
                     <DialogTitle>{selectedSupplier ? 'Edit Supplier' : 'Create Supplier'}</DialogTitle>
                 </DialogHeader>
                 <SupplierForm supplier={selectedSupplier} onSubmit={handleSupplierFormSubmit} onCancel={() => setIsSupplierFormOpen(false)} />
+            </DialogContent>
+        </Dialog>
+        <Dialog open={isCustomerFormOpen} onOpenChange={setIsCustomerFormOpen}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>{selectedCustomer ? 'Edit Customer' : 'Create Customer'}</DialogTitle>
+                </DialogHeader>
+                <CustomerForm customer={selectedCustomer} onSubmit={handleCustomerFormSubmit} onCancel={() => setIsCustomerFormOpen(false)} />
             </DialogContent>
         </Dialog>
     </div>
