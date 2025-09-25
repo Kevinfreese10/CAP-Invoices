@@ -429,58 +429,58 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions,
         const VAT_CONTROL_ACC = '9500/000';
         const UNALLOCATED_SUSPENSE_ACC = '9950/000';
         const VAT_RATE = 0.15;
-
+    
         const accountBalances: { [key: string]: number } = {};
-
+    
         // Initialize all accounts from CoA with a balance of 0
         chartOfAccounts.forEach(acc => {
             accountBalances[acc.accountNumber] = 0;
         });
-
+    
         const filterTxsByDate = (txs: (ImportedTransaction | AllocatedTransaction)[]) => {
             return txs.filter(tx => {
                 const txDate = new Date(tx.date.split('/').reverse().join('-'));
                 return txDate >= values.fromDate && txDate <= values.toDate;
             });
-        }
-        
+        };
+    
         const filteredAllocated = filterTxsByDate(allocatedTransactions) as AllocatedTransaction[];
         const filteredUnallocated = filterTxsByDate(unallocatedTransactions);
-        
+    
         filteredAllocated.forEach(tx => {
             const allocationAccNum = tx.allocatedTo.value;
             const bankAccNum = tx.bankAccountId;
             const grossAmount = tx.amount;
-            
+    
             const isStandardVat = tx.vatType === 'standard_rated_sales' || tx.vatType === 'standard_rated_purchases' || tx.vatType === 'capital_goods_purchases';
-            
+    
             let exclusiveAmount = grossAmount;
             let vatAmount = 0;
-
+    
             if (isStandardVat) {
                 exclusiveAmount = grossAmount / (1 + VAT_RATE);
                 vatAmount = grossAmount - exclusiveAmount;
             }
-            
+    
             // Post gross amount to bank account
             accountBalances[bankAccNum] = (accountBalances[bankAccNum] || 0) + grossAmount;
-            
+    
             // Post exclusive amount to the allocation account
             // Income (positive gross) becomes credit (negative balance), Expense (negative gross) becomes debit (positive balance)
             const postAmount = -exclusiveAmount;
             accountBalances[allocationAccNum] = (accountBalances[allocationAccNum] || 0) + postAmount;
-
+    
             // Post VAT amount to VAT control
-            // Output VAT (sales) is a credit, Input VAT (purchases) is a debit
+            // Output VAT (sales) is a credit (negative sign), Input VAT (purchases) is a debit (positive sign)
             const vatPostAmount = tx.vatType === 'standard_rated_sales' ? -vatAmount : vatAmount;
             accountBalances[VAT_CONTROL_ACC] = (accountBalances[VAT_CONTROL_ACC] || 0) + vatPostAmount;
         });
-        
+    
         filteredUnallocated.forEach(tx => {
             accountBalances[tx.bankAccountId] = (accountBalances[tx.bankAccountId] || 0) + tx.amount;
             accountBalances[UNALLOCATED_SUSPENSE_ACC] = (accountBalances[UNALLOCATED_SUSPENSE_ACC] || 0) - tx.amount;
         });
-        
+    
         const reportLedger = Object.entries(accountBalances).map(([accountNumber, netBalance]) => {
             const accountInfo = chartOfAccounts.find(a => a.accountNumber === accountNumber)!;
             
@@ -710,82 +710,87 @@ function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions 
   });
   
   const handleGenerate = (values: z.infer<typeof generalLedgerFormSchema>) => {
-      const selectedAccounts = values.accounts.includes('all') ? chartOfAccounts.map(a => a.accountNumber) : values.accounts;
-      
-      const generatedAccounts = selectedAccounts.map(accNum => {
-          const accountInfo = chartOfAccounts.find(a => a.accountNumber === accNum)!;
-          const openingBalance = 0; // In a real app, this would be calculated or fetched
-          let runningBalance = openingBalance;
+    const selectedAccounts = values.accounts.includes('all') ? chartOfAccounts.map(a => a.accountNumber) : values.accounts;
 
-          const transactionsForGL: GLTransaction[] = [];
+    const generatedAccounts = selectedAccounts.map(accNum => {
+        const accountInfo = chartOfAccounts.find(a => a.accountNumber === accNum)!;
+        const openingBalance = 0; // In a real app, this would be calculated or fetched
+        let runningBalance = openingBalance;
 
-          // Get transactions related to this account
-           const relatedTransactions = allocatedTransactions.filter(tx => {
-                const txDate = new Date(tx.date.split('/').reverse().join('-'));
-                const isAllocation = tx.allocatedTo.type === 'account' && tx.allocatedTo.value === accNum;
-                const isBankContra = tx.bankAccountId === accNum;
-                const isVatContra = accNum === VAT_CONTROL_ACC && (tx.vatType === 'standard_rated_sales' || tx.vatType === 'standard_rated_purchases' || tx.vatType === 'capital_goods_purchases');
-                return (isAllocation || isBankContra || isVatContra) && txDate >= values.fromDate && txDate <= values.toDate;
-            }).sort((a,b) => new Date(a.date.split('/').reverse().join('-')).getTime() - new Date(b.date.split('/').reverse().join('-')).getTime());
+        const transactionsForGL: GLTransaction[] = [];
 
-            relatedTransactions.forEach(tx => {
-                const grossAmount = tx.amount;
-                const isStandardVat = tx.vatType === 'standard_rated_sales' || tx.vatType === 'standard_rated_purchases' || tx.vatType === 'capital_goods_purchases';
-                let exclusiveAmount = grossAmount;
-                let vatAmount = 0;
+        // Get transactions related to this account within the date range
+        const relatedTransactions = allocatedTransactions.filter(tx => {
+            const txDate = new Date(tx.date.split('/').reverse().join('-'));
+            const isWithinDateRange = txDate >= values.fromDate && txDate <= values.toDate;
 
-                if (isStandardVat) {
-                    exclusiveAmount = grossAmount / (1 + VAT_RATE);
-                    vatAmount = grossAmount - exclusiveAmount;
-                }
+            if (!isWithinDateRange) return false;
 
-                let debit = 0;
-                let credit = 0;
-                
-                if (accNum === tx.bankAccountId) {
-                    // Bank Account: Debit for deposits, Credit for payments
-                    debit = grossAmount > 0 ? grossAmount : 0;
-                    credit = grossAmount < 0 ? Math.abs(grossAmount) : 0;
-                } else if (accNum === tx.allocatedTo.value) {
-                    // Allocation Account (Expense/Income): Debit for expenses, Credit for income
-                    debit = exclusiveAmount < 0 ? Math.abs(exclusiveAmount) : 0;
-                    credit = exclusiveAmount > 0 ? exclusiveAmount : 0;
-                } else if (accNum === VAT_CONTROL_ACC && isStandardVat) {
-                    // VAT Control: Debit for input VAT (purchases), Credit for output VAT (sales)
-                    debit = vatAmount < 0 ? Math.abs(vatAmount) : 0;
-                    credit = vatAmount > 0 ? vatAmount : 0;
-                }
-                
-                if (debit > 0 || credit > 0) {
-                    runningBalance += (debit - credit);
-                    transactionsForGL.push({
-                        date: tx.date,
-                        description: tx.description,
-                        reference: tx.id.substring(0, 8),
-                        debit,
-                        credit,
-                        balance: runningBalance,
-                    });
-                }
-            });
+            const isAllocation = tx.allocatedTo.type === 'account' && tx.allocatedTo.value === accNum;
+            const isBankContra = tx.bankAccountId === accNum;
+            const isVatContra = accNum === VAT_CONTROL_ACC && (tx.vatType === 'standard_rated_sales' || tx.vatType === 'standard_rated_purchases' || tx.vatType === 'capital_goods_purchases');
+            
+            return isAllocation || isBankContra || isVatContra;
+        }).sort((a,b) => new Date(a.date.split('/').reverse().join('-')).getTime() - new Date(b.date.split('/').reverse().join('-')).getTime());
 
+        relatedTransactions.forEach(tx => {
+            const grossAmount = tx.amount;
+            const isStandardVat = tx.vatType === 'standard_rated_sales' || tx.vatType === 'standard_rated_purchases' || tx.vatType === 'capital_goods_purchases';
+            
+            let exclusiveAmount = grossAmount;
+            let vatAmount = 0;
 
-          return {
-              accountNumber: accNum,
-              description: accountInfo.description,
-              transactions: transactionsForGL,
-              openingBalance,
-              closingBalance: runningBalance,
-          };
-      });
+            if (isStandardVat) {
+                exclusiveAmount = grossAmount / (1 + VAT_RATE);
+                vatAmount = grossAmount - exclusiveAmount;
+            }
 
-      setReportData({
-          clientName: activeClient.name,
-          fromDate: format(values.fromDate, 'dd/MM/yyyy'),
-          toDate: format(values.toDate, 'dd/MM/yyyy'),
-          accounts: generatedAccounts,
-      });
-  };
+            let debit = 0;
+            let credit = 0;
+            
+            if (accNum === tx.bankAccountId) {
+                // Bank Account: Debit for deposits, Credit for payments
+                debit = grossAmount > 0 ? grossAmount : 0;
+                credit = grossAmount < 0 ? Math.abs(grossAmount) : 0;
+            } else if (accNum === tx.allocatedTo.value) {
+                // Allocation Account (Expense/Income): Debit for expenses, Credit for income
+                debit = exclusiveAmount < 0 ? Math.abs(exclusiveAmount) : 0;
+                credit = exclusiveAmount > 0 ? exclusiveAmount : 0;
+            } else if (accNum === VAT_CONTROL_ACC && isStandardVat) {
+                // VAT Control: Debit for input VAT (purchases), Credit for output VAT (sales)
+                debit = vatAmount > 0 ? vatAmount : 0;
+                credit = vatAmount < 0 ? Math.abs(vatAmount) : 0;
+            }
+            
+            if (debit > 0 || credit > 0) {
+                runningBalance += (debit - credit);
+                transactionsForGL.push({
+                    date: tx.date,
+                    description: tx.description,
+                    reference: tx.id.substring(0, 8),
+                    debit,
+                    credit,
+                    balance: runningBalance,
+                });
+            }
+        });
+
+        return {
+            accountNumber: accNum,
+            description: accountInfo.description,
+            transactions: transactionsForGL,
+            openingBalance,
+            closingBalance: runningBalance,
+        };
+    });
+
+    setReportData({
+        clientName: activeClient.name,
+        fromDate: format(values.fromDate, 'dd/MM/yyyy'),
+        toDate: format(values.toDate, 'dd/MM/yyyy'),
+        accounts: generatedAccounts,
+    });
+};
 
   useEffect(() => {
     if (initialValues && initialValues.accounts && initialValues.accounts.length > 0) {
@@ -1247,20 +1252,24 @@ function AllocationTable({ transactions, onAllocate, selectedTransactions, onSel
 const customers = allUsers.filter(u => u.role === 'client');
 const suppliers = [{id: 'supp-1', name: 'Telkom'}, {id: 'supp-2', name: 'Eskom'}]; // Mock suppliers
 
-function AllocatedTransactionTable({ transactions, onEditAllocation }: { transactions: AllocatedTransaction[], onEditAllocation: (transaction: AllocatedTransaction) => void }) {
+function AllocatedTransactionTable({ transactions, onSaveAllocation }: { transactions: AllocatedTransaction[], onSaveAllocation: (transactionId: string, newAllocation: {value: string, type: 'account'|'customer'|'supplier'}, newVatType: VatType) => void }) {
     
-    const getDisplayValue = (allocatedTo: { value: string, type: string }) => {
-        if (allocatedTo.type === 'account') {
-            return chartOfAccounts.find(a => a.accountNumber === allocatedTo.value)?.description || "N/A";
-        }
-        if (allocatedTo.type === 'customer') {
-            return customers.find(c => c.id === allocatedTo.value)?.name || "N/A";
-        }
-        if (allocatedTo.type === 'supplier') {
-            return suppliers.find(s => s.id === allocatedTo.value)?.name || "N/A";
-        }
-        return "N/A";
-    };
+    const [editableAllocations, setEditableAllocations] = useState<{ [key: string]: { value: string, type: 'account'|'customer'|'supplier' } }>({});
+    const [editableVatTypes, setEditableVatTypes] = useState<{ [key: string]: VatType }>({});
+
+    useEffect(() => {
+        const initialAllocations = transactions.reduce((acc, tx) => {
+            acc[tx.id] = tx.allocatedTo;
+            return acc;
+        }, {} as { [key: string]: { value: string, type: 'account'|'customer'|'supplier' } });
+        setEditableAllocations(initialAllocations);
+
+        const initialVatTypes = transactions.reduce((acc, tx) => {
+            acc[tx.id] = tx.vatType;
+            return acc;
+        }, {} as { [key: string]: VatType });
+        setEditableVatTypes(initialVatTypes);
+    }, [transactions]);
     
     return (
         <Table>
@@ -1269,7 +1278,8 @@ function AllocatedTransactionTable({ transactions, onEditAllocation }: { transac
                     <TableHead>Date</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead>Amount</TableHead>
-                    <TableHead>Allocated To</TableHead>
+                    <TableHead>Allocate To</TableHead>
+                    <TableHead>VAT Type</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
             </TableHeader>
@@ -1280,15 +1290,15 @@ function AllocatedTransactionTable({ transactions, onEditAllocation }: { transac
                         <TableCell>{tx.description}</TableCell>
                         <TableCell className="font-mono">{formatNumber(tx.amount)}</TableCell>
                         <TableCell>
-                             <div className="flex flex-col">
-                                <span className="font-semibold">{getDisplayValue(tx.allocatedTo)}</span>
-                                <span className="text-xs text-muted-foreground">{tx.allocatedTo.type}</span>
-                             </div>
+                           <AllocationCombobox value={editableAllocations[tx.id]} onSelect={(value, type) => setEditableAllocations(prev => ({ ...prev, [tx.id]: { value, type } }))}/>
+                        </TableCell>
+                         <TableCell>
+                            <VatTypeCombobox value={editableVatTypes[tx.id]} onSelect={(value) => setEditableVatTypes(prev => ({...prev, [tx.id]: value}))} />
                         </TableCell>
                         <TableCell className="text-right">
-                           <Button variant="outline" size="sm" onClick={() => onEditAllocation(tx)}>
-                               <Edit className="mr-2 h-3 w-3" />
-                               Edit Allocation
+                           <Button variant="outline" size="sm" onClick={() => onSaveAllocation(tx.id, editableAllocations[tx.id], editableVatTypes[tx.id])}>
+                               <FileCheck2 className="mr-2 h-3 w-3" />
+                               Save
                            </Button>
                         </TableCell>
                     </TableRow>
@@ -1672,6 +1682,7 @@ export default function NumeraPage() {
   const [isJournalFormOpen, setIsJournalFormOpen] = useState(false);
   const [selectedJournal, setSelectedJournal] = useState<Journal | null>(null);
   const [feedbackTransaction, setFeedbackTransaction] = useState<ImportedTransaction | null>(null);
+  const [isBulkAllocateOpen, setIsBulkAllocateOpen] = useState(false);
 
   
   const importForm = useForm();
@@ -1947,35 +1958,20 @@ export default function NumeraPage() {
       }));
   }
 
-  const handleBulkAllocate = () => {
+  const handleBulkAllocate = (bulkAllocation: { value: string, type: 'account'|'customer'|'supplier' }, bulkVatType: VatType) => {
     const transactionsToAllocate = unallocatedTransactions.filter(tx => selectedTransactions.includes(tx.id));
     
-    const newAllocatedTransactions: AllocatedTransaction[] = [];
-    const unallocatedStill = [];
-
-    for (const tx of transactionsToAllocate) {
-        const allocation = allocations[tx.id];
-        if (allocation) {
-            newAllocatedTransactions.push({
-                ...tx,
-                allocatedTo: allocation,
-                allocatedAt: new Date(),
-                vatType: vatTypes[tx.id] || 'no_vat',
-                vatAmount: 0,
-            });
-        } else {
-            unallocatedStill.push(tx.id);
-        }
-    }
+    const newAllocatedTransactions: AllocatedTransaction[] = transactionsToAllocate.map(tx => ({
+        ...tx,
+        allocatedTo: bulkAllocation,
+        allocatedAt: new Date(),
+        vatType: bulkVatType,
+        vatAmount: 0,
+    }));
     
-    if (newAllocatedTransactions.length === 0) {
-        toast({ title: 'Allocation Error', description: 'No allocations were selected for the chosen transactions.', variant: 'destructive' });
-        return;
-    }
-
     setAllocatedTransactions(prev => [...prev, ...newAllocatedTransactions]);
     setUnallocatedTransactions(prev => prev.filter(tx => !newAllocatedTransactions.some(at => at.id === tx.id)));
-    setSelectedTransactions(unallocatedStill);
+    setSelectedTransactions([]);
     
     setAllocations(prev => {
         const newAllocations = { ...prev };
@@ -1989,6 +1985,7 @@ export default function NumeraPage() {
     });
 
     toast({ title: 'Bulk Allocation Successful', description: `${newAllocatedTransactions.length} transactions have been allocated.` });
+    setIsBulkAllocateOpen(false);
   };
   
    const handleClearAllocations = () => {
@@ -2013,13 +2010,18 @@ export default function NumeraPage() {
     });
   };
 
-  const handleEditAllocation = (transaction: AllocatedTransaction) => {
-    setAllocatedTransactions(prev => prev.filter(tx => tx.id !== transaction.id));
-    setUnallocatedTransactions(prev => [transaction, ...prev]);
-    toast({
-        title: 'Transaction Un-allocated',
-        description: 'The transaction has been moved back to the unallocated list for editing.',
-    });
+ const handleSaveAllocation = (transactionId: string, newAllocation: {value: string, type: 'account'|'customer'|'supplier'}, newVatType: VatType) => {
+    setAllocatedTransactions(prev => prev.map(tx => {
+        if (tx.id === transactionId) {
+            return {
+                ...tx,
+                allocatedTo: newAllocation,
+                vatType: newVatType,
+            };
+        }
+        return tx;
+    }));
+    toast({ title: 'Allocation Updated', description: 'The transaction allocation has been successfully saved.' });
   };
 
   const runAiAllocation = async (txns: ImportedTransaction[]) => {
@@ -2359,7 +2361,7 @@ export default function NumeraPage() {
                                         {(selectedTransactions.length > 0 && !isAiAllocating) && (
                                             <div className="flex flex-wrap items-center gap-4 p-4 border-t border-b bg-muted/50">
                                                 <p className="text-sm font-semibold">{selectedTransactions.length} selected</p>
-                                                <Button size="sm" onClick={handleBulkAllocate} >Allocate Selected</Button>
+                                                <Button size="sm" onClick={() => setIsBulkAllocateOpen(true)}>Allocate Selected</Button>
                                                 <Button size="sm" variant="outline" onClick={handleAiAllocate} disabled={isAiAllocating}>
                                                     {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                                                      Allocate with AI
@@ -2389,14 +2391,14 @@ export default function NumeraPage() {
                                         </TabsContent>
                                         <TabsContent value="allocated-income">
                                             {allocatedIncome.length > 0 ? (
-                                                <AllocatedTransactionTable transactions={allocatedIncome} onEditAllocation={handleEditAllocation} />
+                                                <AllocatedTransactionTable transactions={allocatedIncome} onSaveAllocation={handleSaveAllocation} />
                                             ) : (
                                                 <p className="text-muted-foreground text-center py-10">No allocated income transactions to display.</p>
                                             )}
                                         </TabsContent>
                                          <TabsContent value="allocated-expenses">
                                             {allocatedExpenses.length > 0 ? (
-                                                <AllocatedTransactionTable transactions={allocatedExpenses} onEditAllocation={handleEditAllocation} />
+                                                <AllocatedTransactionTable transactions={allocatedExpenses} onSaveAllocation={handleSaveAllocation} />
                                             ) : (
                                                 <p className="text-muted-foreground text-center py-10">No allocated expense transactions to display.</p>
                                             )}
@@ -2635,6 +2637,12 @@ export default function NumeraPage() {
             onClose={() => setFeedbackTransaction(null)}
             onSubmit={handleFeedbackSubmit}
         />
+        <BulkAllocateDialog
+            isOpen={isBulkAllocateOpen}
+            onClose={() => setIsBulkAllocateOpen(false)}
+            onBulkAllocate={handleBulkAllocate}
+            count={selectedTransactions.length}
+        />
     </div>
   );
 }
@@ -2761,3 +2769,64 @@ function AIFeedbackDialog({
         </Dialog>
     );
 }
+
+const bulkAllocateSchema = z.object({
+    allocation: z.object({
+        value: z.string().min(1, 'Account is required'),
+        type: z.enum(['account', 'customer', 'supplier'])
+    }),
+    vatType: z.custom<VatType>()
+});
+
+function BulkAllocateDialog({ isOpen, onClose, onBulkAllocate, count }: { isOpen: boolean, onClose: () => void, onBulkAllocate: (alloc: { value: string, type: 'account'|'customer'|'supplier' }, vat: VatType) => void, count: number }) {
+    const form = useForm<{ allocation: { value: string, type: 'account'|'customer'|'supplier' }, vatType: VatType }>({
+        defaultValues: {
+            allocation: undefined,
+            vatType: 'no_vat'
+        }
+    });
+
+    const handleSubmit = (values: { allocation: { value: string, type: 'account'|'customer'|'supplier' }, vatType: VatType }) => {
+        if (!values.allocation) {
+            toast({ title: "Error", description: "Please select an account.", variant: "destructive" });
+            return;
+        }
+        onBulkAllocate(values.allocation, values.vatType);
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Bulk Allocate Transactions</DialogTitle>
+                    <DialogDescription>
+                        Select an account and VAT type to apply to all {count} selected transactions.
+                    </DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 py-4">
+                        <FormItem>
+                            <FormLabel>Allocate To</FormLabel>
+                            <FormControl>
+                                <AllocationCombobox 
+                                    onSelect={(value, type) => form.setValue('allocation', { value, type })} 
+                                />
+                            </FormControl>
+                        </FormItem>
+                        <FormItem>
+                            <FormLabel>VAT Type</FormLabel>
+                             <FormControl>
+                                <VatTypeCombobox onSelect={(value) => form.setValue('vatType', value)} />
+                            </FormControl>
+                        </FormItem>
+                        <DialogFooter>
+                            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+                            <Button type="submit">Allocate All</Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
