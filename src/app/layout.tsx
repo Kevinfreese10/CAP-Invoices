@@ -7,8 +7,32 @@ import { bodyFont, headlineFont } from '@/app/fonts';
 import { cn } from '@/lib/utils';
 
 export const metadata: Metadata = {
-  title: 'My Accountant',
-  description: 'Professional Accounting & Tax Services for South Africa.',
+  title: {
+    default: 'My Accountant | Professional Accounting & Tax Services',
+    template: '%s | My Accountant',
+  },
+  description: 'Professional Accounting & Tax Services for South Africa. We handle SARS, CIPC, and all your compliance needs so you can focus on your business.',
+  openGraph: {
+    title: 'My Accountant | Professional Accounting & Tax Services',
+    description: 'Simplify your finances with our expert accounting and tax solutions.',
+    url: 'https://my-accountant-app.com', // In a real app, this would be your domain
+    siteName: 'My Accountant',
+    images: [
+      {
+        url: 'https://storage.googleapis.com/aai-web-samples/my-accountant-logo.png',
+        width: 512,
+        height: 512,
+      },
+    ],
+    locale: 'en_ZA',
+    type: 'website',
+  },
+   twitter: {
+    card: 'summary_large_image',
+    title: 'My Accountant | Professional Accounting & Tax Services',
+    description: 'Simplify your finances with our expert accounting and tax solutions.',
+    images: ['https://storage.googleapis.com/aai-web-samples/my-accountant-logo.png'],
+  },
 };
 
 export default function RootLayout({
