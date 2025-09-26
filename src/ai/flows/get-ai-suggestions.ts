@@ -9,7 +9,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { allocateTransaction, AllocateTransactionOutput } from './allocate-transaction';
+import { allocateTransaction, AllocateTransactionOutputSchema } from './allocate-transaction';
 
 const ImportedTransactionSchema = z.object({
     id: z.string(),
@@ -25,7 +25,7 @@ const GetAISuggestionsInputSchema = z.object({
 });
 export type GetAISuggestionsInput = z.infer<typeof GetAISuggestionsInputSchema>;
 
-const SuggestionSchema = AllocateTransactionOutput.extend({
+const SuggestionSchema = AllocateTransactionOutputSchema.extend({
     transactionId: z.string(),
 });
 
