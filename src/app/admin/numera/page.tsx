@@ -2030,12 +2030,20 @@ export default function NumeraPage() {
         setAllProcessing([]);
         setAllReviewing([]);
         setBankBalances({});
+        setSelectedBankAccount('');
     }
-    // Also clear processing/reviewing transactions when client changes
+  }, [activeClient]);
+
+  useEffect(() => {
+    setAllUnallocated([]);
+    setAllAllocated([]);
     setAllProcessing([]);
     setAllReviewing([]);
-    setSelectedBankAccount('');
-  }, [activeClient]);
+    setBankBalances({});
+    if (activeClient) {
+        fetchTransactions(activeClient.id);
+    }
+  }, [activeClient, selectedBankAccount]);
   
 
   const handleAddClient = () => {
@@ -3847,3 +3855,4 @@ function AllocationRulesDialog({ isOpen, onClose, chartOfAccounts }: { isOpen: b
 }
 
     
+
