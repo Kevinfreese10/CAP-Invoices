@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload, FileCheck2, ScanLine, Sprout, Search, ArrowUpDown, Edit, Sparkles, BrainCircuit, Copy, MessageSquare, RefreshCw, ChevronDown, Trash2 } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload, FileCheck2, ScanLine, Sprout, Search, ArrowUpDown, Edit, Sparkles, BrainCircuit, Copy, MessageSquare, RefreshCw, ChevronDown, Trash2, ListOrdered } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -15,7 +15,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { User, ChartOfAccount, VatType, Supplier, ImportedTransaction } from '@/lib/types';
+import { User, ChartOfAccount, VatType, Supplier, ImportedTransaction, AllocationRule } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, query, where, writeBatch, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -42,8 +42,10 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { allocationRules } from '@/lib/allocation-rules';
+import { allocationRules as initialRules } from '@/lib/allocation-rules';
 import { runAndNotifyAllocation } from '@/ai/flows/run-and-notify-allocation';
+import { allVatTypes as allVatTypesData } from '@/lib/vat-types';
+import { Badge } from '@/components/ui/badge';
 
 const db = getFirestore(firebaseApp);
 
@@ -1046,16 +1048,7 @@ function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions 
   );
 }
 
-const allVatTypes: { name: VatType, label: string, category: 'Output Tax' | 'Input Tax' | 'Other' }[] = [
-    { name: 'standard_rated_sales', label: 'Standard-rated supplies (15%)', category: 'Output Tax' },
-    { name: 'zero_rated_sales', label: 'Zero-rated supplies (0%)', category: 'Output Tax' },
-    { name: 'exempt_sales', label: 'Exempt supplies', category: 'Output Tax' },
-    { name: 'standard_rated_purchases', label: 'Standard-rated purchases (15%)', category: 'Input Tax' },
-    { name: 'capital_goods_purchases', label: 'Capital goods (15%)', category: 'Input Tax' },
-    { name: 'zero_rated_purchases', label: 'Zero-rated purchases (0%)', category: 'Input Tax' },
-    { name: 'exempt_purchases', label: 'Exempt purchases', category: 'Input Tax' },
-    { name: 'no_vat', label: 'No VAT', category: 'Other' },
-];
+const allVatTypes: { name: VatType, label: string, category: 'Output Tax' | 'Input Tax' | 'Other' }[] = allVatTypesData;
 
 function VatTypeCombobox({ value, onSelect }: { value?: VatType, onSelect: (value: VatType) => void }) {
     const [open, setOpen] = useState(false);
@@ -1965,6 +1958,7 @@ export default function NumeraPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<User | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<ImportedTransaction | null>(null);
   const [isEditTxOpen, setIsEditTxOpen] = useState(false);
+  const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
   
   const importForm = useForm();
   
@@ -2150,7 +2144,7 @@ export default function NumeraPage() {
         const lowerCaseDescription = description.toLowerCase();
         let matchedRule = null;
         
-        for (const rule of allocationRules) {
+        for (const rule of initialRules) {
             for (const keyword of rule.keywords) {
                 if (lowerCaseDescription.includes(keyword.toLowerCase())) {
                     matchedRule = rule;
@@ -2378,44 +2372,33 @@ export default function NumeraPage() {
     }
     if (!activeClient) return;
 
+    if (isAiAllocating) {
+        toast({ title: 'Processing...', description: 'AI allocation is already in progress.', variant: 'default' });
+        return;
+    }
+
     setIsAiAllocating(true);
-    setUnallocatedTransactions(unallocatedTransactions.filter(tx => !selectedUnallocated.includes(tx.id)));
-    setProcessingTransactions(prev => [...prev, ...transactionsToProcess]);
-    setSelectedUnallocated([]);
-    
     toast({
         title: 'AI Allocation Started',
-        description: `Processing ${transactionsToProcess.length} transactions.`,
+        description: `Submitting ${transactionsToProcess.length} transactions for background processing.`,
     });
 
-    const allocationPromises = transactionsToProcess.map(tx => 
-        allocateTransaction({ description: tx.description })
-            .then(result => ({ tx, result }))
-            .catch(error => ({ tx, error }))
-    );
+    try {
+        await runAndNotifyAllocation({
+            clientName: activeClient.name,
+            transactions: transactionsToProcess,
+        });
 
-    const results = await Promise.all(allocationPromises);
+        // Optimistically remove from unallocated list
+        setUnallocatedTransactions(prev => prev.filter(tx => !selectedUnallocated.includes(tx.id)));
+        setSelectedUnallocated([]);
 
-    const successfulAllocations = results.filter(r => !r.error);
-    const failedAllocations = results.filter(r => r.error);
-
-    successfulAllocations.forEach(({ tx, result }) => {
-        if (result.accountNumber && chartOfAccounts.some(acc => acc.accountNumber === result.accountNumber)) {
-            setAllocations(prev => ({...prev, [tx.id]: { value: result.accountNumber, type: 'account' }}));
-            setVatTypes(prev => ({...prev, [tx.id]: result.vatType}));
-        }
-    });
-
-    setProcessingTransactions(prev => prev.filter(tx => !transactionsToProcess.some(p => p.id === tx.id)));
-    setReviewTransactions(prev => [...prev, ...transactionsToProcess]);
-
-    setIsAiAllocating(false);
-
-    toast({
-        title: 'AI Processing Complete',
-        description: `${successfulAllocations.length} ready for review. ${failedAllocations.length} failed.`,
-        variant: failedAllocations.length > 0 ? 'destructive' : 'default',
-    });
+    } catch (error) {
+        console.error('Error starting AI allocation flow:', error);
+        toast({ title: 'Error', description: 'Could not start the AI allocation process.', variant: 'destructive' });
+    } finally {
+        setIsAiAllocating(false);
+    }
 };
 
   const handleFeedbackSubmit = async (feedbackData: {
@@ -2430,24 +2413,38 @@ export default function NumeraPage() {
 
     toast({ title: "Learning from feedback...", description: "Updating AI knowledge and re-allocating." });
     
-    await refineAllocationKnowledge({
-      transactionDescription: transaction.description,
-      incorrectAllocation: `${incorrectAccount} (VAT: ${incorrectVatType})`,
-      correctAllocation: `${correctAccount} (VAT: ${correctVatType})`,
-      userProvidedRule: rule,
-    });
-    
-    setFeedbackTransaction(null);
-    
-    setProcessingTxId(transaction.id);
     try {
+        const { refinedRule } = await refineAllocationKnowledge({
+          transactionDescription: transaction.description,
+          incorrectAllocation: `${incorrectAccount} (VAT: ${incorrectVatType})`,
+          correctAllocation: `${correctAccount} (VAT: ${correctVatType})`,
+          userProvidedRule: rule,
+        });
+        
+        // This is where you would save the 'refinedRule' to a persistent database.
+        // For now, we will add it to the mock `initialRules` array to simulate persistence for the session.
+        const keywords = refinedRule.match(/'(.*?)'/g)?.map(k => k.replace(/'/g, '')) || [transaction.description.split(' ')[0]];
+        const newRule: AllocationRule = {
+          id: `rule-fb-${Date.now()}`,
+          keywords: keywords,
+          accountId: correctAccount,
+          vatType: correctVatType,
+        };
+        initialRules.push(newRule);
+        
+        setFeedbackTransaction(null);
+        toast({ title: "AI Knowledge Updated", description: "A new rule has been learned from your feedback." });
+
+        // Re-run allocation for the specific transaction
+        setProcessingTxId(transaction.id);
         const result = await allocateTransaction({ description: transaction.description });
         if (result.accountNumber && chartOfAccounts.some(acc => acc.accountNumber === result.accountNumber)) {
             handleAllocationSelect(transaction.id, result.accountNumber, 'account');
             handleVatTypeSelect(transaction.id, result.vatType);
         }
     } catch (error) {
-        console.error(`AI allocation failed for transaction ${transaction.id}:`, error);
+        console.error("Feedback and re-allocation error:", error);
+        toast({ title: 'Error', description: 'Could not process feedback.', variant: 'destructive' });
     } finally {
         setProcessingTxId(null);
     }
@@ -2821,7 +2818,11 @@ export default function NumeraPage() {
                                     <div className="flex flex-wrap gap-2 items-center">
                                          <Button variant="outline" size="sm" onClick={handleClearAllocations}>
                                             <RefreshCw className="mr-2 h-4 w-4" />
-                                            Clear Allocations
+                                            Clear
+                                        </Button>
+                                         <Button variant="outline" size="sm" onClick={() => setIsRulesModalOpen(true)}>
+                                            <ListOrdered className="mr-2 h-4 w-4" />
+                                            AI Rules
                                         </Button>
                                         <div className="relative">
                                             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -3254,6 +3255,10 @@ export default function NumeraPage() {
             onClose={() => setIsEditTxOpen(false)}
             onSave={handleSaveTransaction}
         />
+        <AllocationRulesDialog 
+            isOpen={isRulesModalOpen}
+            onClose={() => setIsRulesModalOpen(false)}
+        />
     </div>
   );
 }
@@ -3453,4 +3458,200 @@ function BulkAllocateDialog({ isOpen, onClose, onBulkAllocate, count, customers,
             </DialogContent>
         </Dialog>
     );
+}
+
+const ruleFormSchema = z.object({
+  id: z.string().optional(),
+  keywords: z.string().min(2, 'At least one keyword must be provided.'),
+  accountId: z.string().min(1, 'Please select an account.'),
+  vatType: z.custom<VatType>(),
+});
+
+function RuleForm({ rule, onSubmit, onCancel }: { rule: AllocationRule | null, onSubmit: (data: any) => void, onCancel: () => void }) {
+    const form = useForm<z.infer<typeof ruleFormSchema>>({
+        resolver: zodResolver(ruleFormSchema),
+        defaultValues: {
+            id: rule?.id || '',
+            keywords: rule?.keywords.join(', ') || '',
+            accountId: rule?.accountId || '',
+            vatType: rule?.vatType || 'no_vat',
+        },
+    });
+
+    const handleSubmit = (values: z.infer<typeof ruleFormSchema>) => {
+        const keywords = values.keywords.split(',').map(k => k.trim()).filter(Boolean);
+        onSubmit({ ...values, keywords });
+    };
+    
+    return (
+        <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+                <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords (comma-separated)</FormLabel><FormControl><Input placeholder="e.g., Telkom, Bank Fee, Fees" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="accountId" render={({ field }) => ( <FormItem><FormLabel>Allocate to Account</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl><SelectContent>{chartOfAccounts.map(account => <SelectItem key={account.id} value={account.accountNumber}>{account.accountNumber} - {account.description}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="vatType" render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypesData.map(vat => <SelectItem key={vat.name} value={vat.name}>{vat.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                
+                <div className="flex justify-end gap-2">
+                    <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
+                    <Button type="submit">Save Rule</Button>
+                </div>
+            </form>
+        </Form>
+    )
+}
+
+function AllocationRulesDialog({ isOpen, onClose }: { isOpen: boolean; onClose: () => void; }) {
+  const [rules, setRules] = useState<AllocationRule[]>(initialRules);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [selectedRule, setSelectedRule] = useState<AllocationRule | null>(null);
+  const { toast } = useToast();
+
+  const handleAdd = () => {
+    setSelectedRule(null);
+    setIsFormOpen(true);
+  };
+
+  const handleEdit = (rule: AllocationRule) => {
+    setSelectedRule(rule);
+    setIsFormOpen(true);
+  };
+  
+  const handleDelete = (ruleId: string) => {
+    setRules(prev => prev.filter(r => r.id !== ruleId));
+    toast({
+        title: 'Rule Deleted',
+        description: 'The allocation rule has been removed.',
+        variant: 'destructive',
+    })
+  };
+
+  const handleFormSubmit = (data: Omit<AllocationRule, 'id'>) => {
+    if (selectedRule) {
+      setRules(prev =>
+        prev.map(r => (r.id === selectedRule.id ? { ...selectedRule, ...data } : r))
+      );
+       toast({
+        title: 'Rule Updated',
+        description: 'The rule has been successfully saved.',
+      });
+    } else {
+      const newRule = { ...data, id: `rule-${Date.now()}` };
+      setRules(prev => [...prev, newRule]);
+       toast({
+        title: 'Rule Created',
+        description: 'The new allocation rule has been added.',
+      });
+    }
+    setIsFormOpen(false);
+    setSelectedRule(null);
+  };
+  
+  const getAccountDescription = (accountId: string) => {
+      return chartOfAccounts.find(a => a.accountNumber === accountId)?.description || 'N/A';
+  }
+  
+  const getVatLabel = (vatType: VatType) => {
+      return allVatTypesData.find(v => v.name === vatType)?.label || 'N/A';
+  }
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="sm:max-w-4xl">
+            <DialogHeader>
+                <DialogTitle>AI Allocation Rules</DialogTitle>
+                <DialogDescription>
+                    Manage the rules the AI uses to automatically allocate transactions. These rules apply to all clients.
+                </DialogDescription>
+            </DialogHeader>
+            
+             <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+                <DialogTrigger asChild>
+                     <Button onClick={handleAdd}>
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Create New Rule
+                    </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle>{selectedRule ? 'Edit Rule' : 'Create New Rule'}</DialogTitle>
+                            <DialogDescription>
+                                {selectedRule ? 'Update this allocation rule.' : 'Create a rule to automatically categorize transactions.'}
+                            </DialogDescription>
+                        </DialogHeader>
+                        <RuleForm 
+                            rule={selectedRule} 
+                            onSubmit={handleFormSubmit}
+                            onCancel={() => setIsFormOpen(false)}
+                        />
+                </DialogContent>
+            </Dialog>
+            
+            <div className="max-h-[60vh] overflow-y-auto">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Keywords</TableHead>
+                            <TableHead>Allocated Account</TableHead>
+                            <TableHead>VAT Type</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                    {rules.map(rule => (
+                        <TableRow key={rule.id}>
+                        <TableCell className="font-semibold max-w-xs">
+                            <div className="flex flex-wrap gap-1">
+                                {rule.keywords.map(kw => <Badge key={kw} variant="secondary">{kw}</Badge>)}
+                            </div>
+                        </TableCell>
+                        <TableCell>{getAccountDescription(rule.accountId)}</TableCell>
+                        <TableCell>{getVatLabel(rule.vatType)}</TableCell>
+                        <TableCell className="text-right">
+                            <AlertDialog>
+                                <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" className="h-8 w-8 p-0">
+                                    <span className="sr-only">Open menu</span>
+                                    <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                    <DropdownMenuItem onClick={() => handleEdit(rule)}>
+                                        Edit
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <AlertDialogTrigger asChild>
+                                        <DropdownMenuItem className="text-destructive">
+                                            Delete
+                                        </DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                </DropdownMenuContent>
+                                </DropdownMenu>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                        This will permanently delete the rule for keywords <span className="font-semibold">"{rule.keywords.join(', ')}"</span>.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleDelete(rule.id)}>
+                                            Continue
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </TableCell>
+                        </TableRow>
+                    ))}
+                    </TableBody>
+                </Table>
+            </div>
+            <DialogFooter>
+                <Button variant="outline" onClick={onClose}>Close</Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+  )
 }

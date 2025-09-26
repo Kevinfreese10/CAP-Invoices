@@ -10,6 +10,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import { allocationRules } from '@/lib/allocation-rules';
 
 const RefineAllocationKnowledgeInputSchema = z.object({
   transactionDescription: z.string().describe("The original bank transaction description."),
@@ -62,14 +63,11 @@ const refineAllocationKnowledgeFlow = ai.defineFlow(
   },
   async input => {
     const {output} = await prompt(input);
-
-    // In a real application, you would save 'output.refinedRule' to a persistent knowledge base (e.g., a Firestore collection or a file).
-    // For this demo, we will just log it.
-    console.log("New AI Rule Learned:", output!.refinedRule);
     
-    // You would then update the main 'allocateTransaction' prompt to include this new rule.
-    // For example: allocateTransactionPrompt.update({ prompt: original_prompt + "\n" + output.refinedRule });
-
+    // In a real application, you would save 'output.refinedRule' to a persistent knowledge base (e.g., a Firestore collection or a file).
+    // For this demo, we are just logging it to the console and won't persist it.
+    console.log("New AI Rule Learned (not persisted in this demo):", output!.refinedRule);
+    
     return output!;
   }
 );
