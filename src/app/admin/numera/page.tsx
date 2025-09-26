@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
@@ -2030,13 +2031,12 @@ export default function NumeraPage() {
         setAllReviewing([]);
         setBankBalances({});
     }
-  }, [activeClient]);
-  
-  useEffect(() => {
-    setSelectedBankAccount('');
+    // Also clear processing/reviewing transactions when client changes
     setAllProcessing([]);
     setAllReviewing([]);
+    setSelectedBankAccount('');
   }, [activeClient]);
+  
 
   const handleAddClient = () => {
     setSelectedClient(null);
@@ -2824,11 +2824,10 @@ export default function NumeraPage() {
                                     chartOfAccounts={chartOfAccountsData}
                                     onAccountAdded={(newAccount) => {
                                         if (!chartOfAccountsData.some(a => a.accountNumber === newAccount.accountNumber)) {
-                                            const newAccounts = [...chartOfAccountsData, newAccount].sort((a,b) => a.accountNumber.localeCompare(b.accountNumber));
-                                            setChartOfAccountsData(newAccounts);
+                                            setChartOfAccountsData(prev => [...prev, newAccount].sort((a,b) => a.accountNumber.localeCompare(b.accountNumber)));
                                             setBankBalances(prev => ({...prev, [newAccount.accountNumber]: 0}));
+                                            setSelectedBankAccount(newAccount.accountNumber);
                                         }
-                                        setSelectedBankAccount('');
                                     }}
                                 />
                             </CardHeader>
