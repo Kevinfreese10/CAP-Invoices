@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload, FileCheck2, ScanLine, Sprout, Search, ArrowUpDown, Edit, Sparkles, BrainCircuit, Copy, MessageSquare, RefreshCw, ChevronDown } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload, FileCheck2, ScanLine, Sprout, Search, ArrowUpDown, Edit, Sparkles, BrainCircuit, Copy, MessageSquare, RefreshCw, ChevronDown, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -15,7 +15,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { User, ChartOfAccount, VatType, Supplier } from '@/lib/types';
+import { User, ChartOfAccount, VatType, Supplier, ImportedTransaction } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, query, where, writeBatch, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -49,15 +49,6 @@ const db = getFirestore(firebaseApp);
 
 const formatNumber = (value: number) => {
     return value.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-};
-
-type ImportedTransaction = {
-    id: string;
-    clientId: string;
-    date: string;
-    description: string;
-    amount: number;
-    bankAccountId: string; // The account number of the bank it was imported into
 };
 
 type AllocatedTransaction = Omit<ImportedTransaction, 'id'> & {
@@ -1172,9 +1163,11 @@ function AllocationCombobox({ value, onSelect, customers, suppliers }: { value?:
 type SortableField = 'date' | 'description' | 'amount';
 type SortDirection = 'asc' | 'desc';
 
-function AllocationTable({ transactions, onAllocate, selectedTransactions, onSelectionChange, onAllocationSelect, allocations, onVatTypeSelect, vatTypes, onFeedback, processingTxId, customers, suppliers }: { 
+function AllocationTable({ transactions, onAllocate, onEdit, onDelete, selectedTransactions, onSelectionChange, onAllocationSelect, allocations, onVatTypeSelect, vatTypes, onFeedback, processingTxId, customers, suppliers }: { 
     transactions: ImportedTransaction[], 
     onAllocate: (transactionId: string) => void, 
+    onEdit: (transaction: ImportedTransaction) => void,
+    onDelete: (transactionId: string) => void,
     selectedTransactions: string[], 
     onSelectionChange: (id: string, isSelected: boolean) => void,
     onAllocationSelect: (transactionId: string, value: string, type: 'account'|'customer'|'supplier') => void,
@@ -1276,18 +1269,30 @@ function AllocationTable({ transactions, onAllocate, selectedTransactions, onSel
                             <VatTypeCombobox value={vatTypes[tx.id]} onSelect={(value) => onVatTypeSelect(tx.id, value)} />
                         </TableCell>
                         <TableCell className="text-right">
-                            <div className="flex gap-2 justify-end">
-                                {processingTxId === tx.id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                    <>
-                                    <Button size="icon" variant="ghost" onClick={() => onFeedback(tx)}>
-                                        <MessageSquare className="h-4 w-4" />
-                                    </Button>
-                                    <Button size="sm" onClick={() => onAllocate(tx.id)} disabled={!allocations[tx.id]}>Allocate</Button>
-                                    </>
-                                )}
-                            </div>
+                             <AlertDialog>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                                    <DropdownMenuContent>
+                                        <DropdownMenuItem onClick={() => onAllocate(tx.id)} disabled={!allocations[tx.id] || processingTxId === tx.id}>Allocate</DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => onEdit(tx)}>Edit</DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => onFeedback(tx)}>AI Feedback</DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <AlertDialogTrigger asChild>
+                                            <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
+                                        </AlertDialogTrigger>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                                 <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>This will permanently delete this transaction. This action cannot be undone.</AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => onDelete(tx.id)}>Delete</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
                         </TableCell>
                     </TableRow>
                 ))}
@@ -1296,7 +1301,15 @@ function AllocationTable({ transactions, onAllocate, selectedTransactions, onSel
     );
 }
 
-function AllocatedTransactionTable({ transactions, onSaveAllocation, customers, suppliers }: { transactions: AllocatedTransaction[], onSaveAllocation: (transactionId: string, newAllocation: {value: string, type: 'account'|'customer'|'supplier'}, newVatType: VatType) => void, customers: User[], suppliers: Supplier[] }) {
+function AllocatedTransactionTable({ transactions, onSaveAllocation, onDelete, selectedTransactions, onSelectionChange, customers, suppliers }: { 
+    transactions: AllocatedTransaction[], 
+    onSaveAllocation: (transactionId: string, newAllocation: {value: string, type: 'account'|'customer'|'supplier'}, newVatType: VatType) => void,
+    onDelete: (transactionId: string) => void,
+    selectedTransactions: string[],
+    onSelectionChange: (id: string, isSelected: boolean) => void,
+    customers: User[],
+    suppliers: Supplier[]
+ }) {
     
     const [editableAllocations, setEditableAllocations] = useState<{ [key: string]: { value: string, type: 'account'|'customer'|'supplier' } }>({});
     const [editableVatTypes, setEditableVatTypes] = useState<{ [key: string]: VatType }>({});
@@ -1315,10 +1328,23 @@ function AllocatedTransactionTable({ transactions, onSaveAllocation, customers, 
         setEditableVatTypes(initialVatTypes);
     }, [transactions]);
     
+    const handleSelectAll = (checked: boolean) => {
+        transactions.forEach(tx => onSelectionChange(tx.id, checked));
+    };
+    
+    const areAllSelected = transactions.length > 0 && transactions.every(tx => selectedTransactions.includes(tx.id));
+
     return (
         <Table>
             <TableHeader>
                 <TableRow>
+                    <TableHead padding="checkbox">
+                        <Checkbox
+                            checked={areAllSelected}
+                            onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                            aria-label="Select all"
+                        />
+                    </TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead>Amount</TableHead>
@@ -1329,7 +1355,14 @@ function AllocatedTransactionTable({ transactions, onSaveAllocation, customers, 
             </TableHeader>
             <TableBody>
                 {transactions.map(tx => (
-                    <TableRow key={tx.id}>
+                    <TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && "selected"}>
+                        <TableCell padding="checkbox">
+                            <Checkbox
+                                checked={selectedTransactions.includes(tx.id)}
+                                onCheckedChange={(checked) => onSelectionChange(tx.id, !!checked)}
+                                aria-label={`Select transaction ${tx.id}`}
+                            />
+                        </TableCell>
                         <TableCell>{tx.date}</TableCell>
                         <TableCell>{tx.description}</TableCell>
                         <TableCell className="font-mono">{formatNumber(tx.amount)}</TableCell>
@@ -1340,10 +1373,28 @@ function AllocatedTransactionTable({ transactions, onSaveAllocation, customers, 
                             <VatTypeCombobox value={editableVatTypes[tx.id]} onSelect={(value) => setEditableVatTypes(prev => ({...prev, [tx.id]: value}))} />
                         </TableCell>
                         <TableCell className="text-right">
-                           <Button variant="outline" size="sm" onClick={() => onSaveAllocation(tx.id, editableAllocations[tx.id], editableVatTypes[tx.id])}>
-                               <FileCheck2 className="mr-2 h-3 w-3" />
-                               Save
-                           </Button>
+                             <AlertDialog>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                                    <DropdownMenuContent>
+                                        <DropdownMenuItem onClick={() => onSaveAllocation(tx.id, editableAllocations[tx.id], editableVatTypes[tx.id])}>Save Changes</DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <AlertDialogTrigger asChild>
+                                            <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
+                                        </AlertDialogTrigger>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>This will permanently delete this allocated transaction. This action cannot be undone.</AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => onDelete(tx.id)}>Delete</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                             </AlertDialog>
                         </TableCell>
                     </TableRow>
                 ))}
@@ -1822,6 +1873,58 @@ function CustomerForm({ customer, onSubmit, onCancel }: { customer: User | null,
     )
 }
 
+const transactionSchema = z.object({
+  id: z.string(),
+  date: z.string().min(1, "Date is required."),
+  description: z.string().min(3, "Description is required."),
+  amount: z.preprocess(v => parseFloat(v as string || '0'), z.number()),
+});
+
+function EditTransactionDialog({ transaction, isOpen, onClose, onSave }: { transaction: ImportedTransaction | null, isOpen: boolean, onClose: () => void, onSave: (data: ImportedTransaction) => void }) {
+    
+    const form = useForm<z.infer<typeof transactionSchema>>({
+        resolver: zodResolver(transactionSchema),
+        defaultValues: {
+            id: transaction?.id,
+            date: transaction?.date,
+            description: transaction?.description,
+            amount: transaction?.amount,
+        }
+    });
+
+    useEffect(() => {
+        if (transaction) {
+            form.reset(transaction);
+        }
+    }, [transaction, form]);
+
+    const handleSubmit = (values: z.infer<typeof transactionSchema>) => {
+        onSave(values);
+        onClose();
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Edit Transaction</DialogTitle>
+                    <DialogDescription>Update the details of this transaction.</DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+                        <FormField control={form.control} name="date" render={({ field }) => (<FormItem><FormLabel>Date</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="description" render={({ field }) => (<FormItem><FormLabel>Description</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="amount" render={({ field }) => (<FormItem><FormLabel>Amount</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <DialogFooter>
+                            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+                            <Button type="submit">Save Changes</Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
+            </DialogContent>
+        </Dialog>
+    )
+}
 
 export default function NumeraPage() {
   const [clients, setClients] = useState<User[]>([]);
@@ -1841,7 +1944,8 @@ export default function NumeraPage() {
   const [unallocatedTransactions, setUnallocatedTransactions] = useState<ImportedTransaction[]>([]);
   const [allocatedTransactions, setAllocatedTransactions] = useState<AllocatedTransaction[]>([]);
   const [unallocatedSearch, setUnallocatedSearch] = useState('');
-  const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
+  const [selectedUnallocated, setSelectedUnallocated] = useState<string[]>([]);
+  const [selectedAllocated, setSelectedAllocated] = useState<string[]>([]);
   const [allocations, setAllocations] = useState<{ [key: string]: { value: string, type: 'account'|'customer'|'supplier' } }>({});
   const [vatTypes, setVatTypes] = useState<{ [key: string]: VatType }>({});
   const [isAiAllocating, setIsAiAllocating] = useState(false);
@@ -1857,7 +1961,8 @@ export default function NumeraPage() {
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [isCustomerFormOpen, setIsCustomerFormOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<User | null>(null);
-
+  const [editingTransaction, setEditingTransaction] = useState<ImportedTransaction | null>(null);
+  const [isEditTxOpen, setIsEditTxOpen] = useState(false);
   
   const importForm = useForm();
   
@@ -2189,7 +2294,7 @@ export default function NumeraPage() {
   const handleBulkAllocate = async (bulkAllocation: { value: string, type: 'account'|'customer'|'supplier' }, bulkVatType: VatType) => {
     if (!activeClient) return;
 
-    const transactionsToAllocate = unallocatedTransactions.filter(tx => selectedTransactions.includes(tx.id));
+    const transactionsToAllocate = unallocatedTransactions.filter(tx => selectedUnallocated.includes(tx.id));
     
     const batch = writeBatch(db);
     
@@ -2211,29 +2316,35 @@ export default function NumeraPage() {
 
     toast({ title: 'Bulk Allocation Successful', description: `${transactionsToAllocate.length} transactions have been allocated.` });
     setIsBulkAllocateOpen(false);
-    setSelectedTransactions([]);
+    setSelectedUnallocated([]);
   };
   
    const handleClearAllocations = () => {
     setAllocations({});
     setVatTypes({});
-    setSelectedTransactions([]);
+    setSelectedUnallocated([]);
     toast({
       title: 'Allocations Cleared',
       description: 'All suggested allocations and selections have been reset.',
     });
   };
 
-  const handleSelectionChange = (id: string, isSelected: boolean) => {
-    setSelectedTransactions(prev => {
-        const newSelection = new Set(prev);
-        if (isSelected) {
-            newSelection.add(id);
-        } else {
-            newSelection.delete(id);
-        }
-        return Array.from(newSelection);
-    });
+  const handleSelectionChange = (id: string, isSelected: boolean, type: 'unallocated' | 'allocated') => {
+    if (type === 'unallocated') {
+        setSelectedUnallocated(prev => {
+            const newSelection = new Set(prev);
+            if (isSelected) newSelection.add(id);
+            else newSelection.delete(id);
+            return Array.from(newSelection);
+        });
+    } else {
+        setSelectedAllocated(prev => {
+            const newSelection = new Set(prev);
+            if (isSelected) newSelection.add(id);
+            else newSelection.delete(id);
+            return Array.from(newSelection);
+        });
+    }
   };
 
  const handleSaveAllocation = async (transactionId: string, newAllocation: {value: string, type: 'account'|'customer'|'supplier'}, newVatType: VatType) => {
@@ -2254,7 +2365,7 @@ export default function NumeraPage() {
   };
 
     const handleAiAllocate = async () => {
-        const transactionsToProcess = unallocatedTransactions.filter(tx => selectedTransactions.includes(tx.id));
+        const transactionsToProcess = unallocatedTransactions.filter(tx => selectedUnallocated.includes(tx.id));
         if (transactionsToProcess.length === 0) {
             toast({ title: 'No Transactions Selected', description: 'Please select one or more transactions to allocate with AI.', variant: 'destructive' });
             return;
@@ -2267,13 +2378,11 @@ export default function NumeraPage() {
             description: 'The AI is processing transactions in the background. You will be notified by email upon completion.',
         });
 
-        // Fire-and-forget call to the background flow
         runAndNotifyAllocation({
             clientName: activeClient.name,
             transactions: transactionsToProcess,
         }).catch(error => {
             console.error("Error starting AI allocation flow:", error);
-            // Optionally notify the user that starting the process failed
              toast({
                 title: 'AI Allocation Failed to Start',
                 description: 'Could not start the background process. Please try again.',
@@ -2411,6 +2520,54 @@ export default function NumeraPage() {
       }
       setIsCustomerFormOpen(false);
       setSelectedCustomer(null);
+  };
+  
+  const handleEditTransaction = (transaction: ImportedTransaction) => {
+    setEditingTransaction(transaction);
+    setIsEditTxOpen(true);
+  };
+
+  const handleDeleteTransaction = async (transactionId: string, type: 'unallocated' | 'allocated') => {
+    if (!activeClient) return;
+    const collectionName = type === 'unallocated' ? 'unallocatedTransactions' : 'allocatedTransactions';
+    try {
+        await deleteDoc(doc(db, collectionName, transactionId));
+        await fetchTransactions(activeClient.id);
+        toast({ title: 'Transaction Deleted', description: 'The transaction has been removed.', variant: 'destructive' });
+    } catch (error) {
+        console.error(`Error deleting ${type} transaction:`, error);
+        toast({ title: 'Error', description: 'Could not delete the transaction.', variant: 'destructive' });
+    }
+  };
+
+  const handleSaveTransaction = async (data: ImportedTransaction) => {
+    if (!activeClient) return;
+    try {
+        const docRef = doc(db, 'unallocatedTransactions', data.id);
+        await setDoc(docRef, data, { merge: true });
+        await fetchTransactions(activeClient.id);
+        toast({ title: 'Transaction Updated', description: 'The transaction details have been saved.' });
+    } catch (error) {
+        console.error('Error saving transaction:', error);
+        toast({ title: 'Error', description: 'Could not save the transaction.', variant: 'destructive' });
+    }
+  };
+  
+  const handleBulkDeleteAllocated = async () => {
+    if (!activeClient || selectedAllocated.length === 0) return;
+    const batch = writeBatch(db);
+    selectedAllocated.forEach(id => {
+        batch.delete(doc(db, 'allocatedTransactions', id));
+    });
+    try {
+        await batch.commit();
+        await fetchTransactions(activeClient.id);
+        toast({ title: `${selectedAllocated.length} Transactions Deleted`, description: 'The selected allocated transactions have been removed.' });
+        setSelectedAllocated([]);
+    } catch (error) {
+        console.error('Error bulk deleting allocated transactions:', error);
+        toast({ title: 'Error', description: 'Could not delete the selected transactions.', variant: 'destructive' });
+    }
   };
 
   const clientBankAccounts = activeClient
@@ -2655,15 +2812,36 @@ export default function NumeraPage() {
                                             <TabsTrigger value="allocated-income">Allocated Income ({allocatedIncome.length})</TabsTrigger>
                                             <TabsTrigger value="allocated-expenses">Allocated Expenses ({allocatedExpenses.length})</TabsTrigger>
                                         </TabsList>
-                                        {(selectedTransactions.length > 0 && !isAiAllocating) && (
+                                        {(selectedUnallocated.length > 0 && !isAiAllocating) && (
                                             <div className="flex flex-wrap items-center gap-4 p-4 border-t border-b bg-muted/50">
-                                                <p className="text-sm font-semibold">{selectedTransactions.length} selected</p>
+                                                <p className="text-sm font-semibold">{selectedUnallocated.length} selected</p>
                                                 <Button size="sm" onClick={() => setIsBulkAllocateOpen(true)}>Allocate Selected</Button>
                                                 <Button size="sm" variant="outline" onClick={handleAiAllocate} disabled={isAiAllocating}>
                                                     {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                                                      Allocate with AI
                                                 </Button>
-                                                <Button size="sm" variant="ghost" onClick={() => setSelectedTransactions([])}>Clear Selection</Button>
+                                                <Button size="sm" variant="ghost" onClick={() => setSelectedUnallocated([])}>Clear Selection</Button>
+                                            </div>
+                                        )}
+                                        {selectedAllocated.length > 0 && (
+                                            <div className="flex flex-wrap items-center gap-4 p-4 border-t border-b bg-muted/50">
+                                                <p className="text-sm font-semibold">{selectedAllocated.length} selected</p>
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                        <Button size="sm" variant="destructive">Delete Selected</Button>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                            <AlertDialogDescription>This will permanently delete {selectedAllocated.length} allocated transactions. This action cannot be undone.</AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={handleBulkDeleteAllocated}>Delete</AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                                <Button size="sm" variant="ghost" onClick={() => setSelectedAllocated([])}>Clear Selection</Button>
                                             </div>
                                         )}
                                         {isAiAllocating && (
@@ -2674,28 +2852,28 @@ export default function NumeraPage() {
                                         )}
                                         <TabsContent value="unallocated-income">
                                             {incomeTransactions.length > 0 ? (
-                                                <AllocationTable transactions={incomeTransactions} onAllocate={handleAllocate} selectedTransactions={selectedTransactions} onSelectionChange={handleSelectionChange} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onFeedback={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} />
+                                                <AllocationTable transactions={incomeTransactions} onAllocate={handleAllocate} onEdit={handleEditTransaction} onDelete={(id) => handleDeleteTransaction(id, 'unallocated')} selectedTransactions={selectedUnallocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'unallocated')} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onFeedback={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} />
                                             ) : (
                                                 <p className="text-muted-foreground text-center py-10">No unallocated income transactions to display.</p>
                                             )}
                                         </TabsContent>
                                         <TabsContent value="unallocated-expenses">
                                              {expenseTransactions.length > 0 ? (
-                                                 <AllocationTable transactions={expenseTransactions} onAllocate={handleAllocate} selectedTransactions={selectedTransactions} onSelectionChange={handleSelectionChange} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onFeedback={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} />
+                                                 <AllocationTable transactions={expenseTransactions} onAllocate={handleAllocate} onEdit={handleEditTransaction} onDelete={(id) => handleDeleteTransaction(id, 'unallocated')} selectedTransactions={selectedUnallocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'unallocated')} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onFeedback={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} />
                                              ) : (
                                                 <p className="text-muted-foreground text-center py-10">No unallocated expense transactions to display.</p>
                                              )}
                                         </TabsContent>
                                         <TabsContent value="allocated-income">
                                             {allocatedIncome.length > 0 ? (
-                                                <AllocatedTransactionTable transactions={allocatedIncome} onSaveAllocation={handleSaveAllocation} customers={customers} suppliers={suppliers} />
+                                                <AllocatedTransactionTable transactions={allocatedIncome} onSaveAllocation={handleSaveAllocation} onDelete={(id) => handleDeleteTransaction(id, 'allocated')} selectedTransactions={selectedAllocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'allocated')} customers={customers} suppliers={suppliers} />
                                             ) : (
                                                 <p className="text-muted-foreground text-center py-10">No allocated income transactions to display.</p>
                                             )}
                                         </TabsContent>
                                          <TabsContent value="allocated-expenses">
                                             {allocatedExpenses.length > 0 ? (
-                                                <AllocatedTransactionTable transactions={allocatedExpenses} onSaveAllocation={handleSaveAllocation} customers={customers} suppliers={suppliers} />
+                                                <AllocatedTransactionTable transactions={allocatedExpenses} onSaveAllocation={handleSaveAllocation} onDelete={(id) => handleDeleteTransaction(id, 'allocated')} selectedTransactions={selectedAllocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'allocated')} customers={customers} suppliers={suppliers} />
                                             ) : (
                                                 <p className="text-muted-foreground text-center py-10">No allocated expense transactions to display.</p>
                                             )}
@@ -3000,7 +3178,7 @@ export default function NumeraPage() {
             isOpen={isBulkAllocateOpen}
             onClose={() => setIsBulkAllocateOpen(false)}
             onBulkAllocate={handleBulkAllocate}
-            count={selectedTransactions.length}
+            count={selectedUnallocated.length}
             customers={customers}
             suppliers={suppliers}
         />
@@ -3020,6 +3198,12 @@ export default function NumeraPage() {
                 <CustomerForm customer={selectedCustomer} onSubmit={handleCustomerFormSubmit} onCancel={() => setIsCustomerFormOpen(false)} />
             </DialogContent>
         </Dialog>
+        <EditTransactionDialog 
+            transaction={editingTransaction}
+            isOpen={isEditTxOpen}
+            onClose={() => setIsEditTxOpen(false)}
+            onSave={handleSaveTransaction}
+        />
     </div>
   );
 }
