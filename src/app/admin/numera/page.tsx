@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
@@ -2388,18 +2389,18 @@ export default function NumeraPage() {
   };
 
   const handleAiAllocate = async () => {
-    if (isAiAllocating) return;
+    if (isAiAllocating || !activeClient) return;
     
-    let transactionsToProcess = unallocatedTransactions.filter(tx => selectedUnallocated.includes(tx.id));
+    const transactionsToProcess = unallocatedTransactions.filter(tx => selectedUnallocated.includes(tx.id));
     if (transactionsToProcess.length === 0) {
         toast({ title: 'No Transactions Selected', description: 'Please select one or more transactions to allocate with AI.', variant: 'destructive' });
         return;
     }
-    if (!activeClient) return;
 
     setIsAiAllocating(true);
-    setProcessingTransactions(prev => [...prev, ...transactionsToProcess]);
+    // Immediately move transactions from unallocated to processing in the UI state
     setUnallocatedTransactions(prev => prev.filter(tx => !selectedUnallocated.includes(tx.id)));
+    setProcessingTransactions(prev => [...prev, ...transactionsToProcess]);
     setSelectedUnallocated([]);
 
     toast({
@@ -2408,41 +2409,26 @@ export default function NumeraPage() {
     });
 
     try {
-        const results = await Promise.all(transactionsToProcess.map(async (tx) => {
-            try {
-                const result = await allocateTransaction({ description: tx.description });
-                return { tx, result, success: true };
-            } catch (error) {
-                console.error(`AI allocation failed for transaction ${tx.id}:`, error);
-                return { tx, error, success: false };
-            }
-        }));
-
-        const successfulAllocations = results.filter(r => r.success);
-        const failedAllocations = results.filter(r => !r.success);
+        await runAndNotifyAllocation({ clientName: activeClient.name, transactions: transactionsToProcess });
         
-        let newAllocations: typeof allocations = {};
-        let newVatTypes: typeof vatTypes = {};
-        
-        successfulAllocations.forEach(({ tx, result }) => {
-            newAllocations[tx.id] = { value: result.accountNumber, type: 'account' };
-            newVatTypes[tx.id] = result.vatType;
-        });
+        // After the background flow is triggered, we can give immediate feedback.
+        // The actual data will refresh when the user reloads or the flow completes,
+        // but for now, we clear the processing state.
+        setProcessingTransactions([]);
+        toast({ title: 'Allocation Running', description: 'The AI is processing in the background. You will receive an email upon completion.' });
 
-        setAllocations(prev => ({ ...prev, ...newAllocations }));
-        setVatTypes(prev => ({ ...prev, ...newVatTypes }));
-
-        setReviewTransactions(prev => [...prev, ...successfulAllocations.map(r => r.tx)]);
-        setUnallocatedTransactions(prev => [...prev, ...failedAllocations.map(r => r.tx)]);
+        // Optional: Re-fetch transactions to show the immediate removal from unallocated.
+        // The allocated ones will appear later.
+        await fetchTransactions(activeClient.id);
 
     } catch (error) {
-        console.error('Error in AI allocation batch:', error);
-        toast({ title: 'Error', description: 'A batch error occurred during AI allocation.', variant: 'destructive' });
+        console.error('Error triggering AI allocation batch:', error);
+        toast({ title: 'Error', description: 'Could not start the AI allocation process.', variant: 'destructive' });
+        // Move transactions back to unallocated if the trigger fails
         setUnallocatedTransactions(prev => [...prev, ...transactionsToProcess]);
-    } finally {
         setProcessingTransactions([]);
+    } finally {
         setIsAiAllocating(false);
-         toast({ title: 'Processing Complete', description: 'AI-suggested allocations are now in the Review tab.' });
     }
 };
 
@@ -2597,7 +2583,7 @@ export default function NumeraPage() {
           setSuppliers(prev => prev.map(s => s.id === selectedSupplier.id ? { ...s, ...data } : s));
           toast({ title: 'Supplier Updated', description: 'The supplier details have been saved.' });
       } else {
-          const newSupplier: Supplier = { ...data, id: `supp-${Date.now()}` };
+          const newSupplier: Supplier = { ...data, id: `supp-${Date.now()}`, };
           setSuppliers(prev => [...prev, newSupplier]);
           toast({ title: 'Supplier Created', description: 'The new supplier has been added.' });
       }
