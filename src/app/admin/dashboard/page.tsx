@@ -495,13 +495,21 @@ export default function AdminDashboardPage() {
     const departmentTasks = useMemo(() => {
         const deptTasks: { [key: string]: Task[] } = {};
         departments.forEach(dept => {
-             deptTasks[dept] = tasks.filter(task => 
-                (!task.recurrence || task.recurrence === 'None') &&
-                task.assignedTo.some(userId => {
+            deptTasks[dept] = tasks.filter(task => {
+                // Task must not be a recurring task
+                if (task.recurrence && task.recurrence !== 'None') return false;
+                
+                // Task must be assigned to more than one person
+                if (task.assignedTo.length <= 1) return false;
+                
+                // All assignees must belong to the current department
+                const allInDept = task.assignedTo.every(userId => {
                     const assignee = users.find(u => u.id === userId);
                     return assignee?.department === dept;
-                })
-            ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
+                });
+
+                return allInDept;
+            }).sort((a, b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
         });
         return deptTasks;
     }, [tasks]);
@@ -896,3 +904,4 @@ export default function AdminDashboardPage() {
     
     
 
+    
