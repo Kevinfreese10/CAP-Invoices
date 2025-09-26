@@ -1,5 +1,4 @@
 
-
 'use client';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
@@ -2214,7 +2213,7 @@ export default function NumeraPage() {
               toast({ title: 'Invalid CSV Format', description: 'File must contain Date, Description, and Amount columns.', variant: 'destructive'});
               setIsParsing(false);
               const fileInput = document.getElementById('transaction-file-input') as HTMLInputElement;
-              if (fileInput) fileInput.value = '';
+              if (fileInput) file.value = '';
               return;
             }
             const transactions = results.data as { Date: string; Description: string; Amount: string }[];
@@ -2435,8 +2434,8 @@ export default function NumeraPage() {
         // Move transactions back to unallocated if the trigger fails
         setUnallocatedTransactions(prev => [...prev, ...transactionsToProcess]);
     } finally {
-        setIsAiAllocating(false);
         setProcessingTransactions([]);
+        setIsAiAllocating(false);
     }
 };
 
@@ -2510,19 +2509,16 @@ export default function NumeraPage() {
                 vatAmount: 0,
             };
             batch.set(doc(collection(db, 'allocatedTransactions')), newAllocated);
+            batch.delete(doc(db, 'unallocatedTransactions', id));
         }
     });
     
     try {
         await batch.commit();
 
-        // Update local state before re-fetching to provide immediate feedback
         const allocatedIds = transactionsToAllocate.map(tx => tx.id);
-        const newReviewTransactions = reviewTransactions.filter(tx => !allocatedIds.includes(tx.id));
-        setReviewTransactions(newReviewTransactions);
-        
-        const newSelectedForReview = selectedForReview.filter(id => !allocatedIds.includes(id));
-        setSelectedForReview(newSelectedForReview);
+        setReviewTransactions(prev => prev.filter(tx => !allocatedIds.includes(tx.id)));
+        setSelectedForReview(prev => prev.filter(id => !allocatedIds.includes(id)));
         
         await fetchTransactions(activeClient.id);
 
@@ -2851,7 +2847,7 @@ export default function NumeraPage() {
                                         <FormItem>
                                             <FormLabel>Transaction File (.csv)</FormLabel>
                                             <FormControl>
-                                            <Input id="transaction-file-input" type="file" accept=".csv" onChange={handleFileChange} />
+                                            <Input type="file" accept=".csv" onChange={handleFileChange} />
                                             </FormControl>
                                         </FormItem>
                                     </div>
