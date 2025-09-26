@@ -43,7 +43,7 @@ import { Switch } from '@/components/ui/switch';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { allocationRules as initialRules } from '@/lib/allocation-rules';
-import { runAndNotifyAllocation } from '@/ai/flows/run-and-notify-allocation';
+import { getAISuggestions } from '@/ai/flows/get-ai-suggestions';
 import { allVatTypes as allVatTypesData } from '@/lib/vat-types';
 import { Badge } from '@/components/ui/badge';
 
@@ -2398,37 +2398,45 @@ export default function NumeraPage() {
     }
 
     setIsAiAllocating(true);
-    // Immediately move transactions from unallocated to processing in the UI state
     setUnallocatedTransactions(prev => prev.filter(tx => !selectedUnallocated.includes(tx.id)));
     setProcessingTransactions(prev => [...prev, ...transactionsToProcess]);
     setSelectedUnallocated([]);
 
     toast({
         title: 'AI Allocation Started',
-        description: `Processing ${transactionsToProcess.length} transactions.`,
+        description: `The AI is generating suggestions for ${transactionsToProcess.length} transactions.`,
     });
 
     try {
-        await runAndNotifyAllocation({ clientName: activeClient.name, transactions: transactionsToProcess });
+        const suggestions = await getAISuggestions({ transactions: transactionsToProcess });
         
-        // After the background flow is triggered, we can give immediate feedback.
-        // The actual data will refresh when the user reloads or the flow completes,
-        // but for now, we clear the processing state.
-        setProcessingTransactions([]);
-        toast({ title: 'Allocation Running', description: 'The AI is processing in the background. You will receive an email upon completion.' });
+        setReviewTransactions(prev => [...prev, ...transactionsToProcess]);
+        
+        const newAllocations: typeof allocations = {};
+        const newVatTypes: typeof vatTypes = {};
 
-        // Optional: Re-fetch transactions to show the immediate removal from unallocated.
-        // The allocated ones will appear later.
-        await fetchTransactions(activeClient.id);
+        suggestions.forEach(suggestion => {
+            if (suggestion.accountNumber) {
+                newAllocations[suggestion.transactionId] = { value: suggestion.accountNumber, type: 'account' };
+            }
+            if (suggestion.vatType) {
+                newVatTypes[suggestion.transactionId] = suggestion.vatType;
+            }
+        });
+
+        setAllocations(prev => ({...prev, ...newAllocations}));
+        setVatTypes(prev => ({...prev, ...newVatTypes}));
+        
+        toast({ title: 'AI Suggestions Ready', description: 'Transactions have been moved to the Review tab with AI suggestions.' });
 
     } catch (error) {
         console.error('Error triggering AI allocation batch:', error);
-        toast({ title: 'Error', description: 'Could not start the AI allocation process.', variant: 'destructive' });
+        toast({ title: 'Error', description: 'Could not get AI suggestions.', variant: 'destructive' });
         // Move transactions back to unallocated if the trigger fails
         setUnallocatedTransactions(prev => [...prev, ...transactionsToProcess]);
-        setProcessingTransactions([]);
     } finally {
         setIsAiAllocating(false);
+        setProcessingTransactions([]);
     }
 };
 
