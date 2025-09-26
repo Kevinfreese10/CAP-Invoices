@@ -8,10 +8,12 @@ import '@/ai/flows/faq-ai-responder.ts';
 import '@/ai/flows/generate-faq-from-queries.ts';
 import '@/ai/flows/generate-service-details.ts';
 import '@/ai/flows/generate-blog-post-seo.ts';
-import '@/ai-flows/generate-blog-post.ts';
+import '@/ai/flows/generate-blog-post.ts';
 import '@/ai/flows/website-q-and-a.ts';
 import '@/ai/flows/numera-flow.ts';
 import '@/ai/flows/allocate-transaction.ts';
 import '@/ai/flows/refine-allocation-knowledge.ts';
 import '@/ai/flows/conversational-accounting.ts';
+
+
 

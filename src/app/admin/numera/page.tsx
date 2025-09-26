@@ -37,7 +37,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { users as allUsers } from '@/lib/data';
 import { allocateTransaction } from '@/ai/flows/allocate-transaction';
 import { refineAllocationKnowledge } from '@/ai/flows/refine-allocation-knowledge';
-import { conversationalAccounting } from '@/ai/flows/conversational-accounting';
+import { conversationalAccounting, ConversationalAccountingInput } from '@/ai/flows/conversational-accounting';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -2811,7 +2811,7 @@ export default function NumeraPage() {
                                   <CardDescription>Create, edit, and manage your suppliers.</CardDescription>
                               </div>
                               <Button onClick={handleAddSupplier}><PlusCircle className="mr-2 h-4 w-4" /> Create Supplier</Button>
-                          </CardHeader>
+                           </CardHeader>
                           <CardContent>
                               {suppliers.length > 0 ? (
                                   <Table>
@@ -3339,6 +3339,8 @@ function AiAssistantDialog({ isOpen, onClose, history, onSubmit, isLoading }: {
     </Dialog>
   );
 }
+
+
 
 
 
