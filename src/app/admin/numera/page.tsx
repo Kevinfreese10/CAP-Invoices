@@ -1933,10 +1933,13 @@ export default function NumeraPage() {
   const [isParsing, setIsParsing] = useState(false);
   const [importPreview, setImportPreview] = useState<{ count: number; total: number; balance: number; } | null>(null);
   const [bankBalances, setBankBalances] = useState<{ [accountNumber: string]: number }>({});
-  const [unallocatedTransactions, setUnallocatedTransactions] = useState<ImportedTransaction[]>([]);
+  
+  const [allUnallocated, setAllUnallocated] = useState<ImportedTransaction[]>([]);
+  const [allAllocated, setAllAllocated] = useState<AllocatedTransaction[]>([]);
+
   const [processingTransactions, setProcessingTransactions] = useState<ImportedTransaction[]>([]);
   const [reviewTransactions, setReviewTransactions] = useState<ImportedTransaction[]>([]);
-  const [allocatedTransactions, setAllocatedTransactions] = useState<AllocatedTransaction[]>([]);
+  
   const [unallocatedSearch, setUnallocatedSearch] = useState('');
   const [selectedUnallocated, setSelectedUnallocated] = useState<string[]>([]);
   const [selectedAllocated, setSelectedAllocated] = useState<string[]>([]);
@@ -1999,8 +2002,8 @@ export default function NumeraPage() {
         const unallocated = unallocatedSnapshot.docs.map(doc => ({...doc.data(), id: doc.id} as ImportedTransaction));
         const allocated = allocatedSnapshot.docs.map(doc => ({...doc.data(), id: doc.id} as AllocatedTransaction));
 
-        setUnallocatedTransactions(unallocated);
-        setAllocatedTransactions(allocated);
+        setAllUnallocated(unallocated);
+        setAllAllocated(allocated);
         setProcessingTransactions([]);
         setReviewTransactions([]);
         
@@ -2021,8 +2024,8 @@ export default function NumeraPage() {
     if (activeClient) {
         fetchTransactions(activeClient.id);
     } else {
-        setUnallocatedTransactions([]);
-        setAllocatedTransactions([]);
+        setAllUnallocated([]);
+        setAllAllocated([]);
         setProcessingTransactions([]);
         setReviewTransactions([]);
         setBankBalances({});
@@ -2257,8 +2260,8 @@ export default function NumeraPage() {
       
       let transactionToAllocate: ImportedTransaction | undefined;
       
-      if (unallocatedTransactions.some(tx => tx.id === transactionId)) {
-        transactionToAllocate = unallocatedTransactions.find(tx => tx.id === transactionId);
+      if (allUnallocated.some(tx => tx.id === transactionId)) {
+        transactionToAllocate = allUnallocated.find(tx => tx.id === transactionId);
       } else {
         transactionToAllocate = reviewTransactions.find(tx => tx.id === transactionId);
       }
@@ -2279,7 +2282,7 @@ export default function NumeraPage() {
       batch.set(doc(collection(db, 'allocatedTransactions')), newAllocatedTransaction);
       
       // Determine which collection to delete from
-      if (unallocatedTransactions.some(tx => tx.id === id)) {
+      if (allUnallocated.some(tx => tx.id === id)) {
           batch.delete(doc(db, 'unallocatedTransactions', transactionId));
       }
       
@@ -2397,7 +2400,7 @@ export default function NumeraPage() {
     }
 
     setIsAiAllocating(true);
-    setUnallocatedTransactions(prev => prev.filter(tx => !selectedUnallocated.includes(tx.id)));
+    setAllUnallocated(prev => prev.filter(tx => !selectedUnallocated.includes(tx.id)));
     setProcessingTransactions(prev => [...prev, ...transactionsToProcess]);
     setSelectedUnallocated([]);
 
@@ -2432,7 +2435,7 @@ export default function NumeraPage() {
         console.error('Error triggering AI allocation batch:', error);
         toast({ title: 'Error', description: 'Could not get AI suggestions.', variant: 'destructive' });
         // Move transactions back to unallocated if the trigger fails
-        setUnallocatedTransactions(prev => [...prev, ...transactionsToProcess]);
+        setAllUnallocated(prev => [...prev, ...transactionsToProcess]);
     } finally {
         setProcessingTransactions([]);
         setIsAiAllocating(false);
@@ -2642,7 +2645,7 @@ export default function NumeraPage() {
             toast({ title: 'Error', description: 'Could not delete the transaction.', variant: 'destructive' });
         }
     } else {
-        setUnallocatedTransactions(prev => prev.filter(tx => tx.id !== transactionId));
+        setAllUnallocated(prev => prev.filter(tx => tx.id !== transactionId));
         setProcessingTransactions(prev => prev.filter(tx => tx.id !== transactionId));
         setReviewTransactions(prev => prev.filter(tx => tx.id !== transactionId));
         toast({ title: 'Transaction Removed', description: 'The transaction has been removed from the current view.' });
@@ -2682,6 +2685,14 @@ export default function NumeraPage() {
   const clientBankAccounts = activeClient
     ? chartOfAccounts.filter(acc => acc.description.startsWith(activeClient.name))
     : [];
+
+  const unallocatedTransactions = useMemo(() => {
+    return allUnallocated.filter(tx => tx.bankAccountId === selectedBankAccount);
+  }, [allUnallocated, selectedBankAccount]);
+  
+  const allocatedTransactions = useMemo(() => {
+      return allAllocated.filter(tx => tx.bankAccountId === selectedBankAccount);
+  }, [allAllocated, selectedBankAccount]);
 
   const incomeTransactions = useMemo(() => {
     const filtered = unallocatedTransactions.filter(tx => tx.amount >= 0);
@@ -2781,8 +2792,8 @@ export default function NumeraPage() {
                         <TabsTrigger value="train-ai">Train AI</TabsTrigger>
                     </TabsList>
                     <TabsContent value="reporting" className="space-y-4">
-                        <TrialBalanceCard activeClient={activeClient} onAccountClick={handleTBAccountClick} allocatedTransactions={allocatedTransactions} unallocatedTransactions={unallocatedTransactions} />
-                        <GeneralLedgerCard activeClient={activeClient} initialValues={glInitialValues} allocatedTransactions={allocatedTransactions} />
+                        <TrialBalanceCard activeClient={activeClient} onAccountClick={handleTBAccountClick} allocatedTransactions={allAllocated} unallocatedTransactions={allUnallocated} />
+                        <GeneralLedgerCard activeClient={activeClient} initialValues={glInitialValues} allocatedTransactions={allAllocated} />
                     </TabsContent>
                     <TabsContent value="banking" className="space-y-4">
                         <Card>
@@ -2806,7 +2817,7 @@ export default function NumeraPage() {
                                         </TableHeader>
                                         <TableBody>
                                             {clientBankAccounts.map(acc => (
-                                                <TableRow key={acc.id}>
+                                                <TableRow key={acc.id} onClick={() => setSelectedBankAccount(acc.accountNumber)} className="cursor-pointer" data-state={selectedBankAccount === acc.accountNumber ? 'selected' : ''}>
                                                     <TableCell className="font-mono">{acc.accountNumber}</TableCell>
                                                     <TableCell>{acc.description}</TableCell>
                                                     <TableCell>{unallocatedTransactions.some(t => t.bankAccountId === acc.accountNumber) ? format(new Date(), 'dd/MM/yyyy') : 'N/A'}</TableCell>
@@ -2820,6 +2831,8 @@ export default function NumeraPage() {
                                 )}
                             </CardContent>
                         </Card>
+                        { selectedBankAccount && (
+                        <>
                         <Card>
                             <CardHeader>
                                 <CardTitle>Import Bank Transactions</CardTitle>
@@ -2830,8 +2843,8 @@ export default function NumeraPage() {
                                 <form className="space-y-4" onSubmit={e => e.preventDefault()}>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <FormItem>
-                                            <FormLabel>Select Bank Account</FormLabel>
-                                            <Select onValueChange={setSelectedBankAccount}>
+                                            <FormLabel>Selected Bank Account</FormLabel>
+                                            <Select value={selectedBankAccount} onValueChange={setSelectedBankAccount}>
                                                 <FormControl>
                                                 <SelectTrigger>
                                                     <SelectValue placeholder="Select an account..." />
@@ -2892,7 +2905,7 @@ export default function NumeraPage() {
                                 <div className="flex flex-col sm:flex-row justify-between gap-4">
                                     <div>
                                         <CardTitle>Transaction Processing</CardTitle>
-                                        <CardDescription>Allocate imported transactions to your Chart of Accounts.</CardDescription>
+                                        <CardDescription>Allocate imported transactions for: <span className="font-bold">{chartOfAccounts.find(a => a.accountNumber === selectedBankAccount)?.description}</span></CardDescription>
                                     </div>
                                     <div className="flex flex-wrap gap-2 items-center">
                                          <Button variant="outline" size="sm" onClick={handleClearAllocations}>
@@ -3024,6 +3037,8 @@ export default function NumeraPage() {
                                 )}
                             </CardContent>
                         </Card>
+                        </>
+                        )}
                     </TabsContent>
                     <TabsContent value="journals">
                          <Card>
@@ -3094,7 +3109,7 @@ export default function NumeraPage() {
                         </Card>
                     </TabsContent>
                     <TabsContent value="vat">
-                        <VatReportCard allocatedTransactions={allocatedTransactions} activeClient={activeClient} />
+                        <VatReportCard allocatedTransactions={allAllocated} activeClient={activeClient} />
                     </TabsContent>
                      <TabsContent value="suppliers">
                         <Card>
@@ -3795,5 +3810,3 @@ function AllocationRulesDialog({ isOpen, onClose }: { isOpen: boolean; onClose: 
     </Dialog>
   )
 }
-
-    
