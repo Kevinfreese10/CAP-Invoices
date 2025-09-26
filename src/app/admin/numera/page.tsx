@@ -333,7 +333,7 @@ function AddBankAccountForm({ activeClient, onAccountAdded, chartOfAccounts }: {
 
         const newAccountNum = `8400/${(nextAccountNumberIndex).toString().padStart(3, '0')}`;
         const newAccount: ChartOfAccount = {
-            id: `cashbook-${activeClient.id}-${Date.now()}`,
+            id: newAccountNum,
             accountNumber: newAccountNum,
             description: `${activeClient.name} - ${values.name}`,
             section: 'Balance Sheet',
@@ -1917,6 +1917,100 @@ function EditTransactionDialog({ transaction, isOpen, onClose, onSave }: { trans
     )
 }
 
+const editBankAccountFormSchema = z.object({
+    id: z.string(),
+    description: z.string().min(3, "Bank account name is required."),
+});
+
+function EditBankAccountForm({
+    account,
+    isOpen,
+    onClose,
+    onSave,
+    onClearTransactions
+}: {
+    account: ChartOfAccount | null,
+    isOpen: boolean,
+    onClose: () => void,
+    onSave: (id: string, newDescription: string) => void,
+    onClearTransactions: (accountId: string) => void,
+}) {
+    const form = useForm<z.infer<typeof editBankAccountFormSchema>>({
+        resolver: zodResolver(editBankAccountFormSchema),
+        defaultValues: {
+            id: account?.id || '',
+            description: account?.description || '',
+        }
+    });
+
+    useEffect(() => {
+        if (account) {
+            form.reset(account);
+        }
+    }, [account, form]);
+
+    const handleSubmit = (values: z.infer<typeof editBankAccountFormSchema>) => {
+        onSave(values.id, values.description);
+        onClose();
+    }
+
+    if (!account) return null;
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Edit Bank Account</DialogTitle>
+                    <DialogDescription>
+                        Update the name for account {account.accountNumber}.
+                    </DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+                        <FormField
+                            control={form.control}
+                            name="description"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Account Name</FormLabel>
+                                    <FormControl><Input {...field} /></FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <DialogFooter className="justify-between">
+                            <Button type="submit">Save Name</Button>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="destructive">
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        Clear Transactions
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This action cannot be undone. This will permanently delete all
+                                            transactions associated with this bank account.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => onClearTransactions(account.accountNumber)}>
+                                            Continue
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </DialogFooter>
+                    </form>
+                </Form>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 export default function NumeraPage() {
   const [clients, setClients] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -1963,6 +2057,8 @@ export default function NumeraPage() {
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
   
   const [chartOfAccountsData, setChartOfAccountsData] = useState<ChartOfAccount[]>(initialChartOfAccounts);
+  const [editingBankAccount, setEditingBankAccount] = useState<ChartOfAccount | null>(null);
+
 
   const importForm = useForm();
   
@@ -2005,8 +2101,6 @@ export default function NumeraPage() {
 
         setAllUnallocated(unallocated);
         setAllAllocated(allocated);
-        setAllProcessing([]);
-        setAllReviewing([]);
         
         const allTx = [...unallocated, ...allocated];
         const balances = allTx.reduce((acc, tx) => {
@@ -2020,30 +2114,34 @@ export default function NumeraPage() {
         toast({ title: 'Error', description: 'Could not fetch transactions for this client.', variant: 'destructive'});
     }
   }
-
-  useEffect(() => {
-    if (activeClient) {
-        fetchTransactions(activeClient.id);
-    } else {
-        setAllUnallocated([]);
-        setAllAllocated([]);
-        setAllProcessing([]);
-        setAllReviewing([]);
-        setBankBalances({});
-        setSelectedBankAccount('');
-    }
-  }, [activeClient]);
-
+  
   useEffect(() => {
     setAllUnallocated([]);
     setAllAllocated([]);
     setAllProcessing([]);
     setAllReviewing([]);
     setBankBalances({});
+    setSelectedBankAccount('');
     if (activeClient) {
         fetchTransactions(activeClient.id);
     }
-  }, [activeClient, selectedBankAccount]);
+  }, [activeClient]);
+
+  useEffect(() => {
+    // This hook now correctly clears all transaction states when the bank account changes.
+    setAllUnallocated([]);
+    setAllAllocated([]);
+    setAllProcessing([]);
+    setAllReviewing([]);
+    setAllocations({});
+    setVatTypes({});
+    setSelectedUnallocated([]);
+    setSelectedAllocated([]);
+    setSelectedForReview([]);
+    if (activeClient && selectedBankAccount) {
+      fetchTransactions(activeClient.id);
+    }
+  }, [selectedBankAccount]);
   
 
   const handleAddClient = () => {
@@ -2699,6 +2797,39 @@ export default function NumeraPage() {
         toast({ title: 'Error', description: 'Could not delete the selected transactions.', variant: 'destructive' });
     }
   };
+  
+  const handleSaveBankAccount = (accountId: string, newDescription: string) => {
+    setChartOfAccountsData(prev => prev.map(acc => acc.id === accountId ? { ...acc, description: newDescription } : acc));
+    toast({ title: 'Bank Account Updated', description: 'The account name has been saved.' });
+  };
+
+  const handleClearTransactions = async (accountId: string) => {
+    if (!activeClient) return;
+    toast({ title: 'Clearing Transactions...', description: 'Please wait.' });
+
+    const unallocatedQuery = query(collection(db, 'unallocatedTransactions'), where('clientId', '==', activeClient.id), where('bankAccountId', '==', accountId));
+    const allocatedQuery = query(collection(db, 'allocatedTransactions'), where('clientId', '==', activeClient.id), where('bankAccountId', '==', accountId));
+
+    try {
+      const [unallocatedSnapshot, allocatedSnapshot] = await Promise.all([
+        getDocs(unallocatedQuery),
+        getDocs(allocatedQuery)
+      ]);
+
+      const batch = writeBatch(db);
+      unallocatedSnapshot.forEach(doc => batch.delete(doc.ref));
+      allocatedSnapshot.forEach(doc => batch.delete(doc.ref));
+      await batch.commit();
+      
+      await fetchTransactions(activeClient.id);
+      
+      toast({ title: 'Transactions Cleared', description: `All transactions for account ${accountId} have been deleted.` });
+      setEditingBankAccount(null);
+    } catch (error) {
+      console.error('Error clearing transactions:', error);
+      toast({ title: 'Error', description: 'Could not clear transactions.', variant: 'destructive' });
+    }
+  };
 
   const clientBankAccounts = activeClient
     ? chartOfAccountsData.filter(acc => acc.description.startsWith(activeClient.name))
@@ -2848,6 +2979,7 @@ export default function NumeraPage() {
                                                 <TableHead>Account Name</TableHead>
                                                 <TableHead>Last Import</TableHead>
                                                 <TableHead className="text-right">Balance</TableHead>
+                                                <TableHead className="text-right">Actions</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -2857,6 +2989,11 @@ export default function NumeraPage() {
                                                     <TableCell>{acc.description}</TableCell>
                                                     <TableCell>{unallocatedTransactions.some(t => t.bankAccountId === acc.accountNumber) ? format(new Date(), 'dd/MM/yyyy') : 'N/A'}</TableCell>
                                                     <TableCell className="text-right font-mono">{formatNumber(bankBalances[acc.accountNumber] || 0)}</TableCell>
+                                                    <TableCell className="text-right">
+                                                        <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setEditingBankAccount(acc); }}>
+                                                            <Edit className="h-4 w-4" />
+                                                        </Button>
+                                                    </TableCell>
                                                 </TableRow>
                                             ))}
                                         </TableBody>
@@ -3402,6 +3539,13 @@ export default function NumeraPage() {
             onClose={() => setIsRulesModalOpen(false)}
             chartOfAccounts={chartOfAccountsData}
         />
+        <EditBankAccountForm 
+            account={editingBankAccount}
+            isOpen={!!editingBankAccount}
+            onClose={() => setEditingBankAccount(null)}
+            onSave={handleSaveBankAccount}
+            onClearTransactions={handleClearTransactions}
+        />
     </div>
   );
 }
@@ -3855,4 +3999,5 @@ function AllocationRulesDialog({ isOpen, onClose, chartOfAccounts }: { isOpen: b
 }
 
     
+
 
