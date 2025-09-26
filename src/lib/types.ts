@@ -1,4 +1,5 @@
 
+
 export type VatType =
   // Output Tax
   | 'standard_rated_sales'
@@ -16,6 +17,13 @@ export type ChartOfAccount = {
   accountNumber: string;
   description: string;
   section: 'Income Statement' | 'Balance Sheet';
+};
+
+export type AllocationRule = {
+  id: string;
+  keyword: string;
+  accountId: string;
+  vatType: VatType;
 };
 
 export type Service = {
