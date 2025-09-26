@@ -496,20 +496,17 @@ export default function AdminDashboardPage() {
         const deptTasks: { [key: string]: Task[] } = {};
         departments.forEach(dept => {
             deptTasks[dept] = tasks.filter(task => {
-                // Task must not be a recurring task
                 if (task.recurrence && task.recurrence !== 'None') return false;
                 
-                // Task must be assigned to more than one person
                 if (task.assignedTo.length <= 1) return false;
                 
-                // All assignees must belong to the current department
                 const allInDept = task.assignedTo.every(userId => {
                     const assignee = users.find(u => u.id === userId);
                     return assignee?.department === dept;
                 });
 
                 return allInDept;
-            }).sort((a, b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
+            }).sort((a, b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : b.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
         });
         return deptTasks;
     }, [tasks]);
@@ -527,10 +524,6 @@ export default function AdminDashboardPage() {
             (!task.recurrence || task.recurrence === 'None')
         ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
     }, [tasks, user]);
-
-    const manualTasks = useMemo(() => {
-      return tasks.filter(task => !task.recurrence || task.recurrence === 'None');
-    }, [tasks]);
 
     const handleAdd = () => {
         setSelectedTask(null);
@@ -805,7 +798,7 @@ export default function AdminDashboardPage() {
                 ) : (
                     <>
                         <KanbanView 
-                            tasks={manualTasks} 
+                            tasks={myTasks} 
                             onTaskUpdate={handleUpdateStatus} 
                         />
                         
@@ -902,6 +895,8 @@ export default function AdminDashboardPage() {
     
 
     
+    
+
     
 
     
