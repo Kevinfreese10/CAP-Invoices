@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Repeat } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Repeat, Check } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -32,6 +32,7 @@ import { Separator } from '@/components/ui/separator';
 import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, arrayUnion, Timestamp, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 
 const db = getFirestore(firebaseApp);
 
@@ -50,7 +51,7 @@ const formSchema = z.object({
   id: z.string().optional(),
   title: z.string().min(5, 'Title is required.'),
   description: z.string().min(10, 'Description is required.'),
-  assignedTo: z.string().min(1, 'Please assign a staff member.'),
+  assignedTo: z.array(z.string()).min(1, 'Please assign a staff member.'),
   dueDate: z.date({ required_error: 'A due date is required.'}),
   priority: z.enum(taskPriorities),
   recurrence: z.enum(taskRecurrences).optional(),
@@ -66,7 +67,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
             id: task?.id || '',
             title: task?.title || '',
             description: task?.description || '',
-            assignedTo: task?.assignedTo?.[0] || '',
+            assignedTo: task?.assignedTo || [],
             dueDate: task?.dueDate ? task.dueDate.toDate() : new Date(),
             priority: task?.priority || 'Medium',
             recurrence: task?.recurrence || 'None',
@@ -98,41 +99,78 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
                 <FormField control={form.control} name="title" render={({ field }) => (<FormItem><FormLabel>Title</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="description" render={({ field }) => (<FormItem><FormLabel>Description</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>)} />
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <FormField control={form.control} name="assignedTo" render={({ field }) => (
-                        <FormItem>
+                    <FormField
+                        control={form.control}
+                        name="assignedTo"
+                        render={({ field }) => (
+                            <FormItem className="lg:col-span-2">
                             <FormLabel>Assign To</FormLabel>
-                             <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!!task?.id}>
-                                <FormControl><SelectTrigger><SelectValue placeholder="Select staff..." /></SelectTrigger></FormControl>
-                                <SelectContent>
-                                    {!task?.id && (
-                                    <>
-                                        <SelectGroup>
-                                            <SelectLabel>Teams</SelectLabel>
-                                            <SelectItem value="all">All Staff</SelectItem>
-                                            <SelectItem value="dept-accounting-and-tax">Accounting and Tax Dept</SelectItem>
-                                            <SelectItem value="dept-administration">Administration Dept</SelectItem>
-                                            <SelectItem value="dept-cap">CAP Dept</SelectItem>
-                                        </SelectGroup>
-                                        <SelectGroup>
-                                            <SelectLabel>Individual Staff</SelectLabel>
-                                            {departments.map(dept => (
-                                                <SelectGroup key={dept}>
-                                                    <SelectLabel className="pl-4 text-xs">{dept}</SelectLabel>
-                                                    {staffByDept[dept].map(staff => <SelectItem key={staff.id} value={staff.id}>{staff.name}</SelectItem>)}
-                                                </SelectGroup>
-                                            ))}
-                                        </SelectGroup>
-                                    </>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                <FormControl>
+                                    <Button
+                                    variant="outline"
+                                    role="combobox"
+                                    className={cn(
+                                        "w-full justify-between",
+                                        !field.value?.length && "text-muted-foreground"
                                     )}
-                                    {!!task?.id && Array.isArray(task.assignedTo) && task.assignedTo.map(userId => {
-                                        const user = getAuthor(userId);
-                                        return user ? <SelectItem key={user.id} value={user.id}>{user.name}</SelectItem> : null;
-                                    })}
-                                </SelectContent>
-                            </Select>
+                                    >
+                                    {field.value?.length > 0
+                                        ? `${field.value.length} selected`
+                                        : "Select staff or team"}
+                                    <MoreHorizontal className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                    </Button>
+                                </FormControl>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                <Command>
+                                    <CommandInput placeholder="Search..." />
+                                    <CommandList>
+                                    <CommandEmpty>No results found.</CommandEmpty>
+                                    <CommandGroup heading="Teams">
+                                        <CommandItem onSelect={() => field.onChange(['all'])}>All Staff</CommandItem>
+                                        <CommandItem onSelect={() => field.onChange(staffByDept['Accounting and Tax'].map(s => s.id))}>Accounting and Tax Dept</CommandItem>
+                                        <CommandItem onSelect={() => field.onChange(staffByDept['Administration'].map(s => s.id))}>Administration Dept</CommandItem>
+                                        <CommandItem onSelect={() => field.onChange(staffByDept['CAP'].map(s => s.id))}>CAP Dept</CommandItem>
+                                    </CommandGroup>
+                                    <CommandGroup heading="Individual Staff">
+                                        {allStaff.map((staff) => (
+                                        <CommandItem
+                                            key={staff.id}
+                                            value={staff.name}
+                                            onSelect={() => {
+                                            const selection = new Set(field.value);
+                                            if (selection.has(staff.id)) {
+                                                selection.delete(staff.id);
+                                            } else {
+                                                selection.add(staff.id);
+                                            }
+                                            field.onChange(Array.from(selection));
+                                            }}
+                                        >
+                                            <div
+                                            className={cn(
+                                                "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                                                field.value?.includes(staff.id)
+                                                ? "bg-primary text-primary-foreground"
+                                                : "opacity-50 [&_svg]:invisible"
+                                            )}
+                                            >
+                                            <Check className={cn("h-4 w-4")} />
+                                            </div>
+                                            <span>{staff.name}</span>
+                                        </CommandItem>
+                                        ))}
+                                    </CommandGroup>
+                                    </CommandList>
+                                </Command>
+                                </PopoverContent>
+                            </Popover>
                             <FormMessage />
-                        </FormItem>
-                    )} />
+                            </FormItem>
+                        )}
+                        />
                      <FormField
                         control={form.control}
                         name="dueDate"
@@ -172,7 +210,6 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
                         )}
                         />
                     <FormField control={form.control} name="priority" render={({ field }) => (<FormItem><FormLabel>Priority</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select priority..." /></SelectTrigger></FormControl><SelectContent>{taskPriorities.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
-                    <FormField control={form.control} name="recurrence" render={({ field }) => (<FormItem><FormLabel>Recurrence</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Never" /></SelectTrigger></FormControl><SelectContent>{taskRecurrences.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                 </div>
                  <FormField control={form.control} name="orderId" render={({ field }) => (<FormItem><FormLabel>Related Order ID (Optional)</FormLabel><FormControl><Input {...field} placeholder="e.g. ORD-12345" /></FormControl><FormMessage /></FormItem>)} />
                 
@@ -327,14 +364,12 @@ export default function AdminTasksPage() {
     }
   };
 
-  const handleFormSubmit = async (data: Omit<Task, 'id' | 'status' | 'createdBy' | 'comments' | 'assignedTo'> & { assignedTo: string }) => {
+  const handleFormSubmit = async (data: Omit<Task, 'id' | 'status' | 'createdBy' | 'comments'>) => {
     if (!user) return;
     setIsLoading(true);
     
-    const { assignedTo: assignmentKey, ...restOfData } = data;
-
     const taskData = {
-        ...restOfData,
+        ...data,
         dueDate: Timestamp.fromDate(data.dueDate as Date),
     };
 
@@ -344,37 +379,14 @@ export default function AdminTasksPage() {
             await updateDoc(taskRef, { ...taskData });
             toast({ title: 'Task Updated', description: 'The task details have been saved.' });
         } else {
-             let targetStaffIds: string[] = [];
-            let successMessage = '';
-
-            if (assignmentKey === 'all') {
-                targetStaffIds = allStaff.map(s => s.id);
-                successMessage = `A new task has been assigned to all ${targetStaffIds.length} staff members.`;
-            } else if (assignmentKey.startsWith('dept-')) {
-                const dept = assignmentKey.replace('dept-', '') as keyof typeof staffByDept;
-                targetStaffIds = staffByDept[dept].map(s => s.id);
-                successMessage = `Task assigned to all ${targetStaffIds.length} members of the ${dept} department.`;
-            } else {
-                const singleStaff = allStaff.find(s => s.id === assignmentKey);
-                if (singleStaff) {
-                    targetStaffIds.push(singleStaff.id);
-                }
-                successMessage = 'The new task has been added successfully.';
-            }
-
-            if (targetStaffIds.length > 0) {
-                const newTask: Omit<Task, 'id'> = {
-                    ...taskData,
-                    assignedTo: targetStaffIds,
-                    status: 'To-Do',
-                    createdBy: user.id,
-                    comments: [],
-                };
-                await addDoc(collection(db, 'tasks'), newTask);
-                toast({ title: 'Task Created', description: successMessage });
-            } else {
-                    toast({ title: 'Assignment Error', description: 'No staff members found for the selected assignment.', variant: 'destructive' });
-            }
+            const newTask: Omit<Task, 'id'> = {
+                ...taskData,
+                status: 'To-Do',
+                createdBy: user.id,
+                comments: [],
+            };
+            await addDoc(collection(db, 'tasks'), newTask);
+            toast({ title: 'Task Created', description: `Task assigned to ${data.assignedTo.length} member(s).` });
         }
         fetchTasks();
         setIsFormOpen(false);
@@ -663,4 +675,5 @@ export default function AdminTasksPage() {
 
 
     
+
 
