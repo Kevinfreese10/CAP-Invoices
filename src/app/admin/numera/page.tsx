@@ -305,7 +305,7 @@ const bankAccountFormSchema = z.object({
   name: z.string().min(2, "Bank name is required (e.g., FNB, ABSA)."),
 });
 
-function AddBankAccountForm({ activeClient, onAccountAdded }: { activeClient: User; onAccountAdded: () => void; }) {
+function AddBankAccountForm({ activeClient, onAccountAdded, onBalanceUpdate }: { activeClient: User; onAccountAdded: () => void; onBalanceUpdate: (accNum: string, balance: number) => void; }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
@@ -341,6 +341,7 @@ function AddBankAccountForm({ activeClient, onAccountAdded }: { activeClient: Us
         if (!chartOfAccounts.some(a => a.accountNumber === newAccount.accountNumber)) {
             chartOfAccounts.push(newAccount);
             chartOfAccounts.sort((a,b) => a.accountNumber.localeCompare(b.accountNumber));
+            onBalanceUpdate(newAccountNum, 0); // Initialize balance to 0
         }
 
         toast({
@@ -348,7 +349,7 @@ function AddBankAccountForm({ activeClient, onAccountAdded }: { activeClient: Us
             description: `New cashbook account ${newAccountNum} has been added for ${values.name}.`,
         });
         form.reset();
-        onAccountAdded();
+        onAccountAdded(); // This will trigger a re-render in the parent
         setIsOpen(false);
     } catch (error) {
         console.error("Error adding bank account:", error);
@@ -2814,7 +2815,14 @@ export default function NumeraPage() {
                                     <CardTitle>Bank Account List</CardTitle>
                                     <CardDescription>Manage this client's bank accounts.</CardDescription>
                                 </div>
-                                <AddBankAccountForm activeClient={activeClient} onAccountAdded={() => forceUpdate({})} />
+                                <AddBankAccountForm
+                                    activeClient={activeClient}
+                                    onAccountAdded={() => {
+                                        forceUpdate({});
+                                        setSelectedBankAccount('');
+                                    }}
+                                    onBalanceUpdate={(accNum, balance) => setBankBalances(prev => ({...prev, [accNum]: balance}))}
+                                />
                             </CardHeader>
                             <CardContent>
                                 {clientBankAccounts.length > 0 ? (
