@@ -100,7 +100,7 @@ const Header = () => {
                   <div className="mt-auto">
                   {isAuthenticated && user ? (
                       <div className="space-y-4">
-                          <Link href="/admin/dashboard" className="text-lg font-medium" onClick={() => setMobileMenuOpen(false)}>Dashboard</Link>
+                          <Link href={user.role === 'reseller' ? '/reseller/dashboard' : '/admin/dashboard'} className="text-lg font-medium" onClick={() => setMobileMenuOpen(false)}>Dashboard</Link>
                           <Button onClick={() => { handleLogout(); setMobileMenuOpen(false); }} className="w-full">Logout</Button>
                       </div>
                     ) : (
