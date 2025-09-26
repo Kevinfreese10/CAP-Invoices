@@ -24,7 +24,7 @@ const ImportedTransactionSchema = z.object({
     bankAccountId: z.string(),
 });
 
-export const RunAndNotifyAllocationInputSchema = z.object({
+const RunAndNotifyAllocationInputSchema = z.object({
   clientName: z.string().describe("The name of the client for whom the allocation is being run."),
   transactions: z.array(ImportedTransactionSchema).describe("An array of unallocated transactions to process."),
 });
