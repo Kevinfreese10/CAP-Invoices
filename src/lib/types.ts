@@ -21,7 +21,9 @@ export type ChartOfAccount = {
 
 export type AllocationRule = {
   id: string;
-  keywords: string[];
+  type: 'hard' | 'soft';
+  description: string; // Used for soft rules, or as a note for hard rules
+  keywords: string[]; // Only for hard rules
   accountId: string;
   vatType: VatType;
 };

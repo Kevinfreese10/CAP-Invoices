@@ -40,9 +40,17 @@ const serializedChartOfAccounts = chartOfAccounts
     .map(acc => `${acc.accountNumber} - ${acc.description}`)
     .join('\n');
 
-const serializedAllocationRules = allocationRules
-    .map(rule => `If description contains '${rule.keywords.join(', ')}', use account ${rule.accountId} (${chartOfAccounts.find(a => a.accountNumber === rule.accountId)?.description}) with VAT type '${rule.vatType}'.`)
+const hardRules = allocationRules.filter(r => r.type === 'hard');
+const softRules = allocationRules.filter(r => r.type === 'soft');
+
+const serializedHardRules = hardRules
+    .map(rule => `If description contains ANY of these keywords: '${rule.keywords.join(', ')}', you MUST use account ${rule.accountId} (${chartOfAccounts.find(a => a.accountNumber === rule.accountId)?.description}) with VAT type '${rule.vatType}'.`)
     .join('\n');
+
+const serializedSoftRules = softRules
+    .map(rule => `- ${rule.description} (Use Account: ${rule.accountId}, VAT Type: ${rule.vatType})`)
+    .join('\n');
+
 
 const prompt = ai.definePrompt({
   name: 'allocateTransactionPrompt',
@@ -54,18 +62,22 @@ Transaction Description:
 "{{{description}}}"
 
 **Prioritization Order:**
-1.  **Specific Allocation Rules:** You MUST check these rules first. If a keyword from the transaction description matches, you must use the specified account and VAT type.
-2.  **Chart of Accounts:** If no specific rule matches, use your expertise to choose the best account from the general chart of accounts.
-3.  **VAT Rules:** Apply the correct VAT treatment based on your account selection and the general VAT rules.
+1.  **Hard Rules (Highest Priority):** These are absolute. If a keyword from the transaction description matches, you MUST use the specified account and VAT type. The match does not need to be exact; if the keyword is contained in the description, the rule applies.
+2.  **Soft Rules (Conceptual Guidance):** If no hard rule matches, evaluate if the transaction's concept fits any of these broader rules. Use your judgment.
+3.  **Chart of Accounts (General Knowledge):** If no specific rule matches, use your expertise to choose the best account from the general chart of accounts.
+4.  **VAT Rules:** Apply the correct VAT treatment based on your account selection and the general VAT rules.
 
 ---
-**1. Specific Allocation Rules (Highest Priority)**
-${serializedAllocationRules}
+**1. Hard Rules (Strict Keyword Matching)**
+${serializedHardRules}
 ---
-**2. Chart of Accounts (Use if no rule matches)**
+**2. Soft Rules (Conceptual Matching)**
+${serializedSoftRules}
+---
+**3. Chart of Accounts (Use if no rule matches)**
 ${serializedChartOfAccounts}
 ---
-**3. South African VAT Rules (Apply after selecting an account)**
+**4. South African VAT Rules (Apply after selecting an account)**
 **Output Tax (VAT on Income)**
 - **standard_rated_sales**: Sales of goods/services (15% VAT). Most income falls here.
 - **zero_rated_sales**: Exports, certain basic foodstuffs.
