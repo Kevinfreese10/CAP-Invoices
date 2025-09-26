@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
@@ -36,13 +37,13 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { users as allUsers } from '@/lib/data';
 import { allocateTransaction } from '@/ai/flows/allocate-transaction';
 import { refineAllocationKnowledge } from '@/ai/flows/refine-allocation-knowledge';
+import { conversationalAccounting } from '@/ai/flows/conversational-accounting';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { allocationRules } from '@/lib/allocation-rules';
-import { conversationalAccounting } from '@/ai/flows/conversational-accounting';
 
 const db = getFirestore(firebaseApp);
 
@@ -1952,6 +1953,8 @@ export default function NumeraPage() {
     } catch (error) {
         console.error("Error deleting client:", error);
         toast({ title: 'Error', description: 'Could not delete client.', variant: 'destructive' });
+    } finally {
+        setIsLoading(false);
     }
   };
 
@@ -3336,3 +3339,8 @@ function AiAssistantDialog({ isOpen, onClose, history, onSubmit, isLoading }: {
     </Dialog>
   );
 }
+
+
+
+
+
