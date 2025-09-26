@@ -25,5 +25,13 @@ export const allocationRules: AllocationRule[] = [
         description: 'All fast food purchases must be allocated to Entertainment.',
         accountId: '3700/000', // Entertainment Expenses
         vatType: 'no_vat',
+    },
+    {
+        id: 'rule-diamatrix',
+        type: 'hard',
+        keywords: ['diamatrix'],
+        description: 'Diamatrix software should be computer expenses.',
+        accountId: '3300/000', // Computer Expenses
+        vatType: 'standard_rated_purchases',
     }
 ];
