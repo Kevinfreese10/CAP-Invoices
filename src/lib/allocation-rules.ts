@@ -5,7 +5,7 @@ export const allocationRules: AllocationRule[] = [
     {
         id: 'rule-1',
         type: 'hard',
-        keywords: ['bank charges', 'monthly fee', 'bank fee'],
+        keywords: ['bank charges', 'monthly fee', 'bank fee', 'fee'],
         description: 'Catches various bank service fees.',
         accountId: '3200/000', // Bank Charges
         vatType: 'no_vat',
