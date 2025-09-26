@@ -23,7 +23,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format, add, sub, getMonth, getYear, startOfYear, endOfYear, startOfMonth, endOfMonth, addMonths } from 'date-fns';
-import { chartOfAccounts } from '@/lib/chart-of-accounts';
+import { chartOfAccounts as initialChartOfAccounts } from '@/lib/chart-of-accounts';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
@@ -305,7 +305,7 @@ const bankAccountFormSchema = z.object({
   name: z.string().min(2, "Bank name is required (e.g., FNB, ABSA)."),
 });
 
-function AddBankAccountForm({ activeClient, onAccountAdded, onBalanceUpdate }: { activeClient: User; onAccountAdded: () => void; onBalanceUpdate: (accNum: string, balance: number) => void; }) {
+function AddBankAccountForm({ activeClient, onAccountAdded, chartOfAccounts }: { activeClient: User; onAccountAdded: (newAccount: ChartOfAccount) => void; chartOfAccounts: ChartOfAccount[]; }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
@@ -338,18 +338,13 @@ function AddBankAccountForm({ activeClient, onAccountAdded, onBalanceUpdate }: {
             section: 'Balance Sheet',
         };
         
-        if (!chartOfAccounts.some(a => a.accountNumber === newAccount.accountNumber)) {
-            chartOfAccounts.push(newAccount);
-            chartOfAccounts.sort((a,b) => a.accountNumber.localeCompare(b.accountNumber));
-            onBalanceUpdate(newAccountNum, 0); // Initialize balance to 0
-        }
+        onAccountAdded(newAccount);
 
         toast({
             title: 'Cashbook Added',
             description: `New cashbook account ${newAccountNum} has been added for ${values.name}.`,
         });
         form.reset();
-        onAccountAdded(); // This will trigger a re-render in the parent
         setIsOpen(false);
     } catch (error) {
         console.error("Error adding bank account:", error);
@@ -402,7 +397,7 @@ const trialBalanceFormSchema = z.object({
     showZeroItems: z.boolean().default(true),
 });
 
-function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions, unallocatedTransactions }: { activeClient: User; onAccountClick: (accountNumber: string, from: Date, to: Date) => void; allocatedTransactions: AllocatedTransaction[]; unallocatedTransactions: ImportedTransaction[] }) {
+function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions, unallocatedTransactions, chartOfAccounts }: { activeClient: User; onAccountClick: (accountNumber: string, from: Date, to: Date) => void; allocatedTransactions: AllocatedTransaction[]; unallocatedTransactions: ImportedTransaction[], chartOfAccounts: ChartOfAccount[] }) {
     
     const [reportData, setReportData] = useState<TrialBalanceReportData | null>(null);
     const reportRef = useRef(null);
@@ -705,7 +700,7 @@ const generalLedgerFormSchema = z.object({
   accounts: z.array(z.string()).min(1, 'Please select at least one account.'),
 });
 
-function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions }: { activeClient: User, initialValues?: Partial<z.infer<typeof generalLedgerFormSchema>>, allocatedTransactions: AllocatedTransaction[] }) {
+function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions, chartOfAccounts }: { activeClient: User, initialValues?: Partial<z.infer<typeof generalLedgerFormSchema>>, allocatedTransactions: AllocatedTransaction[], chartOfAccounts: ChartOfAccount[] }) {
   
   const [reportData, setReportData] = useState<GeneralLedgerReportData | null>(null);
   const reportRef = useRef(null);
@@ -1095,7 +1090,7 @@ function VatTypeCombobox({ value, onSelect }: { value?: VatType, onSelect: (valu
     )
 }
 
-function AllocationCombobox({ value, onSelect, customers, suppliers }: { value?: { value: string, type: string }, onSelect: (value: string, type: 'account'|'customer'|'supplier') => void, customers: User[], suppliers: Supplier[] }) {
+function AllocationCombobox({ value, onSelect, customers, suppliers, chartOfAccounts }: { value?: { value: string, type: string }, onSelect: (value: string, type: 'account'|'customer'|'supplier') => void, customers: User[], suppliers: Supplier[], chartOfAccounts: ChartOfAccount[] }) {
     const [open, setOpen] = useState(false);
     
     const getDisplayValue = () => {
@@ -1156,7 +1151,7 @@ function AllocationCombobox({ value, onSelect, customers, suppliers }: { value?:
 type SortableField = 'date' | 'description' | 'amount';
 type SortDirection = 'asc' | 'desc';
 
-function AllocationTable({ transactions, onAllocate, onEdit, onDelete, selectedTransactions, onSelectionChange, onAllocationSelect, allocations, onVatTypeSelect, vatTypes, onFeedback, processingTxId, customers, suppliers }: { 
+function AllocationTable({ transactions, onAllocate, onEdit, onDelete, selectedTransactions, onSelectionChange, onAllocationSelect, allocations, onVatTypeSelect, vatTypes, onFeedback, processingTxId, customers, suppliers, chartOfAccounts }: { 
     transactions: ImportedTransaction[], 
     onAllocate: (transactionId: string) => void, 
     onEdit: (transaction: ImportedTransaction) => void,
@@ -1171,6 +1166,7 @@ function AllocationTable({ transactions, onAllocate, onEdit, onDelete, selectedT
     processingTxId?: string | null;
     customers: User[];
     suppliers: Supplier[];
+    chartOfAccounts: ChartOfAccount[];
 }) {
     const [sortConfig, setSortConfig] = useState<{ key: SortableField, direction: SortDirection } | null>({ key: 'date', direction: 'asc'});
 
@@ -1256,7 +1252,7 @@ function AllocationTable({ transactions, onAllocate, onEdit, onDelete, selectedT
                         <TableCell>{tx.description}</TableCell>
                         <TableCell className="font-mono">{formatNumber(tx.amount)}</TableCell>
                         <TableCell className="w-[300px]">
-                            <AllocationCombobox value={allocations[tx.id]} onSelect={(value, type) => onAllocationSelect(tx.id, value, type)} customers={customers} suppliers={suppliers} />
+                            <AllocationCombobox value={allocations[tx.id]} onSelect={(value, type) => onAllocationSelect(tx.id, value, type)} customers={customers} suppliers={suppliers} chartOfAccounts={chartOfAccounts} />
                         </TableCell>
                         <TableCell className="w-[300px]">
                             <VatTypeCombobox value={vatTypes[tx.id]} onSelect={(value) => onVatTypeSelect(tx.id, value)} />
@@ -1294,14 +1290,15 @@ function AllocationTable({ transactions, onAllocate, onEdit, onDelete, selectedT
     );
 }
 
-function AllocatedTransactionTable({ transactions, onSaveAllocation, onDelete, selectedTransactions, onSelectionChange, customers, suppliers }: { 
+function AllocatedTransactionTable({ transactions, onSaveAllocation, onDelete, selectedTransactions, onSelectionChange, customers, suppliers, chartOfAccounts }: { 
     transactions: AllocatedTransaction[], 
     onSaveAllocation: (transactionId: string, newAllocation: {value: string, type: 'account'|'customer'|'supplier'}, newVatType: VatType) => void,
     onDelete: (transactionId: string) => void,
     selectedTransactions: string[],
     onSelectionChange: (id: string, isSelected: boolean) => void,
     customers: User[],
-    suppliers: Supplier[]
+    suppliers: Supplier[],
+    chartOfAccounts: ChartOfAccount[];
  }) {
     
     const [editableAllocations, setEditableAllocations] = useState<{ [key: string]: { value: string, type: 'account'|'customer'|'supplier' } }>({});
@@ -1360,7 +1357,7 @@ function AllocatedTransactionTable({ transactions, onSaveAllocation, onDelete, s
                         <TableCell>{tx.description}</TableCell>
                         <TableCell className="font-mono">{formatNumber(tx.amount)}</TableCell>
                         <TableCell>
-                           <AllocationCombobox value={editableAllocations[tx.id]} onSelect={(value, type) => setEditableAllocations(prev => ({ ...prev, [tx.id]: { value, type } }))} customers={customers} suppliers={suppliers}/>
+                           <AllocationCombobox value={editableAllocations[tx.id]} onSelect={(value, type) => setEditableAllocations(prev => ({ ...prev, [tx.id]: { value, type } }))} customers={customers} suppliers={suppliers} chartOfAccounts={chartOfAccounts} />
                         </TableCell>
                          <TableCell>
                             <VatTypeCombobox value={editableVatTypes[tx.id]} onSelect={(value) => setEditableVatTypes(prev => ({...prev, [tx.id]: value}))} />
@@ -1423,7 +1420,7 @@ const journalFormSchema = z.object({
 });
 
 
-function JournalForm({ journal, onSubmit, onCancel }: { journal: Journal | null, onSubmit: (data: Journal) => void, onCancel: () => void }) {
+function JournalForm({ journal, onSubmit, onCancel, chartOfAccounts }: { journal: Journal | null, onSubmit: (data: Journal) => void, onCancel: () => void, chartOfAccounts: ChartOfAccount[] }) {
     const form = useForm<z.infer<typeof journalFormSchema>>({
         resolver: zodResolver(journalFormSchema),
         defaultValues: journal ? {
@@ -1964,6 +1961,8 @@ export default function NumeraPage() {
   const [isEditTxOpen, setIsEditTxOpen] = useState(false);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
   
+  const [chartOfAccountsData, setChartOfAccountsData] = useState<ChartOfAccount[]>(initialChartOfAccounts);
+
   const importForm = useForm();
   
   const fetchClients = async () => {
@@ -2031,6 +2030,12 @@ export default function NumeraPage() {
         setAllReviewing([]);
         setBankBalances({});
     }
+  }, [activeClient]);
+  
+  useEffect(() => {
+    setSelectedBankAccount('');
+    setAllProcessing([]);
+    setAllReviewing([]);
   }, [activeClient]);
 
   const handleAddClient = () => {
@@ -2217,7 +2222,7 @@ export default function NumeraPage() {
               toast({ title: 'Invalid CSV Format', description: 'File must contain Date, Description, and Amount columns.', variant: 'destructive'});
               setIsParsing(false);
               const fileInput = document.getElementById('transaction-file-input') as HTMLInputElement;
-              if (fileInput) file.value = '';
+              if (fileInput) fileInput.value = '';
               return;
             }
             const transactions = results.data as { Date: string; Description: string; Amount: string }[];
@@ -2482,7 +2487,7 @@ export default function NumeraPage() {
 
         setProcessingTxId(transaction.id);
         const result = await allocateTransaction({ description: transaction.description });
-        if (result.accountNumber && chartOfAccounts.some(acc => acc.accountNumber === result.accountNumber)) {
+        if (result.accountNumber && chartOfAccountsData.some(acc => acc.accountNumber === result.accountNumber)) {
             handleAllocationSelect(transaction.id, result.accountNumber, 'account');
             handleVatTypeSelect(transaction.id, result.vatType);
         }
@@ -2688,7 +2693,7 @@ export default function NumeraPage() {
   };
 
   const clientBankAccounts = activeClient
-    ? chartOfAccounts.filter(acc => acc.description.startsWith(activeClient.name))
+    ? chartOfAccountsData.filter(acc => acc.description.startsWith(activeClient.name))
     : [];
 
   const unallocatedTransactions = useMemo(() => {
@@ -2728,7 +2733,6 @@ export default function NumeraPage() {
   const allocatedIncome = useMemo(() => allocatedTransactions.filter(tx => tx.amount >= 0), [allocatedTransactions]);
   const allocatedExpenses = useMemo(() => allocatedTransactions.filter(tx => tx.amount < 0), [allocatedTransactions]);
 
-  const [_, forceUpdate] = useState({});
 
   return (
     <div className="space-y-8">
@@ -2805,8 +2809,8 @@ export default function NumeraPage() {
                         <TabsTrigger value="train-ai">Train AI</TabsTrigger>
                     </TabsList>
                     <TabsContent value="reporting" className="space-y-4">
-                        <TrialBalanceCard activeClient={activeClient} onAccountClick={handleTBAccountClick} allocatedTransactions={allAllocated} unallocatedTransactions={allUnallocated} />
-                        <GeneralLedgerCard activeClient={activeClient} initialValues={glInitialValues} allocatedTransactions={allAllocated} />
+                        <TrialBalanceCard activeClient={activeClient} onAccountClick={handleTBAccountClick} allocatedTransactions={allAllocated} unallocatedTransactions={allUnallocated} chartOfAccounts={chartOfAccountsData} />
+                        <GeneralLedgerCard activeClient={activeClient} initialValues={glInitialValues} allocatedTransactions={allAllocated} chartOfAccounts={chartOfAccountsData} />
                     </TabsContent>
                     <TabsContent value="banking" className="space-y-4">
                         <Card>
@@ -2817,11 +2821,15 @@ export default function NumeraPage() {
                                 </div>
                                 <AddBankAccountForm
                                     activeClient={activeClient}
-                                    onAccountAdded={() => {
-                                        forceUpdate({});
+                                    chartOfAccounts={chartOfAccountsData}
+                                    onAccountAdded={(newAccount) => {
+                                        if (!chartOfAccountsData.some(a => a.accountNumber === newAccount.accountNumber)) {
+                                            const newAccounts = [...chartOfAccountsData, newAccount].sort((a,b) => a.accountNumber.localeCompare(b.accountNumber));
+                                            setChartOfAccountsData(newAccounts);
+                                            setBankBalances(prev => ({...prev, [newAccount.accountNumber]: 0}));
+                                        }
                                         setSelectedBankAccount('');
                                     }}
-                                    onBalanceUpdate={(accNum, balance) => setBankBalances(prev => ({...prev, [accNum]: balance}))}
                                 />
                             </CardHeader>
                             <CardContent>
@@ -2925,7 +2933,7 @@ export default function NumeraPage() {
                                 <div className="flex flex-col sm:flex-row justify-between gap-4">
                                     <div>
                                         <CardTitle>Transaction Processing</CardTitle>
-                                        <CardDescription>Allocate imported transactions for: <span className="font-bold">{chartOfAccounts.find(a => a.accountNumber === selectedBankAccount)?.description}</span></CardDescription>
+                                        <CardDescription>Allocate imported transactions for: <span className="font-bold">{chartOfAccountsData.find(a => a.accountNumber === selectedBankAccount)?.description}</span></CardDescription>
                                     </div>
                                     <div className="flex flex-wrap gap-2 items-center">
                                          <Button variant="outline" size="sm" onClick={handleClearAllocations}>
@@ -3004,14 +3012,14 @@ export default function NumeraPage() {
                                         )}
                                         <TabsContent value="unallocated-income">
                                             {incomeTransactions.length > 0 ? (
-                                                <AllocationTable transactions={incomeTransactions} onAllocate={handleAllocate} onEdit={handleEditTransaction} onDelete={(id) => handleDeleteTransaction(id, 'unallocated')} selectedTransactions={selectedUnallocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'unallocated')} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onFeedback={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} />
+                                                <AllocationTable transactions={incomeTransactions} onAllocate={handleAllocate} onEdit={handleEditTransaction} onDelete={(id) => handleDeleteTransaction(id, 'unallocated')} selectedTransactions={selectedUnallocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'unallocated')} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onFeedback={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} chartOfAccounts={chartOfAccountsData} />
                                             ) : (
                                                 <p className="text-muted-foreground text-center py-10">No unallocated income transactions to display.</p>
                                             )}
                                         </TabsContent>
                                         <TabsContent value="unallocated-expenses">
                                              {expenseTransactions.length > 0 ? (
-                                                 <AllocationTable transactions={expenseTransactions} onAllocate={handleAllocate} onEdit={handleEditTransaction} onDelete={(id) => handleDeleteTransaction(id, 'unallocated')} selectedTransactions={selectedUnallocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'unallocated')} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onFeedback={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} />
+                                                 <AllocationTable transactions={expenseTransactions} onAllocate={handleAllocate} onEdit={handleEditTransaction} onDelete={(id) => handleDeleteTransaction(id, 'unallocated')} selectedTransactions={selectedUnallocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'unallocated')} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onFeedback={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} chartOfAccounts={chartOfAccountsData} />
                                              ) : (
                                                 <p className="text-muted-foreground text-center py-10">No unallocated expense transactions to display.</p>
                                              )}
@@ -3032,21 +3040,21 @@ export default function NumeraPage() {
                                         </TabsContent>
                                         <TabsContent value="review">
                                             {reviewTransactions.length > 0 ? (
-                                                <AllocationTable transactions={reviewTransactions} onAllocate={handleAllocate} onEdit={handleEditTransaction} onDelete={(id) => handleDeleteTransaction(id, 'review')} selectedTransactions={selectedForReview} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'review')} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onFeedback={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} />
+                                                <AllocationTable transactions={reviewTransactions} onAllocate={handleAllocate} onEdit={handleEditTransaction} onDelete={(id) => handleDeleteTransaction(id, 'review')} selectedTransactions={selectedForReview} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'review')} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onFeedback={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} chartOfAccounts={chartOfAccountsData} />
                                             ) : (
                                                 <p className="text-muted-foreground text-center py-10">No transactions to review.</p>
                                             )}
                                         </TabsContent>
                                         <TabsContent value="allocated-income">
                                             {allocatedIncome.length > 0 ? (
-                                                <AllocatedTransactionTable transactions={allocatedIncome} onSaveAllocation={handleSaveAllocation} onDelete={(id) => handleDeleteTransaction(id, 'allocated')} selectedTransactions={selectedAllocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'allocated')} customers={customers} suppliers={suppliers} />
+                                                <AllocatedTransactionTable transactions={allocatedIncome} onSaveAllocation={handleSaveAllocation} onDelete={(id) => handleDeleteTransaction(id, 'allocated')} selectedTransactions={selectedAllocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'allocated')} customers={customers} suppliers={suppliers} chartOfAccounts={chartOfAccountsData} />
                                             ) : (
                                                 <p className="text-muted-foreground text-center py-10">No allocated income transactions to display.</p>
                                             )}
                                         </TabsContent>
                                          <TabsContent value="allocated-expenses">
                                             {allocatedExpenses.length > 0 ? (
-                                                <AllocatedTransactionTable transactions={allocatedExpenses} onSaveAllocation={handleSaveAllocation} onDelete={(id) => handleDeleteTransaction(id, 'allocated')} selectedTransactions={selectedAllocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'allocated')} customers={customers} suppliers={suppliers} />
+                                                <AllocatedTransactionTable transactions={allocatedExpenses} onSaveAllocation={handleSaveAllocation} onDelete={(id) => handleDeleteTransaction(id, 'allocated')} selectedTransactions={selectedAllocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'allocated')} customers={customers} suppliers={suppliers} chartOfAccounts={chartOfAccountsData} />
                                             ) : (
                                                 <p className="text-muted-foreground text-center py-10">No allocated expense transactions to display.</p>
                                             )}
@@ -3339,6 +3347,7 @@ export default function NumeraPage() {
                     journal={selectedJournal}
                     onSubmit={handleJournalFormSubmit}
                     onCancel={() => { setIsJournalFormOpen(false); setSelectedJournal(null); }}
+                    chartOfAccounts={chartOfAccountsData}
                  />
             </DialogContent>
         </Dialog>
@@ -3348,6 +3357,7 @@ export default function NumeraPage() {
             vatTypes={vatTypes}
             onClose={() => setFeedbackTransaction(null)}
             onSubmit={handleFeedbackSubmit}
+            chartOfAccounts={chartOfAccountsData}
         />
         <BulkAllocateDialog
             isOpen={isBulkAllocateOpen}
@@ -3356,6 +3366,7 @@ export default function NumeraPage() {
             count={selectedUnallocated.length}
             customers={customers}
             suppliers={suppliers}
+            chartOfAccounts={chartOfAccountsData}
         />
          <Dialog open={isSupplierFormOpen} onOpenChange={setIsSupplierFormOpen}>
             <DialogContent>
@@ -3382,6 +3393,7 @@ export default function NumeraPage() {
         <AllocationRulesDialog 
             isOpen={isRulesModalOpen}
             onClose={() => setIsRulesModalOpen(false)}
+            chartOfAccounts={chartOfAccountsData}
         />
     </div>
   );
@@ -3399,6 +3411,7 @@ function AIFeedbackDialog({
     vatTypes,
     onClose,
     onSubmit,
+    chartOfAccounts,
 }: {
     transaction: ImportedTransaction | null;
     allocations: { [key: string]: { value: string, type: 'account'|'customer'|'supplier' } };
@@ -3410,6 +3423,7 @@ function AIFeedbackDialog({
         correctVatType: VatType;
         rule: string;
     }) => void;
+    chartOfAccounts: ChartOfAccount[];
 }) {
     const form = useForm<z.infer<typeof feedbackSchema>>({
         resolver: zodResolver(feedbackSchema),
@@ -3518,7 +3532,7 @@ const bulkAllocateSchema = z.object({
     vatType: z.custom<VatType>()
 });
 
-function BulkAllocateDialog({ isOpen, onClose, onBulkAllocate, count, customers, suppliers }: { isOpen: boolean, onClose: () => void, onBulkAllocate: (alloc: { value: string, type: 'account'|'customer'|'supplier' }, vat: VatType) => void, count: number, customers: User[], suppliers: Supplier[] }) {
+function BulkAllocateDialog({ isOpen, onClose, onBulkAllocate, count, customers, suppliers, chartOfAccounts }: { isOpen: boolean, onClose: () => void, onBulkAllocate: (alloc: { value: string, type: 'account'|'customer'|'supplier' }, vat: VatType) => void, count: number, customers: User[], suppliers: Supplier[], chartOfAccounts: ChartOfAccount[] }) {
     const form = useForm<z.infer<typeof bulkAllocateSchema>>({
         resolver: zodResolver(bulkAllocateSchema),
         defaultValues: {
@@ -3554,6 +3568,7 @@ function BulkAllocateDialog({ isOpen, onClose, onBulkAllocate, count, customers,
                                             onSelect={(value, type) => field.onChange({ value, type })}
                                             customers={customers}
                                             suppliers={suppliers}
+                                            chartOfAccounts={chartOfAccounts}
                                         />
                                     </FormControl>
                                     <FormMessage />
@@ -3593,7 +3608,7 @@ const ruleFormSchema = z.object({
   vatType: z.custom<VatType>(),
 });
 
-function RuleForm({ rule, onSubmit, onCancel }: { rule: Omit<AllocationRule, 'keywords'> & { keywords: string } | null, onSubmit: (data: any) => void, onCancel: () => void }) {
+function RuleForm({ rule, onSubmit, onCancel, chartOfAccounts }: { rule: Omit<AllocationRule, 'keywords'> & { keywords: string } | null, onSubmit: (data: any) => void, onCancel: () => void, chartOfAccounts: ChartOfAccount[] }) {
     const form = useForm<z.infer<typeof ruleFormSchema>>({
         resolver: zodResolver(ruleFormSchema),
         defaultValues: {
@@ -3660,7 +3675,7 @@ function RuleForm({ rule, onSubmit, onCancel }: { rule: Omit<AllocationRule, 'ke
     )
 }
 
-function AllocationRulesDialog({ isOpen, onClose }: { isOpen: boolean; onClose: () => void; }) {
+function AllocationRulesDialog({ isOpen, onClose, chartOfAccounts }: { isOpen: boolean; onClose: () => void; chartOfAccounts: ChartOfAccount[] }) {
   const [rules, setRules] = useState<AllocationRule[]>(initialRules);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedRule, setSelectedRule] = useState<AllocationRule | null>(null);
@@ -3749,6 +3764,7 @@ function AllocationRulesDialog({ isOpen, onClose }: { isOpen: boolean; onClose: 
                             rule={selectedRule ? { ...selectedRule, keywords: selectedRule.keywords.join(', ') } : null}
                             onSubmit={handleFormSubmit}
                             onCancel={() => setIsFormOpen(false)}
+                            chartOfAccounts={chartOfAccounts}
                         />
                 </DialogContent>
             </Dialog>
@@ -3830,3 +3846,5 @@ function AllocationRulesDialog({ isOpen, onClose }: { isOpen: boolean; onClose: 
     </Dialog>
   )
 }
+
+    
