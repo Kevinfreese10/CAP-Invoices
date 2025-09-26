@@ -1,5 +1,4 @@
 
-
 'use client';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
@@ -2499,7 +2498,8 @@ export default function NumeraPage() {
     if (!activeClient) return;
 
     const transactionsToAllocate = reviewTransactions.filter(tx => selectedForReview.includes(tx.id));
-    
+    if (transactionsToAllocate.length === 0) return;
+
     const batch = writeBatch(db);
     
     transactionsToAllocate.forEach(tx => {
@@ -2519,13 +2519,24 @@ export default function NumeraPage() {
         }
     });
     
-    await batch.commit();
-    await fetchTransactions(activeClient.id);
+    try {
+        await batch.commit();
 
-    setReviewTransactions(prev => prev.filter(tx => !selectedForReview.includes(tx.id)));
-    
-    toast({ title: 'Transactions Finalized', description: `${transactionsToAllocate.length} reviewed transactions have been allocated.` });
-    setSelectedForReview([]);
+        // Update local state before re-fetching to provide immediate feedback
+        const allocatedIds = transactionsToAllocate.map(tx => tx.id);
+        const newReviewTransactions = reviewTransactions.filter(tx => !allocatedIds.includes(tx.id));
+        setReviewTransactions(newReviewTransactions);
+        
+        const newSelectedForReview = selectedForReview.filter(id => !allocatedIds.includes(id));
+        setSelectedForReview(newSelectedForReview);
+        
+        await fetchTransactions(activeClient.id);
+
+        toast({ title: 'Transactions Finalized', description: `${transactionsToAllocate.length} reviewed transactions have been allocated.` });
+    } catch (error) {
+        console.error("Error finalizing reviewed transactions:", error);
+        toast({ title: "Error", description: "Could not finalize transactions.", variant: "destructive" });
+    }
   };
 
 
@@ -3794,3 +3805,5 @@ function AllocationRulesDialog({ isOpen, onClose }: { isOpen: boolean; onClose: 
     </Dialog>
   )
 }
+
+    
