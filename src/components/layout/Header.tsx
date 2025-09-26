@@ -21,6 +21,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 const navLinks = [
+  { href: '/services', label: 'Services' },
   { href: '/about', label: 'About' },
   { href: '/blog', label: 'Blog' },
   { href: '/contact', label: 'Contact' },
