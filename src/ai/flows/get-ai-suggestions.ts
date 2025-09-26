@@ -9,7 +9,8 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { allocateTransaction, AllocateTransactionOutputSchema } from './allocate-transaction';
+import { allocateTransaction } from './allocate-transaction';
+import { VatType } from '@/lib/types';
 
 const ImportedTransactionSchema = z.object({
     id: z.string(),
@@ -25,8 +26,17 @@ const GetAISuggestionsInputSchema = z.object({
 });
 export type GetAISuggestionsInput = z.infer<typeof GetAISuggestionsInputSchema>;
 
-const SuggestionSchema = AllocateTransactionOutputSchema.extend({
+const vatTypes: z.ZodType<VatType> = z.enum([
+    'standard_rated_sales', 'zero_rated_sales', 'exempt_sales',
+    'standard_rated_purchases', 'capital_goods_purchases', 'zero_rated_purchases', 'exempt_purchases', 'no_vat'
+]);
+
+// Redefine the schema here to avoid exporting it from a 'use server' file.
+const SuggestionSchema = z.object({
     transactionId: z.string(),
+    accountNumber: z.string().describe("The suggested account number from the Chart of Accounts."),
+    reasoning: z.string().describe("A brief explanation for the suggested allocation."),
+    vatType: vatTypes.describe("The suggested VAT type based on the transaction and account. Default to 'no_vat' if unsure or not applicable."),
 });
 
 const GetAISuggestionsOutputSchema = z.array(SuggestionSchema);

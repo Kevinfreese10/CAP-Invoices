@@ -23,7 +23,7 @@ const vatTypes: z.ZodType<VatType> = z.enum([
     'standard_rated_purchases', 'capital_goods_purchases', 'zero_rated_purchases', 'exempt_purchases', 'no_vat'
 ]);
 
-export const AllocateTransactionOutputSchema = z.object({
+const AllocateTransactionOutputSchema = z.object({
   accountNumber: z.string().describe("The suggested account number from the Chart of Accounts."),
   reasoning: z.string().describe("A brief explanation for the suggested allocation."),
   vatType: vatTypes.describe("The suggested VAT type based on the transaction and account. Default to 'no_vat' if unsure or not applicable."),
