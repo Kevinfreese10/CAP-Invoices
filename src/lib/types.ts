@@ -21,7 +21,7 @@ export type ChartOfAccount = {
 
 export type AllocationRule = {
   id: string;
-  keyword: string;
+  keywords: string[];
   accountId: string;
   vatType: VatType;
 };

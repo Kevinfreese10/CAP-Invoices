@@ -19,11 +19,12 @@ import { allocationRules as initialRules } from '@/lib/allocation-rules';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { chartOfAccounts } from '@/lib/chart-of-accounts';
 import { allVatTypes } from '@/lib/vat-types';
+import { Badge } from '@/components/ui/badge';
 
 
 const formSchema = z.object({
   id: z.string().optional(),
-  keyword: z.string().min(2, 'Keyword must be at least 2 characters.'),
+  keywords: z.string().min(2, 'At least one keyword must be provided.'),
   accountId: z.string().min(1, 'Please select an account.'),
   vatType: z.custom<VatType>(),
 });
@@ -33,20 +34,21 @@ function RuleForm({ rule, onSubmit, onCancel }: { rule: AllocationRule | null, o
         resolver: zodResolver(formSchema),
         defaultValues: {
             id: rule?.id || '',
-            keyword: rule?.keyword || '',
+            keywords: rule?.keywords.join(', ') || '',
             accountId: rule?.accountId || '',
             vatType: rule?.vatType || 'no_vat',
         },
     });
 
     const handleSubmit = (values: z.infer<typeof formSchema>) => {
-        onSubmit(values);
+        const keywords = values.keywords.split(',').map(k => k.trim()).filter(Boolean);
+        onSubmit({ ...values, keywords });
     };
     
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-                <FormField control={form.control} name="keyword" render={({ field }) => ( <FormItem><FormLabel>Keyword/Phrase</FormLabel><FormControl><Input placeholder="e.g., 'Telkom', 'Bank Fee'" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords (comma-separated)</FormLabel><FormControl><Input placeholder="e.g., Telkom, Bank Fee, Fees" {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="accountId" render={({ field }) => ( <FormItem><FormLabel>Allocate to Account</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl><SelectContent>{chartOfAccounts.map(account => <SelectItem key={account.id} value={account.accountNumber}>{account.accountNumber} - {account.description}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="vatType" render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vat => <SelectItem key={vat.name} value={vat.name}>{vat.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                 
@@ -88,7 +90,7 @@ export default function AllocationRulesPage() {
     if (selectedRule) {
       // Update
       setRules(prev =>
-        prev.map(r => (r.id === selectedRule.id ? { ...r, ...data, id: selectedRule.id } : r))
+        prev.map(r => (r.id === selectedRule.id ? { ...selectedRule, ...data } : r))
       );
        toast({
         title: 'Rule Updated',
@@ -151,7 +153,7 @@ export default function AllocationRulesPage() {
                 <Table>
                     <TableHeader>
                     <TableRow>
-                        <TableHead>Keyword</TableHead>
+                        <TableHead>Keywords</TableHead>
                         <TableHead>Allocated Account</TableHead>
                         <TableHead>VAT Type</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
@@ -160,7 +162,11 @@ export default function AllocationRulesPage() {
                     <TableBody>
                     {rules.map(rule => (
                         <TableRow key={rule.id}>
-                        <TableCell className="font-semibold">{rule.keyword}</TableCell>
+                        <TableCell className="font-semibold">
+                            <div className="flex flex-wrap gap-1">
+                                {rule.keywords.map(kw => <Badge key={kw} variant="secondary">{kw}</Badge>)}
+                            </div>
+                        </TableCell>
                         <TableCell>{getAccountDescription(rule.accountId)}</TableCell>
                         <TableCell>{getVatLabel(rule.vatType)}</TableCell>
                         <TableCell className="text-right">
@@ -189,7 +195,7 @@ export default function AllocationRulesPage() {
                                     <AlertDialogHeader>
                                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                         <AlertDialogDescription>
-                                        This will permanently delete the rule for keyword <span className="font-semibold">"{rule.keyword}"</span>.
+                                        This will permanently delete the rule for keywords <span className="font-semibold">"{rule.keywords.join(', ')}"</span>.
                                         </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>

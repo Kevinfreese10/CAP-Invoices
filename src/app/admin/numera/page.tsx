@@ -2042,11 +2042,15 @@ export default function NumeraPage() {
         const description = row.Description || '';
         const lowerCaseDescription = description.toLowerCase();
         let matchedRule = null;
+        
         for (const rule of allocationRules) {
-            if (lowerCaseDescription.includes(rule.keyword.toLowerCase())) {
-                matchedRule = rule;
-                break;
+            for (const keyword of rule.keywords) {
+                if (lowerCaseDescription.includes(keyword.toLowerCase())) {
+                    matchedRule = rule;
+                    break;
+                }
             }
+            if (matchedRule) break;
         }
 
         const transactionData = {
@@ -3339,10 +3343,3 @@ function AiAssistantDialog({ isOpen, onClose, history, onSubmit, isLoading }: {
     </Dialog>
   );
 }
-
-
-
-
-
-
-
