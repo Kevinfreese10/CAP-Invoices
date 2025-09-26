@@ -37,13 +37,13 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { users as allUsers } from '@/lib/data';
 import { allocateTransaction } from '@/ai/flows/allocate-transaction';
 import { refineAllocationKnowledge } from '@/ai/flows/refine-allocation-knowledge';
-import { conversationalAccounting, ConversationalAccountingInput } from '@/ai/flows/conversational-accounting';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { allocationRules } from '@/lib/allocation-rules';
+import { runAndNotifyAllocation } from '@/ai/flows/run-and-notify-allocation';
 
 const db = getFirestore(firebaseApp);
 
@@ -1857,10 +1857,6 @@ export default function NumeraPage() {
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [isCustomerFormOpen, setIsCustomerFormOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<User | null>(null);
-  const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
-  const [chatHistory, setChatHistory] = useState<{ role: 'user' | 'assistant', text: string }[]>([]);
-  const [isAiAssistantLoading, setIsAiAssistantLoading] = useState(false);
-
 
   
   const importForm = useForm();
@@ -2257,36 +2253,36 @@ export default function NumeraPage() {
     }
   };
 
-  const runAiAllocation = async (txns: ImportedTransaction[]) => {
-    setIsAiAllocating(true);
-    toast({ title: 'AI Allocation Started', description: `AI is analyzing ${txns.length} transaction(s).` });
-
-    for (const tx of txns) {
-        setProcessingTxId(tx.id);
-        try {
-            const result = await allocateTransaction({ description: tx.description });
-            if (result.accountNumber && chartOfAccounts.some(acc => acc.accountNumber === result.accountNumber)) {
-                handleAllocationSelect(tx.id, result.accountNumber, 'account');
-                handleVatTypeSelect(tx.id, result.vatType);
-            }
-        } catch (error) {
-            console.error(`AI allocation failed for transaction ${tx.id}:`, error);
+    const handleAiAllocate = async () => {
+        const transactionsToProcess = unallocatedTransactions.filter(tx => selectedTransactions.includes(tx.id));
+        if (transactionsToProcess.length === 0) {
+            toast({ title: 'No Transactions Selected', description: 'Please select one or more transactions to allocate with AI.', variant: 'destructive' });
+            return;
         }
-    }
+        if (!activeClient) return;
 
-    setProcessingTxId(null);
-    setIsAiAllocating(false);
-    toast({ title: 'AI Allocation Complete', description: `AI successfully suggested allocations for ${txns.length} transactions.` });
-  }
+        setIsAiAllocating(true);
+        toast({
+            title: 'AI Allocation Started',
+            description: 'The AI is processing transactions in the background. You will be notified by email upon completion.',
+        });
 
-  const handleAiAllocate = async () => {
-    const transactionsToProcess = unallocatedTransactions.filter(tx => selectedTransactions.includes(tx.id));
-    if (transactionsToProcess.length === 0) {
-        toast({ title: 'No Transactions Selected', description: 'Please select one or more transactions to allocate with AI.', variant: 'destructive'});
-        return;
-    }
-    await runAiAllocation(transactionsToProcess);
-  };
+        // Fire-and-forget call to the background flow
+        runAndNotifyAllocation({
+            clientName: activeClient.name,
+            transactions: transactionsToProcess,
+        }).catch(error => {
+            console.error("Error starting AI allocation flow:", error);
+            // Optionally notify the user that starting the process failed
+             toast({
+                title: 'AI Allocation Failed to Start',
+                description: 'Could not start the background process. Please try again.',
+                variant: 'destructive',
+            });
+        });
+        
+        setIsAiAllocating(false);
+    };
 
   const handleFeedbackSubmit = async (feedbackData: {
     transaction: ImportedTransaction;
@@ -2309,7 +2305,18 @@ export default function NumeraPage() {
     
     setFeedbackTransaction(null);
     
-    await runAiAllocation([transaction]);
+    setProcessingTxId(transaction.id);
+    try {
+        const result = await allocateTransaction({ description: transaction.description });
+        if (result.accountNumber && chartOfAccounts.some(acc => acc.accountNumber === result.accountNumber)) {
+            handleAllocationSelect(transaction.id, result.accountNumber, 'account');
+            handleVatTypeSelect(transaction.id, result.vatType);
+        }
+    } catch (error) {
+        console.error(`AI allocation failed for transaction ${transaction.id}:`, error);
+    } finally {
+        setProcessingTxId(null);
+    }
   };
 
 
@@ -2405,39 +2412,6 @@ export default function NumeraPage() {
       setIsCustomerFormOpen(false);
       setSelectedCustomer(null);
   };
-
-   const handleAiAssistantSubmit = async (message: string) => {
-    if (!activeClient) return;
-    
-    setIsAiAssistantLoading(true);
-    setChatHistory(prev => [...prev, { role: 'user', text: message }]);
-
-    const currentUnallocated = unallocatedTransactions.slice(0, 50); // Limit context size
-
-    try {
-        const result = await conversationalAccounting({
-            userInstruction: message,
-            unallocatedTransactions: currentUnallocated,
-        });
-
-        if (result.knowledgeToSave) {
-            // In a real app, this would be saved to a persistent knowledge base
-            console.log("AI learned a new rule:", result.knowledgeToSave);
-            toast({
-                title: "AI learned something new!",
-                description: `New rule created: ${result.knowledgeToSave}`
-            });
-        }
-        
-        setChatHistory(prev => [...prev, { role: 'assistant', text: result.response }]);
-    } catch (e) {
-        console.error("AI Assistant Error:", e);
-        setChatHistory(prev => [...prev, { role: 'assistant', text: "Sorry, I encountered an error. Please try again." }]);
-    } finally {
-        setIsAiAssistantLoading(false);
-    }
-  };
-
 
   const clientBankAccounts = activeClient
     ? chartOfAccounts.filter(acc => acc.description.startsWith(activeClient.name))
@@ -2655,9 +2629,6 @@ export default function NumeraPage() {
                                         <CardDescription>Allocate imported transactions to your Chart of Accounts.</CardDescription>
                                     </div>
                                     <div className="flex flex-wrap gap-2 items-center">
-                                         <Button variant="outline" size="sm" onClick={() => setIsAiAssistantOpen(true)}>
-                                            <Sparkles className="mr-2 h-4 w-4" /> AI Assistant
-                                        </Button>
                                          <Button variant="outline" size="sm" onClick={handleClearAllocations}>
                                             <RefreshCw className="mr-2 h-4 w-4" />
                                             Clear Allocations
@@ -3049,13 +3020,6 @@ export default function NumeraPage() {
                 <CustomerForm customer={selectedCustomer} onSubmit={handleCustomerFormSubmit} onCancel={() => setIsCustomerFormOpen(false)} />
             </DialogContent>
         </Dialog>
-         <AiAssistantDialog
-            isOpen={isAiAssistantOpen}
-            onClose={() => setIsAiAssistantOpen(false)}
-            history={chatHistory}
-            onSubmit={handleAiAssistantSubmit}
-            isLoading={isAiAssistantLoading}
-        />
     </div>
   );
 }
@@ -3255,91 +3219,4 @@ function BulkAllocateDialog({ isOpen, onClose, onBulkAllocate, count, customers,
             </DialogContent>
         </Dialog>
     );
-}
-
-const aiAssistantFormSchema = z.object({
-  message: z.string().min(1),
-});
-
-function AiAssistantDialog({ isOpen, onClose, history, onSubmit, isLoading }: {
-  isOpen: boolean;
-  onClose: () => void;
-  history: { role: 'user' | 'assistant', text: string }[];
-  onSubmit: (message: string) => void;
-  isLoading: boolean;
-}) {
-  const form = useForm<z.infer<typeof aiAssistantFormSchema>>({
-    resolver: zodResolver(aiAssistantFormSchema),
-    defaultValues: { message: '' },
-  });
-
-  const handleFormSubmit = (values: z.infer<typeof aiAssistantFormSchema>) => {
-    onSubmit(values.message);
-    form.reset();
-  };
-  
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
-    }
-  }, [history]);
-
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>AI Accounting Assistant</DialogTitle>
-          <DialogDescription>
-            Give instructions in plain English. For example: "Allocate all Vodacom transactions to telephone expenses."
-          </DialogDescription>
-        </DialogHeader>
-        <div className="h-[400px] flex flex-col">
-          <div ref={scrollAreaRef} className="flex-1 overflow-y-auto p-4 space-y-4 border rounded-md">
-            {history.length === 0 && (
-                <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
-                    <Sparkles className="h-8 w-8 mb-2" />
-                    <p>Ready to assist you!</p>
-                </div>
-            )}
-            {history.map((entry, index) => (
-              <div key={index} className={`flex items-start gap-3 ${entry.role === 'user' ? 'justify-end' : ''}`}>
-                {entry.role === 'assistant' && <Avatar className="h-8 w-8"><AvatarFallback>AI</AvatarFallback></Avatar>}
-                <div className={`rounded-lg p-3 max-w-lg ${entry.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-                  <p className="text-sm whitespace-pre-wrap">{entry.text}</p>
-                </div>
-                {entry.role === 'user' && <Avatar className="h-8 w-8"><AvatarFallback>You</AvatarFallback></Avatar>}
-              </div>
-            ))}
-            {isLoading && (
-                 <div className="flex items-start gap-3">
-                    <Avatar className="h-8 w-8"><AvatarFallback>AI</AvatarFallback></Avatar>
-                    <div className="rounded-lg p-3 max-w-lg bg-muted flex items-center">
-                       <Loader2 className="h-4 w-4 animate-spin" />
-                    </div>
-                </div>
-            )}
-          </div>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleFormSubmit)} className="mt-4 flex gap-2">
-              <FormField
-                control={form.control}
-                name="message"
-                render={({ field }) => (
-                  <FormItem className="flex-1">
-                    <FormControl>
-                      <Input {...field} placeholder="Type your instruction..." autoComplete="off" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button type="submit" disabled={isLoading}>Send</Button>
-            </form>
-          </Form>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
 }
