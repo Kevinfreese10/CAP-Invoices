@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload, FileCheck2, ScanLine, Sprout, Search, ArrowUpDown, Edit, Sparkles, BrainCircuit, Copy, MessageSquare, RefreshCw, ChevronDown, Trash2, ListOrdered, HardHat, Feather } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, CalendarIcon, X, Printer, Download, Upload, FileCheck2, ScanLine, Sprout, Search, ArrowUpDown, Edit, Sparkles, BrainCircuit, Copy, MessageSquare, RefreshCw, ChevronDown, Trash2, ListOrdered, HardHat, Feather, CheckCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -990,7 +990,7 @@ function GeneralLedgerCard({ activeClient, initialValues, allocatedTransactions 
                   <Download className="mr-2 h-4 w-4" /> Download Excel
               </Button>
               <Button variant="outline" onClick={() => window.print()}>
-                  <Printer className="mr-2 h-4 w-4" /> Print
+                  <Printer className="mr-2 h-4 w-4" /> Print Report
               </Button>
           </DialogFooter>
         </DialogContent>
@@ -1941,6 +1941,7 @@ export default function NumeraPage() {
   const [unallocatedSearch, setUnallocatedSearch] = useState('');
   const [selectedUnallocated, setSelectedUnallocated] = useState<string[]>([]);
   const [selectedAllocated, setSelectedAllocated] = useState<string[]>([]);
+  const [selectedForReview, setSelectedForReview] = useState<string[]>([]);
   const [allocations, setAllocations] = useState<{ [key: string]: { value: string, type: 'account'|'customer'|'supplier' } }>({});
   const [vatTypes, setVatTypes] = useState<{ [key: string]: VatType }>({});
   const [isAiAllocating, setIsAiAllocating] = useState(false);
@@ -2255,10 +2256,14 @@ export default function NumeraPage() {
           return;
       }
       
-      let transactionToAllocate = unallocatedTransactions.find(tx => tx.id === transactionId);
-      if (!transactionToAllocate) {
-          transactionToAllocate = reviewTransactions.find(tx => tx.id === transactionId);
+      let transactionToAllocate: ImportedTransaction | undefined;
+      
+      if (unallocatedTransactions.some(tx => tx.id === transactionId)) {
+        transactionToAllocate = unallocatedTransactions.find(tx => tx.id === transactionId);
+      } else {
+        transactionToAllocate = reviewTransactions.find(tx => tx.id === transactionId);
       }
+      
       if (!transactionToAllocate) return;
       
       const { id, ...restOfTx } = transactionToAllocate;
@@ -2277,13 +2282,14 @@ export default function NumeraPage() {
       // Determine which collection to delete from
       if (unallocatedTransactions.some(tx => tx.id === id)) {
           batch.delete(doc(db, 'unallocatedTransactions', transactionId));
-      } 
-      // This logic will need adjustment if review transactions are stored differently. Assuming they are just a state in the component for now.
+      }
       
       await batch.commit();
 
       await fetchTransactions(activeClient.id);
       setReviewTransactions(prev => prev.filter(tx => tx.id !== transactionId));
+      setSelectedForReview(prev => prev.filter(id => id !== transactionId));
+
 
       toast({ title: 'Transaction Allocated', description: 'The transaction has been successfully allocated.' });
   }
@@ -2340,7 +2346,7 @@ export default function NumeraPage() {
     });
   };
 
-  const handleSelectionChange = (id: string, isSelected: boolean, type: 'unallocated' | 'allocated') => {
+  const handleSelectionChange = (id: string, isSelected: boolean, type: 'unallocated' | 'allocated' | 'review') => {
     if (type === 'unallocated') {
         setSelectedUnallocated(prev => {
             const newSelection = new Set(prev);
@@ -2348,8 +2354,15 @@ export default function NumeraPage() {
             else newSelection.delete(id);
             return Array.from(newSelection);
         });
-    } else {
+    } else if (type === 'allocated') {
         setSelectedAllocated(prev => {
+            const newSelection = new Set(prev);
+            if (isSelected) newSelection.add(id);
+            else newSelection.delete(id);
+            return Array.from(newSelection);
+        });
+    } else if (type === 'review') {
+        setSelectedForReview(prev => {
             const newSelection = new Set(prev);
             if (isSelected) newSelection.add(id);
             else newSelection.delete(id);
@@ -2376,6 +2389,8 @@ export default function NumeraPage() {
   };
 
   const handleAiAllocate = async () => {
+    if (isAiAllocating) return;
+    
     let transactionsToProcess = unallocatedTransactions.filter(tx => selectedUnallocated.includes(tx.id));
     if (transactionsToProcess.length === 0) {
         toast({ title: 'No Transactions Selected', description: 'Please select one or more transactions to allocate with AI.', variant: 'destructive' });
@@ -2383,13 +2398,7 @@ export default function NumeraPage() {
     }
     if (!activeClient) return;
 
-    if (isAiAllocating) {
-        toast({ title: 'Processing...', description: 'AI allocation is already in progress.', variant: 'default' });
-        return;
-    }
-
     setIsAiAllocating(true);
-    // Move selected to processing tab
     setProcessingTransactions(prev => [...prev, ...transactionsToProcess]);
     setUnallocatedTransactions(prev => prev.filter(tx => !selectedUnallocated.includes(tx.id)));
     setSelectedUnallocated([]);
@@ -2424,20 +2433,17 @@ export default function NumeraPage() {
         setAllocations(prev => ({ ...prev, ...newAllocations }));
         setVatTypes(prev => ({ ...prev, ...newVatTypes }));
 
-        // Move processed transactions to Review
         setReviewTransactions(prev => [...prev, ...successfulAllocations.map(r => r.tx)]);
-        // Move failed back to Unallocated
         setUnallocatedTransactions(prev => [...prev, ...failedAllocations.map(r => r.tx)]);
 
     } catch (error) {
         console.error('Error in AI allocation batch:', error);
         toast({ title: 'Error', description: 'A batch error occurred during AI allocation.', variant: 'destructive' });
-        // Move all back to unallocated on batch error
         setUnallocatedTransactions(prev => [...prev, ...transactionsToProcess]);
     } finally {
         setProcessingTransactions([]);
         setIsAiAllocating(false);
-         toast({ title: 'Processing Complete', description: 'Allocated transactions are now in the Review tab.' });
+         toast({ title: 'Processing Complete', description: 'AI-suggested allocations are now in the Review tab.' });
     }
 };
 
@@ -2461,12 +2467,10 @@ export default function NumeraPage() {
           userProvidedRule: rule,
         });
         
-        // This is where you would save the 'refinedRule' to a persistent database.
-        // For now, we will add it to the mock `initialRules` array to simulate persistence for the session.
         const keywords = refinedRule.match(/'(.*?)'/g)?.map(k => k.replace(/'/g, '')) || [transaction.description.split(' ')[0]];
         const newRule: AllocationRule = {
           id: `rule-fb-${Date.now()}`,
-          type: 'soft', // Feedback creates soft rules by default
+          type: 'soft', 
           description: refinedRule,
           keywords: keywords,
           accountId: correctAccount,
@@ -2477,7 +2481,6 @@ export default function NumeraPage() {
         setFeedbackTransaction(null);
         toast({ title: "AI Knowledge Updated", description: "A new rule has been learned from your feedback." });
 
-        // Re-run allocation for the specific transaction
         setProcessingTxId(transaction.id);
         const result = await allocateTransaction({ description: transaction.description });
         if (result.accountNumber && chartOfAccounts.some(acc => acc.accountNumber === result.accountNumber)) {
@@ -2490,6 +2493,39 @@ export default function NumeraPage() {
     } finally {
         setProcessingTxId(null);
     }
+  };
+
+  const handleAcceptReviewed = async () => {
+    if (!activeClient) return;
+
+    const transactionsToAllocate = reviewTransactions.filter(tx => selectedForReview.includes(tx.id));
+    
+    const batch = writeBatch(db);
+    
+    transactionsToAllocate.forEach(tx => {
+        const { id, ...restOfTx } = tx;
+        const allocation = allocations[id];
+        const vatType = vatTypes[id] || 'no_vat';
+        
+        if (allocation) {
+            const newAllocated: Omit<AllocatedTransaction, 'id'> = {
+                ...restOfTx,
+                allocatedTo: allocation,
+                allocatedAt: Timestamp.now(),
+                vatType: vatType,
+                vatAmount: 0,
+            };
+            batch.set(doc(collection(db, 'allocatedTransactions')), newAllocated);
+        }
+    });
+    
+    await batch.commit();
+    await fetchTransactions(activeClient.id);
+
+    setReviewTransactions(prev => prev.filter(tx => !selectedForReview.includes(tx.id)));
+    
+    toast({ title: 'Transactions Finalized', description: `${transactionsToAllocate.length} reviewed transactions have been allocated.` });
+    setSelectedForReview([]);
   };
 
 
@@ -2922,6 +2958,16 @@ export default function NumeraPage() {
                                                 <Button size="sm" variant="ghost" onClick={() => setSelectedAllocated([])}>Clear Selection</Button>
                                             </div>
                                         )}
+                                         {selectedForReview.length > 0 && (
+                                            <div className="flex flex-wrap items-center gap-4 p-4 border-t border-b bg-muted/50">
+                                                <p className="text-sm font-semibold">{selectedForReview.length} selected</p>
+                                                <Button size="sm" onClick={handleAcceptReviewed}>
+                                                    <CheckCircle className="mr-2 h-4 w-4" />
+                                                    Accept Selected
+                                                </Button>
+                                                <Button size="sm" variant="ghost" onClick={() => setSelectedForReview([])}>Clear Selection</Button>
+                                            </div>
+                                        )}
                                         <TabsContent value="unallocated-income">
                                             {incomeTransactions.length > 0 ? (
                                                 <AllocationTable transactions={incomeTransactions} onAllocate={handleAllocate} onEdit={handleEditTransaction} onDelete={(id) => handleDeleteTransaction(id, 'unallocated')} selectedTransactions={selectedUnallocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'unallocated')} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onFeedback={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} />
@@ -2952,7 +2998,7 @@ export default function NumeraPage() {
                                         </TabsContent>
                                         <TabsContent value="review">
                                             {reviewTransactions.length > 0 ? (
-                                                <AllocationTable transactions={reviewTransactions} onAllocate={handleAllocate} onEdit={handleEditTransaction} onDelete={(id) => handleDeleteTransaction(id, 'review')} selectedTransactions={selectedUnallocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'unallocated')} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onFeedback={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} />
+                                                <AllocationTable transactions={reviewTransactions} onAllocate={handleAllocate} onEdit={handleEditTransaction} onDelete={(id) => handleDeleteTransaction(id, 'review')} selectedTransactions={selectedForReview} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'review')} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onFeedback={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} />
                                             ) : (
                                                 <p className="text-muted-foreground text-center py-10">No transactions to review.</p>
                                             )}
