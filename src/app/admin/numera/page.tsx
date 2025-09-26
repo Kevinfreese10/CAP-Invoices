@@ -1942,6 +1942,8 @@ export default function NumeraPage() {
   const [importPreview, setImportPreview] = useState<{ count: number; total: number; balance: number; } | null>(null);
   const [bankBalances, setBankBalances] = useState<{ [accountNumber: string]: number }>({});
   const [unallocatedTransactions, setUnallocatedTransactions] = useState<ImportedTransaction[]>([]);
+  const [processingTransactions, setProcessingTransactions] = useState<ImportedTransaction[]>([]);
+  const [reviewTransactions, setReviewTransactions] = useState<ImportedTransaction[]>([]);
   const [allocatedTransactions, setAllocatedTransactions] = useState<AllocatedTransaction[]>([]);
   const [unallocatedSearch, setUnallocatedSearch] = useState('');
   const [selectedUnallocated, setSelectedUnallocated] = useState<string[]>([]);
@@ -2005,6 +2007,8 @@ export default function NumeraPage() {
 
         setUnallocatedTransactions(unallocated);
         setAllocatedTransactions(allocated);
+        setProcessingTransactions([]);
+        setReviewTransactions([]);
         
         const allTx = [...unallocated, ...allocated];
         const balances = allTx.reduce((acc, tx) => {
@@ -2025,6 +2029,8 @@ export default function NumeraPage() {
     } else {
         setUnallocatedTransactions([]);
         setAllocatedTransactions([]);
+        setProcessingTransactions([]);
+        setReviewTransactions([]);
         setBankBalances({});
     }
   }, [activeClient]);
@@ -2364,34 +2370,53 @@ export default function NumeraPage() {
     }
   };
 
-    const handleAiAllocate = async () => {
-        const transactionsToProcess = unallocatedTransactions.filter(tx => selectedUnallocated.includes(tx.id));
-        if (transactionsToProcess.length === 0) {
-            toast({ title: 'No Transactions Selected', description: 'Please select one or more transactions to allocate with AI.', variant: 'destructive' });
-            return;
+  const handleAiAllocate = async () => {
+    const transactionsToProcess = unallocatedTransactions.filter(tx => selectedUnallocated.includes(tx.id));
+    if (transactionsToProcess.length === 0) {
+        toast({ title: 'No Transactions Selected', description: 'Please select one or more transactions to allocate with AI.', variant: 'destructive' });
+        return;
+    }
+    if (!activeClient) return;
+
+    setIsAiAllocating(true);
+    setUnallocatedTransactions(unallocatedTransactions.filter(tx => !selectedUnallocated.includes(tx.id)));
+    setProcessingTransactions(prev => [...prev, ...transactionsToProcess]);
+    setSelectedUnallocated([]);
+    
+    toast({
+        title: 'AI Allocation Started',
+        description: `Processing ${transactionsToProcess.length} transactions.`,
+    });
+
+    const allocationPromises = transactionsToProcess.map(tx => 
+        allocateTransaction({ description: tx.description })
+            .then(result => ({ tx, result }))
+            .catch(error => ({ tx, error }))
+    );
+
+    const results = await Promise.all(allocationPromises);
+
+    const successfulAllocations = results.filter(r => !r.error);
+    const failedAllocations = results.filter(r => r.error);
+
+    successfulAllocations.forEach(({ tx, result }) => {
+        if (result.accountNumber && chartOfAccounts.some(acc => acc.accountNumber === result.accountNumber)) {
+            setAllocations(prev => ({...prev, [tx.id]: { value: result.accountNumber, type: 'account' }}));
+            setVatTypes(prev => ({...prev, [tx.id]: result.vatType}));
         }
-        if (!activeClient) return;
+    });
 
-        setIsAiAllocating(true);
-        toast({
-            title: 'AI Allocation Started',
-            description: 'The AI is processing transactions in the background. You will be notified by email upon completion.',
-        });
+    setProcessingTransactions(prev => prev.filter(tx => !transactionsToProcess.some(p => p.id === tx.id)));
+    setReviewTransactions(prev => [...prev, ...transactionsToProcess]);
 
-        runAndNotifyAllocation({
-            clientName: activeClient.name,
-            transactions: transactionsToProcess,
-        }).catch(error => {
-            console.error("Error starting AI allocation flow:", error);
-             toast({
-                title: 'AI Allocation Failed to Start',
-                description: 'Could not start the background process. Please try again.',
-                variant: 'destructive',
-            });
-        });
-        
-        setIsAiAllocating(false);
-    };
+    setIsAiAllocating(false);
+
+    toast({
+        title: 'AI Processing Complete',
+        description: `${successfulAllocations.length} ready for review. ${failedAllocations.length} failed.`,
+        variant: failedAllocations.length > 0 ? 'destructive' : 'default',
+    });
+};
 
   const handleFeedbackSubmit = async (feedbackData: {
     transaction: ImportedTransaction;
@@ -2527,18 +2552,26 @@ export default function NumeraPage() {
     setIsEditTxOpen(true);
   };
 
-  const handleDeleteTransaction = async (transactionId: string, type: 'unallocated' | 'allocated') => {
+  const handleDeleteTransaction = async (transactionId: string, type: 'unallocated' | 'allocated' | 'processing' | 'review') => {
     if (!activeClient) return;
-    const collectionName = type === 'unallocated' ? 'unallocatedTransactions' : 'allocatedTransactions';
-    try {
-        await deleteDoc(doc(db, collectionName, transactionId));
-        await fetchTransactions(activeClient.id);
-        toast({ title: 'Transaction Deleted', description: 'The transaction has been removed.', variant: 'destructive' });
-    } catch (error) {
-        console.error(`Error deleting ${type} transaction:`, error);
-        toast({ title: 'Error', description: 'Could not delete the transaction.', variant: 'destructive' });
+
+    if (type === 'allocated') {
+        const collectionName = 'allocatedTransactions';
+        try {
+            await deleteDoc(doc(db, collectionName, transactionId));
+            await fetchTransactions(activeClient.id);
+            toast({ title: 'Transaction Deleted', variant: 'destructive' });
+        } catch (error) {
+            console.error(`Error deleting ${type} transaction:`, error);
+            toast({ title: 'Error', description: 'Could not delete the transaction.', variant: 'destructive' });
+        }
+    } else {
+        setUnallocatedTransactions(prev => prev.filter(tx => tx.id !== transactionId));
+        setProcessingTransactions(prev => prev.filter(tx => tx.id !== transactionId));
+        setReviewTransactions(prev => prev.filter(tx => tx.id !== transactionId));
+        toast({ title: 'Transaction Removed', description: 'The transaction has been removed from the current view.' });
     }
-  };
+};
 
   const handleSaveTransaction = async (data: ImportedTransaction) => {
     if (!activeClient) return;
@@ -2804,15 +2837,17 @@ export default function NumeraPage() {
                                 </div>
                             </CardHeader>
                             <CardContent>
-                                {unallocatedTransactions.length > 0 || allocatedTransactions.length > 0 ? (
+                                {(unallocatedTransactions.length + allocatedTransactions.length + processingTransactions.length + reviewTransactions.length) > 0 ? (
                                     <Tabs defaultValue="unallocated-income">
-                                        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto">
+                                        <TabsList className="grid w-full grid-cols-1 md:grid-cols-2 lg:grid-cols-6 h-auto">
                                             <TabsTrigger value="unallocated-income">Unallocated Income ({incomeTransactions.length})</TabsTrigger>
                                             <TabsTrigger value="unallocated-expenses">Unallocated Expenses ({expenseTransactions.length})</TabsTrigger>
+                                            <TabsTrigger value="processing">Processing ({processingTransactions.length})</TabsTrigger>
+                                            <TabsTrigger value="review">Review ({reviewTransactions.length})</TabsTrigger>
                                             <TabsTrigger value="allocated-income">Allocated Income ({allocatedIncome.length})</TabsTrigger>
                                             <TabsTrigger value="allocated-expenses">Allocated Expenses ({allocatedExpenses.length})</TabsTrigger>
                                         </TabsList>
-                                        {(selectedUnallocated.length > 0 && !isAiAllocating) && (
+                                        {(selectedUnallocated.length > 0) && (
                                             <div className="flex flex-wrap items-center gap-4 p-4 border-t border-b bg-muted/50">
                                                 <p className="text-sm font-semibold">{selectedUnallocated.length} selected</p>
                                                 <Button size="sm" onClick={() => setIsBulkAllocateOpen(true)}>Allocate Selected</Button>
@@ -2844,12 +2879,6 @@ export default function NumeraPage() {
                                                 <Button size="sm" variant="ghost" onClick={() => setSelectedAllocated([])}>Clear Selection</Button>
                                             </div>
                                         )}
-                                        {isAiAllocating && (
-                                            <div className="flex items-center gap-2 p-4 border-t border-b bg-muted/50 text-sm">
-                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                AI is analyzing transactions... Please wait.
-                                            </div>
-                                        )}
                                         <TabsContent value="unallocated-income">
                                             {incomeTransactions.length > 0 ? (
                                                 <AllocationTable transactions={incomeTransactions} onAllocate={handleAllocate} onEdit={handleEditTransaction} onDelete={(id) => handleDeleteTransaction(id, 'unallocated')} selectedTransactions={selectedUnallocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'unallocated')} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onFeedback={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} />
@@ -2863,6 +2892,27 @@ export default function NumeraPage() {
                                              ) : (
                                                 <p className="text-muted-foreground text-center py-10">No unallocated expense transactions to display.</p>
                                              )}
+                                        </TabsContent>
+                                        <TabsContent value="processing">
+                                            {processingTransactions.length > 0 ? (
+                                                <Table>
+                                                    <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
+                                                    <TableBody>
+                                                        {processingTransactions.map(tx => (
+                                                            <TableRow key={tx.id}><TableCell>{tx.date}</TableCell><TableCell>{tx.description}</TableCell><TableCell className="text-right">{formatNumber(tx.amount)}</TableCell></TableRow>
+                                                        ))}
+                                                    </TableBody>
+                                                </Table>
+                                            ) : (
+                                                <p className="text-muted-foreground text-center py-10">No transactions are currently being processed.</p>
+                                            )}
+                                        </TabsContent>
+                                        <TabsContent value="review">
+                                            {reviewTransactions.length > 0 ? (
+                                                <AllocationTable transactions={reviewTransactions} onAllocate={handleAllocate} onEdit={handleEditTransaction} onDelete={(id) => handleDeleteTransaction(id, 'review')} selectedTransactions={selectedUnallocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'unallocated')} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onFeedback={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} />
+                                            ) : (
+                                                <p className="text-muted-foreground text-center py-10">No transactions to review.</p>
+                                            )}
                                         </TabsContent>
                                         <TabsContent value="allocated-income">
                                             {allocatedIncome.length > 0 ? (

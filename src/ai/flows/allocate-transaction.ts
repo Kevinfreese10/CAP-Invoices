@@ -10,6 +10,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { chartOfAccounts } from '@/lib/chart-of-accounts';
+import { allocationRules } from '@/lib/allocation-rules';
 import { VatType } from '@/lib/types';
 
 const AllocateTransactionInputSchema = z.object({
@@ -39,6 +40,10 @@ const serializedChartOfAccounts = chartOfAccounts
     .map(acc => `${acc.accountNumber} - ${acc.description}`)
     .join('\n');
 
+const serializedAllocationRules = allocationRules
+    .map(rule => `If description contains '${rule.keywords.join(', ')}', use account ${rule.accountId} (${chartOfAccounts.find(a => a.accountNumber === rule.accountId)?.description}) with VAT type '${rule.vatType}'.`)
+    .join('\n');
+
 const prompt = ai.definePrompt({
   name: 'allocateTransactionPrompt',
   input: {schema: AllocateTransactionInputSchema},
@@ -48,22 +53,26 @@ const prompt = ai.definePrompt({
 Transaction Description:
 "{{{description}}}"
 
-Here is the Chart of Accounts you must use:
+**Prioritization Order:**
+1.  **Specific Allocation Rules:** You MUST check these rules first. If a keyword from the transaction description matches, you must use the specified account and VAT type.
+2.  **Chart of Accounts:** If no specific rule matches, use your expertise to choose the best account from the general chart of accounts.
+3.  **VAT Rules:** Apply the correct VAT treatment based on your account selection and the general VAT rules.
+
 ---
+**1. Specific Allocation Rules (Highest Priority)**
+${serializedAllocationRules}
+---
+**2. Chart of Accounts (Use if no rule matches)**
 ${serializedChartOfAccounts}
 ---
-
-Here are the South African VAT rules you must follow:
----
-**VAT Rules**
-
+**3. South African VAT Rules (Apply after selecting an account)**
 **Output Tax (VAT on Income)**
 - **standard_rated_sales**: Sales of goods/services (15% VAT). Most income falls here.
 - **zero_rated_sales**: Exports, certain basic foodstuffs.
 - **exempt_sales**: Interest, dividends, residential rent, certain financial services.
 
 **Input Tax (VAT on Expenses)**
-- **standard_rated_purchases**: Most operational expenses (stationery, advertising, professional fees, repairs, etc.).
+- **standard_rated_purchases**: Most operational expenses (stationery, advertising, professional fees, repairs, etc.). Bank merchant fees.
 - **capital_goods_purchases**: On fixed assets like machinery, computers, furniture.
 - **zero_rated_purchases**: e.g., Diesel.
 - **exempt_purchases**: Insurance premiums, interest paid.
@@ -73,12 +82,11 @@ Here are the South African VAT rules you must follow:
 - **VAT Claimable (standard_rated_purchases)**: Stationery, office supplies, telephone, internet, advertising, consulting, legal fees, repairs & maintenance (excluding passenger cars). Bank merchant fees.
 - **NO VAT (no_vat or exempt_purchases)**: Salaries, wages, PAYE/UIF/SDL, interest paid, insurance premiums, bank account fees (not merchant fees), fines, donations, entertainment expenses.
 - **Passenger Vehicles**: Input VAT is NOT claimable. Use 'no_vat'.
-- **Commercial Property**: VATable. **Residential Property**: Exempt.
 ---
 
 **Your Task:**
-1.  **Allocate Account**: Based on the transaction description, choose the single most appropriate account number from the Chart of Accounts.
-2.  **Determine VAT Type**: Based on the allocated account and the VAT rules, select the correct 'vatType'. If no VAT is applicable, use 'no_vat'.
+1.  **Allocate Account**: Following the prioritization order, choose the single most appropriate account number.
+2.  **Determine VAT Type**: Based on the allocated account and the VAT rules, select the correct 'vatType'.
 3.  **Provide Reasoning**: Give a very brief justification for your choices.
   `,
 });
