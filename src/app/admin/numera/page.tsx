@@ -322,14 +322,14 @@ function AddBankAccountForm({ activeClient, onAccountAdded }: { activeClient: Us
         let nextAccountNumberIndex = 1;
         const cashbooks = chartOfAccounts.filter(a => a.accountNumber.startsWith('8400/'));
         if (cashbooks.length > 0) {
-            const lastCashbook = cashbooks.sort((a, b) => a.accountNumber.localeCompare(b.accountNumber)).pop();
-            if (lastCashbook) {
-                const lastNum = parseInt(lastCashbook.accountNumber.split('/')[1]);
-                if (!isNaN(lastNum)) {
-                    nextAccountNumberIndex = lastNum + 1;
-                }
-            }
+            const lastCashbookNumber = cashbooks
+                .map(a => parseInt(a.accountNumber.split('/')[1]))
+                .filter(n => !isNaN(n))
+                .sort((a,b) => a - b)
+                .pop() || 0;
+            nextAccountNumberIndex = lastCashbookNumber + 1;
         }
+
         const newAccountNum = `8400/${(nextAccountNumberIndex).toString().padStart(3, '0')}`;
         const newAccount: ChartOfAccount = {
             id: `cashbook-${activeClient.id}-${Date.now()}`,
@@ -1937,8 +1937,8 @@ export default function NumeraPage() {
   const [allUnallocated, setAllUnallocated] = useState<ImportedTransaction[]>([]);
   const [allAllocated, setAllAllocated] = useState<AllocatedTransaction[]>([]);
 
-  const [processingTransactions, setProcessingTransactions] = useState<ImportedTransaction[]>([]);
-  const [reviewTransactions, setReviewTransactions] = useState<ImportedTransaction[]>([]);
+  const [allProcessing, setAllProcessing] = useState<ImportedTransaction[]>([]);
+  const [allReviewing, setAllReviewing] = useState<ImportedTransaction[]>([]);
   
   const [unallocatedSearch, setUnallocatedSearch] = useState('');
   const [selectedUnallocated, setSelectedUnallocated] = useState<string[]>([]);
@@ -2004,8 +2004,8 @@ export default function NumeraPage() {
 
         setAllUnallocated(unallocated);
         setAllAllocated(allocated);
-        setProcessingTransactions([]);
-        setReviewTransactions([]);
+        setAllProcessing([]);
+        setAllReviewing([]);
         
         const allTx = [...unallocated, ...allocated];
         const balances = allTx.reduce((acc, tx) => {
@@ -2026,8 +2026,8 @@ export default function NumeraPage() {
     } else {
         setAllUnallocated([]);
         setAllAllocated([]);
-        setProcessingTransactions([]);
-        setReviewTransactions([]);
+        setAllProcessing([]);
+        setAllReviewing([]);
         setBankBalances({});
     }
   }, [activeClient]);
@@ -2263,7 +2263,7 @@ export default function NumeraPage() {
       if (allUnallocated.some(tx => tx.id === transactionId)) {
         transactionToAllocate = allUnallocated.find(tx => tx.id === transactionId);
       } else {
-        transactionToAllocate = reviewTransactions.find(tx => tx.id === transactionId);
+        transactionToAllocate = allReviewing.find(tx => tx.id === transactionId);
       }
       
       if (!transactionToAllocate) return;
@@ -2289,7 +2289,7 @@ export default function NumeraPage() {
       await batch.commit();
 
       await fetchTransactions(activeClient.id);
-      setReviewTransactions(prev => prev.filter(tx => tx.id !== transactionId));
+      setAllReviewing(prev => prev.filter(tx => tx.id !== transactionId));
       setSelectedForReview(prev => prev.filter(id => id !== transactionId));
 
 
@@ -2400,8 +2400,9 @@ export default function NumeraPage() {
     }
 
     setIsAiAllocating(true);
+    // Move from unallocated to processing state
     setAllUnallocated(prev => prev.filter(tx => !selectedUnallocated.includes(tx.id)));
-    setProcessingTransactions(prev => [...prev, ...transactionsToProcess]);
+    setAllProcessing(prev => [...prev, ...transactionsToProcess]);
     setSelectedUnallocated([]);
 
     toast({
@@ -2412,7 +2413,9 @@ export default function NumeraPage() {
     try {
         const suggestions = await getAISuggestions({ transactions: transactionsToProcess });
         
-        setReviewTransactions(prev => [...prev, ...transactionsToProcess]);
+        // Move from processing to review state
+        setAllProcessing(prev => prev.filter(tx => !transactionsToProcess.map(p => p.id).includes(tx.id)));
+        setAllReviewing(prev => [...prev, ...transactionsToProcess]);
         
         const newAllocations: typeof allocations = {};
         const newVatTypes: typeof vatTypes = {};
@@ -2436,8 +2439,8 @@ export default function NumeraPage() {
         toast({ title: 'Error', description: 'Could not get AI suggestions.', variant: 'destructive' });
         // Move transactions back to unallocated if the trigger fails
         setAllUnallocated(prev => [...prev, ...transactionsToProcess]);
+        setAllProcessing(prev => prev.filter(tx => !transactionsToProcess.map(p => p.id).includes(tx.id)));
     } finally {
-        setProcessingTransactions([]);
         setIsAiAllocating(false);
     }
 };
@@ -2493,7 +2496,7 @@ export default function NumeraPage() {
   const handleAcceptReviewed = async () => {
     if (!activeClient) return;
 
-    const transactionsToAllocate = reviewTransactions.filter(tx => selectedForReview.includes(tx.id));
+    const transactionsToAllocate = allReviewing.filter(tx => selectedForReview.includes(tx.id));
     if (transactionsToAllocate.length === 0) return;
 
     const batch = writeBatch(db);
@@ -2512,6 +2515,7 @@ export default function NumeraPage() {
                 vatAmount: 0,
             };
             batch.set(doc(collection(db, 'allocatedTransactions')), newAllocated);
+            // This is the key fix: delete the original document from the unallocated collection.
             batch.delete(doc(db, 'unallocatedTransactions', id));
         }
     });
@@ -2520,8 +2524,8 @@ export default function NumeraPage() {
         await batch.commit();
 
         const allocatedIds = transactionsToAllocate.map(tx => tx.id);
-        setReviewTransactions(prev => prev.filter(tx => !allocatedIds.includes(tx.id)));
-        setSelectedForReview(prev => prev.filter(id => !allocatedIds.includes(id)));
+        setAllReviewing(prev => prev.filter(tx => !allocatedIds.includes(tx.id)));
+        setSelectedForReview([]);
         
         await fetchTransactions(activeClient.id);
 
@@ -2646,8 +2650,8 @@ export default function NumeraPage() {
         }
     } else {
         setAllUnallocated(prev => prev.filter(tx => tx.id !== transactionId));
-        setProcessingTransactions(prev => prev.filter(tx => tx.id !== transactionId));
-        setReviewTransactions(prev => prev.filter(tx => tx.id !== transactionId));
+        setAllProcessing(prev => prev.filter(tx => tx.id !== transactionId));
+        setAllReviewing(prev => prev.filter(tx => tx.id !== transactionId));
         toast({ title: 'Transaction Removed', description: 'The transaction has been removed from the current view.' });
     }
 };
@@ -2693,6 +2697,14 @@ export default function NumeraPage() {
   const allocatedTransactions = useMemo(() => {
       return allAllocated.filter(tx => tx.bankAccountId === selectedBankAccount);
   }, [allAllocated, selectedBankAccount]);
+  
+  const processingTransactions = useMemo(() => {
+    return allProcessing.filter(tx => tx.bankAccountId === selectedBankAccount);
+  }, [allProcessing, selectedBankAccount]);
+
+  const reviewTransactions = useMemo(() => {
+    return allReviewing.filter(tx => tx.bankAccountId === selectedBankAccount);
+  }, [allReviewing, selectedBankAccount]);
 
   const incomeTransactions = useMemo(() => {
     const filtered = unallocatedTransactions.filter(tx => tx.amount >= 0);
