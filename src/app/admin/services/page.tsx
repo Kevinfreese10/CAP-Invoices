@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import ServiceForm from '@/components/admin/ServiceForm';
 import { useToast } from '@/hooks/use-toast';
+import Link from 'next/link';
 
 export default function AdminServicesPage() {
   const [services, setServices] = useState<Service[]>(initialServices);
@@ -127,6 +128,9 @@ export default function AdminServicesPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem asChild>
+                                <Link href={`/services/${service.id}`} target="_blank">View</Link>
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleEditService(service)}>
                                 Edit
                             </DropdownMenuItem>
