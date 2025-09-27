@@ -1,10 +1,10 @@
 
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -15,11 +15,14 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AllocationRule, VatType, ChartOfAccount } from '@/lib/types';
-import { allocationRules as initialRules } from '@/lib/allocation-rules';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { chartOfAccounts } from '@/lib/chart-of-accounts';
 import { allVatTypes } from '@/lib/vat-types';
 import { Badge } from '@/components/ui/badge';
+import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
+
+const db = getFirestore(firebaseApp);
 
 
 const formSchema = z.object({
@@ -62,10 +65,29 @@ function RuleForm({ rule, onSubmit, onCancel }: { rule: AllocationRule | null, o
 }
 
 export default function AllocationRulesPage() {
-  const [rules, setRules] = useState<AllocationRule[]>(initialRules);
+  const [rules, setRules] = useState<AllocationRule[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedRule, setSelectedRule] = useState<AllocationRule | null>(null);
   const { toast } = useToast();
+  
+  const fetchRules = async () => {
+    setIsLoading(true);
+    try {
+        const querySnapshot = await getDocs(collection(db, "allocationRules"));
+        const fetchedRules = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as AllocationRule));
+        setRules(fetchedRules);
+    } catch (error) {
+        console.error("Error fetching rules:", error);
+        toast({ title: 'Error', description: 'Could not fetch allocation rules from the database.', variant: 'destructive'});
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRules();
+  }, []);
 
   const handleAdd = () => {
     setSelectedRule(null);
@@ -77,36 +99,39 @@ export default function AllocationRulesPage() {
     setIsFormOpen(true);
   };
   
-  const handleDelete = (ruleId: string) => {
-    setRules(prev => prev.filter(r => r.id !== ruleId));
-    toast({
-        title: 'Rule Deleted',
-        description: 'The allocation rule has been removed.',
-        variant: 'destructive',
-    })
+  const handleDelete = async (ruleId: string) => {
+    try {
+        await deleteDoc(doc(db, "allocationRules", ruleId));
+        fetchRules();
+        toast({
+            title: 'Rule Deleted',
+            description: 'The allocation rule has been removed.',
+            variant: 'destructive',
+        });
+    } catch (error) {
+        console.error("Error deleting rule:", error);
+        toast({ title: 'Error', description: 'Could not delete rule.', variant: 'destructive' });
+    }
   };
 
-  const handleFormSubmit = (data: Omit<AllocationRule, 'id'>) => {
-    if (selectedRule) {
-      // Update
-      setRules(prev =>
-        prev.map(r => (r.id === selectedRule.id ? { ...selectedRule, ...data } : r))
-      );
-       toast({
-        title: 'Rule Updated',
-        description: 'The rule has been successfully saved.',
-      });
-    } else {
-      // Add
-      const newRule = { ...data, id: `rule-${Date.now()}` };
-      setRules(prev => [...prev, newRule]);
-       toast({
-        title: 'Rule Created',
-        description: 'The new allocation rule has been added.',
-      });
+  const handleFormSubmit = async (data: Omit<AllocationRule, 'id'> & { id?: string }) => {
+    const { id, ...ruleData } = data;
+    try {
+        if (id) {
+            const ruleRef = doc(db, "allocationRules", id);
+            await setDoc(ruleRef, ruleData, { merge: true });
+            toast({ title: 'Rule Updated', description: 'The rule has been successfully saved.'});
+        } else {
+            await addDoc(collection(db, "allocationRules"), ruleData);
+            toast({ title: 'Rule Created', description: 'The new allocation rule has been added.'});
+        }
+        fetchRules();
+        setIsFormOpen(false);
+        setSelectedRule(null);
+    } catch (error) {
+        console.error("Error saving rule:", error);
+        toast({ title: 'Error', description: 'Could not save the rule.', variant: 'destructive'});
     }
-    setIsFormOpen(false);
-    setSelectedRule(null);
   };
   
   const getAccountDescription = (accountId: string) => {
@@ -150,6 +175,11 @@ export default function AllocationRulesPage() {
                 <CardDescription>These rules automatically categorize transactions when you import a bank statement.</CardDescription>
             </CardHeader>
             <CardContent>
+                 {isLoading ? (
+                    <div className="flex justify-center items-center h-64">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                 ) : (
                 <Table>
                     <TableHeader>
                     <TableRow>
@@ -211,6 +241,7 @@ export default function AllocationRulesPage() {
                     ))}
                     </TableBody>
                 </Table>
+                 )}
             </CardContent>
         </Card>
     </div>
