@@ -149,7 +149,7 @@ export type User = {
     user: string;
     pass: string;
   },
-  // Client specific fields for task automation
+  // Client specific fields for task automation & Numera
   yearEnd?: any;
   preparesFinancials?: boolean;
   financialsDueDate?: any;
@@ -165,6 +165,7 @@ export type User = {
   payrollDueDate?: any;
   submitsEmp201?: boolean;
   submitsEmp501?: boolean;
+  chartOfAccounts?: ChartOfAccount[];
 };
 
 export type TaskComment = {

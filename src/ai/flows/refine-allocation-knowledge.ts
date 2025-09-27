@@ -12,14 +12,15 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { getFirestore, addDoc, collection } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { AllocationRule } from '@/lib/types';
+import { AllocationRule, VatType } from '@/lib/types';
 
 const db = getFirestore(firebaseApp);
 
 const RefineAllocationKnowledgeInputSchema = z.object({
   transactionDescription: z.string().describe("The original bank transaction description."),
   incorrectAllocation: z.string().describe("The AI's incorrect allocation suggestion."),
-  correctAllocation: z.string().describe("The user-provided correct allocation."),
+  correctAccountId: z.string().describe("The user-provided correct account ID."),
+  correctVatType: z.custom<VatType>().describe("The user-provided correct VAT type."),
   userProvidedRule: z.string().optional().describe("An optional rule provided by the user to explain the logic."),
 });
 export type RefineAllocationKnowledgeInput = z.infer<typeof RefineAllocationKnowledgeInputSchema>;
@@ -39,23 +40,23 @@ const prompt = ai.definePrompt({
   name: 'refineAllocationKnowledgePrompt',
   input: {schema: RefineAllocationKnowledgeInputSchema},
   output: {schema: RefineAllocationKnowledgeOutputSchema},
-  prompt: `You are an AI accountant learning to better categorize transactions. You have made a mistake and a human is providing you with feedback. Your task is to convert this feedback into a new, generalized rule that you can apply in the future.
+  prompt: `You are an AI accountant learning to better categorize transactions. You have made a mistake and a human is providing you with feedback. Your task is to convert this feedback into a new, generalized 'soft' rule description that you can apply in the future.
 
 **Feedback Details:**
 
 *   **Transaction:** "{{transactionDescription}}"
 *   **Your Incorrect Suggestion:** {{incorrectAllocation}}
-*   **Correct Allocation:** {{correctAllocation}}
+*   **Correct Allocation:** Account {{correctAccountId}} (VAT: {{correctVatType}})
 {{#if userProvidedRule}}
 *   **User's Rule:** "{{userProvidedRule}}"
 {{/if}}
 
 **Task:**
 
-Based on the information above, create a single, concise, and generalized rule. This rule should help you correctly allocate similar transactions in the future. Focus on identifying keywords or patterns in the transaction description.
+Based on the information above, create a single, concise, and generalized rule description. This rule should help you correctly allocate similar transactions in the future. Focus on identifying the core concept or pattern in the transaction description. Do not mention account numbers.
 
 **Example:**
-If the transaction is "Monthly Subscription for Office 365" and the user corrects your allocation to "Computer Expenses", a good refined rule would be: "Transactions containing 'Office 365' or 'Subscription' for software should be allocated to Computer Expenses."
+If the transaction is "Monthly Subscription for Office 365" and the user corrects your allocation to "Computer Expenses", a good refined rule description would be: "Software subscriptions like 'Office 365' are allocated to Computer Expenses."
   `,
 });
 
@@ -75,8 +76,8 @@ const refineAllocationKnowledgeFlow = ai.defineFlow(
           type: 'soft', // New rules from feedback are conceptual 'soft' rules
           description: output.refinedRule,
           keywords: [], // Soft rules don't use keywords
-          accountId: input.correctAllocation.split(' ')[0], // Best guess for accountId
-          vatType: 'no_vat' // Default VAT type, user can adjust later
+          accountId: input.correctAccountId,
+          vatType: input.correctVatType,
         };
         await addDoc(collection(db, "allocationRules"), newRule);
         console.log("New AI Rule Learned and saved to Firestore:", output.refinedRule);

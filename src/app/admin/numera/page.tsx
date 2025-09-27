@@ -138,6 +138,7 @@ const clientFormSchema = z.object({
   yearEnd: z.date({ required_error: 'Financial year end is required.'}),
   isVatRegistered: z.boolean().default(false),
   vatRegistrationDate: z.date().optional(),
+  chartOfAccounts: z.array(z.custom<ChartOfAccount>()).optional(),
 });
 
 function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSubmit: (data: any) => void, onCancel: () => void }) {
@@ -158,6 +159,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
             yearEnd: toDate(client?.yearEnd),
             isVatRegistered: client?.isVatRegistered || false,
             vatRegistrationDate: toDate(client?.vatRegistrationDate),
+            chartOfAccounts: client?.chartOfAccounts || initialChartOfAccounts,
         },
     });
     
@@ -2107,18 +2109,15 @@ export default function NumeraPage() {
     setSelectedBankAccount('');
     if (activeClient) {
         fetchTransactions(activeClient.id);
+        const clientCOA = activeClient.chartOfAccounts || initialChartOfAccounts;
+        setChartOfAccountsData(clientCOA);
     }
   }, [activeClient]);
 
   useEffect(() => {
-    if (activeClient && selectedBankAccount) {
-      // Don't clear local state, just re-filter based on the new account.
-    } else {
-        // Clear everything if no bank account is selected
-        setAllUnallocated([]);
-        setAllAllocated([]);
-    }
-  }, [selectedBankAccount, activeClient]);
+    // When selectedBankAccount changes, we don't clear local state.
+    // The filtering logic in useMemo hooks will handle displaying the correct data.
+  }, [selectedBankAccount]);
   
 
   const handleAddClient = () => {
@@ -2162,6 +2161,7 @@ export default function NumeraPage() {
       isVatRegistered: data.isVatRegistered,
       vatCategory: data.isVatRegistered ? 'B' : undefined, // Default to B for simplicity, not in form
       vatRegistrationDate: data.vatRegistrationDate ? Timestamp.fromDate(data.vatRegistrationDate) : null,
+      chartOfAccounts: data.chartOfAccounts || initialChartOfAccounts,
       role: 'client' as const,
       source: 'Numera' as const,
     };
@@ -2541,29 +2541,20 @@ export default function NumeraPage() {
     rule: string;
   }) => {
     const { transaction, correctAccount, correctVatType, rule } = feedbackData;
-    const incorrectAccount = allocations[transaction.id]?.value;
+    const incorrectAllocation = allocations[transaction.id]?.value;
     const incorrectVatType = vatTypes[transaction.id];
 
     toast({ title: "Learning from feedback...", description: "Updating AI knowledge and re-allocating." });
     
     try {
-        const { refinedRule } = await refineAllocationKnowledge({
+        await refineAllocationKnowledge({
           transactionDescription: transaction.description,
-          incorrectAllocation: `${incorrectAccount} (VAT: ${incorrectVatType})`,
-          correctAllocation: `${correctAccount} (VAT: ${correctVatType})`,
+          incorrectAllocation: `${incorrectAllocation} (VAT: ${incorrectVatType})`,
+          correctAccountId: correctAccount,
+          correctVatType: correctVatType,
           userProvidedRule: rule,
         });
         
-        const keywords = refinedRule.match(/'(.*?)'/g)?.map(k => k.replace(/'/g, '')) || [transaction.description.split(' ')[0]];
-        const newRule: Omit<AllocationRule, 'id'> = {
-          type: 'soft', 
-          description: refinedRule,
-          keywords: keywords,
-          accountId: correctAccount,
-          vatType: correctVatType,
-        };
-
-        await addDoc(collection(db, 'allocationRules'), newRule);
         await fetchAllocationRules();
         
         setFeedbackTransaction(null);
@@ -2800,7 +2791,7 @@ export default function NumeraPage() {
       
       await fetchTransactions(activeClient.id);
       
-      toast({ title: 'Transactions Cleared', description: `All transactions for account ${accountId} have been deleted.` });
+      toast({ title: 'Transactions Cleared', description: `All transactions for account ${accountId} have been cleared.` });
       setEditingBankAccount(null);
     } catch (error) {
       console.error('Error clearing transactions:', error);
@@ -2808,9 +2799,10 @@ export default function NumeraPage() {
     }
   };
 
-  const clientBankAccounts = activeClient
-    ? chartOfAccountsData.filter(acc => acc.accountNumber.startsWith('8400'))
-    : [];
+  const clientBankAccounts = useMemo(() => {
+    return activeClient ? chartOfAccountsData.filter(acc => acc.accountNumber.startsWith('8400')) : [];
+  }, [activeClient, chartOfAccountsData]);
+
 
   const unallocatedTransactions = useMemo(() => {
     return allUnallocated.filter(tx => tx.bankAccountId === selectedBankAccount);
@@ -2922,7 +2914,6 @@ export default function NumeraPage() {
                         <TabsTrigger value="vat">VAT</TabsTrigger>
                         <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
                         <TabsTrigger value="customers">Customers</TabsTrigger>
-                        <TabsTrigger value="train-ai">Train AI</TabsTrigger>
                     </TabsList>
                     <TabsContent value="reporting" className="space-y-4">
                         <TrialBalanceCard activeClient={activeClient} onAccountClick={handleTBAccountClick} allocatedTransactions={allAllocated} unallocatedTransactions={allUnallocated} chartOfAccounts={chartOfAccountsData} />
@@ -3332,29 +3323,6 @@ export default function NumeraPage() {
                                   </Table>
                               ) : <p className="text-muted-foreground text-center py-10">No customers created yet.</p>}
                            </CardContent>
-                        </Card>
-                    </TabsContent>
-                    <TabsContent value="train-ai">
-                         <Card>
-                            <CardHeader>
-                                <CardTitle>Train Allocation AI</CardTitle>
-                                <CardDescription>Provide more context to help the AI make better allocation decisions.</CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-6">
-                                <div className="space-y-2">
-                                    <Label htmlFor="ai-text-input">Provide Contextual Information</Label>
-                                    <Textarea id="ai-text-input" placeholder="e.g., 'All transactions from Pick n Pay should be allocated to General Expenses.' or 'Supplier XYZ is for raw materials.'" rows={4}/>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="ai-doc-upload">Upload Sample Documents</Label>
-                                    <Input id="ai-doc-upload" type="file" />
-                                    <p className="text-xs text-muted-foreground">Upload documents like supplier invoices or bank statements to give the AI more context.</p>
-                                </div>
-                                <Button>
-                                    <BrainCircuit className="mr-2 h-4 w-4" />
-                                    Submit for Training
-                                </Button>
-                            </CardContent>
                         </Card>
                     </TabsContent>
                 </Tabs>
@@ -3842,7 +3810,7 @@ function AllocationRulesDialog({ isOpen, onClose, chartOfAccounts, rules, onRule
             const { id, ...ruleData } = data;
             await setDoc(ruleRef, ruleData, { merge: true });
 
-            const newRules = rules.map(r => r.id === id ? { ...r, ...ruleData } : r);
+            const newRules = rules.map(r => r.id === id ? { ...r, ...ruleData } as AllocationRule : r);
             onRuleChange(newRules);
             toast({ title: 'Rule Updated', description: 'The rule has been successfully saved.'});
         } else { // Create
@@ -3979,3 +3947,4 @@ function AllocationRulesDialog({ isOpen, onClose, chartOfAccounts, rules, onRule
 }
 
   
+
