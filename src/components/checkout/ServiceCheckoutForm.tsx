@@ -23,6 +23,7 @@ import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 import Link from 'next/link';
+import { getNextOrderId } from '@/lib/sequence';
 
 const db = getFirestore(firebaseApp);
 
@@ -74,9 +75,8 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
       description: 'Please wait while we generate your order.',
     });
 
-    const orderId = `ORD-${Date.now().toString().slice(-6)}`;
-    
     try {
+      const orderId = await getNextOrderId();
       const department = service.department as 'Accounting and Tax' | 'Administration' | undefined;
 
       const orderData: Order = {

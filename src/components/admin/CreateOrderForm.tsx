@@ -22,6 +22,7 @@ import { Checkbox } from '../ui/checkbox';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
+import { getNextOrderId } from '@/lib/sequence';
 
 const db = getFirestore(firebaseApp);
 
@@ -138,9 +139,8 @@ export default function CreateOrderForm() {
       description: 'Please wait while we generate the new order.',
     });
 
-    const orderId = `ORD-${Date.now().toString().slice(-6)}`;
-    
     try {
+        const orderId = await getNextOrderId();
         const firstService = allServices.find(s => s.id === values.items[0]?.serviceId);
         const department = firstService?.department;
 

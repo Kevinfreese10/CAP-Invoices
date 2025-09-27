@@ -22,6 +22,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
+import { getNextOrderId } from '@/lib/sequence';
 
 
 const db = getFirestore(firebaseApp);
@@ -131,9 +132,8 @@ export default function CreateResellerOrderForm() {
       description: 'Please wait while we generate the new order.',
     });
 
-    const orderId = `RES-${Date.now().toString().slice(-6)}`;
-    
     try {
+      const orderId = await getNextOrderId();
       const resellerTotalCost = values.items.reduce((acc, item) => acc + (item.resellerPrice * item.quantity), 0);
       const clientTotal = values.items.reduce((acc, item) => acc + (item.clientPrice * item.quantity), 0);
 
