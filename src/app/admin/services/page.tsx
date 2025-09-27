@@ -13,11 +13,13 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import ServiceForm from '@/components/admin/ServiceForm';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
+import ServicePreview from '@/components/admin/ServicePreview';
 
 export default function AdminServicesPage() {
   const [services, setServices] = useState<Service[]>(initialServices);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
+  const [viewingService, setViewingService] = useState<Service | null>(null);
   const { toast } = useToast();
 
   const handleAddService = () => {
@@ -118,46 +120,59 @@ export default function AdminServicesPage() {
                     {service.resellerPrice ? `R ${service.resellerPrice.toFixed(2)}` : 'N/A'}
                   </TableCell>
                   <TableCell className="text-right">
-                    <AlertDialog>
-                        <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem asChild>
-                                <Link href={`/services/${service.id}`} target="_blank">View</Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleEditService(service)}>
-                                Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                             <AlertDialogTrigger asChild>
-                                <DropdownMenuItem className="text-destructive">
-                                    Delete
+                    <Dialog onOpenChange={(isOpen) => !isOpen && setViewingService(null)}>
+                      <AlertDialog>
+                          <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Open menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                               <DialogTrigger asChild>
+                                <DropdownMenuItem onSelect={() => setViewingService(service)}>
+                                    View Preview
                                 </DropdownMenuItem>
-                            </AlertDialogTrigger>
-                        </DropdownMenuContent>
-                        </DropdownMenu>
-                         <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                This action cannot be undone. This will permanently delete the service
-                                <span className="font-semibold"> {service.title}</span>.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDeleteService(service.id)}>
-                                    Continue
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
+                               </DialogTrigger>
+                              <DropdownMenuItem onClick={() => handleEditService(service)}>
+                                  Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <AlertDialogTrigger asChild>
+                                  <DropdownMenuItem className="text-destructive">
+                                      Delete
+                                  </DropdownMenuItem>
+                              </AlertDialogTrigger>
+                          </DropdownMenuContent>
+                          </DropdownMenu>
+                          <AlertDialogContent>
+                              <AlertDialogHeader>
+                                  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                  This action cannot be undone. This will permanently delete the service
+                                  <span className="font-semibold"> {service.title}</span>.
+                                  </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => handleDeleteService(service.id)}>
+                                      Continue
+                                  </AlertDialogAction>
+                              </AlertDialogFooter>
+                          </AlertDialogContent>
+                      </AlertDialog>
+                      <DialogContent className="sm:max-w-2xl">
+                          <DialogHeader>
+                              <DialogTitle>Service Preview</DialogTitle>
+                              <DialogDescription>
+                                  This is how clients will see the service page.
+                              </DialogDescription>
+                          </DialogHeader>
+                          {viewingService && <ServicePreview service={viewingService} />}
+                      </DialogContent>
+                    </Dialog>
                   </TableCell>
                 </TableRow>
               ))}
