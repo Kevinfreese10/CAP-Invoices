@@ -42,7 +42,6 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { allocationRules as initialRules } from '@/lib/allocation-rules';
 import { getAISuggestions } from '@/ai/flows/get-ai-suggestions';
 import { allVatTypes as allVatTypesData } from '@/lib/vat-types';
 import { Badge } from '@/components/ui/badge';
@@ -305,7 +304,7 @@ function AddBankAccountForm({ activeClient, onAccountAdded, chartOfAccounts }: {
         const newAccount: ChartOfAccount = {
             id: newAccountNum,
             accountNumber: newAccountNum,
-            description: `${activeClient.name} - ${values.name}`,
+            description: values.name,
             section: 'Balance Sheet',
         };
         
@@ -2025,6 +2024,7 @@ export default function NumeraPage() {
   const [editingTransaction, setEditingTransaction] = useState<ImportedTransaction | null>(null);
   const [isEditTxOpen, setIsEditTxOpen] = useState(false);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
+  const [allocationRules, setAllocationRules] = useState<AllocationRule[]>([]);
   
   const [chartOfAccountsData, setChartOfAccountsData] = useState<ChartOfAccount[]>(initialChartOfAccounts);
   const [editingBankAccount, setEditingBankAccount] = useState<ChartOfAccount | null>(null);
@@ -2051,9 +2051,22 @@ export default function NumeraPage() {
         setIsLoading(false);
     }
   };
+  
+  const fetchAllocationRules = async () => {
+    try {
+      const q = query(collection(db, "allocationRules"), orderBy('type'));
+      const querySnapshot = await getDocs(q);
+      const rules = querySnapshot.docs.map(doc => ({...doc.data(), id: doc.id} as AllocationRule));
+      setAllocationRules(rules);
+    } catch (error) {
+      console.error("Error fetching allocation rules:", error);
+      toast({ title: 'Error', description: 'Could not fetch AI allocation rules.', variant: 'destructive'});
+    }
+  };
 
   useEffect(() => {
     fetchClients();
+    fetchAllocationRules();
   }, []);
 
   const fetchTransactions = async (clientId: string) => {
@@ -2098,7 +2111,6 @@ export default function NumeraPage() {
   }, [activeClient]);
 
   useEffect(() => {
-    // This hook now correctly clears all transaction states when the bank account changes.
     setAllUnallocated([]);
     setAllAllocated([]);
     setAllProcessing([]);
@@ -2110,6 +2122,10 @@ export default function NumeraPage() {
     setSelectedForReview([]);
     if (activeClient && selectedBankAccount) {
       fetchTransactions(activeClient.id);
+    } else {
+        // Clear everything if no bank account is selected
+        setAllUnallocated([]);
+        setAllAllocated([]);
     }
   }, [selectedBankAccount]);
   
@@ -2229,7 +2245,7 @@ export default function NumeraPage() {
         const lowerCaseDescription = description.toLowerCase();
         let matchedRule = null;
         
-        for (const rule of initialRules) {
+        for (const rule of allocationRules) {
             if (rule.type === 'hard') {
                 for (const keyword of rule.keywords) {
                     if (lowerCaseDescription.includes(keyword.toLowerCase())) {
@@ -2548,15 +2564,16 @@ export default function NumeraPage() {
         });
         
         const keywords = refinedRule.match(/'(.*?)'/g)?.map(k => k.replace(/'/g, '')) || [transaction.description.split(' ')[0]];
-        const newRule: AllocationRule = {
-          id: `rule-fb-${Date.now()}`,
+        const newRule: Omit<AllocationRule, 'id'> = {
           type: 'soft', 
           description: refinedRule,
           keywords: keywords,
           accountId: correctAccount,
           vatType: correctVatType,
         };
-        initialRules.push(newRule);
+
+        await addDoc(collection(db, 'allocationRules'), newRule);
+        await fetchAllocationRules();
         
         setFeedbackTransaction(null);
         toast({ title: "AI Knowledge Updated", description: "A new rule has been learned from your feedback." });
@@ -2801,7 +2818,7 @@ export default function NumeraPage() {
   };
 
   const clientBankAccounts = activeClient
-    ? chartOfAccountsData.filter(acc => acc.description.startsWith(activeClient.name))
+    ? chartOfAccountsData.filter(acc => acc.description.includes(activeClient.name) || (acc.accountNumber.startsWith('8400') && !acc.description.includes(' - ')))
     : [];
 
   const unallocatedTransactions = useMemo(() => {
@@ -3001,7 +3018,7 @@ export default function NumeraPage() {
                                         <FormItem>
                                             <FormLabel>Transaction File (.csv)</FormLabel>
                                             <FormControl>
-                                            <Input type="file" accept=".csv" onChange={handleFileChange} />
+                                            <Input type="file" accept=".csv" onChange={handleFileChange} id="transaction-file-input" />
                                             </FormControl>
                                         </FormItem>
                                     </div>
@@ -3507,6 +3524,8 @@ export default function NumeraPage() {
             isOpen={isRulesModalOpen}
             onClose={() => setIsRulesModalOpen(false)}
             chartOfAccounts={chartOfAccountsData}
+            rules={allocationRules}
+            onRuleChange={(rules) => setAllocationRules(rules)}
         />
         <EditBankAccountForm 
             account={editingBankAccount}
@@ -3795,8 +3814,7 @@ function RuleForm({ rule, onSubmit, onCancel, chartOfAccounts }: { rule: Omit<Al
     )
 }
 
-function AllocationRulesDialog({ isOpen, onClose, chartOfAccounts }: { isOpen: boolean; onClose: () => void; chartOfAccounts: ChartOfAccount[] }) {
-  const [rules, setRules] = useState<AllocationRule[]>(initialRules);
+function AllocationRulesDialog({ isOpen, onClose, chartOfAccounts, rules, onRuleChange }: { isOpen: boolean; onClose: () => void; chartOfAccounts: ChartOfAccount[], rules: AllocationRule[], onRuleChange: (rules: AllocationRule[]) => void }) {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedRule, setSelectedRule] = useState<AllocationRule | null>(null);
   const { toast } = useToast();
@@ -3811,41 +3829,43 @@ function AllocationRulesDialog({ isOpen, onClose, chartOfAccounts }: { isOpen: b
     setIsFormOpen(true);
   };
   
-  const handleDelete = (ruleId: string) => {
-    setRules(prev => prev.filter(r => r.id !== ruleId));
-    // Also update the initialRules so it persists for the session
-    const ruleIndex = initialRules.findIndex(r => r.id === ruleId);
-    if(ruleIndex > -1) initialRules.splice(ruleIndex, 1);
-    toast({
-        title: 'Rule Deleted',
-        description: 'The allocation rule has been removed.',
-        variant: 'destructive',
-    })
+  const handleDelete = async (ruleId: string) => {
+    try {
+        await deleteDoc(doc(db, "allocationRules", ruleId));
+        const newRules = rules.filter(r => r.id !== ruleId);
+        onRuleChange(newRules);
+        toast({
+            title: 'Rule Deleted',
+            description: 'The allocation rule has been removed.',
+            variant: 'destructive',
+        })
+    } catch(e) {
+        toast({ title: 'Error', description: 'Could not delete rule.', variant: 'destructive'});
+    }
   };
 
-  const handleFormSubmit = (data: Omit<AllocationRule, 'id'> & { id?: string }) => {
-    if (data.id) { // This is an update
-      const updatedRule = { ...data, id: data.id } as AllocationRule;
-      setRules(prev =>
-        prev.map(r => (r.id === updatedRule.id ? updatedRule : r))
-      );
-      const ruleIndex = initialRules.findIndex(r => r.id === updatedRule.id);
-      if(ruleIndex > -1) initialRules[ruleIndex] = updatedRule;
-       toast({
-        title: 'Rule Updated',
-        description: 'The rule has been successfully saved.',
-      });
-    } else { // This is a new rule
-      const newRule = { ...data, id: `rule-${Date.now()}` } as AllocationRule;
-      setRules(prev => [...prev, newRule]);
-      initialRules.push(newRule);
-       toast({
-        title: 'Rule Created',
-        description: 'The new allocation rule has been added.',
-      });
+  const handleFormSubmit = async (data: Omit<AllocationRule, 'id'> & { id?: string }) => {
+    try {
+        if (data.id) { // Update
+            const ruleRef = doc(db, "allocationRules", data.id);
+            const { id, ...ruleData } = data;
+            await setDoc(ruleRef, ruleData, { merge: true });
+
+            const newRules = rules.map(r => r.id === id ? { ...r, ...ruleData } : r);
+            onRuleChange(newRules);
+            toast({ title: 'Rule Updated', description: 'The rule has been successfully saved.'});
+        } else { // Create
+            const { id, ...ruleData } = data;
+            const newDocRef = await addDoc(collection(db, "allocationRules"), ruleData);
+            const newRule = { ...ruleData, id: newDocRef.id } as AllocationRule;
+            onRuleChange([...rules, newRule]);
+            toast({ title: 'Rule Created', description: 'The new allocation rule has been added.' });
+        }
+        setIsFormOpen(false);
+        setSelectedRule(null);
+    } catch(e) {
+        toast({ title: 'Error', description: 'Could not save rule.', variant: 'destructive'});
     }
-    setIsFormOpen(false);
-    setSelectedRule(null);
   };
   
   const getAccountDescription = (accountId: string) => {
@@ -3966,10 +3986,3 @@ function AllocationRulesDialog({ isOpen, onClose, chartOfAccounts }: { isOpen: b
     </Dialog>
   )
 }
-
-    
-
-
-
-
-    

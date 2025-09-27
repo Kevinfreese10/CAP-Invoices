@@ -10,7 +10,11 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { allocationRules } from '@/lib/allocation-rules';
+import { getFirestore, addDoc, collection } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
+import { AllocationRule } from '@/lib/types';
+
+const db = getFirestore(firebaseApp);
 
 const RefineAllocationKnowledgeInputSchema = z.object({
   transactionDescription: z.string().describe("The original bank transaction description."),
@@ -64,9 +68,22 @@ const refineAllocationKnowledgeFlow = ai.defineFlow(
   async input => {
     const {output} = await prompt(input);
     
-    // In a real application, you would save 'output.refinedRule' to a persistent knowledge base (e.g., a Firestore collection or a file).
-    // For this demo, we are just logging it to the console and won't persist it.
-    console.log("New AI Rule Learned (not persisted in this demo):", output!.refinedRule);
+    // Save the refined rule to Firestore
+    if (output?.refinedRule) {
+      try {
+        const newRule: Omit<AllocationRule, 'id'> = {
+          type: 'soft', // New rules from feedback are conceptual 'soft' rules
+          description: output.refinedRule,
+          keywords: [], // Soft rules don't use keywords
+          accountId: input.correctAllocation.split(' ')[0], // Best guess for accountId
+          vatType: 'no_vat' // Default VAT type, user can adjust later
+        };
+        await addDoc(collection(db, "allocationRules"), newRule);
+        console.log("New AI Rule Learned and saved to Firestore:", output.refinedRule);
+      } catch (error) {
+        console.error("Error saving new AI rule to Firestore:", error);
+      }
+    }
     
     return output!;
   }
