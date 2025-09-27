@@ -1,3 +1,4 @@
+
 import { ChartOfAccount } from './types';
 
 // Changed to 'let' to allow dynamic addition of cashbook accounts
@@ -34,6 +35,7 @@ export let chartOfAccounts: ChartOfAccount[] = [
     { id: '4000/000', accountNumber: '4000/000', description: 'Legal Fees', section: 'Income Statement' },
     { id: '4050/000', accountNumber: '4050/000', description: 'Levies', section: 'Income Statement' },
     { id: '4150/000', accountNumber: '4150/000', description: 'Motor Vehicle Expenses', section: 'Income Statement' },
+    { id: '4150/001', accountNumber: '4150/001', description: 'Fuel', section: 'Income Statement' },
     { id: '4200/000', accountNumber: '4200/000', description: 'Printing & Stationery', section: 'Income Statement' },
     { id: '4210/000', accountNumber: '4210/000', description: 'Pft/Loss on foreign exchange', section: 'Income Statement' },
     { id: '4300/000', accountNumber: '4300/000', description: 'Rent Paid', section: 'Income Statement' },
@@ -81,4 +83,6 @@ export let chartOfAccounts: ChartOfAccount[] = [
     { id: '9510/000', accountNumber: '9510/000', description: 'Vat / Tax Provision Account', section: 'Balance Sheet' },
     { id: '9950/000', accountNumber: '9950/000', description: 'Un-allocated Suspense', section: 'Balance Sheet' },
     { id: '9990/000', accountNumber: '9990/000', description: 'Opening Balance / Suspense Account', section: 'Balance Sheet' },
+    { id: '9990/001', accountNumber: '9990/001', description: 'Bank Transfer Suspense', section: 'Balance Sheet' },
+    { id: '9990/002', accountNumber: '9990/002', description: 'Unpaid Suspense', section: 'Balance Sheet' },
 ];
