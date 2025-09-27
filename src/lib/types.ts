@@ -182,7 +182,7 @@ export type Task = {
   dueDate: any;
   priority: 'High' | 'Medium' | 'Low';
   status: 'To-Do' | 'In Progress' | 'Review' | 'Done';
-  recurrence?: 'None' | 'Daily' | 'Weekly' | 'Monthly' | 'Bi-Monthly' | 'Annually';
+  recurrence?: 'None' | 'Daily' | 'Weekly' | 'Monthly';
   orderId?: string;
   clientId?: string;
   comments?: TaskComment[];
