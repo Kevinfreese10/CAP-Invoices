@@ -17,7 +17,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { User, ChartOfAccount, VatType, Supplier, ImportedTransaction, AllocationRule } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, query, where, writeBatch, Timestamp } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, query, where, writeBatch, Timestamp, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -2111,23 +2111,14 @@ export default function NumeraPage() {
   }, [activeClient]);
 
   useEffect(() => {
-    setAllUnallocated([]);
-    setAllAllocated([]);
-    setAllProcessing([]);
-    setAllReviewing([]);
-    setAllocations({});
-    setVatTypes({});
-    setSelectedUnallocated([]);
-    setSelectedAllocated([]);
-    setSelectedForReview([]);
     if (activeClient && selectedBankAccount) {
-      fetchTransactions(activeClient.id);
+      // Don't clear local state, just re-filter based on the new account.
     } else {
         // Clear everything if no bank account is selected
         setAllUnallocated([]);
         setAllAllocated([]);
     }
-  }, [selectedBankAccount]);
+  }, [selectedBankAccount, activeClient]);
   
 
   const handleAddClient = () => {
@@ -2818,7 +2809,7 @@ export default function NumeraPage() {
   };
 
   const clientBankAccounts = activeClient
-    ? chartOfAccountsData.filter(acc => acc.description.includes(activeClient.name) || (acc.accountNumber.startsWith('8400') && !acc.description.includes(' - ')))
+    ? chartOfAccountsData.filter(acc => acc.accountNumber.startsWith('8400'))
     : [];
 
   const unallocatedTransactions = useMemo(() => {
@@ -3986,3 +3977,5 @@ function AllocationRulesDialog({ isOpen, onClose, chartOfAccounts, rules, onRule
     </Dialog>
   )
 }
+
+  
