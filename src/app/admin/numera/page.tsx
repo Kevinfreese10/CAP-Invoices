@@ -254,6 +254,9 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
                                         selected={field.value}
                                         onSelect={field.onChange}
                                         initialFocus
+                                        captionLayout="dropdown-buttons"
+                                        fromYear={2015}
+                                        toYear={new Date().getFullYear()}
                                     />
                                     </PopoverContent>
                                 </Popover>
@@ -1268,8 +1271,8 @@ function AllocatedTransactionTable({ transactions, onSaveAllocation, onDelete, s
     onDelete: (transactionId: string) => void,
     selectedTransactions: string[],
     onSelectionChange: (id: string, isSelected: boolean) => void,
-    customers: User[],
-    suppliers: Supplier[],
+    customers: User[];
+    suppliers: Supplier[];
     chartOfAccounts: ChartOfAccount[];
  }) {
     
@@ -3947,4 +3950,5 @@ function AllocationRulesDialog({ isOpen, onClose, chartOfAccounts, rules, onRule
 }
 
   
+
 
