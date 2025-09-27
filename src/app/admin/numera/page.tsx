@@ -130,6 +130,7 @@ const vatCategoryLabels = {
     },
 };
 
+
 const clientFormSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(2, 'Client name is required.'),
@@ -137,7 +138,6 @@ const clientFormSchema = z.object({
   email: z.string().email('A valid contact email is required.'),
   yearEnd: z.date({ required_error: 'Financial year end is required.'}),
   isVatRegistered: z.boolean().default(false),
-  vatCategory: z.enum(vatCategories).optional(),
   vatRegistrationDate: z.date().optional(),
 });
 
@@ -158,7 +158,6 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
             email: client?.email || '',
             yearEnd: toDate(client?.yearEnd),
             isVatRegistered: client?.isVatRegistered || false,
-            vatCategory: client?.vatCategory || undefined,
             vatRegistrationDate: toDate(client?.vatRegistrationDate),
         },
     });
@@ -223,35 +222,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
                     )} />
 
                     {watchIsVatRegistered && (
-                        <div className="grid grid-cols-2 gap-4">
-                            <FormField
-                            control={form.control}
-                            name="vatCategory"
-                            render={({ field }) => (
-                                <FormItem>
-                                <FormLabel>VAT Category</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                    <FormControl>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select VAT category..." />
-                                    </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                    {vatCategories.map(c => (
-                                        <SelectItem key={c} value={c}>
-                                            <div className="flex flex-col">
-                                                <span>{vatCategoryLabels[c].name}</span>
-                                                <span className="text-xs text-muted-foreground">{vatCategoryLabels[c].description}</span>
-                                            </div>
-                                        </SelectItem>
-                                    ))}
-                                    </SelectContent>
-                                </Select>
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                            />
-                            <FormField
+                        <FormField
                             control={form.control}
                             name="vatRegistrationDate"
                             render={({ field }) => (
@@ -289,7 +260,6 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
                                 </FormItem>
                             )}
                         />
-                        </div>
                     )}
 
 
@@ -2183,7 +2153,7 @@ export default function NumeraPage() {
       email: data.email,
       yearEnd: data.yearEnd ? Timestamp.fromDate(data.yearEnd) : null,
       isVatRegistered: data.isVatRegistered,
-      vatCategory: data.vatCategory,
+      vatCategory: data.isVatRegistered ? 'B' : undefined, // Default to B for simplicity, not in form
       vatRegistrationDate: data.vatRegistrationDate ? Timestamp.fromDate(data.vatRegistrationDate) : null,
       role: 'client' as const,
       source: 'Numera' as const,
@@ -2788,7 +2758,6 @@ export default function NumeraPage() {
         batch.delete(doc(db, 'allocatedTransactions', id));
     });
     try {
-        await batch.commit();
         await fetchTransactions(activeClient.id);
         toast({ title: `${selectedAllocated.length} Transactions Deleted`, description: 'The selected allocated transactions have been removed.' });
         setSelectedAllocated([]);
@@ -4001,3 +3970,6 @@ function AllocationRulesDialog({ isOpen, onClose, chartOfAccounts }: { isOpen: b
     
 
 
+
+
+    
