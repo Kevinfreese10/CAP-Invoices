@@ -17,7 +17,6 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Task, User, TaskComment } from '@/lib/types';
-import { users } from '@/lib/data';
 import { useAuth } from '@/contexts/AuthContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -29,20 +28,16 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
-import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, arrayUnion, Timestamp, writeBatch } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, arrayUnion, Timestamp, writeBatch, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { users } from '@/lib/data';
 
 const db = getFirestore(firebaseApp);
 
-const allStaff = users.filter(u => u.role === 'staff' || u.role === 'admin');
 const departments = ['Accounting and Tax', 'Administration', 'CAP'] as const;
-const staffByDept = {
-    'Accounting and Tax': allStaff.filter(u => u.department === 'Accounting and Tax'),
-    'Administration': allStaff.filter(u => u.department === 'Administration'),
-    'CAP': allStaff.filter(u => u.department === 'CAP'),
-};
+
 const taskStatuses: Task['status'][] = ['To-Do', 'In Progress', 'Review', 'Done'];
 const taskPriorities: Task['priority'][] = ['High', 'Medium', 'Low'];
 const taskRecurrences: Task['recurrence'][] = ['None', 'Daily', 'Weekly', 'Monthly'];
@@ -60,7 +55,7 @@ const formSchema = z.object({
   newComment: z.string().optional(),
 });
 
-function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | null, onSubmit: (data: any) => void, onCancel: () => void, onCommentSubmit: (taskId: string, commentText: string) => void }) {
+function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffByDept }: { task: Task | null, onSubmit: (data: any) => void, onCancel: () => void, onCommentSubmit: (taskId: string, commentText: string) => void, allStaff: User[], staffByDept: Record<string, User[]> }) {
     const { user } = useAuth();
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -92,7 +87,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
     }
     
     const getAuthor = (authorId: string): User | undefined => {
-        return users.find(u => u.id === authorId);
+        return allStaff.find(u => u.id === authorId) || users.find(u => u.id === authorId);
     }
     
     return (
@@ -132,9 +127,9 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
                                     <CommandEmpty>No results found.</CommandEmpty>
                                     <CommandGroup heading="Teams">
                                         <CommandItem onSelect={() => field.onChange(['all'])}>All Staff</CommandItem>
-                                        <CommandItem onSelect={() => field.onChange(staffByDept['Accounting and Tax'].map(s => s.id))}>Accounting and Tax Dept</CommandItem>
-                                        <CommandItem onSelect={() => field.onChange(staffByDept['Administration'].map(s => s.id))}>Administration Dept</CommandItem>
-                                        <CommandItem onSelect={() => field.onChange(staffByDept['CAP'].map(s => s.id))}>CAP Dept</CommandItem>
+                                        <CommandItem onSelect={() => field.onChange(staffByDept['Accounting and Tax']?.map(s => s.id) || [])}>Accounting and Tax Dept</CommandItem>
+                                        <CommandItem onSelect={() => field.onChange(staffByDept['Administration']?.map(s => s.id) || [])}>Administration Dept</CommandItem>
+                                        <CommandItem onSelect={() => field.onChange(staffByDept['CAP']?.map(s => s.id) || [])}>CAP Dept</CommandItem>
                                     </CommandGroup>
                                     <CommandGroup heading="Individual Staff">
                                         {allStaff.map((staff) => (
@@ -332,6 +327,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
 
 export default function AdminTasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [allStaff, setAllStaff] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -342,10 +338,16 @@ export default function AdminTasksPage() {
   const fetchTasks = async () => {
     setIsLoading(true);
     try {
-        const q = query(collection(db, 'tasks'), orderBy('dueDate', 'asc'));
-        const querySnapshot = await getDocs(q);
-        const fetchedTasks = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Task));
+        const tasksQuery = query(collection(db, 'tasks'), orderBy('dueDate', 'asc'));
+        const tasksSnapshot = await getDocs(tasksQuery);
+        const fetchedTasks = tasksSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Task));
         setTasks(fetchedTasks);
+
+        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
+        const staffSnapshot = await getDocs(staffQuery);
+        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+        setAllStaff(fetchedStaff);
+
     } catch (error) {
         console.error("Error fetching tasks:", error);
         toast({ title: "Error", description: "Could not fetch tasks.", variant: "destructive" });
@@ -357,6 +359,14 @@ export default function AdminTasksPage() {
   useEffect(() => {
     fetchTasks();
   }, []);
+
+  const staffByDept = useMemo(() => {
+    const result: Record<string, User[]> = {};
+    departments.forEach(dept => {
+        result[dept] = allStaff.filter(u => u.department === dept);
+    });
+    return result;
+  }, [allStaff]);
 
   const taskTypes = useMemo(() => {
     const types = new Set(tasks.map(task => {
@@ -506,7 +516,7 @@ export default function AdminTasksPage() {
 
   const getAssignee = (userId?: string): User | undefined => {
     if (!userId) return undefined;
-    return users.find(u => u.id === userId);
+    return allStaff.find(u => u.id === userId) || users.find(u => u.id === userId);
   }
 
     const getStatusVariant = (status: Task['status']) => {
@@ -554,6 +564,8 @@ export default function AdminTasksPage() {
                     onSubmit={handleFormSubmit}
                     onCancel={() => setIsFormOpen(false)}
                     onCommentSubmit={handleCommentSubmit}
+                    allStaff={allStaff}
+                    staffByDept={staffByDept}
                 />
            </DialogContent>
         </Dialog>
@@ -772,3 +784,4 @@ export default function AdminTasksPage() {
 
 
     
+

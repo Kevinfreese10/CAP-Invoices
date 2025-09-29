@@ -9,7 +9,6 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { format, formatDistanceToNow, isPast } from 'date-fns';
 import { Task, User, TaskComment } from '@/lib/types';
-import { users } from '@/lib/data';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { MessageSquare, PlusCircle, MoreHorizontal, CalendarIcon, Loader2, Repeat, BrainCircuit, Check, Tag } from 'lucide-react';
@@ -34,6 +33,7 @@ import { firebaseApp } from '@/lib/firebase';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import KanbanView from '@/components/dashboard/KanbanView';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { users } from '@/lib/data';
 
 
 const db = getFirestore(firebaseApp);
@@ -44,13 +44,9 @@ type UnansweredQuestion = {
   timestamp: Date;
 };
 
-const allStaff = users.filter(u => u.role === 'staff' || u.role === 'admin');
+
 const departments = ['Accounting and Tax', 'Administration', 'CAP'] as const;
-const staffByDept = {
-    'Accounting and Tax': allStaff.filter(u => u.department === 'Accounting and Tax'),
-    'Administration': allStaff.filter(u => u.department === 'Administration'),
-    'CAP': allStaff.filter(u => u.department === 'CAP'),
-};
+
 const taskStatuses: Task['status'][] = ['To-Do', 'In Progress', 'Review', 'Done'];
 const taskPriorities: Task['priority'][] = ['High', 'Medium', 'Low'];
 const taskRecurrences: Task['recurrence'][] = ['None', 'Daily', 'Weekly', 'Monthly'];
@@ -68,7 +64,7 @@ const formSchema = z.object({
   newComment: z.string().optional(),
 });
 
-function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | null, onSubmit: (data: any) => void, onCancel: () => void, onCommentSubmit: (taskId: string, commentText: string) => void }) {
+function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffByDept }: { task: Task | null, onSubmit: (data: any) => void, onCancel: () => void, onCommentSubmit: (taskId: string, commentText: string) => void, allStaff: User[], staffByDept: Record<string, User[]> }) {
     const { user } = useAuth();
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -100,7 +96,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
     }
     
     const getAuthor = (authorId: string): User | undefined => {
-        return users.find(u => u.id === authorId);
+        return allStaff.find(u => u.id === authorId) || users.find(u => u.id === authorId);
     }
     
     return (
@@ -140,9 +136,9 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
                                     <CommandEmpty>No results found.</CommandEmpty>
                                     <CommandGroup heading="Teams">
                                         <CommandItem onSelect={() => field.onChange(['all'])}>All Staff</CommandItem>
-                                        <CommandItem onSelect={() => field.onChange(staffByDept['Accounting and Tax'].map(s => s.id))}>Accounting and Tax Dept</CommandItem>
-                                        <CommandItem onSelect={() => field.onChange(staffByDept['Administration'].map(s => s.id))}>Administration Dept</CommandItem>
-                                        <CommandItem onSelect={() => field.onChange(staffByDept['CAP'].map(s => s.id))}>CAP Dept</CommandItem>
+                                        <CommandItem onSelect={() => field.onChange(staffByDept['Accounting and Tax']?.map(s => s.id) || [])}>Accounting and Tax Dept</CommandItem>
+                                        <CommandItem onSelect={() => field.onChange(staffByDept['Administration']?.map(s => s.id) || [])}>Administration Dept</CommandItem>
+                                        <CommandItem onSelect={() => field.onChange(staffByDept['CAP']?.map(s => s.id) || [])}>CAP Dept</CommandItem>
                                     </CommandGroup>
                                     <CommandGroup heading="Individual Staff">
                                         {allStaff.map((staff) => (
@@ -339,10 +335,10 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
     )
 }
 
-const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete, filter }: { tasks: Task[], title: string, description: string, onEdit: (task: Task) => void, onUpdateStatus: (taskId: string, status: Task['status']) => void, onDelete: (taskId: string) => void, filter: string }) => {
+const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete, filter, allStaff }: { tasks: Task[], title: string, description: string, onEdit: (task: Task) => void, onUpdateStatus: (taskId: string, status: Task['status']) => void, onDelete: (taskId: string) => void, filter: string, allStaff: User[] }) => {
     const getAssignee = (userId?: string): User | undefined => {
         if (!userId) return undefined;
-        return users.find(u => u.id === userId);
+        return allStaff.find(u => u.id === userId) || users.find(u => u.id === userId);
     }
     
     const filteredTasks = useMemo(() => {
@@ -570,6 +566,7 @@ export default function AdminDashboardPage() {
     const { user } = useAuth();
     const [tasks, setTasks] = useState<Task[]>([]);
     const [unansweredQuestions, setUnansweredQuestions] = useState<UnansweredQuestion[]>([]);
+    const [allStaff, setAllStaff] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -584,6 +581,12 @@ export default function AdminDashboardPage() {
             const tasksSnapshot = await getDocs(tasksQuery);
             const fetchedTasks = tasksSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Task));
             setTasks(fetchedTasks);
+
+            // Fetch staff
+            const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
+            const staffSnapshot = await getDocs(staffQuery);
+            const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+            setAllStaff(fetchedStaff);
 
             // Fetch unanswered questions
             if (user?.role === 'admin') {
@@ -607,6 +610,14 @@ export default function AdminDashboardPage() {
     useEffect(() => {
         if (user) fetchDashboardData();
     }, [user]);
+
+    const staffByDept = useMemo(() => {
+        const result: Record<string, User[]> = {};
+        departments.forEach(dept => {
+            result[dept] = allStaff.filter(u => u.department === dept);
+        });
+        return result;
+    }, [allStaff]);
 
     const taskTypes = useMemo(() => {
         const types = new Set(tasks.filter(task => task.recurrence && task.recurrence !== 'None').map(task => {
@@ -638,11 +649,11 @@ export default function AdminDashboardPage() {
                 if (!Array.isArray(task.assignedTo) || task.assignedTo.length <= 1) return false; // Must be assigned to more than one person
 
                 // Check if all assignees are in the same department
-                const firstAssigneeDept = users.find(u => u.id === task.assignedTo[0])?.department;
+                const firstAssigneeDept = allStaff.find(u => u.id === task.assignedTo[0])?.department;
                 if (firstAssigneeDept !== dept) return false;
 
                 const allInDept = task.assignedTo.every(userId => {
-                    const assignee = users.find(u => u.id === userId);
+                    const assignee = allStaff.find(u => u.id === userId);
                     return assignee?.department === dept;
                 });
     
@@ -650,7 +661,7 @@ export default function AdminDashboardPage() {
             }).sort((a, b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : b.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
         });
         return deptTasks;
-    }, [tasks]);
+    }, [tasks, allStaff]);
 
     const automatedTasks = useMemo(() => {
         return tasks.filter(task => task.recurrence && task.recurrence !== 'None');
@@ -825,6 +836,8 @@ export default function AdminDashboardPage() {
                                 onSubmit={handleFormSubmit}
                                 onCancel={() => handleFormOpenChange(false)}
                                 onCommentSubmit={handleCommentSubmit}
+                                allStaff={allStaff}
+                                staffByDept={staffByDept}
                             />
                         </DialogContent>
                     </Dialog>
@@ -927,6 +940,7 @@ export default function AdminDashboardPage() {
                             onUpdateStatus={handleUpdateStatus}
                             onDelete={handleDelete}
                             filter="all"
+                            allStaff={allStaff}
                         />
                         
                          <Card>
@@ -961,6 +975,7 @@ export default function AdminDashboardPage() {
                                     onUpdateStatus={handleUpdateStatus}
                                     onDelete={handleDelete}
                                     filter={automatedTaskFilter}
+                                    allStaff={allStaff}
                                 />
                             </CardContent>
                         </Card>
@@ -975,6 +990,7 @@ export default function AdminDashboardPage() {
                                 onUpdateStatus={handleUpdateStatus}
                                 onDelete={handleDelete}
                                 filter="all"
+                                allStaff={allStaff}
                             />
                         ))}
                         
@@ -987,6 +1003,7 @@ export default function AdminDashboardPage() {
                                 onUpdateStatus={handleUpdateStatus}
                                 onDelete={handleDelete}
                                 filter="all"
+                                allStaff={allStaff}
                             />
                         )}
 
@@ -999,6 +1016,7 @@ export default function AdminDashboardPage() {
                                 onUpdateStatus={handleUpdateStatus}
                                 onDelete={handleDelete}
                                 filter="all"
+                                allStaff={allStaff}
                             />
                         )}
                     </>
