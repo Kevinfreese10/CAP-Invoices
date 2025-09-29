@@ -4,14 +4,21 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import WebsiteAIWidget from '@/components/shared/WebsiteAIWidget';
 
 export default function ResellerDashboardPage() {
     const { user } = useAuth();
 
     return (
         <div className="space-y-8">
-            <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.contactPerson}!</h1>
-             <p className="text-lg text-muted-foreground">{user?.companyName}</p>
+            <div>
+                <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.contactPerson}!</h1>
+                <p className="text-lg text-muted-foreground">{user?.companyName}</p>
+            </div>
+
+            <section>
+                <WebsiteAIWidget />
+            </section>
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 <Card className="flex flex-col">
