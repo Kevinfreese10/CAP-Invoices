@@ -1,5 +1,3 @@
-
-
 import { notFound } from 'next/navigation';
 import { services } from '@/lib/data';
 import { Badge } from '@/components/ui/badge';
@@ -7,6 +5,8 @@ import { BadgeCheck, Clock, ClipboardCheck } from 'lucide-react';
 import { Service } from '@/lib/types';
 import ClientServiceCheckoutForm from '@/components/checkout/ClientServiceCheckoutForm';
 import { Separator } from '@/components/ui/separator';
+import type { Metadata } from 'next';
+import Image from 'next/image';
 
 const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -16,6 +16,39 @@ const formatPrice = (price: number) => {
       maximumFractionDigits: 2,
     }).format(price);
 };
+
+export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
+  const service = services.find(s => s.id === params.id);
+
+  if (!service) {
+    return {
+      title: 'Service Not Found',
+    };
+  }
+
+  const title = service.metaTitle || `${service.title} | Fast & Affordable - My Accountant`;
+  const description = service.metaDescription || service.description;
+
+  return {
+    title: title,
+    description: description,
+    openGraph: {
+      title: title,
+      description: description,
+      images: [
+        {
+          url: service.seoImageUrl || service.imageUrl,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: title,
+      description: description,
+      images: [service.seoImageUrl || service.imageUrl],
+    },
+  };
+}
 
 export default function ServiceDetailPage({ params }: { params: { id: string } }) {
   const service = services.find(s => s.id === params.id) as Service;
@@ -28,6 +61,17 @@ export default function ServiceDetailPage({ params }: { params: { id: string } }
     <div className="container mx-auto px-4 py-12">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
         <div className="space-y-8 md:col-span-2">
+            
+          <div className="relative h-64 md:h-80 w-full rounded-lg overflow-hidden mb-8">
+            <Image
+              src={service.imageUrl}
+              alt={service.imageHint || service.title}
+              fill
+              className="object-cover"
+              data-ai-hint={service.imageHint}
+            />
+          </div>
+
           <div className="space-y-3">
             <Badge variant="secondary" className="w-fit">{service.category}</Badge>
             <h1 className="text-3xl md:text-4xl font-bold tracking-tight">{service.title}</h1>
