@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, ArrowUp, ArrowDown } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -18,16 +18,16 @@ import { zodResolver } from '@hookform/resolvers/zod';
 
 // Mock data, as there's no database
 const initialCategories = [
-    { id: '1', name: "SARS Services", description: "Comprehensive tax services to ensure you are compliant with SARS." },
-    { id: '2', name: "Entity Registrations", description: "Register your new business entity with all the necessary bodies." },
-    { id: '3', name: "CIPC Services", description: "All services related to the Companies and Intellectual Property Commission." },
-    { id: '4', name: "COIDA Services", description: "Services related to the Compensation for Occupational Injuries and Diseases Act." },
-    { id: '5', name: "NCR Registrations", description: "Registration services for the National Credit Regulator." },
-    { id: '6', name: "Accounting Services", description: "Professional accounting and bookkeeping to keep your finances in order." },
-    { id: '7', name: "CIDB Services", description: "Services for the Construction Industry Development Board." }
+    { id: '1', name: "SARS Services", description: "Comprehensive tax services to ensure you are compliant with SARS.", order: 1 },
+    { id: '2', name: "Entity Registrations", description: "Register your new business entity with all the necessary bodies.", order: 2 },
+    { id: '3', name: "CIPC Services", description: "All services related to the Companies and Intellectual Property Commission.", order: 3 },
+    { id: '4', name: "COIDA Services", description: "Services related to the Compensation for Occupational Injuries and Diseases Act.", order: 4 },
+    { id: '5', name: "NCR Registrations", description: "Registration services for the National Credit Regulator.", order: 5 },
+    { id: '6', name: "Accounting Services", description: "Professional accounting and bookkeeping to keep your finances in order.", order: 6 },
+    { id: '7', name: "CIDB Services", description: "Services for the Construction Industry Development Board.", order: 7 }
 ];
 
-type Category = { id: string; name: string; description: string; };
+type Category = { id: string; name: string; description: string; order: number; };
 
 const formSchema = z.object({
   id: z.string().optional(),
@@ -35,7 +35,7 @@ const formSchema = z.object({
   description: z.string().min(10, 'Description is required.'),
 });
 
-function CategoryForm({ category, onSubmit, onCancel }: { category: Category | null, onSubmit: (data: any) => void, onCancel: () => void }) {
+function CategoryForm({ category, onSubmit, onCancel }: { category: Omit<Category, 'order'> | null, onSubmit: (data: any) => void, onCancel: () => void }) {
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
@@ -84,7 +84,7 @@ function CategoryForm({ category, onSubmit, onCancel }: { category: Category | n
 }
 
 export default function AdminCategoriesPage() {
-  const [categories, setCategories] = useState<Category[]>(initialCategories);
+  const [categories, setCategories] = useState<Category[]>(initialCategories.sort((a,b) => a.order - b.order));
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const { toast } = useToast();
@@ -108,7 +108,7 @@ export default function AdminCategoriesPage() {
     })
   };
 
-  const handleFormSubmit = (data: Omit<Category, 'id'>) => {
+  const handleFormSubmit = (data: Omit<Category, 'id' | 'order'>) => {
     if (selectedCategory) {
       // Update
       setCategories(prev =>
@@ -120,9 +120,10 @@ export default function AdminCategoriesPage() {
       });
     } else {
       // Add
+       const newOrder = categories.length > 0 ? Math.max(...categories.map(c => c.order)) + 1 : 1;
       setCategories(prev => [
         ...prev,
-        { ...data, id: `new-cat-${Date.now()}` }, // Mock ID
+        { ...data, id: `new-cat-${Date.now()}`, order: newOrder }, // Mock ID
       ]);
        toast({
         title: 'Category Created',
@@ -131,6 +132,25 @@ export default function AdminCategoriesPage() {
     }
     setIsFormOpen(false);
     setSelectedCategory(null);
+  };
+
+  const moveCategory = (index: number, direction: 'up' | 'down') => {
+    if (
+      (direction === 'up' && index === 0) ||
+      (direction === 'down' && index === categories.length - 1)
+    ) {
+      return;
+    }
+
+    const newCategories = [...categories];
+    const itemToMove = newCategories[index];
+    const swapIndex = direction === 'up' ? index - 1 : index + 1;
+    const itemToSwap = newCategories[swapIndex];
+
+    // Swap orders
+    [itemToMove.order, itemToSwap.order] = [itemToSwap.order, itemToMove.order];
+
+    setCategories(newCategories.sort((a, b) => a.order - b.order));
   };
 
   return (
@@ -162,20 +182,31 @@ export default function AdminCategoriesPage() {
       <Card>
         <CardHeader>
           <CardTitle>All Categories</CardTitle>
-          <CardDescription>View, edit, and delete your service categories.</CardDescription>
+          <CardDescription>View, edit, and delete your service categories. Use the arrows to reorder them.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[80px]">Order</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {categories.map(category => (
+              {categories.map((category, index) => (
                 <TableRow key={category.id}>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => moveCategory(index, 'up')} disabled={index === 0}>
+                        <ArrowUp className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => moveCategory(index, 'down')} disabled={index === categories.length - 1}>
+                        <ArrowDown className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
                   <TableCell className="font-medium">{category.name}</TableCell>
                   <TableCell>{category.description}</TableCell>
                   <TableCell className="text-right">

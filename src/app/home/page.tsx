@@ -45,40 +45,22 @@ export default function Home() {
   ];
 
   const serviceCategories = [
-    {
-      name: "SARS Services",
-      description: "Comprehensive tax services to ensure you are compliant with SARS."
-    },
-    {
-      name: "Entity Registrations",
-      description: "Register your new business entity with all the necessary bodies."
-    },
-    {
-      name: "CIPC Services",
-      description: "All services related to the Companies and Intellectual Property Commission."
-    },
-    {
-      name: "COIDA Services",
-      description: "Services related to the Compensation for Occupational Injuries and Diseases Act."
-    },
-     {
-      name: "NCR Registrations",
-      description: "Registration services for the National Credit Regulator."
-    },
-    {
-      name: "Accounting Services",
-      description: "Professional accounting and bookkeeping to keep your finances in order."
-    },
-    {
-        name: "CIDB Services",
-        description: "Services for the Construction Industry Development Board."
-    }
+    { name: "SARS Services", description: "Comprehensive tax services to ensure you are compliant with SARS.", order: 1 },
+    { name: "Entity Registrations", description: "Register your new business entity with all the necessary bodies.", order: 2 },
+    { name: "CIPC Services", description: "All services related to the Companies and Intellectual Property Commission.", order: 3 },
+    { name: "COIDA Services", description: "Services related to the Compensation for Occupational Injuries and Diseases Act.", order: 4 },
+    { name: "NCR Registrations", description: "Registration services for the National Credit Regulator.", order: 5 },
+    { name: "Accounting Services", description: "Professional accounting and bookkeeping to keep your finances in order.", order: 6 },
+    { name: "CIDB Services", description: "Services for the Construction Industry Development Board.", order: 7 }
   ];
   
-  const categorizedServices = serviceCategories.map(category => ({
-    ...category,
-    data: services.filter(s => s.category === category.name)
-  })).filter(c => c.data.length > 0);
+  const categorizedServices = serviceCategories
+    .map(category => ({
+        ...category,
+        data: services.filter(s => s.category === category.name)
+    }))
+    .filter(c => c.data.length > 0)
+    .sort((a, b) => a.order - b.order);
 
 
   return (
