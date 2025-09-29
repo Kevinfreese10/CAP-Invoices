@@ -205,6 +205,9 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
                                 mode="single"
                                 selected={field.value}
                                 onSelect={field.onChange}
+                                captionLayout="dropdown"
+                                fromYear={2015}
+                                toYear={new Date().getFullYear()}
                                 disabled={(date) => date < new Date("1900-01-01")}
                                 initialFocus
                             />
@@ -290,7 +293,7 @@ function AddBankAccountForm({ activeClient, onAccountAdded, chartOfAccounts }: {
     defaultValues: { name: '' },
   });
 
-  const handleSubmit = async (values: z.infer<typeof bankAccountFormSchema>>) => {
+  const handleSubmit = async (values: z.infer<typeof bankAccountFormSchema>) => {
     if (!activeClient) return;
     setIsSaving(true);
     try {
@@ -2174,6 +2177,9 @@ export default function NumeraPage() {
         let fetchedClients = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
         fetchedClients.sort((a, b) => a.name.localeCompare(b.name));
         setClients(fetchedClients);
+        // Reset customers and suppliers when fetching new clients
+        setCustomers([]);
+        setSuppliers([]);
     } catch (error) {
         console.error("Error fetching clients:", error);
         toast({ title: 'Error', description: 'Could not fetch clients from the database.', variant: 'destructive'});
@@ -2314,6 +2320,8 @@ export default function NumeraPage() {
      if (isNewClient) {
       clientData.chartOfAccounts = chartOfAccountsData;
       clientData.allocationRules = initialAllocationRules;
+      clientData.customers = [];
+      clientData.suppliers = [];
     }
 
 
@@ -2848,22 +2856,33 @@ export default function NumeraPage() {
       setIsSupplierFormOpen(true);
   };
   
-  const handleDeleteSupplier = (supplierId: string) => {
-      setSuppliers(prev => prev.filter(s => s.id !== supplierId));
-      toast({ title: 'Supplier Deleted', variant: 'destructive'});
+  const handleDeleteSupplier = async (supplierId: string) => {
+      if(!activeClient) return;
+      try {
+        await deleteDoc(doc(db, "clients", activeClient.id, "suppliers", supplierId));
+        fetchClientSubCollections(activeClient.id);
+        toast({ title: 'Supplier Deleted', variant: 'destructive'});
+      } catch (error) {
+         toast({ title: 'Error deleting supplier', variant: 'destructive'});
+      }
   };
   
-  const handleSupplierFormSubmit = (data: Omit<Supplier, 'id'>) => {
-      if (selectedSupplier) {
-          setSuppliers(prev => prev.map(s => s.id === selectedSupplier.id ? { ...s, ...data } : s));
-          toast({ title: 'Supplier Updated', description: 'The supplier details have been saved.' });
-      } else {
-          const newSupplier: Supplier = { ...data, id: `supp-${Date.now()}`, };
-          setSuppliers(prev => [...prev, newSupplier]);
-          toast({ title: 'Supplier Created', description: 'The new supplier has been added.' });
+  const handleSupplierFormSubmit = async (data: Omit<Supplier, 'id'>) => {
+      if(!activeClient) return;
+      try {
+        if (selectedSupplier) {
+            await setDoc(doc(db, "clients", activeClient.id, "suppliers", selectedSupplier.id), data);
+            toast({ title: 'Supplier Updated', description: 'The supplier details have been saved.' });
+        } else {
+            await addDoc(collection(db, "clients", activeClient.id, "suppliers"), data);
+            toast({ title: 'Supplier Created', description: 'The new supplier has been added.' });
+        }
+        fetchClientSubCollections(activeClient.id);
+        setIsSupplierFormOpen(false);
+        setSelectedSupplier(null);
+      } catch (error) {
+        toast({ title: 'Error saving supplier', variant: 'destructive'});
       }
-      setIsSupplierFormOpen(false);
-      setSelectedSupplier(null);
   };
 
     const handleAddCustomer = () => {
@@ -2876,22 +2895,40 @@ export default function NumeraPage() {
       setIsCustomerFormOpen(true);
   };
   
-  const handleDeleteCustomer = (customerId: string) => {
-      setCustomers(prev => prev.filter(s => s.id !== customerId));
-      toast({ title: 'Customer Deleted', variant: 'destructive'});
+  const handleDeleteCustomer = async (customerId: string) => {
+      if(!activeClient) return;
+      try {
+          await deleteDoc(doc(db, "clients", activeClient.id, "customers", customerId));
+          fetchClientSubCollections(activeClient.id);
+          toast({ title: 'Customer Deleted', variant: 'destructive'});
+      } catch(e){
+          toast({ title: 'Error deleting customer', variant: 'destructive'});
+      }
   };
   
-  const handleCustomerFormSubmit = (data: Omit<User, 'id' | 'role'>) => {
-      if (selectedCustomer) {
-          setCustomers(prev => prev.map(s => s.id === selectedCustomer.id ? { ...s, ...data, role: 'client' } : s));
-          toast({ title: 'Customer Updated', description: 'The customer details have been saved.' });
-      } else {
-          const newCustomer: User = { ...data, id: `cust-${Date.now()}`, role: 'client' };
-          setCustomers(prev => [...prev, newCustomer]);
-          toast({ title: 'Customer Created', description: 'The new customer has been added.' });
+  const handleCustomerFormSubmit = async (data: Omit<User, 'id' | 'role'>) => {
+      if(!activeClient) return;
+      const customerData = {
+          name: data.name,
+          contactPerson: data.contactPerson,
+          email: data.email,
+          contactNumber: data.phone,
+          role: 'client'
       }
-      setIsCustomerFormOpen(false);
-      setSelectedCustomer(null);
+       try {
+        if (selectedCustomer) {
+            await setDoc(doc(db, "clients", activeClient.id, "customers", selectedCustomer.id), customerData);
+            toast({ title: 'Customer Updated', description: 'The customer details have been saved.' });
+        } else {
+            await addDoc(collection(db, "clients", activeClient.id, "customers"), customerData);
+            toast({ title: 'Customer Created', description: 'The new customer has been added.' });
+        }
+        fetchClientSubCollections(activeClient.id);
+        setIsCustomerFormOpen(false);
+        setSelectedCustomer(null);
+      } catch(e) {
+         toast({ title: 'Error saving customer', variant: 'destructive'});
+      }
   };
   
   const handleEditTransaction = (transaction: ImportedTransaction) => {
@@ -2940,6 +2977,7 @@ export default function NumeraPage() {
         batch.delete(doc(db, 'allocatedTransactions', id));
     });
     try {
+        await batch.commit();
         await fetchTransactions(activeClient.id);
         toast({ title: `${selectedAllocated.length} Transactions Deleted`, description: 'The selected allocated transactions have been removed.' });
         setSelectedAllocated([]);
@@ -3153,11 +3191,11 @@ export default function NumeraPage() {
         });
     };
   
-  const incomeTransactions = useMemo(() => filteredTransactions(unallocatedTransactions.filter(tx => tx.amount >= 0)), [unallocatedTransactions, searchQuery, activeProcessingTab, allocations, vatTypes]);
-  const expenseTransactions = useMemo(() => filteredTransactions(unallocatedTransactions.filter(tx => tx.amount < 0)), [unallocatedTransactions, searchQuery, activeProcessingTab, allocations, vatTypes]);
-  const allocatedIncome = useMemo(() => filteredTransactions(allocatedTransactions.filter(tx => tx.amount >= 0)), [allocatedTransactions, searchQuery, activeProcessingTab, allocations, vatTypes]);
-  const allocatedExpenses = useMemo(() => filteredTransactions(allocatedTransactions.filter(tx => tx.amount < 0)), [allocatedTransactions, searchQuery, activeProcessingTab, allocations, vatTypes]);
-  const filteredReviewTransactions = useMemo(() => filteredTransactions(reviewTransactions), [reviewTransactions, searchQuery, activeProcessingTab, allocations, vatTypes]);
+  const incomeTransactions = useMemo(() => filteredTransactions(unallocatedTransactions.filter(tx => tx.amount >= 0)), [unallocatedTransactions, searchQuery, allocations, vatTypes]);
+  const expenseTransactions = useMemo(() => filteredTransactions(unallocatedTransactions.filter(tx => tx.amount < 0)), [unallocatedTransactions, searchQuery, allocations, vatTypes]);
+  const allocatedIncome = useMemo(() => filteredTransactions(allocatedTransactions.filter(tx => tx.amount >= 0)), [allocatedTransactions, searchQuery, allocations, vatTypes]);
+  const allocatedExpenses = useMemo(() => filteredTransactions(allocatedTransactions.filter(tx => tx.amount < 0)), [allocatedTransactions, searchQuery, allocations, vatTypes]);
+  const filteredReviewTransactions = useMemo(() => filteredTransactions(reviewTransactions), [reviewTransactions, searchQuery, allocations, vatTypes]);
 
 
   return (
@@ -3595,7 +3633,7 @@ export default function NumeraPage() {
                               <Button onClick={handleAddSupplier}><PlusCircle className="mr-2 h-4 w-4" /> Create Supplier</Button>
                            </CardHeader>
                           <CardContent>
-                              {customers.length > 0 ? (
+                              {suppliers.length > 0 ? (
                                   <Table>
                                       <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Contact Person</TableHead><TableHead>Email</TableHead><TableHead>Phone</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                                       <TableBody>
@@ -4219,3 +4257,4 @@ function BulkAllocateDialog({ isOpen, onClose, onBulkAllocate, count, customers,
         </Dialog>
     );
 }
+
