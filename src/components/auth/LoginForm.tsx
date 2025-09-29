@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -28,12 +29,12 @@ export default function LoginForm() {
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    const user = login(values.email);
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    const user = await login(values.email);
     if (!user) {
         toast({
             title: 'Login Failed',
-            description: 'Invalid email or password.',
+            description: 'Invalid email address.',
             variant: 'destructive',
         });
         return;

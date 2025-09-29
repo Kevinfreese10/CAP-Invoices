@@ -5,10 +5,14 @@ import { createContext, useState, useContext, ReactNode, useEffect } from 'react
 import type { User } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 import { users } from '@/lib/data';
+import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
+
+const db = getFirestore(firebaseApp);
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password?: string) => User | undefined;
+  login: (email: string) => Promise<User | undefined>;
   logout: () => void;
   signup: (name: string, email: string) => User;
   isAuthenticated: boolean | undefined;
@@ -61,7 +65,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
-  const login = (email: string) => {
+  const login = async (email: string): Promise<User | undefined> => {
+    // 1. Check Firestore first for dynamic users
+    try {
+        const q = query(collection(db, "users"), where("email", "==", email));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+            const doc = querySnapshot.docs[0];
+            const foundUser = { ...doc.data(), id: doc.id } as User;
+            if (foundUser.role !== 'client') {
+                updateUserState(foundUser);
+                return foundUser;
+            }
+        }
+    } catch (error) {
+        console.error("Error querying Firestore for user:", error);
+    }
+    
+    // 2. Fallback to static data file
     const foundUser = users.find(u => u.email === email);
     
     if (foundUser && foundUser.role !== 'client') {
