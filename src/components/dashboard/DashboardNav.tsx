@@ -70,7 +70,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
 
   const resellerNavItems = [
     { href: '/reseller/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['reseller'] },
-    { href: '/services', label: 'View Services', icon: Briefcase, roles: ['reseller'] },
+    { href: '/reseller/services', label: 'View Services', icon: Briefcase, roles: ['reseller'] },
     { href: '/reseller/orders', label: 'Client Orders', icon: ShieldCheck, roles: ['reseller'] },
     { href: '/reseller/profile', label: 'My Profile', icon: User, roles: ['reseller'] },
     { href: '/reseller/settings', label: 'API & Branding', icon: Settings, roles: ['reseller'] },
