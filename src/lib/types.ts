@@ -188,6 +188,7 @@ export type Task = {
   orderId?: string;
   clientId?: string;
   comments?: TaskComment[];
+  tags?: string[];
 };
 
 export type ImportedTransaction = {

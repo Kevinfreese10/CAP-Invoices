@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Repeat, Check } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Repeat, Check, Tag } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -52,6 +52,7 @@ const formSchema = z.object({
   title: z.string().min(5, 'Title is required.'),
   description: z.string().min(10, 'Description is required.'),
   assignedTo: z.array(z.string()).min(1, 'Please assign a staff member.'),
+  tags: z.array(z.string()).optional(),
   dueDate: z.date({ required_error: 'A due date is required.'}),
   priority: z.enum(taskPriorities),
   recurrence: z.enum(taskRecurrences).optional(),
@@ -68,6 +69,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
             title: task?.title || '',
             description: task?.description || '',
             assignedTo: task?.assignedTo || [],
+            tags: task?.tags || [],
             dueDate: task?.dueDate ? task.dueDate.toDate() : new Date(),
             priority: task?.priority || 'Medium',
             recurrence: task?.recurrence || 'None',
@@ -211,6 +213,72 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit }: { task: Task | 
                         />
                     <FormField control={form.control} name="priority" render={({ field }) => (<FormItem><FormLabel>Priority</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select priority..." /></SelectTrigger></FormControl><SelectContent>{taskPriorities.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                 </div>
+                 <FormField
+                        control={form.control}
+                        name="tags"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Tag Staff (Optional)</FormLabel>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                <FormControl>
+                                    <Button
+                                    variant="outline"
+                                    role="combobox"
+                                    className={cn(
+                                        "w-full justify-between",
+                                        !field.value?.length && "text-muted-foreground"
+                                    )}
+                                    >
+                                    {field.value?.length > 0
+                                        ? `${field.value.length} tagged`
+                                        : "Select staff to tag..."}
+                                    <MoreHorizontal className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                    </Button>
+                                </FormControl>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                <Command>
+                                    <CommandInput placeholder="Search..." />
+                                    <CommandList>
+                                    <CommandEmpty>No results found.</CommandEmpty>
+                                    <CommandGroup heading="Individual Staff">
+                                        {allStaff.map((staff) => (
+                                        <CommandItem
+                                            key={staff.id}
+                                            value={staff.name}
+                                            onSelect={() => {
+                                            const selection = new Set(field.value);
+                                            if (selection.has(staff.id)) {
+                                                selection.delete(staff.id);
+                                            } else {
+                                                selection.add(staff.id);
+                                            }
+                                            field.onChange(Array.from(selection));
+                                            }}
+                                        >
+                                            <div
+                                            className={cn(
+                                                "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                                                field.value?.includes(staff.id)
+                                                ? "bg-primary text-primary-foreground"
+                                                : "opacity-50 [&_svg]:invisible"
+                                            )}
+                                            >
+                                            <Check className={cn("h-4 w-4")} />
+                                            </div>
+                                            <span>{staff.name}</span>
+                                        </CommandItem>
+                                        ))}
+                                    </CommandGroup>
+                                    </CommandList>
+                                </Command>
+                                </PopoverContent>
+                            </Popover>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                        />
                  <FormField control={form.control} name="orderId" render={({ field }) => (<FormItem><FormLabel>Related Order ID (Optional)</FormLabel><FormControl><Input {...field} placeholder="e.g. ORD-12345" /></FormControl><FormMessage /></FormItem>)} />
                  <FormField control={form.control} name="recurrence" render={({ field }) => (<FormItem><FormLabel>Recurrence</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select recurrence..." /></SelectTrigger></FormControl><SelectContent>{taskRecurrences.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                 {task && (
@@ -526,6 +594,7 @@ export default function AdminTasksPage() {
               <TableRow>
                 <TableHead>Task</TableHead>
                 <TableHead>Assigned To</TableHead>
+                <TableHead>Tags</TableHead>
                 <TableHead>Due Date</TableHead>
                 <TableHead>Priority</TableHead>
                 <TableHead>Status</TableHead>
@@ -536,13 +605,14 @@ export default function AdminTasksPage() {
             <TableBody>
               {filteredTasks.length === 0 ? (
                 <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">No tasks to display.</TableCell>
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">No tasks to display.</TableCell>
                 </TableRow>
               ) : (
                 filteredTasks.map(task => {
                     const lastComment = task.comments && task.comments.length > 0 ? task.comments[task.comments.length - 1] : null;
                     const commentAuthor = lastComment ? getAssignee(lastComment.authorId) : null;
                     const assignees = Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo];
+                    const tags = Array.isArray(task.tags) ? task.tags : [];
                     const priority = task.status !== 'Done' && isPast(task.dueDate.toDate()) ? 'High' : task.priority;
                     return (
                     <TableRow key={task.id}>
@@ -586,6 +656,34 @@ export default function AdminTasksPage() {
                                 {assignees.length > 3 && (
                                 <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-xs font-bold border-2 border-background">
                                     +{assignees.length - 3}
+                                </div>
+                            )}
+                        </div>
+                    </TableCell>
+                    <TableCell className="align-top">
+                        <div className="flex items-center -space-x-2">
+                            {tags.slice(0, 3).map(userId => {
+                                const taggedUser = getAssignee(userId);
+                                if (!taggedUser) return null;
+                                return (
+                                        <TooltipProvider key={userId}>
+                                        <Tooltip>
+                                            <TooltipTrigger>
+                                                <Avatar className="h-6 w-6 border-2 border-background opacity-70">
+                                                    <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${taggedUser.email}`} alt={taggedUser.name} />
+                                                    <AvatarFallback>{taggedUser.name.charAt(0)}</AvatarFallback>
+                                                </Avatar>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>Tagged: {taggedUser.name}</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                );
+                            })}
+                                {tags.length > 3 && (
+                                <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-xs font-bold border-2 border-background opacity-70">
+                                    +{tags.length - 3}
                                 </div>
                             )}
                         </div>
