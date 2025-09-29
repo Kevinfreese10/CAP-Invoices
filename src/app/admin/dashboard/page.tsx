@@ -297,10 +297,9 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                     const date = comment.date?.toDate ? comment.date.toDate() : new Date(comment.date);
                                     return (
                                     <div key={index} className="flex items-start gap-3">
-                                         <Avatar className="h-8 w-8 border">
-                                            <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${author?.email}`} />
-                                            <AvatarFallback>{author?.name.charAt(0)}</AvatarFallback>
-                                        </Avatar>
+                                         <div className="flex-shrink-0">
+                                            {/* No Avatar */}
+                                        </div>
                                         <div className="bg-muted p-3 rounded-lg w-full">
                                             <div className="flex justify-between items-center mb-1">
                                                 <p className="text-xs font-semibold">{author?.name}</p>
@@ -438,10 +437,7 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                                          <TooltipProvider key={userId}>
                                             <Tooltip>
                                                 <TooltipTrigger>
-                                                    <Avatar className="h-6 w-6 border-2 border-background">
-                                                        <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${assignee.email}`} alt={assignee.name} />
-                                                        <AvatarFallback>{assignee.name.charAt(0)}</AvatarFallback>
-                                                    </Avatar>
+                                                    <span className="h-6 w-6 border-2 border-background rounded-full bg-muted flex items-center justify-center text-xs">{assignee.name.charAt(0)}</span>
                                                 </TooltipTrigger>
                                                 <TooltipContent>
                                                     <p>{assignee.name}</p>
@@ -466,10 +462,7 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                                          <TooltipProvider key={userId}>
                                             <Tooltip>
                                                 <TooltipTrigger>
-                                                    <Avatar className="h-6 w-6 border-2 border-background opacity-70">
-                                                        <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${taggedUser.email}`} alt={taggedUser.name} />
-                                                        <AvatarFallback>{taggedUser.name.charAt(0)}</AvatarFallback>
-                                                    </Avatar>
+                                                    <span className="h-6 w-6 border-2 border-background rounded-full bg-muted flex items-center justify-center text-xs opacity-70">{taggedUser.name.charAt(0)}</span>
                                                 </TooltipTrigger>
                                                 <TooltipContent>
                                                     <p>Tagged: {taggedUser.name}</p>
@@ -635,7 +628,7 @@ export default function AdminDashboardPage() {
         if (!user) return [];
         return tasks.filter(task => 
             Array.isArray(task.assignedTo) && 
-            task.assignedTo.includes(user.id) && 
+            task.assignedTo.includes(user.id) &&
             (!task.recurrence || task.recurrence === 'None')
         ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
     }, [tasks, user]);
@@ -643,7 +636,7 @@ export default function AdminDashboardPage() {
     const delegatedTasks = useMemo(() => {
         if (!user) return [];
         return tasks.filter(task => 
-            task.createdBy === user.id && 
+            task.createdBy === user.id &&
             (!Array.isArray(task.assignedTo) || !task.assignedTo.includes(user.id)) &&
             (!task.recurrence || task.recurrence === 'None')
         ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
@@ -1032,3 +1025,4 @@ export default function AdminDashboardPage() {
     
 
     
+
