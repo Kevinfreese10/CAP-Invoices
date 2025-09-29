@@ -14,7 +14,6 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Loader2, User as UserIcon, Mail } from 'lucide-react';
 import { format } from 'date-fns';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 
 const db = getFirestore(firebaseApp);
@@ -165,10 +164,6 @@ export default function ResellerOutsourcedOrderDetailsPage() {
                                     const isEmail = note.type === 'email';
                                     return (
                                         <div key={index} className="flex items-start gap-3">
-                                            <Avatar className="h-8 w-8 border">
-                                                <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${author?.email}`} />
-                                                <AvatarFallback>{author?.name.charAt(0)}</AvatarFallback>
-                                            </Avatar>
                                             <div className="bg-muted p-3 rounded-lg w-full">
                                                 <div className="flex justify-between items-center mb-1">
                                                     <p className="text-xs font-semibold">{author?.name}</p>
@@ -214,10 +209,6 @@ export default function ResellerOutsourcedOrderDetailsPage() {
                                 <div className="space-y-4 pt-2">
                                      <h4 className="font-semibold text-sm">Assigned To</h4>
                                      <div className="flex items-center gap-4">
-                                        <Avatar className="h-12 w-12">
-                                            <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${assignee.email}`} alt={assignee.name} />
-                                            <AvatarFallback>{assignee.name.charAt(0)}</AvatarFallback>
-                                        </Avatar>
                                         <div>
                                             <p className="font-semibold">{assignee.name}</p>
                                             <p className="text-sm text-muted-foreground">{assignee.department}</p>

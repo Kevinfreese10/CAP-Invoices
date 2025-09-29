@@ -16,7 +16,6 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { User, Task } from '@/lib/types';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, writeBatch, Timestamp, query, orderBy, where } from 'firebase/firestore';
@@ -721,15 +720,9 @@ export default function AdminClientsPage() {
               {clients.map(client => (
                 <TableRow key={client.id}>
                   <TableCell className="font-medium">
-                    <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                            <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${client.email}`} alt={client.name} />
-                            <AvatarFallback>{client.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                            <span>{client.name}</span>
-                            {client.contactPerson && <p className="text-xs text-muted-foreground">{client.contactPerson}</p>}
-                        </div>
+                    <div>
+                        <span>{client.name}</span>
+                        {client.contactPerson && <p className="text-xs text-muted-foreground">{client.contactPerson}</p>}
                     </div>
                   </TableCell>
                   <TableCell>{client.email}</TableCell>

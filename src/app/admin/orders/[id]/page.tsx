@@ -16,7 +16,6 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Loader2, User as UserIcon, Mail, Phone, Send, FileText, Star, MessageSquare } from 'lucide-react';
 import { format } from 'date-fns';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useForm } from 'react-hook-form';
@@ -337,7 +336,7 @@ export default function AdminOrderDetailsPage() {
             const service = services.find(s => s.id === item.id);
             return { ...item, service };
         }).filter(item => item.service) as { service: Service }[];
-
+        
         emailHtml = render(<DocumentRequestEmail order={orderForEmail} items={itemsWithServices} reseller={reseller} />);
         subject = `Action Required: Documents needed for your order #${orderForEmail.id}`;
         message = "Sent 'Request Documents' email to client.";
@@ -465,11 +464,7 @@ export default function AdminOrderDetailsPage() {
                                     const isEmail = note.type === 'email';
                                     return (
                                         <div key={index} className="flex items-start gap-3">
-                                            <Avatar className="h-8 w-8 border">
-                                                <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${author?.email}`} />
-                                                <AvatarFallback>{author?.name.charAt(0)}</AvatarFallback>
-                                            </Avatar>
-                                            <div className="bg-muted p-3 rounded-lg w-full">
+                                            <div className="p-3 rounded-lg w-full bg-muted">
                                                 <div className="flex justify-between items-center mb-1">
                                                     <p className="text-xs font-semibold">{author?.name}</p>
                                                     <p className="text-xs text-muted-foreground">{format(new Date(note.date), 'dd MMM yyyy, HH:mm')}</p>
@@ -525,10 +520,6 @@ export default function AdminOrderDetailsPage() {
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="flex items-center gap-4">
-                                <Avatar className="h-12 w-12">
-                                    <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${assignee.email}`} alt={assignee.name} />
-                                    <AvatarFallback>{assignee.name.charAt(0)}</AvatarFallback>
-                                </Avatar>
                                 <div>
                                     <p className="font-semibold">{assignee.name}</p>
                                     <p className="text-sm text-muted-foreground">{assignee.department}</p>

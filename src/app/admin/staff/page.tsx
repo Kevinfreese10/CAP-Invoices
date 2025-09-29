@@ -16,7 +16,6 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { User } from '@/lib/types';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc, query, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -268,13 +267,7 @@ export default function AdminStaffPage() {
               {staff.map(staffMember => (
                 <TableRow key={staffMember.id}>
                   <TableCell className="font-medium">
-                    <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                            <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${staffMember.email}`} alt={staffMember.name} />
-                            <AvatarFallback>{staffMember.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <span>{staffMember.name}</span>
-                    </div>
+                    {staffMember.name}
                   </TableCell>
                   <TableCell>{staffMember.email}</TableCell>
                   <TableCell>{staffMember.department}</TableCell>

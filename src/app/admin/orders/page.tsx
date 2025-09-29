@@ -34,7 +34,6 @@ import {
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { users, services as allServices } from '@/lib/data';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Tooltip,
   TooltipContent,
@@ -409,11 +408,8 @@ export default function AdminOrdersPage() {
                       {assignee ? (
                          <TooltipProvider>
                           <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Avatar className="h-8 w-8">
-                                <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${assignee.email}`} alt={assignee.name} />
-                                <AvatarFallback>{assignee.name.charAt(0)}</AvatarFallback>
-                              </Avatar>
+                            <TooltipTrigger>
+                                <span>{assignee.name}</span>
                             </TooltipTrigger>
                             <TooltipContent>
                               <p>{assignee.name}</p>
@@ -517,4 +513,3 @@ export default function AdminOrdersPage() {
     </div>
   );
 }
-

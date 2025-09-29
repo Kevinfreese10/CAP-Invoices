@@ -32,7 +32,6 @@ import {
   SidebarFooter,
   SidebarSeparator,
 } from '@/components/ui/sidebar';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 import type { User as UserType } from '@/lib/types';
 import { Button } from '../ui/button';
@@ -84,10 +83,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
     <>
       <SidebarHeader>
         <div className="flex items-center gap-3 p-2">
-            <Avatar className="h-10 w-10">
-                <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${user.email}`} alt={user.name} />
-                <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
-            </Avatar>
             <div className="flex flex-col overflow-hidden">
                 <span className="font-semibold text-sm truncate">{user.companyName || user.name}</span>
                 <span className="text-xs text-muted-foreground capitalize truncate">{user.role}</span>

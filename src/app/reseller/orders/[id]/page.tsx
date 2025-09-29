@@ -22,7 +22,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { users as allUsers } from '@/lib/data';
 
 const db = getFirestore(firebaseApp);
@@ -200,10 +199,6 @@ export default function ResellerOrderDetailsPage() {
                                     const author = getAuthor(note.authorId);
                                     return (
                                         <div key={index} className="flex items-start gap-3">
-                                            <Avatar className="h-8 w-8 border">
-                                                <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${author?.email}`} />
-                                                <AvatarFallback>{author?.name.charAt(0)}</AvatarFallback>
-                                            </Avatar>
                                             <div className="bg-muted p-3 rounded-lg w-full">
                                                 <div className="flex justify-between items-center mb-1">
                                                     <p className="text-xs font-semibold">{author?.name}</p>

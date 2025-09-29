@@ -15,7 +15,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -125,10 +124,7 @@ const UserMenu = ({ user, onLogout }: { user: any; onLogout: () => void }) => (
   <DropdownMenu>
     <DropdownMenuTrigger asChild>
       <Button variant="ghost" className="relative h-9 w-9 rounded-full">
-        <Avatar className="h-9 w-9">
-          <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${user.email}`} alt={user.name} />
-          <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
-        </Avatar>
+        <span>{user.name.charAt(0)}</span>
       </Button>
     </DropdownMenuTrigger>
     <DropdownMenuContent className="w-56" align="end" forceMount>

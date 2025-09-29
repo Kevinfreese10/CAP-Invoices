@@ -2,7 +2,6 @@
 'use client';
 import Image from 'next/image';
 import { notFound, useParams } from 'next/navigation';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { blogPosts } from '@/lib/data';
 
 export default function BlogPostPage() {
@@ -20,10 +19,6 @@ export default function BlogPostPage() {
       <header className="mb-8">
         <h1 className="text-4xl font-bold tracking-tight md:text-5xl">{post.title}</h1>
         <div className="mt-6 flex items-center gap-4">
-          <Avatar>
-             <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${post.author}`} alt={post.author} />
-            <AvatarFallback>{post.author.charAt(0)}</AvatarFallback>
-          </Avatar>
           <div>
             <p className="font-semibold">{post.author}</p>
             <p className="text-sm text-muted-foreground">
