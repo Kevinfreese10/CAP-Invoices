@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
@@ -412,8 +413,8 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions,
             });
         };
     
-        const filteredAllocated = filterTxsByDate(allAllocated) as AllocatedTransaction[];
-        const filteredUnallocated = filterTxsByDate(allUnallocated);
+        const filteredAllocated = filterTxsByDate(allocatedTransactions) as AllocatedTransaction[];
+        const filteredUnallocated = filterTxsByDate(unallocatedTransactions);
     
         filteredAllocated.forEach(tx => {
             const allocationAccNum = tx.allocatedTo.value;
@@ -2163,7 +2164,7 @@ export default function NumeraPage() {
       isVatRegistered: data.isVatRegistered,
       vatCategory: data.isVatRegistered ? 'B' : undefined, // Default to B for simplicity, not in form
       vatRegistrationDate: data.vatRegistrationDate ? Timestamp.fromDate(data.vatRegistrationDate) : null,
-      chartOfAccounts: data.chartOfAccounts || initialChartOfAccounts,
+      chartOfAccounts: data.chartOfAccounts || chartOfAccountsData, // Use current CoA state as default
       role: 'client' as const,
       source: 'Numera' as const,
     };
