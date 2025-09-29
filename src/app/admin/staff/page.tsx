@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Users } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Users, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -15,10 +15,12 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { User } from '@/lib/types';
-import { users as allUsers } from '@/lib/data';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc, query, where } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
 
+const db = getFirestore(firebaseApp);
 const departments = ['Accounting and Tax', 'Administration', 'CAP'] as const;
 
 const formSchema = z.object({
@@ -97,14 +99,28 @@ function StaffForm({ staffMember, onSubmit, onCancel }: { staffMember: User | nu
 
 export default function AdminStaffPage() {
   const [staff, setStaff] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<User | null>(null);
   const { toast } = useToast();
   
+  const fetchStaff = async () => {
+    setIsLoading(true);
+    try {
+        const q = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
+        const querySnapshot = await getDocs(q);
+        const fetchedStaff = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+        setStaff(fetchedStaff);
+    } catch (error) {
+        console.error("Error fetching staff:", error);
+        toast({ title: 'Error', description: 'Could not fetch staff from the database.', variant: 'destructive'});
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    // Filter allUsers to only include staff and admin roles
-    const staffAndAdmins = allUsers.filter(user => user.role === 'staff' || user.role === 'admin');
-    setStaff(staffAndAdmins);
+    fetchStaff();
   }, []);
 
   const handleAdd = () => {
@@ -117,36 +133,41 @@ export default function AdminStaffPage() {
     setIsFormOpen(true);
   };
   
-  const handleDelete = (staffId: string) => {
-    setStaff(prev => prev.filter(s => s.id !== staffId));
-    toast({
-        title: 'Staff Member Deleted',
-        description: 'The staff member has been removed.',
-        variant: 'destructive',
-    })
+  const handleDelete = async (staffId: string) => {
+    try {
+        await deleteDoc(doc(db, "users", staffId));
+        fetchStaff();
+        toast({
+            title: 'Staff Member Deleted',
+            description: 'The staff member has been removed.',
+            variant: 'destructive',
+        });
+    } catch (error) {
+        console.error("Error deleting staff member:", error);
+        toast({ title: 'Error', description: 'Could not delete staff member.', variant: 'destructive' });
+    }
   };
 
-  const handleFormSubmit = (data: Omit<User, 'id' | 'role'>) => {
-    if (selectedStaff) {
-      setStaff(prev =>
-        prev.map(s => (s.id === selectedStaff.id ? { ...s, ...data } : s))
-      );
-       toast({
-        title: 'Staff Member Updated',
-        description: 'The staff details have been saved.',
-      });
-    } else {
-      setStaff(prev => [
-        ...prev,
-        { ...data, id: `new-staff-${Date.now()}`, role: 'staff' },
-      ]);
-       toast({
-        title: 'Staff Member Created',
-        description: 'The new staff member has been added.',
-      });
+  const handleFormSubmit = async (data: Omit<User, 'id' | 'role'>) => {
+    const { id, ...staffData } = data as any;
+    
+    try {
+        if (id) {
+             const docRef = doc(db, "users", id);
+             await setDoc(docRef, staffData, { merge: true });
+             toast({ title: 'Staff Member Updated', description: 'The staff details have been saved.' });
+        } else {
+            const newStaffData = { ...staffData, role: 'staff' };
+            await addDoc(collection(db, "users"), newStaffData);
+            toast({ title: 'Staff Member Created', description: 'The new staff member has been added.' });
+        }
+        fetchStaff();
+        setIsFormOpen(false);
+        setSelectedStaff(null);
+    } catch (error) {
+        console.error("Error saving staff member:", error);
+        toast({ title: 'Error', description: 'Could not save the staff member.', variant: 'destructive'});
     }
-    setIsFormOpen(false);
-    setSelectedStaff(null);
   };
 
   return (
@@ -181,6 +202,11 @@ export default function AdminStaffPage() {
           <CardDescription>View, edit, and delete staff accounts.</CardDescription>
         </CardHeader>
         <CardContent>
+          {isLoading ? (
+             <div className="flex justify-center items-center h-64">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -253,6 +279,7 @@ export default function AdminStaffPage() {
               ))}
             </TableBody>
           </Table>
+          )}
         </CardContent>
       </Card>
     </div>
