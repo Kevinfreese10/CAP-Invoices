@@ -4141,3 +4141,5 @@ function RuleForm({ rule, onSubmit, onCancel, chartOfAccounts }: { rule: Omit<Al
 
 
     
+
+    
