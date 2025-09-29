@@ -22,12 +22,14 @@ import { firebaseApp } from '@/lib/firebase';
 
 const db = getFirestore(firebaseApp);
 const departments = ['Accounting and Tax', 'Administration', 'CAP'] as const;
+const roles = ['staff', 'admin'] as const;
 
 const formSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(2, 'Name is required.'),
   email: z.string().email('A valid email is required.'),
   department: z.enum(departments),
+  role: z.enum(roles),
 });
 
 function StaffForm({ staffMember, onSubmit, onCancel }: { staffMember: User | null, onSubmit: (data: any) => void, onCancel: () => void }) {
@@ -38,6 +40,7 @@ function StaffForm({ staffMember, onSubmit, onCancel }: { staffMember: User | nu
             name: staffMember?.name || '',
             email: staffMember?.email || '',
             department: staffMember?.department || 'Administration',
+            role: staffMember?.role === 'admin' ? 'admin' : 'staff',
         },
     });
 
@@ -82,6 +85,24 @@ function StaffForm({ staffMember, onSubmit, onCancel }: { staffMember: User | nu
                             </FormControl>
                             <SelectContent>
                                 {departments.map(dep => <SelectItem key={dep} value={dep}>{dep}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                 <FormField
+                    control={form.control}
+                    name="role"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Role</FormLabel>
+                         <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                                <SelectTrigger><SelectValue placeholder="Select a role" /></SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                {roles.map(role => <SelectItem key={role} value={role} className="capitalize">{role}</SelectItem>)}
                             </SelectContent>
                         </Select>
                         <FormMessage />
@@ -148,7 +169,7 @@ export default function AdminStaffPage() {
     }
   };
 
-  const handleFormSubmit = async (data: Omit<User, 'id' | 'role'>) => {
+  const handleFormSubmit = async (data: Omit<User, 'id'>) => {
     const { id, ...staffData } = data as any;
     
     try {
@@ -157,7 +178,7 @@ export default function AdminStaffPage() {
              await setDoc(docRef, staffData, { merge: true });
              toast({ title: 'Staff Member Updated', description: 'The staff details have been saved.' });
         } else {
-            const newStaffData = { ...staffData, role: 'staff' };
+            const newStaffData = { ...staffData, role: staffData.role || 'staff' };
             await addDoc(collection(db, "users"), newStaffData);
             toast({ title: 'Staff Member Created', description: 'The new staff member has been added.' });
         }
