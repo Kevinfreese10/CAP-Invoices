@@ -28,7 +28,6 @@ const formSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(2, 'Name is required.'),
   email: z.string().email('A valid email is required.'),
-  password: z.string().optional(),
   department: z.enum(departments),
   role: z.enum(roles),
 });
@@ -40,7 +39,6 @@ function StaffForm({ staffMember, onSubmit, onCancel }: { staffMember: User | nu
             id: staffMember?.id || '',
             name: staffMember?.name || '',
             email: staffMember?.email || '',
-            password: '',
             department: staffMember?.department || 'Administration',
             role: staffMember?.role === 'admin' ? 'admin' : 'staff',
         },
@@ -71,20 +69,6 @@ function StaffForm({ staffMember, onSubmit, onCancel }: { staffMember: User | nu
                         <FormItem>
                             <FormLabel>Email Address</FormLabel>
                             <FormControl><Input {...field} /></FormControl>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
-                <FormField
-                    control={form.control}
-                    name="password"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Password</FormLabel>
-                            <FormControl><Input type="password" {...field} /></FormControl>
-                            <FormDescription>
-                                {staffMember ? 'Leave blank to keep the current password.' : 'Set an initial password for the new staff member.'}
-                            </FormDescription>
                             <FormMessage />
                         </FormItem>
                     )}
@@ -186,27 +170,15 @@ export default function AdminStaffPage() {
   };
 
   const handleFormSubmit = async (data: Omit<User, 'id'> & { id?: string }) => {
-    const { id, ...staffDataWithPassword } = data as any;
+    const { id, ...staffData } = data as any;
     
-    // Create a separate object for saving to Firestore to avoid modifying the original data
-    const staffDataForDb = { ...staffDataWithPassword };
-
     try {
-        if (id) { // This is an update
-            // Don't save an empty password string when updating
-            if (!staffDataForDb.password) {
-                delete staffDataForDb.password;
-            }
+        if (id) {
              const docRef = doc(db, "users", id);
-             await setDoc(docRef, staffDataForDb, { merge: true });
+             await setDoc(docRef, staffData, { merge: true });
              toast({ title: 'Staff Member Updated', description: 'The staff details have been saved.' });
-        } else { // This is a new user
-            if (!staffDataForDb.password) {
-                toast({ title: 'Password Required', description: 'Please set an initial password for the new staff member.', variant: 'destructive' });
-                return;
-            }
-            // Ensure the role is set for a new user
-            const newStaffData = { ...staffDataForDb, role: staffDataForDb.role || 'staff' };
+        } else {
+            const newStaffData = { ...staffData, role: staffData.role || 'staff' };
             await addDoc(collection(db, "users"), newStaffData);
             toast({ title: 'Staff Member Created', description: 'The new staff member has been added.' });
         }

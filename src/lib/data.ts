@@ -10,7 +10,6 @@ export const users: User[] = [
     id: '2', 
     name: 'Kevin Freese', 
     email: 'freesekevin@gmail.com', 
-    password: 'password123',
     role: 'admin',
     department: 'Administration',
     smtpDetails: {
@@ -24,7 +23,6 @@ export const users: User[] = [
     id: '4', 
     name: 'Reseller Pro', 
     email: 'reseller@test.com', 
-    password: 'password123',
     role: 'reseller',
     companyName: 'Reseller Pro (Pty) Ltd',
     contactPerson: 'Alex King',
@@ -48,10 +46,10 @@ export const users: User[] = [
         pass: 'Thinkestry10$',
     }
   },
-  { id: '5', name: 'Lizzy West', email: 'admin@myacc.co.za', password: 'password123', role: 'staff', department: 'Accounting and Tax' },
-  { id: '6', name: 'Winifred Beukes', email: 'winifred@myacc.co.za', password: 'password123', role: 'staff', department: 'Administration' },
-  { id: '7', name: 'Patricia Rex', email: 'info@myacc.co.za', password: 'password123', role: 'staff', department: 'Administration' },
-  { id: '8', name: 'Rizma Salimahomed', email: 'tax@myacc.co.za', password: 'password123', role: 'staff', department: 'Accounting and Tax' },
+  { id: '5', name: 'Lizzy West', email: 'admin@myacc.co.za', role: 'staff', department: 'Accounting and Tax' },
+  { id: '6', name: 'Winifred Beukes', email: 'winifred@myacc.co.za', role: 'staff', department: 'Administration' },
+  { id: '7', name: 'Patricia Rex', email: 'info@myacc.co.za', role: 'staff', department: 'Administration' },
+  { id: '8', name: 'Rizma Salimahomed', email: 'tax@myacc.co.za', role: 'staff', department: 'Accounting and Tax' },
   {
     id: 'client-numera-test',
     name: 'Test Client',

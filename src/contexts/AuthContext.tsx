@@ -61,23 +61,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
-  const login = (email: string, password?: string) => {
+  const login = (email: string) => {
     const foundUser = users.find(u => u.email === email);
     
-    // For staff/admin/reseller login, password is required
     if (foundUser && foundUser.role !== 'client') {
-        if (password && foundUser.password === password) {
-            if (user?.id !== foundUser.id) {
-                updateUserState(foundUser);
-            }
-            return foundUser;
-        }
-        return undefined; // Invalid password
-    }
-
-    // For other cases or if user not found with password
-    if (foundUser && !password && foundUser.role !== 'client') {
-        // This keeps the previous functionality for things that might still call login without a password
         if (user?.id !== foundUser.id) {
             updateUserState(foundUser);
         }
