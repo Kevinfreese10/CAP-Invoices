@@ -1238,7 +1238,7 @@ function AllocationTable({ transactions, onAllocate, onEdit, onDelete, selectedT
                                     <DropdownMenuContent>
                                         <DropdownMenuItem onClick={() => onAllocate(tx.id)} disabled={!allocations[tx.id] || processingTxId === tx.id}>Allocate</DropdownMenuItem>
                                         <DropdownMenuItem onClick={() => onEdit(tx)}>Edit</DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => onFeedback(tx)}>AI Feedback</DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => onFeedback(tx)}>Create AI Rule</DropdownMenuItem>
                                         <DropdownMenuSeparator />
                                         <AlertDialogTrigger asChild>
                                             <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
@@ -2070,14 +2070,17 @@ export default function NumeraPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<User | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<ImportedTransaction | null>(null);
   const [isEditTxOpen, setIsEditTxOpen] = useState(false);
-  const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
-  const [allocationRules, setAllocationRules] = useState<AllocationRule[]>([]);
   
   const [chartOfAccountsData, setChartOfAccountsData] = useState<ChartOfAccount[]>(initialChartOfAccounts);
   const [editingBankAccount, setEditingBankAccount] = useState<ChartOfAccount | null>(null);
 
   const [isCoaFormOpen, setIsCoaFormOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<ChartOfAccount | null>(null);
+
+  const [isRuleFormOpen, setIsRuleFormOpen] = useState(false);
+  const [selectedRule, setSelectedRule] = useState<AllocationRule | null>(null);
+  const [allocationRules, setAllocationRules] = useState<AllocationRule[]>([]);
+
 
   const importForm = useForm();
   
@@ -2119,21 +2122,8 @@ export default function NumeraPage() {
   };
 
 
-  const fetchAllocationRules = async () => {
-    try {
-      const q = query(collection(db, "allocationRules"), orderBy('type'));
-      const querySnapshot = await getDocs(q);
-      const rules = querySnapshot.docs.map(doc => ({...doc.data(), id: doc.id} as AllocationRule));
-      setAllocationRules(rules);
-    } catch (error) {
-      console.error("Error fetching allocation rules:", error);
-      toast({ title: 'Error', description: 'Could not fetch AI allocation rules.', variant: 'destructive'});
-    }
-  };
-
   useEffect(() => {
     fetchClients();
-    fetchAllocationRules();
   }, []);
 
   const fetchTransactions = async (clientId: string) => {
@@ -2174,6 +2164,7 @@ export default function NumeraPage() {
     setSelectedBankAccount('');
     setCustomers([]);
     setSuppliers([]);
+    setAllocationRules([]);
 
     if (activeClient) {
         fetchTransactions(activeClient.id);
@@ -2616,37 +2607,60 @@ export default function NumeraPage() {
     correctVatType: VatType;
     rule: string;
   }) => {
+    if (!activeClient) return;
+
     const { transaction, correctAccount, correctVatType, rule } = feedbackData;
     const incorrectAllocation = allocations[transaction.id]?.value;
     const incorrectVatType = vatTypes[transaction.id];
 
     toast({ title: "Learning from feedback...", description: "Updating AI knowledge and re-allocating." });
-    
-    try {
-        await refineAllocationKnowledge({
-          transactionDescription: transaction.description,
-          incorrectAllocation: `${incorrectAllocation} (VAT: ${incorrectVatType})`,
-          correctAccountId: correctAccount,
-          correctVatType: correctVatType,
-          userProvidedRule: rule,
-        });
-        
-        await fetchAllocationRules();
-        
-        setFeedbackTransaction(null);
-        toast({ title: "AI Knowledge Updated", description: "A new rule has been learned from your feedback." });
 
-        setProcessingTxId(transaction.id);
-        const result = await allocateTransaction({ description: transaction.description });
-        if (result.accountNumber && chartOfAccountsData.some(acc => acc.accountNumber === result.accountNumber)) {
-            handleAllocationSelect(transaction.id, result.accountNumber, 'account');
-            handleVatTypeSelect(transaction.id, result.vatType);
-        }
+    try {
+      // Create new rule
+      const newRule: Omit<AllocationRule, 'id'> = {
+          type: 'soft',
+          description: rule,
+          keywords: [],
+          accountId: correctAccount,
+          vatType: correctVatType,
+      };
+
+      const updatedRules = [...allocationRules, {...newRule, id: `rule-${Date.now()}`}];
+      const clientRef = doc(db, "clients", activeClient.id);
+      await setDoc(clientRef, { allocationRules: updatedRules }, { merge: true });
+      setAllocationRules(updatedRules);
+
+      setFeedbackTransaction(null);
+      toast({ title: "AI Rule Created", description: "The new rule has been saved for this client." });
+
+      // Automatically allocate all matching transactions
+      const unallocated = unallocatedTransactions.filter(tx => tx.id !== transaction.id);
+      const transactionsToAllocate = [transaction, ...unallocated].filter(tx => tx.description.toLowerCase().includes(rule.split(' ')[0].toLowerCase())); // Basic match
+      
+      const batch = writeBatch(db);
+      transactionsToAllocate.forEach(txToAllocate => {
+          const { id, ...restOfTx } = txToAllocate;
+          const newAllocatedTransaction: Omit<AllocatedTransaction, 'id'> = {
+              ...restOfTx,
+              allocatedTo: { value: correctAccount, type: 'account' },
+              allocatedAt: Timestamp.now(),
+              vatType: correctVatType,
+              vatAmount: 0,
+          };
+          batch.set(doc(collection(db, 'allocatedTransactions')), newAllocatedTransaction);
+          batch.delete(doc(db, 'unallocatedTransactions', id));
+      });
+
+      await batch.commit();
+      await fetchTransactions(activeClient.id);
+
+      if(transactionsToAllocate.length > 0) {
+        toast({ title: 'Auto-Allocation Complete', description: `${transactionsToAllocate.length} transactions were allocated based on the new rule.` });
+      }
+
     } catch (error) {
         console.error("Feedback and re-allocation error:", error);
         toast({ title: 'Error', description: 'Could not process feedback.', variant: 'destructive' });
-    } finally {
-        setProcessingTxId(null);
     }
   };
 
@@ -2937,6 +2951,43 @@ export default function NumeraPage() {
     setIsCoaFormOpen(true);
   };
 
+  const handleRuleFormSubmit = async (data: Omit<AllocationRule, 'id'> & { id?: string }) => {
+    if (!activeClient) return;
+    
+    let updatedRules;
+    if (selectedRule) { // Update
+      updatedRules = allocationRules.map(r => r.id === selectedRule.id ? { ...r, ...data } : r);
+      toast({ title: 'Rule Updated' });
+    } else { // Create
+      const newRule: AllocationRule = { ...data, id: `rule-${Date.now()}` };
+      updatedRules = [...allocationRules, newRule];
+      toast({ title: 'Rule Created' });
+    }
+
+    try {
+        const clientRef = doc(db, 'clients', activeClient.id);
+        await setDoc(clientRef, { allocationRules: updatedRules }, { merge: true });
+        setAllocationRules(updatedRules);
+        setIsRuleFormOpen(false);
+        setSelectedRule(null);
+    } catch(e) {
+        toast({ title: 'Error', description: 'Could not save rule.', variant: 'destructive'});
+    }
+  };
+  
+  const handleRuleDelete = async (ruleId: string) => {
+      if (!activeClient) return;
+      const updatedRules = allocationRules.filter(r => r.id !== ruleId);
+      try {
+          const clientRef = doc(db, 'clients', activeClient.id);
+          await setDoc(clientRef, { allocationRules: updatedRules }, { merge: true });
+          setAllocationRules(updatedRules);
+          toast({ title: 'Rule Deleted', variant: 'destructive' });
+      } catch (e) {
+          toast({ title: 'Error', description: 'Could not delete rule.', variant: 'destructive' });
+      }
+  };
+
 
   const clientBankAccounts = useMemo(() => {
     return activeClient ? chartOfAccountsData.filter(acc => acc.accountNumber.startsWith('8400')) : [];
@@ -3054,6 +3105,7 @@ export default function NumeraPage() {
                         <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
                         <TabsTrigger value="customers">Customers</TabsTrigger>
                         <TabsTrigger value="chart-of-accounts">Chart of Accounts</TabsTrigger>
+                        <TabsTrigger value="allocation-rules">Allocation Rules</TabsTrigger>
                     </TabsList>
                     <TabsContent value="reporting" className="space-y-4">
                         <TrialBalanceCard activeClient={activeClient} onAccountClick={handleTBAccountClick} allocatedTransactions={allAllocated} unallocatedTransactions={allUnallocated} chartOfAccounts={chartOfAccountsData} />
@@ -3198,10 +3250,6 @@ export default function NumeraPage() {
                                          <Button variant="outline" size="sm" onClick={handleClearAllocations}>
                                             <RefreshCw className="mr-2 h-4 w-4" />
                                             Clear
-                                        </Button>
-                                         <Button variant="outline" size="sm" onClick={() => setIsRulesModalOpen(true)}>
-                                            <ListOrdered className="mr-2 h-4 w-4" />
-                                            AI Rules
                                         </Button>
                                         <div className="relative">
                                             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -3543,6 +3591,75 @@ export default function NumeraPage() {
                             </CardContent>
                         </Card>
                     </TabsContent>
+                    <TabsContent value="allocation-rules">
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between">
+                                <div>
+                                <CardTitle>Allocation Rules for {activeClient.name}</CardTitle>
+                                <CardDescription>Manage the AI allocation rules for this specific client.</CardDescription>
+                                </div>
+                                <Button onClick={() => { setSelectedRule(null); setIsRuleFormOpen(true); }}><PlusCircle className="mr-2 h-4 w-4" /> Add Rule</Button>
+                            </CardHeader>
+                            <CardContent>
+                                <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                    <TableHead>Rule</TableHead>
+                                    <TableHead>Allocated Account</TableHead>
+                                    <TableHead>VAT Type</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {allocationRules.map(rule => (
+                                    <TableRow key={rule.id}>
+                                        <TableCell className="font-semibold max-w-xs">
+                                        <div className="flex items-center gap-2">
+                                            {rule.type === 'hard' ? <HardHat className="h-4 w-4 text-muted-foreground" /> : <Feather className="h-4 w-4 text-muted-foreground" />}
+                                            <span className="capitalize">{rule.type} Rule</span>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground mt-1">{rule.description}</p>
+                                        {rule.type === 'hard' && (
+                                            <div className="flex flex-wrap gap-1 mt-2">
+                                            {rule.keywords.map(kw => <Badge key={kw} variant="secondary">{kw}</Badge>)}
+                                            </div>
+                                        )}
+                                        </TableCell>
+                                        <TableCell>{chartOfAccountsData.find(a => a.accountNumber === rule.accountId)?.description || 'N/A'}</TableCell>
+                                        <TableCell>{allVatTypesData.find(v => v.name === rule.vatType)?.label || 'N/A'}</TableCell>
+                                        <TableCell className="text-right">
+                                        <AlertDialog>
+                                            <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                                <span className="sr-only">Open menu</span>
+                                                <MoreHorizontal className="h-4 w-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuItem onClick={() => { setSelectedRule(rule); setIsRuleFormOpen(true); }}>Edit</DropdownMenuItem>
+                                                <AlertDialogTrigger asChild><DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem></AlertDialogTrigger>
+                                            </DropdownMenuContent>
+                                            </DropdownMenu>
+                                            <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                <AlertDialogDescription>This will permanently delete this rule for this client.</AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction onClick={() => handleRuleDelete(rule.id)}>Continue</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                        </TableCell>
+                                    </TableRow>
+                                    ))}
+                                </TableBody>
+                                </Table>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
                 </Tabs>
              </div>
         ) : (
@@ -3697,13 +3814,22 @@ export default function NumeraPage() {
             onClose={() => setIsEditTxOpen(false)}
             onSave={handleSaveTransaction}
         />
-        <AllocationRulesDialog 
-            isOpen={isRulesModalOpen}
-            onClose={() => setIsRulesModalOpen(false)}
-            chartOfAccounts={chartOfAccountsData}
-            rules={allocationRules}
-            onRuleChange={(rules) => setAllocationRules(rules)}
-        />
+        <Dialog open={isRuleFormOpen} onOpenChange={setIsRuleFormOpen}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>{selectedRule ? 'Edit Rule' : 'Create New Rule'}</DialogTitle>
+                    <DialogDescription>
+                        {selectedRule ? 'Update this allocation rule for this client.' : 'Create a rule for this client.'}
+                    </DialogDescription>
+                </DialogHeader>
+                <RuleForm 
+                    rule={selectedRule ? { ...selectedRule, keywords: selectedRule.keywords.join(', ') } : null}
+                    onSubmit={handleRuleFormSubmit}
+                    onCancel={() => setIsRuleFormOpen(false)}
+                    chartOfAccounts={chartOfAccountsData}
+                />
+            </DialogContent>
+        </Dialog>
         <EditBankAccountForm 
             account={editingBankAccount}
             isOpen={!!editingBankAccount}
@@ -3785,9 +3911,9 @@ function AIFeedbackDialog({
         <Dialog open={!!transaction} onOpenChange={(open) => !open && onClose()}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Provide AI Feedback</DialogTitle>
+                    <DialogTitle>Create New AI Rule</DialogTitle>
                     <DialogDescription>
-                        Help the AI learn by correcting this allocation.
+                        Teach the AI how to handle transactions like this in the future. This rule will be specific to this client.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
@@ -3795,7 +3921,7 @@ function AIFeedbackDialog({
                         <strong>Transaction:</strong> {transaction.description}
                     </p>
                     <p className="text-sm">
-                        <strong>AI Suggestion:</strong>{' '}
+                        <strong>Current Suggestion:</strong>{' '}
                         {currentAllocation ? `${chartOfAccounts.find(c => c.accountNumber === currentAllocation.value)?.description} (VAT: ${currentVatType})` : 'None'}
                     </p>
                     <Separator />
@@ -3835,7 +3961,7 @@ function AIFeedbackDialog({
                                 name="rule"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Explain the rule</FormLabel>
+                                        <FormLabel>Explain the rule simply</FormLabel>
                                         <FormControl>
                                             <Textarea {...field} placeholder="e.g., 'Transactions with TELKOM should go to Telephone & Fax'" />
                                         </FormControl>
@@ -3845,7 +3971,7 @@ function AIFeedbackDialog({
                             />
                             <DialogFooter>
                                 <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-                                <Button type="submit">Submit Feedback & Re-allocate</Button>
+                                <Button type="submit">Create Rule & Allocate</Button>
                             </DialogFooter>
                         </form>
                     </Form>
@@ -4004,177 +4130,4 @@ function RuleForm({ rule, onSubmit, onCancel, chartOfAccounts }: { rule: Omit<Al
             </form>
         </Form>
     )
-}
-
-function AllocationRulesDialog({ isOpen, onClose, chartOfAccounts, rules, onRuleChange }: { isOpen: boolean; onClose: () => void; chartOfAccounts: ChartOfAccount[], rules: AllocationRule[], onRuleChange: (rules: AllocationRule[]) => void }) {
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [selectedRule, setSelectedRule] = useState<AllocationRule | null>(null);
-  const { toast } = useToast();
-
-  const handleAdd = () => {
-    setSelectedRule(null);
-    setIsFormOpen(true);
-  };
-
-  const handleEdit = (rule: AllocationRule) => {
-    setSelectedRule(rule);
-    setIsFormOpen(true);
-  };
-  
-  const handleDelete = async (ruleId: string) => {
-    try {
-        await deleteDoc(doc(db, "allocationRules", ruleId));
-        const newRules = rules.filter(r => r.id !== ruleId);
-        onRuleChange(newRules);
-        toast({
-            title: 'Rule Deleted',
-            description: 'The allocation rule has been removed.',
-            variant: 'destructive',
-        })
-    } catch(e) {
-        toast({ title: 'Error', description: 'Could not delete rule.', variant: 'destructive'});
-    }
-  };
-
-  const handleFormSubmit = async (data: Omit<AllocationRule, 'id'> & { id?: string }) => {
-    try {
-        if (data.id) { // Update
-            const ruleRef = doc(db, "allocationRules", data.id);
-            const { id, ...ruleData } = data;
-            await setDoc(ruleRef, ruleData, { merge: true });
-
-            const newRules = rules.map(r => r.id === id ? { ...r, ...ruleData } as AllocationRule : r);
-            onRuleChange(newRules);
-            toast({ title: 'Rule Updated', description: 'The rule has been successfully saved.'});
-        } else { // Create
-            const { id, ...ruleData } = data;
-            const newDocRef = await addDoc(collection(db, "allocationRules"), ruleData);
-            const newRule = { ...ruleData, id: newDocRef.id } as AllocationRule;
-            onRuleChange([...rules, newRule]);
-            toast({ title: 'Rule Created', description: 'The new allocation rule has been added.' });
-        }
-        setIsFormOpen(false);
-        setSelectedRule(null);
-    } catch(e) {
-        toast({ title: 'Error', description: 'Could not save rule.', variant: 'destructive'});
-    }
-  };
-  
-  const getAccountDescription = (accountId: string) => {
-      return chartOfAccounts.find(a => a.accountNumber === accountId)?.description || 'N/A';
-  }
-  
-  const getVatLabel = (vatType: VatType) => {
-      return allVatTypesData.find(v => v.name === vatType)?.label || 'N/A';
-  }
-
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-4xl">
-            <DialogHeader>
-                <DialogTitle>AI Allocation Rules</DialogTitle>
-                <DialogDescription>
-                    Manage the rules the AI uses to automatically allocate transactions. These rules apply to all clients.
-                </DialogDescription>
-            </DialogHeader>
-            
-             <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-                <DialogTrigger asChild>
-                     <Button onClick={handleAdd}>
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        Create New Rule
-                    </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-md">
-                        <DialogHeader>
-                            <DialogTitle>{selectedRule ? 'Edit Rule' : 'Create New Rule'}</DialogTitle>
-                            <DialogDescription>
-                                {selectedRule ? 'Update this allocation rule.' : 'Create a rule to automatically categorize transactions.'}
-                            </DialogDescription>
-                        </DialogHeader>
-                        <RuleForm 
-                            rule={selectedRule ? { ...selectedRule, keywords: selectedRule.keywords.join(', ') } : null}
-                            onSubmit={handleFormSubmit}
-                            onCancel={() => setIsFormOpen(false)}
-                            chartOfAccounts={chartOfAccounts}
-                        />
-                </DialogContent>
-            </Dialog>
-            
-            <div className="max-h-[60vh] overflow-y-auto">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Rule</TableHead>
-                            <TableHead>Allocated Account</TableHead>
-                            <TableHead>VAT Type</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                    {rules.map(rule => (
-                        <TableRow key={rule.id}>
-                        <TableCell className="font-semibold max-w-xs">
-                           <div className="flex items-center gap-2">
-                             {rule.type === 'hard' ? <HardHat className="h-4 w-4 text-muted-foreground" /> : <Feather className="h-4 w-4 text-muted-foreground" />}
-                             <span className="capitalize">{rule.type} Rule</span>
-                           </div>
-                           <p className="text-xs text-muted-foreground mt-1">{rule.description}</p>
-                            {rule.type === 'hard' && (
-                                <div className="flex flex-wrap gap-1 mt-2">
-                                    {rule.keywords.map(kw => <Badge key={kw} variant="secondary">{kw}</Badge>)}
-                                </div>
-                            )}
-                        </TableCell>
-                        <TableCell>{getAccountDescription(rule.accountId)}</TableCell>
-                        <TableCell>{getVatLabel(rule.vatType)}</TableCell>
-                        <TableCell className="text-right">
-                            <AlertDialog>
-                                <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" className="h-8 w-8 p-0">
-                                    <span className="sr-only">Open menu</span>
-                                    <MoreHorizontal className="h-4 w-4" />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                    <DropdownMenuItem onClick={() => handleEdit(rule)}>
-                                        Edit
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem className="text-destructive">
-                                            Delete
-                                        </DropdownMenuItem>
-                                    </AlertDialogTrigger>
-                                </DropdownMenuContent>
-                                </DropdownMenu>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                        This will permanently delete the rule: <span className="font-semibold">"{rule.description}"</span>.
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => handleDelete(rule.id)}>
-                                            Continue
-                                        </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                        </TableCell>
-                        </TableRow>
-                    ))}
-                    </TableBody>
-                </Table>
-            </div>
-            <DialogFooter>
-                <Button variant="outline" onClick={onClose}>Close</Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
-  )
 }
