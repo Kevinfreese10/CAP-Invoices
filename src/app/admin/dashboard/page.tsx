@@ -31,7 +31,6 @@ import ProductivityStats from '@/components/dashboard/ProductivityStats';
 import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, where, orderBy, arrayUnion, Timestamp, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import KanbanView from '@/components/dashboard/KanbanView';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { users } from '@/lib/data';
 
@@ -635,9 +634,10 @@ export default function AdminDashboardPage() {
 
     const delegatedTasks = useMemo(() => {
         if (!user) return [];
+        // A task is delegated if the current user created it, but it is NOT assigned to them.
         return tasks.filter(task => 
             task.createdBy === user.id &&
-            (!Array.isArray(task.assignedTo) || !task.assignedTo.includes(user.id)) &&
+            !task.assignedTo.includes(user.id) &&
             (!task.recurrence || task.recurrence === 'None')
         ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
     }, [tasks, user]);
@@ -920,13 +920,6 @@ export default function AdminDashboardPage() {
                     </div>
                 ) : (
                     <>
-                        <KanbanView 
-                            tasks={myTasks} 
-                            onTaskUpdate={handleUpdateStatus} 
-                        />
-                        
-                        <Separator />
-                        
                         <TaskTable 
                             tasks={myTasks} 
                             title="My Tasks" 
@@ -1025,4 +1018,5 @@ export default function AdminDashboardPage() {
     
 
     
+
 
