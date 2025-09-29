@@ -3326,14 +3326,14 @@ export default function NumeraPage() {
                                         )}
                                         <TabsContent value="unallocated-income">
                                             {incomeTransactions.length > 0 ? (
-                                                <AllocationTable transactions={incomeTransactions} onAllocate={handleAllocate} onEdit={handleEditTransaction} onDelete={(id) => handleDeleteTransaction(id, 'unallocated')} selectedTransactions={selectedUnallocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'unallocated')} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} onCreateRule={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} chartOfAccounts={chartOfAccountsData} />
+                                                <AllocationTable transactions={incomeTransactions} onAllocate={handleAllocate} onEdit={handleEditTransaction} onDelete={(id) => handleDeleteTransaction(id, 'unallocated')} selectedTransactions={selectedUnallocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'unallocated')} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onCreateRule={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} chartOfAccounts={chartOfAccountsData} />
                                             ) : (
                                                 <p className="text-muted-foreground text-center py-10">No unallocated income transactions to display.</p>
                                             )}
                                         </TabsContent>
                                         <TabsContent value="unallocated-expenses">
                                              {expenseTransactions.length > 0 ? (
-                                                 <AllocationTable transactions={expenseTransactions} onAllocate={handleAllocate} onEdit={handleEditTransaction} onDelete={(id) => handleDeleteTransaction(id, 'unallocated')} selectedTransactions={selectedUnallocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'unallocated')} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} onCreateRule={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} chartOfAccounts={chartOfAccountsData} />
+                                                 <AllocationTable transactions={expenseTransactions} onAllocate={handleAllocate} onEdit={handleEditTransaction} onDelete={(id) => handleDeleteTransaction(id, 'unallocated')} selectedTransactions={selectedUnallocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'unallocated')} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onCreateRule={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} chartOfAccounts={chartOfAccountsData} />
                                              ) : (
                                                 <p className="text-muted-foreground text-center py-10">No unallocated expense transactions to display.</p>
                                              )}
@@ -3354,7 +3354,7 @@ export default function NumeraPage() {
                                         </TabsContent>
                                         <TabsContent value="review">
                                             {reviewTransactions.length > 0 ? (
-                                                <AllocationTable transactions={reviewTransactions} onAllocate={handleAllocate} onEdit={handleEditTransaction} onDelete={(id) => handleDeleteTransaction(id, 'review')} selectedTransactions={selectedForReview} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'review')} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} onCreateRule={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} chartOfAccounts={chartOfAccountsData} />
+                                                <AllocationTable transactions={reviewTransactions} onAllocate={handleAllocate} onEdit={handleEditTransaction} onDelete={(id) => handleDeleteTransaction(id, 'review')} selectedTransactions={selectedForReview} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'review')} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onCreateRule={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} chartOfAccounts={chartOfAccountsData} />
                                             ) : (
                                                 <p className="text-muted-foreground text-center py-10">No transactions to review.</p>
                                             )}
@@ -3463,7 +3463,7 @@ export default function NumeraPage() {
                               <Button onClick={handleAddSupplier}><PlusCircle className="mr-2 h-4 w-4" /> Create Supplier</Button>
                            </CardHeader>
                           <CardContent>
-                              {suppliers.length > 0 ? (
+                              {customers.length > 0 ? (
                                   <Table>
                                       <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Contact Person</TableHead><TableHead>Email</TableHead><TableHead>Phone</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                                       <TableBody>
@@ -4138,3 +4138,6 @@ function RuleForm({ rule, onSubmit, onCancel, chartOfAccounts }: { rule: Omit<Al
         </Form>
     )
 }
+
+
+    
