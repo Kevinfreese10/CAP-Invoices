@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -28,6 +29,7 @@ const formSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(2, 'Name is required.'),
   email: z.string().email('A valid email is required.'),
+  password: z.string().optional(),
   department: z.enum(departments),
   role: z.enum(roles),
 });
@@ -39,6 +41,7 @@ function StaffForm({ staffMember, onSubmit, onCancel }: { staffMember: User | nu
             id: staffMember?.id || '',
             name: staffMember?.name || '',
             email: staffMember?.email || '',
+            password: '',
             department: staffMember?.department || 'Administration',
             role: staffMember?.role === 'admin' ? 'admin' : 'staff',
         },
@@ -69,6 +72,20 @@ function StaffForm({ staffMember, onSubmit, onCancel }: { staffMember: User | nu
                         <FormItem>
                             <FormLabel>Email Address</FormLabel>
                             <FormControl><Input {...field} /></FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                <FormField
+                    control={form.control}
+                    name="password"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Password</FormLabel>
+                            <FormControl><Input type="password" {...field} /></FormControl>
+                            <FormDescription>
+                                {staffMember ? 'Leave blank to keep the current password.' : 'Set an initial password for the new staff member.'}
+                            </FormDescription>
                             <FormMessage />
                         </FormItem>
                     )}
@@ -169,15 +186,24 @@ export default function AdminStaffPage() {
     }
   };
 
-  const handleFormSubmit = async (data: Omit<User, 'id'>) => {
+  const handleFormSubmit = async (data: Omit<User, 'id'> & { id?: string }) => {
     const { id, ...staffData } = data as any;
     
+    // Don't save an empty password string
+    if (!staffData.password) {
+        delete staffData.password;
+    }
+
     try {
         if (id) {
              const docRef = doc(db, "users", id);
              await setDoc(docRef, staffData, { merge: true });
              toast({ title: 'Staff Member Updated', description: 'The staff details have been saved.' });
         } else {
+            if (!staffData.password) {
+                toast({ title: 'Password Required', description: 'Please set an initial password for the new staff member.', variant: 'destructive' });
+                return;
+            }
             const newStaffData = { ...staffData, role: staffData.role || 'staff' };
             await addDoc(collection(db, "users"), newStaffData);
             toast({ title: 'Staff Member Created', description: 'The new staff member has been added.' });

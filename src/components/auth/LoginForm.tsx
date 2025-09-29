@@ -1,3 +1,4 @@
+
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -13,6 +14,7 @@ import { User } from '@/lib/types';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email.' }),
+  password: z.string().min(1, { message: 'Password is required.' }),
 });
 
 export default function LoginForm() {
@@ -24,15 +26,16 @@ export default function LoginForm() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: '',
+      password: '',
     },
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    const user = login(values.email);
+    const user = login(values.email, values.password);
     if (!user) {
         toast({
             title: 'Login Failed',
-            description: 'No user found with that email address.',
+            description: 'Invalid email or password.',
             variant: 'destructive',
         });
         return;
@@ -63,6 +66,19 @@ export default function LoginForm() {
               <FormLabel>Email</FormLabel>
               <FormControl>
                 <Input placeholder="name@example.com" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="password"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Password</FormLabel>
+              <FormControl>
+                <Input type="password" placeholder="********" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

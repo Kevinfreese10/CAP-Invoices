@@ -116,6 +116,7 @@ export type User = {
   id: string;
   name: string;
   email: string;
+  password?: string;
   role: 'client' | 'admin' | 'staff' | 'reseller';
   source?: 'Numera' | 'Client Management';
   department?: 'Accounting and Tax' | 'Administration' | 'CAP';

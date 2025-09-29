@@ -1,4 +1,5 @@
 
+
 'use client';
 import { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import type { User } from '@/lib/types';
@@ -7,7 +8,7 @@ import { users } from '@/lib/data';
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, name?: string) => User | undefined;
+  login: (email: string, password?: string) => User | undefined;
   logout: () => void;
   signup: (name: string, email: string) => User;
   isAuthenticated: boolean | undefined;
@@ -60,14 +61,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
-  const login = (email: string, name?: string) => {
+  const login = (email: string, password?: string) => {
     const foundUser = users.find(u => u.email === email);
+    
+    // For staff/admin/reseller login, password is required
     if (foundUser && foundUser.role !== 'client') {
-      if (user?.id !== foundUser.id) { // Only update state if it's a new login
-        updateUserState(foundUser);
-      }
-      return foundUser;
+        if (password && foundUser.password === password) {
+            if (user?.id !== foundUser.id) {
+                updateUserState(foundUser);
+            }
+            return foundUser;
+        }
+        return undefined; // Invalid password
     }
+
+    // For other cases or if user not found with password
+    if (foundUser && !password && foundUser.role !== 'client') {
+        // This keeps the previous functionality for things that might still call login without a password
+        if (user?.id !== foundUser.id) {
+            updateUserState(foundUser);
+        }
+        return foundUser;
+    }
+
     return undefined;
   };
 
