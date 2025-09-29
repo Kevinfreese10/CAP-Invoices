@@ -1,5 +1,4 @@
 
-
 import type { Service, BlogPost, FAQ, Order, User } from './types';
 
 // IMPORTANT: Passwords are in plaintext for demonstration purposes ONLY.
@@ -9,7 +8,7 @@ export const users: User[] = [
   { 
     id: '2', 
     name: 'Kevin Freese', 
-    email: 'kev@thinkestry.co.za', 
+    email: 'freesekevin@gmail.com', 
     role: 'admin',
     department: 'Administration',
     smtpDetails: {
