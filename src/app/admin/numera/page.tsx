@@ -1,5 +1,4 @@
 
-
 'use client';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
@@ -413,8 +412,8 @@ function TrialBalanceCard({ activeClient, onAccountClick, allocatedTransactions,
             });
         };
     
-        const filteredAllocated = filterTxsByDate(allocatedTransactions) as AllocatedTransaction[];
-        const filteredUnallocated = filterTxsByDate(unallocatedTransactions);
+        const filteredAllocated = filterTxsByDate(allAllocated) as AllocatedTransaction[];
+        const filteredUnallocated = filterTxsByDate(allUnallocated);
     
         filteredAllocated.forEach(tx => {
             const allocationAccNum = tx.allocatedTo.value;
@@ -2529,9 +2528,7 @@ export default function NumeraPage() {
     } catch (error) {
         console.error('Error triggering AI allocation batch:', error);
         toast({ title: 'Error', description: 'Could not get AI suggestions.', variant: 'destructive' });
-        // Move transactions back to unallocated if the trigger fails
-        setAllUnallocated(prev => [...prev, ...transactionsToProcess]);
-        setAllProcessing(prev => prev.filter(tx => !transactionsToProcess.map(p => p.id).includes(tx.id)));
+        // Since processing is final, don't move them back. The user must resolve them from the processing tab.
     } finally {
         setIsAiAllocating(false);
     }
@@ -2769,9 +2766,19 @@ export default function NumeraPage() {
     }
   };
   
-  const handleSaveBankAccount = (accountId: string, newDescription: string) => {
-    setChartOfAccountsData(prev => prev.map(acc => acc.id === accountId ? { ...acc, description: newDescription } : acc));
-    toast({ title: 'Bank Account Updated', description: 'The account name has been saved.' });
+  const handleSaveBankAccount = async (accountId: string, newDescription: string) => {
+    if (!activeClient) return;
+    const clientRef = doc(db, 'clients', activeClient.id);
+    const updatedChartOfAccounts = chartOfAccountsData.map(acc => 
+      acc.id === accountId ? { ...acc, description: newDescription } : acc
+    );
+    try {
+      await setDoc(clientRef, { chartOfAccounts: updatedChartOfAccounts }, { merge: true });
+      setChartOfAccountsData(updatedChartOfAccounts);
+      toast({ title: 'Bank Account Updated', description: 'The account name has been saved.' });
+    } catch (e) {
+      toast({ title: 'Error', description: 'Could not update bank account.', variant: 'destructive' });
+    }
   };
 
   const handleClearTransactions = async (accountId: string) => {
@@ -2932,11 +2939,18 @@ export default function NumeraPage() {
                                 <AddBankAccountForm
                                     activeClient={activeClient}
                                     chartOfAccounts={chartOfAccountsData}
-                                    onAccountAdded={(newAccount) => {
+                                    onAccountAdded={async (newAccount) => {
                                         if (!chartOfAccountsData.some(a => a.accountNumber === newAccount.accountNumber)) {
-                                            setChartOfAccountsData(prev => [...prev, newAccount].sort((a,b) => a.accountNumber.localeCompare(b.accountNumber)));
-                                            setBankBalances(prev => ({...prev, [newAccount.accountNumber]: 0}));
-                                            setSelectedBankAccount(newAccount.accountNumber);
+                                            const newChartOfAccounts = [...chartOfAccountsData, newAccount].sort((a,b) => a.accountNumber.localeCompare(b.accountNumber));
+                                            const clientRef = doc(db, "clients", activeClient.id);
+                                            try {
+                                                await setDoc(clientRef, { chartOfAccounts: newChartOfAccounts }, { merge: true });
+                                                setChartOfAccountsData(newChartOfAccounts);
+                                                setBankBalances(prev => ({...prev, [newAccount.accountNumber]: 0}));
+                                                setSelectedBankAccount(newAccount.accountNumber);
+                                            } catch (e) {
+                                                toast({ title: "Error", description: "Could not save new bank account.", variant: "destructive"});
+                                            }
                                         }
                                     }}
                                 />
@@ -3948,7 +3962,3 @@ function AllocationRulesDialog({ isOpen, onClose, chartOfAccounts, rules, onRule
     </Dialog>
   )
 }
-
-  
-
-
