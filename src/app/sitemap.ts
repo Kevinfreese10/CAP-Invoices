@@ -6,7 +6,7 @@ import { blogPosts } from '@/lib/data';
 export default function sitemap(): MetadataRoute.Sitemap {
   
   // In a real app, you'd get this from an environment variable
-  const siteUrl = 'https://my-accountant-app.com'; 
+  const siteUrl = 'https://studio--studio-2604127518-57889.us-central1.hosted.app'; 
 
   const servicePages = services.map(service => ({
     url: `${siteUrl}/services/${service.id}`,
