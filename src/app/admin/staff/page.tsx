@@ -186,24 +186,28 @@ export default function AdminStaffPage() {
   };
 
   const handleFormSubmit = async (data: Omit<User, 'id'> & { id?: string }) => {
-    const { id, ...staffData } = data as any;
+    const { id, ...staffDataWithPassword } = data as any;
     
-    // Don't save an empty password string
-    if (!staffData.password) {
-        delete staffData.password;
+    // Create a separate object for saving to Firestore to avoid modifying the original data
+    const staffDataForDb = { ...staffDataWithPassword };
+
+    // Don't save an empty password string when updating
+    if (id && !staffDataForDb.password) {
+        delete staffDataForDb.password;
     }
 
     try {
         if (id) {
              const docRef = doc(db, "users", id);
-             await setDoc(docRef, staffData, { merge: true });
+             await setDoc(docRef, staffDataForDb, { merge: true });
              toast({ title: 'Staff Member Updated', description: 'The staff details have been saved.' });
         } else {
-            if (!staffData.password) {
+            if (!staffDataForDb.password) {
                 toast({ title: 'Password Required', description: 'Please set an initial password for the new staff member.', variant: 'destructive' });
                 return;
             }
-            const newStaffData = { ...staffData, role: staffData.role || 'staff' };
+            // Ensure the role is set for a new user
+            const newStaffData = { ...staffDataForDb, role: staffDataForDb.role || 'staff' };
             await addDoc(collection(db, "users"), newStaffData);
             toast({ title: 'Staff Member Created', description: 'The new staff member has been added.' });
         }
