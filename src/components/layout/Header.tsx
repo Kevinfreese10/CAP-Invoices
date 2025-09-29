@@ -34,14 +34,14 @@ const Header = () => {
   
   const handleLogout = () => {
     logout();
-    router.push('/home');
+    router.push('/');
   }
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-card shadow-sm">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <div className="flex items-center gap-8">
-          <Link href="/home" className="text-2xl font-bold text-primary">
+          <Link href="/" className="text-2xl font-bold text-primary">
             My Accountant
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
@@ -88,7 +88,7 @@ const Header = () => {
               </SheetTrigger>
               <SheetContent side="left">
                 <div className="flex flex-col gap-6 pt-8">
-                  <Link href="/home" className="text-2xl font-bold text-primary" onClick={() => setMobileMenuOpen(false)}>
+                  <Link href="/" className="text-2xl font-bold text-primary" onClick={() => setMobileMenuOpen(false)}>
                     My Accountant
                   </Link>
                    {navLinks.map(link => (

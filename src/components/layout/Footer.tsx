@@ -9,7 +9,7 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             
             <div className="space-y-4">
-                 <Link href="/home" className="text-lg font-bold text-primary">My Accountant</Link>
+                 <Link href="/" className="text-lg font-bold text-primary">My Accountant</Link>
                 <p className="text-sm text-muted-foreground">
                 Your trusted partner in accounting and tax services.
                 </p>
