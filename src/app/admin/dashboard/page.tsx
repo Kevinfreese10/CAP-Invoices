@@ -134,10 +134,9 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                     <CommandList>
                                     <CommandEmpty>No results found.</CommandEmpty>
                                     <CommandGroup heading="Teams">
-                                        <CommandItem onSelect={() => field.onChange(['all'])}>All Staff</CommandItem>
-                                        <CommandItem onSelect={() => field.onChange(staffByDept['Accounting and Tax']?.map(s => s.id) || [])}>Accounting and Tax Dept</CommandItem>
-                                        <CommandItem onSelect={() => field.onChange(staffByDept['Administration']?.map(s => s.id) || [])}>Administration Dept</CommandItem>
-                                        <CommandItem onSelect={() => field.onChange(staffByDept['CAP']?.map(s => s.id) || [])}>CAP Dept</CommandItem>
+                                        <CommandItem onSelect={() => field.onChange(['dept:accounting-and-tax'])}>Accounting and Tax Dept</CommandItem>
+                                        <CommandItem onSelect={() => field.onChange(['dept:administration'])}>Administration Dept</CommandItem>
+                                        <CommandItem onSelect={() => field.onChange(['dept:cap'])}>CAP Dept</CommandItem>
                                     </CommandGroup>
                                     <CommandGroup heading="Individual Staff">
                                         {allStaff.map((staff) => (
@@ -430,6 +429,22 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                         <TableCell className="align-top">
                             <div className="flex items-center -space-x-2">
                                 {assignees.slice(0, 3).map(userId => {
+                                    const isDept = userId.startsWith('dept:');
+                                    if (isDept) {
+                                        const deptName = userId.split(':')[1].replace(/-/g, ' ');
+                                        return (
+                                            <TooltipProvider key={userId}>
+                                                <Tooltip>
+                                                    <TooltipTrigger>
+                                                        <span className="h-6 w-6 border-2 border-background rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold">{deptName.charAt(0).toUpperCase()}</span>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p className="capitalize">{deptName} Department</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        )
+                                    }
                                     const assignee = getAssignee(userId);
                                     if (!assignee) return null;
                                     return (
@@ -653,18 +668,14 @@ export default function AdminDashboardPage() {
     
     const departmentTasks = useMemo(() => {
         if (!user?.department) return [];
-        // All non-recurring tasks where at least one assigned user is in the current user's department
+        const deptIdentifier = `dept:${user.department.toLowerCase().replace(/ & /g, '-and-').replace(/ /g, '-')}`;
         const deptTasks = tasks.filter(task => {
             if (task.recurrence && task.recurrence !== 'None') return false;
-
-            return task.assignedTo.some(userId => {
-                const assignee = allStaff.find(u => u.id === userId);
-                return assignee?.department === user.department;
-            });
+            return task.assignedTo.includes(deptIdentifier);
         });
         
         return deptTasks.sort((a, b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : b.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
-    }, [tasks, user, allStaff]);
+    }, [tasks, user]);
 
 
     const automatedTasks = useMemo(() => {
@@ -746,7 +757,7 @@ export default function AdminDashboardPage() {
                     comments: [],
                 };
                 await addDoc(collection(db, 'tasks'), newTask);
-                toast({ title: 'Task Created', description: `Task assigned to ${data.assignedTo.length} member(s).` });
+                toast({ title: 'Task Created', description: `Task assigned.` });
             }
             fetchDashboardData();
             setIsFormOpen(false);
@@ -957,7 +968,7 @@ export default function AdminDashboardPage() {
                              <TaskTable 
                                 tasks={departmentTasks} 
                                 title={`${user?.department} Department Tasks`} 
-                                description={`All tasks related to your department.`}
+                                description={`All tasks assigned to your department.`}
                                 onEdit={handleEdit}
                                 onUpdateStatus={handleUpdateStatus}
                                 onDelete={handleDelete}
@@ -1018,5 +1029,6 @@ export default function AdminDashboardPage() {
     
 
     
+
 
 
