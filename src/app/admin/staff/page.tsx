@@ -191,17 +191,16 @@ export default function AdminStaffPage() {
     // Create a separate object for saving to Firestore to avoid modifying the original data
     const staffDataForDb = { ...staffDataWithPassword };
 
-    // Don't save an empty password string when updating
-    if (id && !staffDataForDb.password) {
-        delete staffDataForDb.password;
-    }
-
     try {
-        if (id) {
+        if (id) { // This is an update
+            // Don't save an empty password string when updating
+            if (!staffDataForDb.password) {
+                delete staffDataForDb.password;
+            }
              const docRef = doc(db, "users", id);
              await setDoc(docRef, staffDataForDb, { merge: true });
              toast({ title: 'Staff Member Updated', description: 'The staff details have been saved.' });
-        } else {
+        } else { // This is a new user
             if (!staffDataForDb.password) {
                 toast({ title: 'Password Required', description: 'Please set an initial password for the new staff member.', variant: 'destructive' });
                 return;
