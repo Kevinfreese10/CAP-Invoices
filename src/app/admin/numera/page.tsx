@@ -23,7 +23,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
-import { format, add, sub, getMonth, getYear, startOfYear, endOfYear, startOfMonth, endOfMonth, addMonths } from 'date-fns';
+import { format, add, sub, getMonth, getYear, startOfYear, endOfYear, startOfMonth, endOfMonth, addMonths, parse } from 'date-fns';
 import { chartOfAccounts as initialChartOfAccounts } from '@/lib/chart-of-accounts';
 import { allocationRules as initialAllocationRules } from '@/lib/allocation-rules';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -2030,6 +2030,82 @@ function AccountForm({ account, onSubmit, onCancel }: { account: ChartOfAccount 
     )
 }
 
+const ruleFormSchema = z.object({
+  id: z.string().optional(),
+  type: z.enum(['hard', 'soft']).default('hard'),
+  description: z.string().min(5, 'Description is required.'),
+  keywords: z.string().optional(),
+  accountId: z.string().min(1, 'Please select an account.'),
+  vatType: z.custom<VatType>(),
+});
+
+function RuleForm({ rule, onSubmit, onCancel, chartOfAccounts }: { rule: Omit<AllocationRule, 'keywords'> & { keywords: string } | null, onSubmit: (data: any) => void, onCancel: () => void, chartOfAccounts: ChartOfAccount[] }) {
+    const form = useForm<z.infer<typeof ruleFormSchema>>({
+        resolver: zodResolver(ruleFormSchema),
+        defaultValues: {
+            id: rule?.id || '',
+            type: rule?.type || 'hard',
+            description: rule?.description || '',
+            keywords: rule?.keywords || '',
+            accountId: rule?.accountId || '',
+            vatType: rule?.vatType || 'no_vat',
+        },
+    });
+
+    const ruleType = form.watch('type');
+
+    const handleSubmit = (values: z.infer<typeof ruleFormSchema>) => {
+        const keywords = values.type === 'hard' ? values.keywords?.split(',').map(k => k.trim()).filter(Boolean) : [];
+        onSubmit({ ...values, keywords });
+    };
+    
+    return (
+        <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+                <FormField
+                    control={form.control}
+                    name="type"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Rule Type</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select a rule type" />
+                                </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="hard">
+                                        <div className="flex items-center gap-2"><HardHat className="h-4 w-4"/> Hard Rule (Keywords)</div>
+                                    </SelectItem>
+                                    <SelectItem value="soft">
+                                        <div className="flex items-center gap-2"><Feather className="h-4 w-4"/> Soft Rule (Conceptual)</div>
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+
+                <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input placeholder={ruleType === 'hard' ? "e.g. Catches all bank fees" : "e.g. All fast food purchases"} {...field} /></FormControl><FormMessage /></FormItem>)} />
+                
+                {ruleType === 'hard' && (
+                    <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords (comma-separated)</FormLabel><FormControl><Input placeholder="e.g., Telkom, Bank Fee, Fees" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                )}
+                
+                <FormField control={form.control} name="accountId" render={({ field }) => ( <FormItem><FormLabel>Allocate to Account</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl><SelectContent>{chartOfAccounts.map(account => <SelectItem key={account.id} value={account.accountNumber}>{account.accountNumber} - {account.description}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="vatType" render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypesData.map(vat => <SelectItem key={vat.name} value={vat.name}>{vat.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                
+                <div className="flex justify-end gap-2">
+                    <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
+                    <Button type="submit">Save Rule</Button>
+                </div>
+            </form>
+        </Form>
+    )
+}
+
 type TabName = 'unallocated-income' | 'unallocated-expenses' | 'processing' | 'review' | 'allocated-income' | 'allocated-expenses';
 
 export default function NumeraPage() {
@@ -3033,20 +3109,55 @@ export default function NumeraPage() {
   const reviewTransactions = useMemo(() => {
     return allReviewing.filter(tx => tx.bankAccountId === selectedBankAccount);
   }, [allReviewing, selectedBankAccount]);
-
-  const filteredTransactions = (transactions: (ImportedTransaction | AllocatedTransaction)[]) => {
-    if (!searchQuery) return transactions;
-    return transactions.filter(tx => 
-        tx.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        tx.amount.toString().includes(searchQuery)
-    );
-  };
   
-  const incomeTransactions = useMemo(() => filteredTransactions(unallocatedTransactions.filter(tx => tx.amount >= 0)), [unallocatedTransactions, searchQuery, activeProcessingTab]);
-  const expenseTransactions = useMemo(() => filteredTransactions(unallocatedTransactions.filter(tx => tx.amount < 0)), [unallocatedTransactions, searchQuery, activeProcessingTab]);
-  const allocatedIncome = useMemo(() => filteredTransactions(allocatedTransactions.filter(tx => tx.amount >= 0)), [allocatedTransactions, searchQuery, activeProcessingTab]);
-  const allocatedExpenses = useMemo(() => filteredTransactions(allocatedTransactions.filter(tx => tx.amount < 0)), [allocatedTransactions, searchQuery, activeProcessingTab]);
-  const filteredReviewTransactions = useMemo(() => filteredTransactions(reviewTransactions), [reviewTransactions, searchQuery, activeProcessingTab]);
+    const getLastImportDate = (accountId: string) => {
+        const accountTransactions = [...allUnallocated, ...allAllocated].filter(
+            (tx) => tx.bankAccountId === accountId
+        );
+        if (accountTransactions.length === 0) return 'N/A';
+
+        const latestDate = accountTransactions.reduce((latest, tx) => {
+            const txDate = parse(tx.date, 'dd/MM/yyyy', new Date());
+            return txDate > latest ? txDate : latest;
+        }, new Date(0));
+
+        return format(latestDate, 'dd/MM/yyyy');
+    };
+
+    const filteredTransactions = (transactions: (ImportedTransaction | AllocatedTransaction)[]) => {
+        if (!searchQuery) return transactions;
+        const lowercasedQuery = searchQuery.toLowerCase();
+
+        return transactions.filter(tx => {
+            if (tx.description.toLowerCase().includes(lowercasedQuery) || tx.amount.toString().includes(lowercasedQuery)) {
+                return true;
+            }
+
+            const allocation = allocations[tx.id] || (tx as AllocatedTransaction).allocatedTo;
+            if (allocation?.type === 'account') {
+                const account = chartOfAccountsData.find(a => a.accountNumber === allocation.value);
+                if (account?.description.toLowerCase().includes(lowercasedQuery)) {
+                    return true;
+                }
+            }
+            
+            const vatType = vatTypes[tx.id] || (tx as AllocatedTransaction).vatType;
+            if(vatType) {
+                const vatLabel = allVatTypesData.find(v => v.name === vatType)?.label;
+                if(vatLabel?.toLowerCase().includes(lowercasedQuery)){
+                    return true;
+                }
+            }
+
+            return false;
+        });
+    };
+  
+  const incomeTransactions = useMemo(() => filteredTransactions(unallocatedTransactions.filter(tx => tx.amount >= 0)), [unallocatedTransactions, searchQuery, activeProcessingTab, allocations, vatTypes]);
+  const expenseTransactions = useMemo(() => filteredTransactions(unallocatedTransactions.filter(tx => tx.amount < 0)), [unallocatedTransactions, searchQuery, activeProcessingTab, allocations, vatTypes]);
+  const allocatedIncome = useMemo(() => filteredTransactions(allocatedTransactions.filter(tx => tx.amount >= 0)), [allocatedTransactions, searchQuery, activeProcessingTab, allocations, vatTypes]);
+  const allocatedExpenses = useMemo(() => filteredTransactions(allocatedTransactions.filter(tx => tx.amount < 0)), [allocatedTransactions, searchQuery, activeProcessingTab, allocations, vatTypes]);
+  const filteredReviewTransactions = useMemo(() => filteredTransactions(reviewTransactions), [reviewTransactions, searchQuery, activeProcessingTab, allocations, vatTypes]);
 
 
   return (
@@ -3171,7 +3282,7 @@ export default function NumeraPage() {
                                                 <TableRow key={acc.id} onClick={() => setSelectedBankAccount(acc.accountNumber)} className="cursor-pointer" data-state={selectedBankAccount === acc.accountNumber ? 'selected' : ''}>
                                                     <TableCell className="font-mono">{acc.accountNumber}</TableCell>
                                                     <TableCell>{acc.description}</TableCell>
-                                                    <TableCell>{unallocatedTransactions.some(t => t.bankAccountId === acc.accountNumber) ? format(new Date(), 'dd/MM/yyyy') : 'N/A'}</TableCell>
+                                                    <TableCell>{getLastImportDate(acc.accountNumber)}</TableCell>
                                                     <TableCell className="text-right font-mono">{formatNumber(bankBalances[acc.accountNumber] || 0)}</TableCell>
                                                     <TableCell className="text-right">
                                                         <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setEditingBankAccount(acc); }}>
@@ -4107,80 +4218,4 @@ function BulkAllocateDialog({ isOpen, onClose, onBulkAllocate, count, customers,
             </DialogContent>
         </Dialog>
     );
-}
-
-const ruleFormSchema = z.object({
-  id: z.string().optional(),
-  type: z.enum(['hard', 'soft']).default('hard'),
-  description: z.string().min(5, 'Description is required.'),
-  keywords: z.string().optional(),
-  accountId: z.string().min(1, 'Please select an account.'),
-  vatType: z.custom<VatType>(),
-});
-
-function RuleForm({ rule, onSubmit, onCancel, chartOfAccounts }: { rule: Omit<AllocationRule, 'keywords'> & { keywords: string } | null, onSubmit: (data: any) => void, onCancel: () => void, chartOfAccounts: ChartOfAccount[] }) {
-    const form = useForm<z.infer<typeof ruleFormSchema>>({
-        resolver: zodResolver(ruleFormSchema),
-        defaultValues: {
-            id: rule?.id || '',
-            type: rule?.type || 'hard',
-            description: rule?.description || '',
-            keywords: rule?.keywords || '',
-            accountId: rule?.accountId || '',
-            vatType: rule?.vatType || 'no_vat',
-        },
-    });
-
-    const ruleType = form.watch('type');
-
-    const handleSubmit = (values: z.infer<typeof ruleFormSchema>) => {
-        const keywords = values.type === 'hard' ? values.keywords?.split(',').map(k => k.trim()).filter(Boolean) : [];
-        onSubmit({ ...values, keywords });
-    };
-    
-    return (
-        <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-                <FormField
-                    control={form.control}
-                    name="type"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Rule Type</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select a rule type" />
-                                </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    <SelectItem value="hard">
-                                        <div className="flex items-center gap-2"><HardHat className="h-4 w-4"/> Hard Rule (Keywords)</div>
-                                    </SelectItem>
-                                    <SelectItem value="soft">
-                                        <div className="flex items-center gap-2"><Feather className="h-4 w-4"/> Soft Rule (Conceptual)</div>
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
-
-                <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input placeholder={ruleType === 'hard' ? "e.g. Catches all bank fees" : "e.g. All fast food purchases"} {...field} /></FormControl><FormMessage /></FormItem>)} />
-                
-                {ruleType === 'hard' && (
-                    <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords (comma-separated)</FormLabel><FormControl><Input placeholder="e.g., Telkom, Bank Fee, Fees" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                )}
-                
-                <FormField control={form.control} name="accountId" render={({ field }) => ( <FormItem><FormLabel>Allocate to Account</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl><SelectContent>{chartOfAccounts.map(account => <SelectItem key={account.id} value={account.accountNumber}>{account.accountNumber} - {account.description}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="vatType" render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypesData.map(vat => <SelectItem key={vat.name} value={vat.name}>{vat.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
-                
-                <div className="flex justify-end gap-2">
-                    <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
-                    <Button type="submit">Save Rule</Button>
-                </div>
-            </form>
-        </Form>
-    )
 }
