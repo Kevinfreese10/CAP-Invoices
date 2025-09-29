@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { ReactNode } from 'react';
+import NewVisitorPopup from '../shared/NewVisitorPopup';
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -19,7 +20,12 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col">
-      {shouldShowHeaderFooter && <Header />}
+      {shouldShowHeaderFooter && (
+        <>
+          <Header />
+          <NewVisitorPopup />
+        </>
+      )}
       <main className="flex-grow bg-background">{children}</main>
       {shouldShowHeaderFooter && <Footer />}
     </div>

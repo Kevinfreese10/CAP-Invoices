@@ -15,7 +15,6 @@ import { services } from '@/lib/data';
 import { Rocket, ShieldCheck, Wallet, Clock, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import WebsiteAIWidget from '@/components/shared/WebsiteAIWidget';
-import NewVisitorPopup from '@/components/shared/NewVisitorPopup';
 
 const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -84,7 +83,6 @@ export default function Home() {
 
   return (
     <div className="space-y-16 pb-16">
-      <NewVisitorPopup />
       <section>
         <div className="container mx-auto grid grid-cols-1 items-center gap-12 px-4 py-16 lg:py-24">
           <div className="space-y-6 text-center">
