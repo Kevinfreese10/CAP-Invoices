@@ -71,12 +71,6 @@ export default function ProductivityStats({ tasks, className }: ProductivityStat
             </Pie>
           </PieChart>
         </ChartContainer>
-        {totalTasks > 0 && (
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transform flex flex-col items-center">
-                <span className="text-3xl font-bold">{completionPercentage}%</span>
-                <span className="text-xs text-muted-foreground">Complete</span>
-            </div>
-        )}
       </CardContent>
        <CardContent className="flex flex-col items-center justify-center gap-2 pt-2">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
