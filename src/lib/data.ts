@@ -9,7 +9,7 @@ export const users: User[] = [
   { 
     id: '2', 
     name: 'Kevin Freese', 
-    email: 'freesekevin@gmail.com', 
+    email: 'kev@thinkestry.co.za', 
     role: 'admin',
     department: 'Administration',
     smtpDetails: {
