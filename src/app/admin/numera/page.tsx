@@ -1125,7 +1125,7 @@ function AllocationCombobox({ value, onSelect, customers, suppliers, chartOfAcco
 type SortableField = 'date' | 'description' | 'amount';
 type SortDirection = 'asc' | 'desc';
 
-function AllocationTable({ transactions, onAllocate, onEdit, onDelete, selectedTransactions, onSelectionChange, onAllocationSelect, allocations, onVatTypeSelect, vatTypes, onFeedback, processingTxId, customers, suppliers, chartOfAccounts }: { 
+function AllocationTable({ transactions, onAllocate, onEdit, onDelete, selectedTransactions, onSelectionChange, onAllocationSelect, allocations, onVatTypeSelect, vatTypes, onCreateRule, processingTxId, customers, suppliers, chartOfAccounts }: { 
     transactions: ImportedTransaction[], 
     onAllocate: (transactionId: string) => void, 
     onEdit: (transaction: ImportedTransaction) => void,
@@ -1136,7 +1136,7 @@ function AllocationTable({ transactions, onAllocate, onEdit, onDelete, selectedT
     allocations: { [key: string]: { value: string, type: 'account'|'customer'|'supplier' } },
     onVatTypeSelect: (transactionId: string, vatType: VatType) => void,
     vatTypes: { [key: string]: VatType },
-    onFeedback: (transaction: ImportedTransaction) => void,
+    onCreateRule: (transaction: ImportedTransaction) => void,
     processingTxId?: string | null;
     customers: User[];
     suppliers: Supplier[];
@@ -1238,7 +1238,7 @@ function AllocationTable({ transactions, onAllocate, onEdit, onDelete, selectedT
                                     <DropdownMenuContent>
                                         <DropdownMenuItem onClick={() => onAllocate(tx.id)} disabled={!allocations[tx.id] || processingTxId === tx.id}>Allocate</DropdownMenuItem>
                                         <DropdownMenuItem onClick={() => onEdit(tx)}>Edit</DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => onFeedback(tx)}>Create AI Rule</DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => onCreateRule(tx)}>Create AI Rule</DropdownMenuItem>
                                         <DropdownMenuSeparator />
                                         <AlertDialogTrigger asChild>
                                             <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
@@ -2601,7 +2601,7 @@ export default function NumeraPage() {
     }
 };
 
-  const handleFeedbackSubmit = async (feedbackData: {
+  const handleRuleCreationAndAutoAllocate = async (feedbackData: {
     transaction: ImportedTransaction;
     correctAccount: string;
     correctVatType: VatType;
@@ -2610,22 +2610,24 @@ export default function NumeraPage() {
     if (!activeClient) return;
 
     const { transaction, correctAccount, correctVatType, rule } = feedbackData;
-    const incorrectAllocation = allocations[transaction.id]?.value;
-    const incorrectVatType = vatTypes[transaction.id];
 
     toast({ title: "Learning from feedback...", description: "Updating AI knowledge and re-allocating." });
 
     try {
-      // Create new rule
-      const newRule: Omit<AllocationRule, 'id'> = {
+      // 1. Create and save the new rule
+      const newRule: Omit<AllocationRule, 'id' | 'keywords'> = {
           type: 'soft',
           description: rule,
-          keywords: [],
           accountId: correctAccount,
           vatType: correctVatType,
       };
+      
+      const newRuleWithKeywords: Omit<AllocationRule, 'id'> = {
+        ...newRule,
+        keywords: [] // Soft rules don't use keywords from this dialog
+      };
 
-      const updatedRules = [...allocationRules, {...newRule, id: `rule-${Date.now()}`}];
+      const updatedRules = [...allocationRules, {...newRuleWithKeywords, id: `rule-${Date.now()}`}];
       const clientRef = doc(db, "clients", activeClient.id);
       await setDoc(clientRef, { allocationRules: updatedRules }, { merge: true });
       setAllocationRules(updatedRules);
@@ -2633,29 +2635,34 @@ export default function NumeraPage() {
       setFeedbackTransaction(null);
       toast({ title: "AI Rule Created", description: "The new rule has been saved for this client." });
 
-      // Automatically allocate all matching transactions
-      const unallocated = unallocatedTransactions.filter(tx => tx.id !== transaction.id);
-      const transactionsToAllocate = [transaction, ...unallocated].filter(tx => tx.description.toLowerCase().includes(rule.split(' ')[0].toLowerCase())); // Basic match
+      // 2. Automatically allocate the current transaction and any other matching ones
+      const lowerCaseRuleKeywords = rule.toLowerCase().split(' ').filter(w => w.length > 3);
       
-      const batch = writeBatch(db);
-      transactionsToAllocate.forEach(txToAllocate => {
-          const { id, ...restOfTx } = txToAllocate;
-          const newAllocatedTransaction: Omit<AllocatedTransaction, 'id'> = {
-              ...restOfTx,
-              allocatedTo: { value: correctAccount, type: 'account' },
-              allocatedAt: Timestamp.now(),
-              vatType: correctVatType,
-              vatAmount: 0,
-          };
-          batch.set(doc(collection(db, 'allocatedTransactions')), newAllocatedTransaction);
-          batch.delete(doc(db, 'unallocatedTransactions', id));
+      const transactionsToAllocate = allUnallocated.filter(tx => {
+         const lowerCaseDesc = tx.description.toLowerCase();
+         // A simple matching logic: check if the description contains keywords from the user's rule.
+         // This can be made more sophisticated.
+         return lowerCaseRuleKeywords.some(keyword => lowerCaseDesc.includes(keyword));
       });
+      
+      if (transactionsToAllocate.length > 0) {
+          const batch = writeBatch(db);
+          transactionsToAllocate.forEach(txToAllocate => {
+              const { id, ...restOfTx } = txToAllocate;
+              const newAllocatedTransaction: Omit<AllocatedTransaction, 'id'> = {
+                  ...restOfTx,
+                  allocatedTo: { value: correctAccount, type: 'account' },
+                  allocatedAt: Timestamp.now(),
+                  vatType: correctVatType,
+                  vatAmount: 0,
+              };
+              batch.set(doc(collection(db, 'allocatedTransactions')), newAllocatedTransaction);
+              batch.delete(doc(db, 'unallocatedTransactions', id));
+          });
 
-      await batch.commit();
-      await fetchTransactions(activeClient.id);
-
-      if(transactionsToAllocate.length > 0) {
-        toast({ title: 'Auto-Allocation Complete', description: `${transactionsToAllocate.length} transactions were allocated based on the new rule.` });
+          await batch.commit();
+          await fetchTransactions(activeClient.id);
+          toast({ title: 'Auto-Allocation Complete', description: `${transactionsToAllocate.length} transactions were allocated based on the new rule.` });
       }
 
     } catch (error) {
@@ -3319,14 +3326,14 @@ export default function NumeraPage() {
                                         )}
                                         <TabsContent value="unallocated-income">
                                             {incomeTransactions.length > 0 ? (
-                                                <AllocationTable transactions={incomeTransactions} onAllocate={handleAllocate} onEdit={handleEditTransaction} onDelete={(id) => handleDeleteTransaction(id, 'unallocated')} selectedTransactions={selectedUnallocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'unallocated')} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onFeedback={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} chartOfAccounts={chartOfAccountsData} />
+                                                <AllocationTable transactions={incomeTransactions} onAllocate={handleAllocate} onEdit={handleEditTransaction} onDelete={(id) => handleDeleteTransaction(id, 'unallocated')} selectedTransactions={selectedUnallocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'unallocated')} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} onCreateRule={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} chartOfAccounts={chartOfAccountsData} />
                                             ) : (
                                                 <p className="text-muted-foreground text-center py-10">No unallocated income transactions to display.</p>
                                             )}
                                         </TabsContent>
                                         <TabsContent value="unallocated-expenses">
                                              {expenseTransactions.length > 0 ? (
-                                                 <AllocationTable transactions={expenseTransactions} onAllocate={handleAllocate} onEdit={handleEditTransaction} onDelete={(id) => handleDeleteTransaction(id, 'unallocated')} selectedTransactions={selectedUnallocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'unallocated')} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onFeedback={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} chartOfAccounts={chartOfAccountsData} />
+                                                 <AllocationTable transactions={expenseTransactions} onAllocate={handleAllocate} onEdit={handleEditTransaction} onDelete={(id) => handleDeleteTransaction(id, 'unallocated')} selectedTransactions={selectedUnallocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'unallocated')} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} onCreateRule={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} chartOfAccounts={chartOfAccountsData} />
                                              ) : (
                                                 <p className="text-muted-foreground text-center py-10">No unallocated expense transactions to display.</p>
                                              )}
@@ -3347,7 +3354,7 @@ export default function NumeraPage() {
                                         </TabsContent>
                                         <TabsContent value="review">
                                             {reviewTransactions.length > 0 ? (
-                                                <AllocationTable transactions={reviewTransactions} onAllocate={handleAllocate} onEdit={handleEditTransaction} onDelete={(id) => handleDeleteTransaction(id, 'review')} selectedTransactions={selectedForReview} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'review')} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onFeedback={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} chartOfAccounts={chartOfAccountsData} />
+                                                <AllocationTable transactions={reviewTransactions} onAllocate={handleAllocate} onEdit={handleEditTransaction} onDelete={(id) => handleDeleteTransaction(id, 'review')} selectedTransactions={selectedForReview} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'review')} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} onCreateRule={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} chartOfAccounts={chartOfAccountsData} />
                                             ) : (
                                                 <p className="text-muted-foreground text-center py-10">No transactions to review.</p>
                                             )}
@@ -3780,7 +3787,7 @@ export default function NumeraPage() {
             allocations={allocations}
             vatTypes={vatTypes}
             onClose={() => setFeedbackTransaction(null)}
-            onSubmit={handleFeedbackSubmit}
+            onSubmit={handleRuleCreationAndAutoAllocate}
             chartOfAccounts={chartOfAccountsData}
         />
         <BulkAllocateDialog
