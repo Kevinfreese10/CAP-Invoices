@@ -1127,7 +1127,7 @@ type SortableField = 'date' | 'description' | 'amount';
 type SortDirection = 'asc' | 'desc';
 
 function AllocationTable({ transactions, onAllocate, onEdit, onDelete, selectedTransactions, onSelectionChange, onAllocationSelect, allocations, onVatTypeSelect, vatTypes, onCreateRule, processingTxId, customers, suppliers, chartOfAccounts }: { 
-    transactions: ImportedTransaction[], 
+    transactions: (ImportedTransaction | AllocatedTransaction)[], 
     onAllocate: (transactionId: string) => void, 
     onEdit: (transaction: ImportedTransaction) => void,
     onDelete: (transactionId: string) => void,
@@ -1137,7 +1137,7 @@ function AllocationTable({ transactions, onAllocate, onEdit, onDelete, selectedT
     allocations: { [key: string]: { value: string, type: 'account'|'customer'|'supplier' } },
     onVatTypeSelect: (transactionId: string, vatType: VatType) => void,
     vatTypes: { [key: string]: VatType },
-    onCreateRule: (transaction: ImportedTransaction) => void,
+    onCreateRule: (transaction: ImportedTransaction | AllocatedTransaction) => void,
     processingTxId?: string | null;
     customers: User[];
     suppliers: Supplier[];
@@ -1238,7 +1238,7 @@ function AllocationTable({ transactions, onAllocate, onEdit, onDelete, selectedT
                                     <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                                     <DropdownMenuContent>
                                         <DropdownMenuItem onClick={() => onAllocate(tx.id)} disabled={!allocations[tx.id] || processingTxId === tx.id}>Allocate</DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => onEdit(tx)}>Edit</DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => onEdit(tx as ImportedTransaction)}>Edit</DropdownMenuItem>
                                         <DropdownMenuItem onClick={() => onCreateRule(tx)}>Create AI Rule</DropdownMenuItem>
                                         <DropdownMenuSeparator />
                                         <AlertDialogTrigger asChild>
@@ -1265,10 +1265,11 @@ function AllocationTable({ transactions, onAllocate, onEdit, onDelete, selectedT
     );
 }
 
-function AllocatedTransactionTable({ transactions, onSaveAllocation, onDelete, selectedTransactions, onSelectionChange, customers, suppliers, chartOfAccounts }: { 
+function AllocatedTransactionTable({ transactions, onSaveAllocation, onDelete, onCreateRule, selectedTransactions, onSelectionChange, customers, suppliers, chartOfAccounts }: { 
     transactions: AllocatedTransaction[], 
     onSaveAllocation: (transactionId: string, newAllocation: {value: string, type: 'account'|'customer'|'supplier'}, newVatType: VatType) => void,
     onDelete: (transactionId: string) => void,
+    onCreateRule: (transaction: AllocatedTransaction) => void,
     selectedTransactions: string[],
     onSelectionChange: (id: string, isSelected: boolean) => void,
     customers: User[];
@@ -1343,6 +1344,7 @@ function AllocatedTransactionTable({ transactions, onSaveAllocation, onDelete, s
                                     <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                                     <DropdownMenuContent>
                                         <DropdownMenuItem onClick={() => onSaveAllocation(tx.id, editableAllocations[tx.id], editableVatTypes[tx.id])}>Save Changes</DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => onCreateRule(tx)}>Create AI Rule</DropdownMenuItem>
                                         <DropdownMenuSeparator />
                                         <AlertDialogTrigger asChild>
                                             <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
@@ -2028,6 +2030,8 @@ function AccountForm({ account, onSubmit, onCancel }: { account: ChartOfAccount 
     )
 }
 
+type TabName = 'unallocated-income' | 'unallocated-expenses' | 'processing' | 'review' | 'allocated-income' | 'allocated-expenses';
+
 export default function NumeraPage() {
   const [clients, setClients] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -2037,6 +2041,7 @@ export default function NumeraPage() {
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState('reporting');
+  const [activeProcessingTab, setActiveProcessingTab] = useState<TabName>('unallocated-income');
   const [glInitialValues, setGlInitialValues] = useState<Partial<z.infer<typeof generalLedgerFormSchema>>>();
   const [selectedBankAccount, setSelectedBankAccount] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -2050,7 +2055,7 @@ export default function NumeraPage() {
   const [allProcessing, setAllProcessing] = useState<ImportedTransaction[]>([]);
   const [allReviewing, setAllReviewing] = useState<ImportedTransaction[]>([]);
   
-  const [unallocatedSearch, setUnallocatedSearch] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedUnallocated, setSelectedUnallocated] = useState<string[]>([]);
   const [selectedAllocated, setSelectedAllocated] = useState<string[]>([]);
   const [selectedForReview, setSelectedForReview] = useState<string[]>([]);
@@ -2061,7 +2066,7 @@ export default function NumeraPage() {
   const [journals, setJournals] = useState<Journal[]>([]);
   const [isJournalFormOpen, setIsJournalFormOpen] = useState(false);
   const [selectedJournal, setSelectedJournal] = useState<Journal | null>(null);
-  const [feedbackTransaction, setFeedbackTransaction] = useState<ImportedTransaction | null>(null);
+  const [feedbackTransaction, setFeedbackTransaction] = useState<ImportedTransaction | AllocatedTransaction | null>(null);
   const [isBulkAllocateOpen, setIsBulkAllocateOpen] = useState(false);
   const [customers, setCustomers] = useState<User[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -2603,7 +2608,7 @@ export default function NumeraPage() {
 };
 
  const handleRuleCreationAndAutoAllocate = async (feedbackData: {
-    transaction: ImportedTransaction;
+    transaction: ImportedTransaction | AllocatedTransaction;
     description: string;
     correctAccount: string;
     correctVatType: VatType;
@@ -3029,26 +3034,19 @@ export default function NumeraPage() {
     return allReviewing.filter(tx => tx.bankAccountId === selectedBankAccount);
   }, [allReviewing, selectedBankAccount]);
 
-  const incomeTransactions = useMemo(() => {
-    const filtered = unallocatedTransactions.filter(tx => tx.amount >= 0);
-    if (!unallocatedSearch) return filtered;
-    return filtered.filter(tx => 
-        tx.description.toLowerCase().includes(unallocatedSearch.toLowerCase()) ||
-        tx.amount.toString().includes(unallocatedSearch)
+  const filteredTransactions = (transactions: (ImportedTransaction | AllocatedTransaction)[]) => {
+    if (!searchQuery) return transactions;
+    return transactions.filter(tx => 
+        tx.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        tx.amount.toString().includes(searchQuery)
     );
-  }, [unallocatedTransactions, unallocatedSearch]);
-
-  const expenseTransactions = useMemo(() => {
-    const filtered = unallocatedTransactions.filter(tx => tx.amount < 0);
-     if (!unallocatedSearch) return filtered;
-    return filtered.filter(tx => 
-        tx.description.toLowerCase().includes(unallocatedSearch.toLowerCase()) ||
-        tx.amount.toString().includes(unallocatedSearch)
-    );
-  }, [unallocatedTransactions, unallocatedSearch]);
+  };
   
-  const allocatedIncome = useMemo(() => allocatedTransactions.filter(tx => tx.amount >= 0), [allocatedTransactions]);
-  const allocatedExpenses = useMemo(() => allocatedTransactions.filter(tx => tx.amount < 0), [allocatedTransactions]);
+  const incomeTransactions = useMemo(() => filteredTransactions(unallocatedTransactions.filter(tx => tx.amount >= 0)), [unallocatedTransactions, searchQuery, activeProcessingTab]);
+  const expenseTransactions = useMemo(() => filteredTransactions(unallocatedTransactions.filter(tx => tx.amount < 0)), [unallocatedTransactions, searchQuery, activeProcessingTab]);
+  const allocatedIncome = useMemo(() => filteredTransactions(allocatedTransactions.filter(tx => tx.amount >= 0)), [allocatedTransactions, searchQuery, activeProcessingTab]);
+  const allocatedExpenses = useMemo(() => filteredTransactions(allocatedTransactions.filter(tx => tx.amount < 0)), [allocatedTransactions, searchQuery, activeProcessingTab]);
+  const filteredReviewTransactions = useMemo(() => filteredTransactions(reviewTransactions), [reviewTransactions, searchQuery, activeProcessingTab]);
 
 
   return (
@@ -3276,8 +3274,8 @@ export default function NumeraPage() {
                                                 type="search"
                                                 placeholder="Search transactions..."
                                                 className="w-full sm:w-[250px] pl-8"
-                                                value={unallocatedSearch}
-                                                onChange={(e) => setUnallocatedSearch(e.target.value)}
+                                                value={searchQuery}
+                                                onChange={(e) => setSearchQuery(e.target.value)}
                                             />
                                         </div>
                                     </div>
@@ -3285,16 +3283,16 @@ export default function NumeraPage() {
                             </CardHeader>
                             <CardContent>
                                 {(unallocatedTransactions.length + allocatedTransactions.length + processingTransactions.length + reviewTransactions.length) > 0 ? (
-                                    <Tabs defaultValue="unallocated-income">
+                                    <Tabs value={activeProcessingTab} onValueChange={(value) => setActiveProcessingTab(value as TabName)} className="w-full">
                                         <TabsList className="grid w-full grid-cols-1 md:grid-cols-2 lg:grid-cols-6 h-auto">
                                             <TabsTrigger value="unallocated-income">Unallocated Income ({incomeTransactions.length})</TabsTrigger>
                                             <TabsTrigger value="unallocated-expenses">Unallocated Expenses ({expenseTransactions.length})</TabsTrigger>
                                             <TabsTrigger value="processing">Processing ({processingTransactions.length})</TabsTrigger>
-                                            <TabsTrigger value="review">Review ({reviewTransactions.length})</TabsTrigger>
+                                            <TabsTrigger value="review">Review ({filteredReviewTransactions.length})</TabsTrigger>
                                             <TabsTrigger value="allocated-income">Allocated Income ({allocatedIncome.length})</TabsTrigger>
                                             <TabsTrigger value="allocated-expenses">Allocated Expenses ({allocatedExpenses.length})</TabsTrigger>
                                         </TabsList>
-                                        {(selectedUnallocated.length > 0) && (
+                                        {(selectedUnallocated.length > 0 && (activeProcessingTab === 'unallocated-income' || activeProcessingTab === 'unallocated-expenses')) && (
                                             <div className="flex flex-wrap items-center gap-4 p-4 border-t border-b bg-muted/50">
                                                 <p className="text-sm font-semibold">{selectedUnallocated.length} selected</p>
                                                 <Button size="sm" onClick={() => setIsBulkAllocateOpen(true)}>Allocate Selected</Button>
@@ -3305,7 +3303,7 @@ export default function NumeraPage() {
                                                 <Button size="sm" variant="ghost" onClick={() => setSelectedUnallocated([])}>Clear Selection</Button>
                                             </div>
                                         )}
-                                        {selectedAllocated.length > 0 && (
+                                        {selectedAllocated.length > 0 && (activeProcessingTab === 'allocated-income' || activeProcessingTab === 'allocated-expenses') && (
                                             <div className="flex flex-wrap items-center gap-4 p-4 border-t border-b bg-muted/50">
                                                 <p className="text-sm font-semibold">{selectedAllocated.length} selected</p>
                                                 <AlertDialog>
@@ -3326,7 +3324,7 @@ export default function NumeraPage() {
                                                 <Button size="sm" variant="ghost" onClick={() => setSelectedAllocated([])}>Clear Selection</Button>
                                             </div>
                                         )}
-                                         {selectedForReview.length > 0 && (
+                                         {selectedForReview.length > 0 && activeProcessingTab === 'review' && (
                                             <div className="flex flex-wrap items-center gap-4 p-4 border-t border-b bg-muted/50">
                                                 <p className="text-sm font-semibold">{selectedForReview.length} selected</p>
                                                 <Button size="sm" onClick={handleAcceptReviewed}>
@@ -3366,8 +3364,8 @@ export default function NumeraPage() {
                                             )}
                                         </TabsContent>
                                         <TabsContent value="review">
-                                            {reviewTransactions.length > 0 ? (
-                                                <AllocationTable transactions={reviewTransactions} onAllocate={handleAllocate} onEdit={handleEditTransaction} onDelete={(id) => handleDeleteTransaction(id, 'review')} selectedTransactions={selectedForReview} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'review')} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onCreateRule={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} chartOfAccounts={chartOfAccountsData} />
+                                            {filteredReviewTransactions.length > 0 ? (
+                                                <AllocationTable transactions={filteredReviewTransactions} onAllocate={handleAllocate} onEdit={handleEditTransaction} onDelete={(id) => handleDeleteTransaction(id, 'review')} selectedTransactions={selectedForReview} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'review')} onAllocationSelect={handleAllocationSelect} allocations={allocations} onVatTypeSelect={handleVatTypeSelect} vatTypes={vatTypes} onCreateRule={setFeedbackTransaction} processingTxId={processingTxId} customers={customers} suppliers={suppliers} chartOfAccounts={chartOfAccountsData} />
                                             ) : (
                                                 <p className="text-muted-foreground text-center py-10">No transactions to review.</p>
                                             )}
@@ -3378,7 +3376,7 @@ export default function NumeraPage() {
                                                 <div className="flex justify-end p-2">
                                                     <Button variant="outline" size="sm" onClick={() => exportToExcel(allocatedIncome, 'allocated-income')}><Download className="mr-2 h-4 w-4"/>Export to Excel</Button>
                                                 </div>
-                                                <AllocatedTransactionTable transactions={allocatedIncome} onSaveAllocation={handleSaveAllocation} onDelete={(id) => handleDeleteTransaction(id, 'allocated')} selectedTransactions={selectedAllocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'allocated')} customers={customers} suppliers={suppliers} chartOfAccounts={chartOfAccountsData} />
+                                                <AllocatedTransactionTable transactions={allocatedIncome} onSaveAllocation={handleSaveAllocation} onDelete={(id) => handleDeleteTransaction(id, 'allocated')} onCreateRule={setFeedbackTransaction} selectedTransactions={selectedAllocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'allocated')} customers={customers} suppliers={suppliers} chartOfAccounts={chartOfAccountsData} />
                                                 </>
                                             ) : (
                                                 <p className="text-muted-foreground text-center py-10">No allocated income transactions to display.</p>
@@ -3390,7 +3388,7 @@ export default function NumeraPage() {
                                                 <div className="flex justify-end p-2">
                                                     <Button variant="outline" size="sm" onClick={() => exportToExcel(allocatedExpenses, 'allocated-expenses')}><Download className="mr-2 h-4 w-4"/>Export to Excel</Button>
                                                 </div>
-                                                <AllocatedTransactionTable transactions={allocatedExpenses} onSaveAllocation={handleSaveAllocation} onDelete={(id) => handleDeleteTransaction(id, 'allocated')} selectedTransactions={selectedAllocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'allocated')} customers={customers} suppliers={suppliers} chartOfAccounts={chartOfAccountsData} />
+                                                <AllocatedTransactionTable transactions={allocatedExpenses} onSaveAllocation={handleSaveAllocation} onDelete={(id) => handleDeleteTransaction(id, 'allocated')} onCreateRule={setFeedbackTransaction} selectedTransactions={selectedAllocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'allocated')} customers={customers} suppliers={suppliers} chartOfAccounts={chartOfAccountsData} />
                                                 </>
                                             ) : (
                                                 <p className="text-muted-foreground text-center py-10">No allocated expense transactions to display.</p>
@@ -3897,10 +3895,10 @@ function AIFeedbackDialog({
     onSubmit,
     chartOfAccounts,
 }: {
-    transaction: ImportedTransaction | null;
+    transaction: ImportedTransaction | AllocatedTransaction | null;
     onClose: () => void;
     onSubmit: (data: {
-        transaction: ImportedTransaction;
+        transaction: ImportedTransaction | AllocatedTransaction;
         description: string;
         correctAccount: string;
         correctVatType: VatType;
@@ -3954,7 +3952,7 @@ function AIFeedbackDialog({
                             name="description"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Rule Description</FormLabel>
+                                    <FormLabel>Rule Description (Editable)</FormLabel>
                                     <FormControl>
                                         <Textarea {...field} placeholder="e.g., 'Payment from Client for services'" />
                                     </FormControl>
