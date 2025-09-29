@@ -1,5 +1,4 @@
 
-
 'use client';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
@@ -138,7 +137,6 @@ const clientFormSchema = z.object({
   yearEnd: z.date({ required_error: 'Financial year end is required.'}),
   isVatRegistered: z.boolean().default(false),
   vatRegistrationDate: z.date().optional(),
-  chartOfAccounts: z.array(z.custom<ChartOfAccount>()).optional(),
 });
 
 function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSubmit: (data: any) => void, onCancel: () => void }) {
@@ -159,7 +157,6 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
             yearEnd: toDate(client?.yearEnd),
             isVatRegistered: client?.isVatRegistered || false,
             vatRegistrationDate: toDate(client?.vatRegistrationDate),
-            chartOfAccounts: client?.chartOfAccounts || initialChartOfAccounts,
         },
     });
     
@@ -1985,6 +1982,49 @@ function EditBankAccountForm({
     )
 }
 
+const accountSections: ChartOfAccount['section'][] = ['Income Statement', 'Balance Sheet'];
+const coaFormSchema = z.object({
+  id: z.string().optional(),
+  accountNumber: z.string().regex(/^\d{4}\/\d{3}$/, 'Account number must be in XXXX/XXX format.'),
+  description: z.string().min(3, 'Description is required.'),
+  section: z.enum(accountSections),
+});
+
+function AccountForm({ account, onSubmit, onCancel }: { account: ChartOfAccount | null, onSubmit: (data: any) => void, onCancel: () => void }) {
+    const form = useForm<z.infer<typeof coaFormSchema>>({
+        resolver: zodResolver(coaFormSchema),
+        defaultValues: {
+            id: account?.id || '',
+            accountNumber: account?.accountNumber || '',
+            description: account?.description || '',
+            section: account?.section || 'Income Statement',
+        },
+    });
+
+    useEffect(() => {
+        form.reset(account || { accountNumber: '', description: '', section: 'Income Statement' });
+    }, [account, form]);
+
+    const handleSubmit = (values: z.infer<typeof coaFormSchema>) => {
+        onSubmit(values);
+    };
+    
+    return (
+        <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+                <FormField control={form.control} name="accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input placeholder="e.g. 1000/000" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="section" render={({ field }) => ( <FormItem><FormLabel>Section</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a section" /></SelectTrigger></FormControl><SelectContent>{accountSections.map(section => <SelectItem key={section} value={section}>{section}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                
+                <div className="flex justify-end gap-2">
+                    <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
+                    <Button type="submit">Save Account</Button>
+                </div>
+            </form>
+        </Form>
+    )
+}
+
 export default function NumeraPage() {
   const [clients, setClients] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -2034,6 +2074,8 @@ export default function NumeraPage() {
   const [chartOfAccountsData, setChartOfAccountsData] = useState<ChartOfAccount[]>(initialChartOfAccounts);
   const [editingBankAccount, setEditingBankAccount] = useState<ChartOfAccount | null>(null);
 
+  const [isCoaFormOpen, setIsCoaFormOpen] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState<ChartOfAccount | null>(null);
 
   const importForm = useForm();
   
@@ -2045,10 +2087,6 @@ export default function NumeraPage() {
         let fetchedClients = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
         fetchedClients.sort((a, b) => a.name.localeCompare(b.name));
         setClients(fetchedClients);
-        // Using allUsers for customers as a stand-in for now
-        setCustomers(allUsers.filter(u => u.role === 'client' && u.source === 'Numera'));
-        // Using a mock list for suppliers for now
-        setSuppliers([{id: 'supp-1', name: 'Telkom'}, {id: 'supp-2', name: 'Eskom'}]);
     } catch (error) {
         console.error("Error fetching clients:", error);
         toast({ title: 'Error', description: 'Could not fetch clients from the database.', variant: 'destructive'});
@@ -2057,6 +2095,28 @@ export default function NumeraPage() {
     }
   };
   
+  const fetchClientSubCollections = async (clientId: string) => {
+    try {
+        const customersQuery = query(collection(db, "clients", clientId, "customers"));
+        const suppliersQuery = query(collection(db, "clients", clientId, "suppliers"));
+
+        const [customersSnapshot, suppliersSnapshot] = await Promise.all([
+            getDocs(customersQuery),
+            getDocs(suppliersQuery),
+        ]);
+        
+        const fetchedCustomers = customersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+        const fetchedSuppliers = suppliersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Supplier));
+
+        setCustomers(fetchedCustomers);
+        setSuppliers(fetchedSuppliers);
+    } catch (error) {
+        console.error("Error fetching sub-collections:", error);
+        toast({ title: 'Error', description: 'Could not fetch customers and suppliers for this client.', variant: 'destructive'});
+    }
+  };
+
+
   const fetchAllocationRules = async () => {
     try {
       const q = query(collection(db, "allocationRules"), orderBy('type'));
@@ -2110,8 +2170,12 @@ export default function NumeraPage() {
     setAllReviewing([]);
     setBankBalances({});
     setSelectedBankAccount('');
+    setCustomers([]);
+    setSuppliers([]);
+
     if (activeClient) {
         fetchTransactions(activeClient.id);
+        fetchClientSubCollections(activeClient.id);
         const clientCOA = activeClient.chartOfAccounts || initialChartOfAccounts;
         setChartOfAccountsData(clientCOA);
     }
@@ -2156,18 +2220,24 @@ export default function NumeraPage() {
   const handleClientFormSubmit = async (data: z.infer<typeof clientFormSchema>) => {
     if (!currentUser) return;
 
-    const clientData = {
+    const isNewClient = !selectedClient?.id;
+
+    const clientData: Partial<User> = {
       name: data.name,
       contactPerson: data.contactPerson,
       email: data.email,
       yearEnd: data.yearEnd ? Timestamp.fromDate(data.yearEnd) : null,
       isVatRegistered: data.isVatRegistered,
-      vatCategory: data.isVatRegistered ? 'B' : undefined, // Default to B for simplicity, not in form
+      vatCategory: data.isVatRegistered ? 'B' : undefined,
       vatRegistrationDate: data.vatRegistrationDate ? Timestamp.fromDate(data.vatRegistrationDate) : null,
-      chartOfAccounts: data.chartOfAccounts || chartOfAccountsData, // Use current CoA state as default
       role: 'client' as const,
       source: 'Numera' as const,
     };
+    
+     if (isNewClient) {
+      clientData.chartOfAccounts = initialChartOfAccounts;
+    }
+
 
     try {
       if (selectedClient?.id) {
@@ -2810,6 +2880,59 @@ export default function NumeraPage() {
     }
   };
 
+   const handleCoaFormSubmit = async (data: Omit<ChartOfAccount, 'id'> & { id?: string }) => {
+    if (!activeClient) return;
+    
+    let updatedCoa;
+    if (selectedAccount) {
+      // Update
+      updatedCoa = chartOfAccountsData.map(a => 
+        (a.id === selectedAccount.id) ? { ...a, ...data, id: data.accountNumber } : a
+      );
+      toast({ title: 'Account Updated', description: 'The account details have been saved.' });
+    } else {
+      // Add
+      const newAccount = { ...data, id: data.accountNumber };
+      updatedCoa = [...chartOfAccountsData, newAccount].sort((a,b) => a.accountNumber.localeCompare(b.accountNumber));
+      toast({ title: 'Account Created', description: 'The new account has been added.' });
+    }
+    
+    try {
+      const clientRef = doc(db, 'clients', activeClient.id);
+      await setDoc(clientRef, { chartOfAccounts: updatedCoa }, { merge: true });
+      setChartOfAccountsData(updatedCoa);
+      setIsCoaFormOpen(false);
+      setSelectedAccount(null);
+    } catch (e) {
+      toast({ title: 'Error', description: 'Could not save Chart of Accounts.', variant: 'destructive' });
+    }
+  };
+
+  const handleCoaDelete = async (accountId: string) => {
+    if (!activeClient) return;
+    const updatedCoa = chartOfAccountsData.filter(a => a.id !== accountId);
+
+    try {
+      const clientRef = doc(db, 'clients', activeClient.id);
+      await setDoc(clientRef, { chartOfAccounts: updatedCoa }, { merge: true });
+      setChartOfAccountsData(updatedCoa);
+      toast({ title: 'Account Deleted', description: 'The account has been removed.', variant: 'destructive' });
+    } catch (e) {
+      toast({ title: 'Error', description: 'Could not delete account.', variant: 'destructive' });
+    }
+  };
+
+  const handleAddCoa = () => {
+    setSelectedAccount(null);
+    setIsCoaFormOpen(true);
+  };
+
+  const handleEditCoa = (account: ChartOfAccount) => {
+    setSelectedAccount(account);
+    setIsCoaFormOpen(true);
+  };
+
+
   const clientBankAccounts = useMemo(() => {
     return activeClient ? chartOfAccountsData.filter(acc => acc.accountNumber.startsWith('8400')) : [];
   }, [activeClient, chartOfAccountsData]);
@@ -2925,6 +3048,7 @@ export default function NumeraPage() {
                         <TabsTrigger value="vat">VAT</TabsTrigger>
                         <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
                         <TabsTrigger value="customers">Customers</TabsTrigger>
+                        <TabsTrigger value="chart-of-accounts">Chart of Accounts</TabsTrigger>
                     </TabsList>
                     <TabsContent value="reporting" className="space-y-4">
                         <TrialBalanceCard activeClient={activeClient} onAccountClick={handleTBAccountClick} allocatedTransactions={allAllocated} unallocatedTransactions={allUnallocated} chartOfAccounts={chartOfAccountsData} />
@@ -3343,6 +3467,77 @@ export default function NumeraPage() {
                            </CardContent>
                         </Card>
                     </TabsContent>
+                    <TabsContent value="chart-of-accounts">
+                       <Card>
+                            <CardHeader className="flex flex-row items-center justify-between">
+                                <div>
+                                    <CardTitle>Chart of Accounts for {activeClient.name}</CardTitle>
+                                    <CardDescription>Manage the general ledger accounts for this client.</CardDescription>
+                                </div>
+                                <Button onClick={handleAddCoa}><PlusCircle className="mr-2 h-4 w-4" /> Add Account</Button>
+                            </CardHeader>
+                            <CardContent>
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Account Number</TableHead>
+                                            <TableHead>Description</TableHead>
+                                            <TableHead>Section</TableHead>
+                                            <TableHead className="text-right">Actions</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {chartOfAccountsData.map(account => (
+                                            <TableRow key={account.id}>
+                                            <TableCell className="font-mono">{account.accountNumber}</TableCell>
+                                            <TableCell className="font-medium">{account.description}</TableCell>
+                                            <TableCell>{account.section}</TableCell>
+                                            <TableCell className="text-right">
+                                                <AlertDialog>
+                                                    <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" className="h-8 w-8 p-0">
+                                                        <span className="sr-only">Open menu</span>
+                                                        <MoreHorizontal className="h-4 w-4" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                        <DropdownMenuItem onClick={() => handleEditCoa(account)}>
+                                                            Edit
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuSeparator />
+                                                        <AlertDialogTrigger asChild>
+                                                            <DropdownMenuItem className="text-destructive">
+                                                                Delete
+                                                            </DropdownMenuItem>
+                                                        </AlertDialogTrigger>
+                                                    </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                            <AlertDialogDescription>
+                                                            This action cannot be undone. This will permanently delete the account:
+                                                            <span className="font-semibold"> {account.description}</span> for this client.
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => handleCoaDelete(account.id)}>
+                                                                Continue
+                                                            </AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                            </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
                 </Tabs>
              </div>
         ) : (
@@ -3511,6 +3706,21 @@ export default function NumeraPage() {
             onSave={handleSaveBankAccount}
             onClearTransactions={handleClearTransactions}
         />
+        <Dialog open={isCoaFormOpen} onOpenChange={setIsCoaFormOpen}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>{selectedAccount ? 'Edit Account' : 'Create New Account'}</DialogTitle>
+                    <DialogDescription>
+                        {selectedAccount ? 'Update the details for this account.' : 'Enter the details for a new account.'}
+                    </DialogDescription>
+                </DialogHeader>
+                <AccountForm 
+                    account={selectedAccount} 
+                    onSubmit={handleCoaFormSubmit}
+                    onCancel={() => setIsCoaFormOpen(false)}
+                />
+            </DialogContent>
+        </Dialog>
     </div>
   );
 }
