@@ -640,34 +640,6 @@ export default function AdminDashboardPage() {
         ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
     }, [tasks, user]);
 
-    const departmentTasks = useMemo(() => {
-        const deptTasks: { [key: string]: Task[] } = {};
-        departments.forEach(dept => {
-            deptTasks[dept] = tasks.filter(task => {
-                if (task.recurrence && task.recurrence !== 'None') return false; // Exclude automated tasks
-    
-                if (!Array.isArray(task.assignedTo) || task.assignedTo.length <= 1) return false; // Must be assigned to more than one person
-
-                // Check if all assignees are in the same department
-                const firstAssigneeDept = allStaff.find(u => u.id === task.assignedTo[0])?.department;
-                if (firstAssigneeDept !== dept) return false;
-
-                const allInDept = task.assignedTo.every(userId => {
-                    const assignee = allStaff.find(u => u.id === userId);
-                    return assignee?.department === dept;
-                });
-    
-                return allInDept;
-            }).sort((a, b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : b.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
-        });
-        return deptTasks;
-    }, [tasks, allStaff]);
-
-    const automatedTasks = useMemo(() => {
-        return tasks.filter(task => task.recurrence && task.recurrence !== 'None');
-    }, [tasks]);
-
-
     const delegatedTasks = useMemo(() => {
         if (!user) return [];
         return tasks.filter(task => 
@@ -676,6 +648,36 @@ export default function AdminDashboardPage() {
             (!task.recurrence || task.recurrence === 'None')
         ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
     }, [tasks, user]);
+
+    const taggedTasks = useMemo(() => {
+        if (!user) return [];
+        return tasks.filter(task => 
+            Array.isArray(task.tags) && 
+            task.tags.includes(user.id) &&
+            (!task.recurrence || task.recurrence === 'None')
+        ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
+    }, [tasks, user]);
+    
+    const departmentTasks = useMemo(() => {
+        if (!user?.department) return [];
+        // All non-recurring tasks where at least one assigned user is in the current user's department
+        const deptTasks = tasks.filter(task => {
+            if (task.recurrence && task.recurrence !== 'None') return false;
+
+            return task.assignedTo.some(userId => {
+                const assignee = allStaff.find(u => u.id === userId);
+                return assignee?.department === user.department;
+            });
+        });
+        
+        return deptTasks.sort((a, b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : b.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
+    }, [tasks, user, allStaff]);
+
+
+    const automatedTasks = useMemo(() => {
+        return tasks.filter(task => task.recurrence && task.recurrence !== 'None');
+    }, [tasks]);
+
 
     const handleAdd = () => {
         setSelectedTask(null);
@@ -934,7 +936,7 @@ export default function AdminDashboardPage() {
                         
                         <TaskTable 
                             tasks={myTasks} 
-                            title="My Tagged Tasks" 
+                            title="My Tasks" 
                             description="All non-automated tasks assigned directly to you."
                             onEdit={handleEdit}
                             onUpdateStatus={handleUpdateStatus}
@@ -942,63 +944,34 @@ export default function AdminDashboardPage() {
                             filter="all"
                             allStaff={allStaff}
                         />
-                        
-                         <Card>
-                            <CardHeader>
-                                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-                                    <div>
-                                    <CardTitle>Automated Client Tasks</CardTitle>
-                                    <CardDescription>Recurring tasks generated from the client automation system.</CardDescription>
-                                    </div>
-                                    <div className="w-full sm:w-auto">
-                                        <Select onValueChange={setAutomatedTaskFilter} defaultValue="all">
-                                            <SelectTrigger className="w-full sm:w-[240px]">
-                                                <SelectValue placeholder="Filter by task type..." />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {taskTypes.map(type => (
-                                                    <SelectItem key={type} value={type === 'All Tasks' ? 'all' : type}>
-                                                        {type}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                <TaskTable 
-                                    tasks={automatedTasks} 
-                                    title="" 
-                                    description=""
-                                    onEdit={handleEdit}
-                                    onUpdateStatus={handleUpdateStatus}
-                                    onDelete={handleDelete}
-                                    filter={automatedTaskFilter}
-                                    allStaff={allStaff}
-                                />
-                            </CardContent>
-                        </Card>
 
-                        {user?.role === 'admin' && Object.keys(departmentTasks).map(dept => (
-                           <TaskTable 
-                                key={dept}
-                                tasks={departmentTasks[dept as keyof typeof departmentTasks]} 
-                                title={`${dept} Department Tasks`} 
-                                description={`All tasks for the ${dept} department.`}
-                                onEdit={handleEdit}
-                                onUpdateStatus={handleUpdateStatus}
-                                onDelete={handleDelete}
-                                filter="all"
-                                allStaff={allStaff}
-                            />
-                        ))}
-                        
-                        {user?.role === 'staff' && user.department && departmentTasks[user.department] && (
+                        <TaskTable 
+                            tasks={delegatedTasks} 
+                            title="Delegated Tasks" 
+                            description="Tasks you have created and assigned to other team members."
+                            onEdit={handleEdit}
+                            onUpdateStatus={handleUpdateStatus}
+                            onDelete={handleDelete}
+                            filter="all"
+                            allStaff={allStaff}
+                        />
+
+                        <TaskTable 
+                            tasks={taggedTasks} 
+                            title="My Tagged Tasks" 
+                            description="Tasks where you have been tagged for visibility, but not directly assigned."
+                            onEdit={handleEdit}
+                            onUpdateStatus={handleUpdateStatus}
+                            onDelete={handleDelete}
+                            filter="all"
+                            allStaff={allStaff}
+                        />
+
+                        {departmentTasks.length > 0 && (
                              <TaskTable 
-                                tasks={departmentTasks[user.department]} 
-                                title={`${user.department} Department Tasks`} 
-                                description={`All tasks for your department.`}
+                                tasks={departmentTasks} 
+                                title={`${user?.department} Department Tasks`} 
+                                description={`All tasks related to your department.`}
                                 onEdit={handleEdit}
                                 onUpdateStatus={handleUpdateStatus}
                                 onDelete={handleDelete}
@@ -1006,18 +979,44 @@ export default function AdminDashboardPage() {
                                 allStaff={allStaff}
                             />
                         )}
-
-                        {user?.role === 'admin' && (
-                            <TaskTable 
-                                tasks={delegatedTasks} 
-                                title="Delegated Tasks" 
-                                description="Tasks you have created and assigned to other team members."
-                                onEdit={handleEdit}
-                                onUpdateStatus={handleUpdateStatus}
-                                onDelete={handleDelete}
-                                filter="all"
-                                allStaff={allStaff}
-                            />
+                        
+                        {(user?.role === 'admin' && automatedTasks.length > 0) && (
+                            <Card>
+                                <CardHeader>
+                                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                                        <div>
+                                        <CardTitle>Automated Client Tasks</CardTitle>
+                                        <CardDescription>Recurring tasks generated from the client automation system.</CardDescription>
+                                        </div>
+                                        <div className="w-full sm:w-auto">
+                                            <Select onValueChange={setAutomatedTaskFilter} defaultValue="all">
+                                                <SelectTrigger className="w-full sm:w-[240px]">
+                                                    <SelectValue placeholder="Filter by task type..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {taskTypes.map(type => (
+                                                        <SelectItem key={type} value={type === 'All Tasks' ? 'all' : type}>
+                                                            {type}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+                                </CardHeader>
+                                <CardContent>
+                                    <TaskTable 
+                                        tasks={automatedTasks} 
+                                        title="" 
+                                        description=""
+                                        onEdit={handleEdit}
+                                        onUpdateStatus={handleUpdateStatus}
+                                        onDelete={handleDelete}
+                                        filter={automatedTaskFilter}
+                                        allStaff={allStaff}
+                                    />
+                                </CardContent>
+                            </Card>
                         )}
                     </>
                 )}
