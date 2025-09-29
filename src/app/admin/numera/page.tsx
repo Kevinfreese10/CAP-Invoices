@@ -46,6 +46,7 @@ import html2canvas from 'html2canvas';
 import { getAISuggestions } from '@/ai/flows/get-ai-suggestions';
 import { allVatTypes as allVatTypesData } from '@/lib/vat-types';
 import { Badge } from '@/components/ui/badge';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 const db = getFirestore(firebaseApp);
 
@@ -2601,48 +2602,52 @@ export default function NumeraPage() {
     }
 };
 
-  const handleRuleCreationAndAutoAllocate = async (feedbackData: {
+ const handleRuleCreationAndAutoAllocate = async (feedbackData: {
     transaction: ImportedTransaction;
+    description: string;
     correctAccount: string;
     correctVatType: VatType;
-    rule: string;
+    ruleScope: 'client' | 'global';
   }) => {
     if (!activeClient) return;
 
-    const { transaction, correctAccount, correctVatType, rule } = feedbackData;
+    const { transaction, description, correctAccount, correctVatType, ruleScope } = feedbackData;
 
     toast({ title: "Learning from feedback...", description: "Updating AI knowledge and re-allocating." });
 
     try {
-      // 1. Create and save the new rule
       const newRule: Omit<AllocationRule, 'id' | 'keywords'> = {
           type: 'soft',
-          description: rule,
+          description: description,
           accountId: correctAccount,
           vatType: correctVatType,
       };
       
       const newRuleWithKeywords: Omit<AllocationRule, 'id'> = {
         ...newRule,
-        keywords: [] // Soft rules don't use keywords from this dialog
+        keywords: []
       };
 
-      const updatedRules = [...allocationRules, {...newRuleWithKeywords, id: `rule-${Date.now()}`}];
-      const clientRef = doc(db, "clients", activeClient.id);
-      await setDoc(clientRef, { allocationRules: updatedRules }, { merge: true });
-      setAllocationRules(updatedRules);
+      if (ruleScope === 'client') {
+          const updatedRules = [...allocationRules, {...newRuleWithKeywords, id: `rule-${Date.now()}`}];
+          const clientRef = doc(db, "clients", activeClient.id);
+          await setDoc(clientRef, { allocationRules: updatedRules }, { merge: true });
+          setAllocationRules(updatedRules);
+          toast({ title: "Client-specific AI Rule Created", description: "The new rule has been saved for this client." });
+      } else { // Global
+          // In a real app, this would be an API call to a secure backend to update a shared ruleset.
+          // For this demo, we'll just log it.
+          console.log("Saving new GLOBAL rule to master database:", newRuleWithKeywords);
+          toast({ title: "Global AI Rule Submitted", description: "The new rule has been submitted for global use." });
+      }
 
       setFeedbackTransaction(null);
-      toast({ title: "AI Rule Created", description: "The new rule has been saved for this client." });
 
-      // 2. Automatically allocate the current transaction and any other matching ones
-      const lowerCaseRuleKeywords = rule.toLowerCase().split(' ').filter(w => w.length > 3);
+      const lowerCaseDescKeywords = description.toLowerCase().split(' ').filter(w => w.length > 3);
       
       const transactionsToAllocate = allUnallocated.filter(tx => {
-         const lowerCaseDesc = tx.description.toLowerCase();
-         // A simple matching logic: check if the description contains keywords from the user's rule.
-         // This can be made more sophisticated.
-         return lowerCaseRuleKeywords.some(keyword => lowerCaseDesc.includes(keyword));
+         const lowerCaseTxDesc = tx.description.toLowerCase();
+         return lowerCaseDescKeywords.some(keyword => lowerCaseTxDesc.includes(keyword));
       });
       
       if (transactionsToAllocate.length > 0) {
@@ -2994,6 +2999,13 @@ export default function NumeraPage() {
           toast({ title: 'Error', description: 'Could not delete rule.', variant: 'destructive' });
       }
   };
+  
+  const exportToExcel = (data: any[], fileName: string) => {
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Transactions');
+    XLSX.writeFile(workbook, `${fileName}.xlsx`);
+  };
 
 
   const clientBankAccounts = useMemo(() => {
@@ -3321,6 +3333,7 @@ export default function NumeraPage() {
                                                     <CheckCircle className="mr-2 h-4 w-4" />
                                                     Accept Selected
                                                 </Button>
+                                                <Button variant="outline" size="sm" onClick={() => exportToExcel(reviewTransactions.filter(tx => selectedForReview.includes(tx.id)), 'review-transactions')}><Download className="mr-2 h-4 w-4"/>Export Selected</Button>
                                                 <Button size="sm" variant="ghost" onClick={() => setSelectedForReview([])}>Clear Selection</Button>
                                             </div>
                                         )}
@@ -3361,14 +3374,24 @@ export default function NumeraPage() {
                                         </TabsContent>
                                         <TabsContent value="allocated-income">
                                             {allocatedIncome.length > 0 ? (
+                                                <>
+                                                <div className="flex justify-end p-2">
+                                                    <Button variant="outline" size="sm" onClick={() => exportToExcel(allocatedIncome, 'allocated-income')}><Download className="mr-2 h-4 w-4"/>Export to Excel</Button>
+                                                </div>
                                                 <AllocatedTransactionTable transactions={allocatedIncome} onSaveAllocation={handleSaveAllocation} onDelete={(id) => handleDeleteTransaction(id, 'allocated')} selectedTransactions={selectedAllocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'allocated')} customers={customers} suppliers={suppliers} chartOfAccounts={chartOfAccountsData} />
+                                                </>
                                             ) : (
                                                 <p className="text-muted-foreground text-center py-10">No allocated income transactions to display.</p>
                                             )}
                                         </TabsContent>
                                          <TabsContent value="allocated-expenses">
                                             {allocatedExpenses.length > 0 ? (
+                                                <>
+                                                <div className="flex justify-end p-2">
+                                                    <Button variant="outline" size="sm" onClick={() => exportToExcel(allocatedExpenses, 'allocated-expenses')}><Download className="mr-2 h-4 w-4"/>Export to Excel</Button>
+                                                </div>
                                                 <AllocatedTransactionTable transactions={allocatedExpenses} onSaveAllocation={handleSaveAllocation} onDelete={(id) => handleDeleteTransaction(id, 'allocated')} selectedTransactions={selectedAllocated} onSelectionChange={(id, checked) => handleSelectionChange(id, checked, 'allocated')} customers={customers} suppliers={suppliers} chartOfAccounts={chartOfAccountsData} />
+                                                </>
                                             ) : (
                                                 <p className="text-muted-foreground text-center py-10">No allocated expense transactions to display.</p>
                                             )}
@@ -3784,8 +3807,6 @@ export default function NumeraPage() {
         </Dialog>
          <AIFeedbackDialog
             transaction={feedbackTransaction}
-            allocations={allocations}
-            vatTypes={vatTypes}
             onClose={() => setFeedbackTransaction(null)}
             onSubmit={handleRuleCreationAndAutoAllocate}
             chartOfAccounts={chartOfAccountsData}
@@ -3864,48 +3885,51 @@ export default function NumeraPage() {
 }
 
 const feedbackSchema = z.object({
+    description: z.string().min(5, "A descriptive rule is required."),
     correctAccount: z.string().min(1, "Please select the correct account."),
     correctVatType: z.custom<VatType>(),
-    rule: z.string().min(10, "Please provide a simple rule for the AI to learn."),
+    ruleScope: z.enum(['client', 'global']).default('client'),
 });
 
 function AIFeedbackDialog({
     transaction,
-    allocations,
-    vatTypes,
     onClose,
     onSubmit,
     chartOfAccounts,
 }: {
     transaction: ImportedTransaction | null;
-    allocations: { [key: string]: { value: string, type: 'account'|'customer'|'supplier' } };
-    vatTypes: { [key: string]: VatType };
     onClose: () => void;
     onSubmit: (data: {
         transaction: ImportedTransaction;
+        description: string;
         correctAccount: string;
         correctVatType: VatType;
-        rule: string;
+        ruleScope: 'client' | 'global';
     }) => void;
     chartOfAccounts: ChartOfAccount[];
 }) {
     const form = useForm<z.infer<typeof feedbackSchema>>({
         resolver: zodResolver(feedbackSchema),
         defaultValues: {
+            description: '',
             correctAccount: '',
             correctVatType: 'no_vat',
-            rule: '',
+            ruleScope: 'client',
         }
     });
 
     useEffect(() => {
-        form.reset();
-    }, [transaction]);
+        if (transaction) {
+            form.reset({
+                description: transaction.description,
+                correctAccount: '',
+                correctVatType: 'no_vat',
+                ruleScope: 'client',
+            });
+        }
+    }, [transaction, form]);
 
     if (!transaction) return null;
-    
-    const currentAllocation = allocations[transaction.id];
-    const currentVatType = vatTypes[transaction.id];
 
     const handleSubmit = (values: z.infer<typeof feedbackSchema>) => {
         onSubmit({
@@ -3920,69 +3944,93 @@ function AIFeedbackDialog({
                 <DialogHeader>
                     <DialogTitle>Create New AI Rule</DialogTitle>
                     <DialogDescription>
-                        Teach the AI how to handle transactions like this in the future. This rule will be specific to this client.
+                        Teach the AI how to handle similar transactions. This rule will be applied to all matching unallocated transactions.
                     </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
-                    <p className="text-sm">
-                        <strong>Transaction:</strong> {transaction.description}
-                    </p>
-                    <p className="text-sm">
-                        <strong>Current Suggestion:</strong>{' '}
-                        {currentAllocation ? `${chartOfAccounts.find(c => c.accountNumber === currentAllocation.value)?.description} (VAT: ${currentVatType})` : 'None'}
-                    </p>
-                    <Separator />
-                     <Form {...form}>
-                        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-                            <FormField
-                                control={form.control}
-                                name="correctAccount"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Correct Account</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                            <FormControl><SelectTrigger><SelectValue placeholder="Select correct account..." /></SelectTrigger></FormControl>
-                                            <SelectContent>
-                                                {chartOfAccounts.map(acc => <SelectItem key={acc.accountNumber} value={acc.accountNumber}>{acc.accountNumber} - {acc.description}</SelectItem>)}
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                             <FormField
-                                control={form.control}
-                                name="correctVatType"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Correct VAT Type</FormLabel>
-                                        <FormControl>
-                                            <VatTypeCombobox value={field.value} onSelect={field.onChange} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                             <FormField
-                                control={form.control}
-                                name="rule"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Explain the rule simply</FormLabel>
-                                        <FormControl>
-                                            <Textarea {...field} placeholder="e.g., 'Transactions with TELKOM should go to Telephone & Fax'" />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <DialogFooter>
-                                <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-                                <Button type="submit">Create Rule & Allocate</Button>
-                            </DialogFooter>
-                        </form>
-                    </Form>
-                </div>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 pt-4">
+                        <FormField
+                            control={form.control}
+                            name="description"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Rule Description</FormLabel>
+                                    <FormControl>
+                                        <Textarea {...field} placeholder="e.g., 'Payment from Client for services'" />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="correctAccount"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Correct Account</FormLabel>
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <FormControl><SelectTrigger><SelectValue placeholder="Select correct account..." /></SelectTrigger></FormControl>
+                                        <SelectContent>
+                                            {chartOfAccounts.map(acc => <SelectItem key={acc.accountNumber} value={acc.accountNumber}>{acc.accountNumber} - {acc.description}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                         <FormField
+                            control={form.control}
+                            name="correctVatType"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Correct VAT Type</FormLabel>
+                                    <FormControl>
+                                        <VatTypeCombobox value={field.value} onSelect={field.onChange} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                         <FormField
+                            control={form.control}
+                            name="ruleScope"
+                            render={({ field }) => (
+                                <FormItem className="space-y-3">
+                                    <FormLabel>Rule Scope</FormLabel>
+                                    <FormControl>
+                                        <RadioGroup
+                                        onValueChange={field.onChange}
+                                        defaultValue={field.value}
+                                        className="flex flex-col space-y-1"
+                                        >
+                                        <FormItem className="flex items-center space-x-3 space-y-0">
+                                            <FormControl>
+                                            <RadioGroupItem value="client" />
+                                            </FormControl>
+                                            <FormLabel className="font-normal">
+                                            Client-specific (only for this client)
+                                            </FormLabel>
+                                        </FormItem>
+                                        <FormItem className="flex items-center space-x-3 space-y-0">
+                                            <FormControl>
+                                            <RadioGroupItem value="global" />
+                                            </FormControl>
+                                            <FormLabel className="font-normal">
+                                            Global (for all future clients)
+                                            </FormLabel>
+                                        </FormItem>
+                                        </RadioGroup>
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                         />
+                        <DialogFooter>
+                            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+                            <Button type="submit">Create Rule & Auto-Allocate</Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
             </DialogContent>
         </Dialog>
     );
@@ -4138,8 +4186,3 @@ function RuleForm({ rule, onSubmit, onCancel, chartOfAccounts }: { rule: Omit<Al
         </Form>
     )
 }
-
-
-    
-
-    
