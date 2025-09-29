@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
@@ -24,6 +25,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format, add, sub, getMonth, getYear, startOfYear, endOfYear, startOfMonth, endOfMonth, addMonths } from 'date-fns';
 import { chartOfAccounts as initialChartOfAccounts } from '@/lib/chart-of-accounts';
+import { allocationRules as initialAllocationRules } from '@/lib/allocation-rules';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
@@ -2178,6 +2180,8 @@ export default function NumeraPage() {
         fetchClientSubCollections(activeClient.id);
         const clientCOA = activeClient.chartOfAccounts || initialChartOfAccounts;
         setChartOfAccountsData(clientCOA);
+        const clientRules = activeClient.allocationRules || initialAllocationRules;
+        setAllocationRules(clientRules);
     }
   }, [activeClient]);
 
@@ -2235,7 +2239,8 @@ export default function NumeraPage() {
     };
     
      if (isNewClient) {
-      clientData.chartOfAccounts = initialChartOfAccounts;
+      clientData.chartOfAccounts = chartOfAccountsData;
+      clientData.allocationRules = initialAllocationRules;
     }
 
 

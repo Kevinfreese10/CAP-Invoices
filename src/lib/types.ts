@@ -166,6 +166,7 @@ export type User = {
   submitsEmp201?: boolean;
   submitsEmp501?: boolean;
   chartOfAccounts?: ChartOfAccount[];
+  allocationRules?: AllocationRule[];
 };
 
 export type TaskComment = {
