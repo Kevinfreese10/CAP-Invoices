@@ -254,7 +254,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
                                         selected={field.value}
                                         onSelect={field.onChange}
                                         initialFocus
-                                        captionLayout="dropdown-buttons"
+                                        captionLayout="dropdown"
                                         fromYear={2015}
                                         toYear={new Date().getFullYear()}
                                     />
@@ -290,7 +290,7 @@ function AddBankAccountForm({ activeClient, onAccountAdded, chartOfAccounts }: {
     defaultValues: { name: '' },
   });
 
-  const handleSubmit = async (values: z.infer<typeof bankAccountFormSchema>) => {
+  const handleSubmit = async (values: z.infer<typeof bankAccountFormSchema>>) => {
     if (!activeClient) return;
     setIsSaving(true);
     try {
