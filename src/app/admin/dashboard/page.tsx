@@ -337,7 +337,7 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
         switch (status) {
             case 'Done': return 'success';
             case 'In Progress': return 'info';
-            case 'To-Do': return 'secondary';
+            case 'To-Do': return 'info';
             case 'Review': return 'warning';
             default: return 'secondary';
         }

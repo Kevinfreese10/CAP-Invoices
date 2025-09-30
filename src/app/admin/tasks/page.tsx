@@ -606,7 +606,7 @@ export default function AdminTasksPage() {
               ) : (
                 filteredTasks.map(task => {
                     const lastComment = task.comments && task.comments.length > 0 ? task.comments[task.comments.length - 1] : null;
-                    const commentAuthor = lastComment ? getAssignee(lastComment.authorId) : null;
+                    const commentAuthor = lastNote ? getAssignee(lastNote.authorId) : null;
                     const assignees = Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo];
                     const tags = Array.isArray(task.tags) ? task.tags : [];
                     return (
@@ -762,5 +762,3 @@ export default function AdminTasksPage() {
 
 
     
-
-
