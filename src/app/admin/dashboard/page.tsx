@@ -6,8 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { format, formatDistanceToNow, isPast } from 'date-fns';
+import { format, isPast } from 'date-fns';
 import { Task, User, TaskComment } from '@/lib/types';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -47,7 +46,6 @@ type UnansweredQuestion = {
 const departments = ['Accounting and Tax', 'Administration', 'CAP'] as const;
 
 const taskStatuses: Task['status'][] = ['To-Do', 'In Progress', 'Review', 'Done'];
-const taskPriorities: Task['priority'][] = ['High', 'Medium', 'Low'];
 const taskRecurrences: Task['recurrence'][] = ['None', 'Daily', 'Weekly', 'Monthly'];
 
 const formSchema = z.object({
@@ -57,7 +55,6 @@ const formSchema = z.object({
   assignedTo: z.array(z.string()).min(1, 'Please assign a staff member.'),
   tags: z.array(z.string()).optional(),
   dueDate: z.date({ required_error: 'A due date is required.'}),
-  priority: z.enum(taskPriorities),
   recurrence: z.enum(taskRecurrences).optional(),
   orderId: z.string().optional(),
   newComment: z.string().optional(),
@@ -74,7 +71,6 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
             assignedTo: task?.assignedTo || [],
             tags: task?.tags || [],
             dueDate: task?.dueDate ? task.dueDate.toDate() : new Date(),
-            priority: task?.priority || 'Medium',
             recurrence: task?.recurrence || 'None',
             orderId: task?.orderId || '',
             newComment: '',
@@ -103,12 +99,12 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
                 <FormField control={form.control} name="title" render={({ field }) => (<FormItem><FormLabel>Title</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="description" render={({ field }) => (<FormItem><FormLabel>Description</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>)} />
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
                     <FormField
                         control={form.control}
                         name="assignedTo"
                         render={({ field }) => (
-                            <FormItem className="lg:col-span-2">
+                            <FormItem>
                             <FormLabel>Assign To</FormLabel>
                             <Popover>
                                 <PopoverTrigger asChild>
@@ -213,7 +209,6 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                             </FormItem>
                         )}
                         />
-                    <FormField control={form.control} name="priority" render={({ field }) => (<FormItem><FormLabel>Priority</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select priority..." /></SelectTrigger></FormControl><SelectContent>{taskPriorities.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                 </div>
                  <FormField
                         control={form.control}
@@ -332,18 +327,11 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
     )
 }
 
-const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete, filter, allStaff }: { tasks: Task[], title: string, description: string, onEdit: (task: Task) => void, onUpdateStatus: (taskId: string, status: Task['status']) => void, onDelete: (taskId: string) => void, filter: string, allStaff: User[] }) => {
+const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete, allStaff }: { tasks: Task[], title: string, description: string, onEdit: (task: Task) => void, onUpdateStatus: (taskId: string, status: Task['status']) => void, onDelete: (taskId: string) => void, allStaff: User[] }) => {
     const getAssignee = (userId?: string): User | undefined => {
         if (!userId) return undefined;
         return allStaff.find(u => u.id === userId) || users.find(u => u.id === userId);
     }
-    
-    const filteredTasks = useMemo(() => {
-        if (filter !== 'all' && filter !== 'All Tasks') {
-            return tasks.filter(task => task.title.startsWith(filter));
-        }
-        return tasks;
-    }, [tasks, filter]);
     
     const getStatusVariant = (status: Task['status']) => {
         switch (status) {
@@ -354,20 +342,8 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
             default: return 'secondary';
         }
     };
-    
-    const getPriorityVariant = (priority: Task['priority'], dueDate: any) => {
-        const date = dueDate?.toDate ? dueDate.toDate() : new Date(dueDate);
-        if (isPast(date) && priority !== 'High') return 'destructive';
-        
-        switch(priority) {
-            case 'High': return 'destructive';
-            case 'Medium': return 'warning';
-            case 'Low': return 'secondary';
-            default: return 'secondary';
-        }
-    }
 
-    if (filteredTasks.length === 0) {
+    if (tasks.length === 0) {
         return (
              <Card>
                 <CardHeader>
@@ -375,7 +351,7 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                     <CardDescription>{description}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <p className="text-sm text-muted-foreground">No tasks to display for the current filter.</p>
+                    <p className="text-sm text-muted-foreground">No tasks to display.</p>
                 </CardContent>
             </Card>
         )
@@ -395,19 +371,18 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                         <TableHead>Assigned To</TableHead>
                         <TableHead>Tags</TableHead>
                         <TableHead>Due Date</TableHead>
-                        <TableHead>Priority</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Related Order</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                     </TableHeader>
                     <TableBody>
-                    {filteredTasks.map(task => {
+                    {tasks.map(task => {
                         const lastComment = task.comments && task.comments.length > 0 ? task.comments[task.comments.length - 1] : null;
                         const commentAuthor = lastComment ? getAssignee(lastComment.authorId) : null;
                         const assignees = Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo];
                         const tags = Array.isArray(task.tags) ? task.tags : [];
-                        const priority = task.status !== 'Done' && isPast(task.dueDate.toDate()) ? 'High' : task.priority;
+                        
                         return (
                         <TableRow key={task.id}>
                         <TableCell className="font-medium max-w-xs align-top">
@@ -493,11 +468,6 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                             </div>
                         </TableCell>
                         <TableCell className="align-top">{task.dueDate.toDate ? format(task.dueDate.toDate(), 'dd MMM yyyy') : format(task.dueDate, 'dd MMM yyyy')}</TableCell>
-                        <TableCell className="align-top">
-                            <Badge variant={getPriorityVariant(task.priority, task.dueDate)}>
-                                {priority}
-                            </Badge>
-                        </TableCell>
                         <TableCell className="align-top">
                             <Badge variant={getStatusVariant(task.status)}>
                                 {task.status}
@@ -643,8 +613,17 @@ export default function AdminDashboardPage() {
         return tasks.filter(task => 
             Array.isArray(task.assignedTo) && 
             task.assignedTo.includes(user.id) &&
+            task.status !== 'Done' &&
             (!task.recurrence || task.recurrence === 'None')
         ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
+    }, [tasks, user]);
+    
+    const allMyTasks = useMemo(() => {
+        if (!user) return [];
+        return tasks.filter(task => 
+            Array.isArray(task.assignedTo) && 
+            task.assignedTo.includes(user.id)
+        );
     }, [tasks, user]);
 
     const delegatedTasks = useMemo(() => {
@@ -653,6 +632,7 @@ export default function AdminDashboardPage() {
         return tasks.filter(task => 
             task.createdBy === user.id &&
             !task.assignedTo.includes(user.id) &&
+             task.status !== 'Done' &&
             (!task.recurrence || task.recurrence === 'None')
         ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
     }, [tasks, user]);
@@ -662,6 +642,7 @@ export default function AdminDashboardPage() {
         return tasks.filter(task => 
             Array.isArray(task.tags) && 
             task.tags.includes(user.id) &&
+            task.status !== 'Done' &&
             (!task.recurrence || task.recurrence === 'None')
         ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
     }, [tasks, user]);
@@ -671,7 +652,7 @@ export default function AdminDashboardPage() {
         const deptIdentifier = `dept:${user.department.toLowerCase().replace(/ & /g, '-and-').replace(/ /g, '-')}`;
         const deptTasks = tasks.filter(task => {
             if (task.recurrence && task.recurrence !== 'None') return false;
-            return task.assignedTo.includes(deptIdentifier);
+            return task.assignedTo.includes(deptIdentifier) && task.status !== 'Done';
         });
         
         return deptTasks.sort((a, b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : b.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
@@ -679,7 +660,11 @@ export default function AdminDashboardPage() {
 
 
     const automatedTasks = useMemo(() => {
-        return tasks.filter(task => task.recurrence && task.recurrence !== 'None');
+        return tasks.filter(task => task.recurrence && task.recurrence !== 'None' && task.status !== 'Done');
+    }, [tasks]);
+    
+    const completedTasks = useMemo(() => {
+         return tasks.filter(task => task.status === 'Done');
     }, [tasks]);
 
 
@@ -735,7 +720,7 @@ export default function AdminDashboardPage() {
         }
     };
 
-    const handleFormSubmit = async (data: Omit<Task, 'id' | 'status' | 'createdBy' | 'comments'>) => {
+    const handleFormSubmit = async (data: Omit<Task, 'id' | 'status' | 'createdBy' | 'comments' | 'priority'>) => {
         if (!user) return;
         setIsLoading(true);
 
@@ -753,6 +738,7 @@ export default function AdminDashboardPage() {
                 const newTask: Omit<Task, 'id'> = {
                     ...taskData,
                     status: 'To-Do',
+                    priority: 'Medium',
                     createdBy: user.id,
                     comments: [],
                 };
@@ -851,7 +837,7 @@ export default function AdminDashboardPage() {
             </div>
             
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-                <ProductivityStats tasks={myTasks} className="lg:col-span-3" />
+                <ProductivityStats tasks={allMyTasks} className="lg:col-span-3" />
                 
                 {user?.role === 'admin' ? (
                 <Card className="lg:col-span-4">
@@ -874,7 +860,7 @@ export default function AdminDashboardPage() {
                                     {unansweredQuestions.slice(0, 3).map((q) => (
                                         <TableRow key={q.id}>
                                             <TableCell className="font-medium max-w-[300px] truncate">{q.question}</TableCell>
-                                            <TableCell>{formatDistanceToNow(q.timestamp, { addSuffix: true })}</TableCell>
+                                            <TableCell>{format(q.timestamp, 'dd MMM yyyy')}</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
@@ -938,7 +924,6 @@ export default function AdminDashboardPage() {
                             onEdit={handleEdit}
                             onUpdateStatus={handleUpdateStatus}
                             onDelete={handleDelete}
-                            filter="all"
                             allStaff={allStaff}
                         />
 
@@ -949,7 +934,6 @@ export default function AdminDashboardPage() {
                             onEdit={handleEdit}
                             onUpdateStatus={handleUpdateStatus}
                             onDelete={handleDelete}
-                            filter="all"
                             allStaff={allStaff}
                         />
 
@@ -960,9 +944,19 @@ export default function AdminDashboardPage() {
                             onEdit={handleEdit}
                             onUpdateStatus={handleUpdateStatus}
                             onDelete={handleDelete}
-                            filter="all"
                             allStaff={allStaff}
                         />
+                        
+                        <TaskTable 
+                            tasks={completedTasks} 
+                            title="Completed Tasks" 
+                            description="All tasks that have been marked as 'Done'."
+                            onEdit={handleEdit}
+                            onUpdateStatus={handleUpdateStatus}
+                            onDelete={handleDelete}
+                            allStaff={allStaff}
+                        />
+
 
                         {departmentTasks.length > 0 && (
                              <TaskTable 
@@ -972,7 +966,6 @@ export default function AdminDashboardPage() {
                                 onEdit={handleEdit}
                                 onUpdateStatus={handleUpdateStatus}
                                 onDelete={handleDelete}
-                                filter="all"
                                 allStaff={allStaff}
                             />
                         )}
@@ -1003,13 +996,12 @@ export default function AdminDashboardPage() {
                                 </CardHeader>
                                 <CardContent>
                                     <TaskTable 
-                                        tasks={automatedTasks} 
+                                        tasks={automatedTasks.filter(task => automatedTaskFilter === 'all' || task.title.startsWith(automatedTaskFilter))} 
                                         title="" 
                                         description=""
                                         onEdit={handleEdit}
                                         onUpdateStatus={handleUpdateStatus}
                                         onDelete={handleDelete}
-                                        filter={automatedTaskFilter}
                                         allStaff={allStaff}
                                     />
                                 </CardContent>
@@ -1022,14 +1014,3 @@ export default function AdminDashboardPage() {
     );
 }
     
-
-    
-    
-
-    
-
-    
-
-
-
-
