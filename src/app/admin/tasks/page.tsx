@@ -39,7 +39,6 @@ const db = getFirestore(firebaseApp);
 const departments = ['Accounting and Tax', 'Administration', 'CAP'] as const;
 
 const taskStatuses: Task['status'][] = ['To-Do', 'In Progress', 'Review', 'Done'];
-const taskPriorities: Task['priority'][] = ['High', 'Medium', 'Low'];
 const taskRecurrences: Task['recurrence'][] = ['None', 'Daily', 'Weekly', 'Monthly'];
 
 const formSchema = z.object({
@@ -49,7 +48,6 @@ const formSchema = z.object({
   assignedTo: z.array(z.string()).min(1, 'Please assign a staff member.'),
   tags: z.array(z.string()).optional(),
   dueDate: z.date({ required_error: 'A due date is required.'}),
-  priority: z.enum(taskPriorities),
   recurrence: z.enum(taskRecurrences).optional(),
   orderId: z.string().optional(),
   newComment: z.string().optional(),
@@ -66,7 +64,6 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
             assignedTo: task?.assignedTo || [],
             tags: task?.tags || [],
             dueDate: task?.dueDate ? task.dueDate.toDate() : new Date(),
-            priority: task?.priority || 'Medium',
             recurrence: task?.recurrence || 'None',
             orderId: task?.orderId || '',
             newComment: '',
@@ -95,12 +92,12 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
                 <FormField control={form.control} name="title" render={({ field }) => (<FormItem><FormLabel>Title</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="description" render={({ field }) => (<FormItem><FormLabel>Description</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>)} />
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
                     <FormField
                         control={form.control}
                         name="assignedTo"
                         render={({ field }) => (
-                            <FormItem className="lg:col-span-2">
+                            <FormItem>
                             <FormLabel>Assign To</FormLabel>
                             <Popover>
                                 <PopoverTrigger asChild>
@@ -206,7 +203,6 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                             </FormItem>
                         )}
                         />
-                    <FormField control={form.control} name="priority" render={({ field }) => (<FormItem><FormLabel>Priority</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select priority..." /></SelectTrigger></FormControl><SelectContent>{taskPriorities.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                 </div>
                  <FormField
                         control={form.control}
@@ -442,7 +438,7 @@ export default function AdminTasksPage() {
     }
   };
 
-  const handleFormSubmit = async (data: Omit<Task, 'id' | 'status' | 'createdBy' | 'comments'>) => {
+  const handleFormSubmit = async (data: Omit<Task, 'id' | 'status' | 'createdBy' | 'comments' | 'priority'>) => {
     if (!user) return;
     setIsLoading(true);
     
@@ -457,7 +453,7 @@ export default function AdminTasksPage() {
             await updateDoc(taskRef, { ...taskData });
             toast({ title: 'Task Updated', description: 'The task details have been saved.' });
         } else {
-            const newTask: Omit<Task, 'id'> = {
+            const newTask: Omit<Task, 'id' | 'priority'> = {
                 ...taskData,
                 status: 'To-Do',
                 createdBy: user.id,
@@ -523,23 +519,12 @@ export default function AdminTasksPage() {
         switch (status) {
             case 'Done': return 'success';
             case 'In Progress': return 'info';
-            case 'To-Do': return 'secondary';
+            case 'To-Do': return 'info';
             case 'Review': return 'warning';
             default: return 'secondary';
         }
     };
     
-    const getPriorityVariant = (priority: Task['priority'], dueDate: any) => {
-        const date = dueDate?.toDate ? dueDate.toDate() : new Date(dueDate);
-        if (isPast(date) && priority !== 'High') return 'destructive';
-        
-        switch(priority) {
-            case 'High': return 'destructive';
-            case 'Medium': return 'warning';
-            case 'Low': return 'secondary';
-            default: return 'secondary';
-        }
-    }
 
   return (
     <div className="space-y-8">
@@ -608,7 +593,6 @@ export default function AdminTasksPage() {
                 <TableHead>Assigned To</TableHead>
                 <TableHead>Tags</TableHead>
                 <TableHead>Due Date</TableHead>
-                <TableHead>Priority</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Related Order</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -625,7 +609,6 @@ export default function AdminTasksPage() {
                     const commentAuthor = lastComment ? getAssignee(lastComment.authorId) : null;
                     const assignees = Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo];
                     const tags = Array.isArray(task.tags) ? task.tags : [];
-                    const priority = task.status !== 'Done' && isPast(task.dueDate.toDate()) ? 'High' : task.priority;
                     return (
                     <TableRow key={task.id}>
                     <TableCell className="font-medium max-w-xs align-top">
@@ -701,11 +684,6 @@ export default function AdminTasksPage() {
                         </div>
                     </TableCell>
                     <TableCell className="align-top">{task.dueDate.toDate ? format(task.dueDate.toDate(), 'dd MMM yyyy') : format(task.dueDate, 'dd MMM yyyy')}</TableCell>
-                    <TableCell className="align-top">
-                        <Badge variant={getPriorityVariant(task.priority, task.dueDate)}>
-                            {priority}
-                        </Badge>
-                    </TableCell>
                     <TableCell className="align-top">
                         <Badge variant={getStatusVariant(task.status)}>
                             {task.status}
@@ -784,4 +762,5 @@ export default function AdminTasksPage() {
 
 
     
+
 
