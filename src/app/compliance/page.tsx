@@ -16,6 +16,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 const complianceFormSchema = z.object({
   companyName: z.string().min(2, 'Company name is required.'),
   registrationNumber: z.string().min(5, 'A valid registration number is required.'),
+  sarsUsername: z.string().optional(),
+  sarsPassword: z.string().optional(),
   yourName: z.string().min(2, 'Your name is required.'),
   yourEmail: z.string().email('A valid email is required.'),
   yourPhone: z.string().min(10, 'A valid phone number is required.'),
@@ -31,6 +33,8 @@ export default function CompliancePage() {
     defaultValues: {
       companyName: '',
       registrationNumber: '',
+      sarsUsername: '',
+      sarsPassword: '',
       yourName: '',
       yourEmail: '',
       yourPhone: '',
@@ -95,6 +99,28 @@ export default function CompliancePage() {
                     <FormItem>
                       <FormLabel>Company Registration Number</FormLabel>
                       <FormControl><Input {...field} placeholder="e.g., 2024/123456/07" /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                 <FormField
+                  control={form.control}
+                  name="sarsUsername"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>SARS e-Filing Username (Optional)</FormLabel>
+                      <FormControl><Input {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                 <FormField
+                  control={form.control}
+                  name="sarsPassword"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>SARS e-Filing Password (Optional)</FormLabel>
+                      <FormControl><Input type="password" {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
