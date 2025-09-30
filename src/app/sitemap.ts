@@ -23,6 +23,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${siteUrl}/about`, lastModified: new Date() },
     { url: `${siteUrl}/blog`, lastModified: new Date() },
     { url: `${siteUrl}/contact`, lastModified: new Date() },
+    { url: `${siteUrl}/compliance`, lastModified: new Date() },
     { url: `${siteUrl}/login`, lastModified: new Date() },
     { url: `${siteUrl}/reseller-signup`, lastModified: new Date() },
     { url: `${siteUrl}/popia`, lastModified: new Date() },
