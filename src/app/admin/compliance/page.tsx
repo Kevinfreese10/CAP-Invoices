@@ -14,6 +14,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Task, User } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
+import { sendEmail } from '@/lib/email';
+import { render } from '@react-email/components';
+import NewTaskEmail from '@/components/emails/NewTaskEmail';
 
 const db = getFirestore(firebaseApp);
 
@@ -85,6 +88,7 @@ export default function AdminCompliancePage() {
         console.error("No staff in Administration department to assign task.");
         return;
     }
+    const dueDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000); // 2 days from now
 
     const taskData: Omit<Task, 'id'> = {
         title: `Follow up on Compliance Assessment for ${request.companyName}`,
@@ -92,12 +96,33 @@ export default function AdminCompliancePage() {
         assignedTo: [assignedStaff.id],
         status: 'To-Do',
         priority: 'Medium',
-        dueDate: Timestamp.fromDate(new Date(Date.now() + 2 * 24 * 60 * 60 * 1000)), // 2 days from now
+        dueDate: Timestamp.fromDate(dueDate),
         createdBy: user.id,
         createdAt: Timestamp.now(),
         comments: [],
     };
     await addDoc(collection(db, 'tasks'), taskData);
+
+     // Send email notification
+    if (assignedStaff.id !== user.id && assignedStaff.email) {
+      try {
+        const emailHtml = render(<NewTaskEmail 
+            assigneeName={assignedStaff.name.split(' ')[0]}
+            taskTitle={taskData.title}
+            taskDescription={taskData.description}
+            dueDate={format(dueDate, 'dd MMMM yyyy')}
+            assignedBy={user.name}
+            taskUrl={`${window.location.origin}/admin/dashboard`}
+        />);
+        await sendEmail({
+            to: assignedStaff.email,
+            subject: `New Task Assigned: ${taskData.title}`,
+            html: emailHtml,
+        });
+      } catch (emailError) {
+        console.error(`Failed to send task notification email to ${assignedStaff.email}:`, emailError);
+      }
+    }
   };
 
 

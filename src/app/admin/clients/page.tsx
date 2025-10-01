@@ -21,7 +21,6 @@ import { Badge } from '@/components/ui/badge';
 import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, writeBatch, Timestamp, query, orderBy, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
-import { users as allUsers } from '@/lib/data';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -29,6 +28,9 @@ import { CalendarIcon } from 'lucide-react';
 import { format, addMonths, set, getDate, getMonth, getYear, lastDayOfMonth, isPast } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Calendar } from '@/components/ui/calendar';
+import { sendEmail } from '@/lib/email';
+import { render } from '@react-email/components';
+import NewTaskEmail from '@/components/emails/NewTaskEmail';
 
 const db = getFirestore(firebaseApp);
 
@@ -301,29 +303,35 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
 
 export default function AdminClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
+  const [allStaff, setAllStaff] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
   
-  const fetchClients = async () => {
+  const fetchClientsAndStaff = async () => {
     setIsLoading(true);
     try {
-        const q = query(collection(db, "clients"), where("source", "==", "Client Management"), orderBy("name"));
-        const querySnapshot = await getDocs(q);
-        const fetchedClients = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Client));
+        const staffQuery = query(collection(db, "users"), where("role", "in", ['staff', 'admin']));
+        const staffSnapshot = await getDocs(staffQuery);
+        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+        setAllStaff(fetchedStaff);
+
+        const clientsQuery = query(collection(db, "clients"), where("source", "==", "Client Management"), orderBy("name"));
+        const clientsSnapshot = await getDocs(clientsQuery);
+        const fetchedClients = clientsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Client));
         setClients(fetchedClients);
     } catch (error) {
-        console.error("Error fetching clients:", error);
-        toast({ title: 'Error', description: 'Could not fetch clients from the database.', variant: 'destructive'});
+        console.error("Error fetching data:", error);
+        toast({ title: 'Error', description: 'Could not fetch data from the database.', variant: 'destructive'});
     } finally {
         setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchClients();
+    fetchClientsAndStaff();
   }, []);
 
   const handleAdd = () => {
@@ -339,7 +347,7 @@ export default function AdminClientsPage() {
   const handleDelete = async (clientId: string) => {
     try {
         await deleteDoc(doc(db, "clients", clientId));
-        fetchClients();
+        fetchClientsAndStaff();
         toast({
             title: 'Client Deleted',
             description: 'The client has been removed.',
@@ -364,7 +372,7 @@ export default function AdminClientsPage() {
     }
 
     const getDepartmentStaffIds = (department: string): string[] => {
-        return allUsers.filter(u => u.department === department && (u.role === 'staff' || u.role === 'admin')).map(u => u.id);
+        return allStaff.filter(u => u.department === department && (u.role === 'staff' || u.role === 'admin')).map(u => u.id);
     };
 
     const accountingAndTaxStaff = getDepartmentStaffIds('Accounting and Tax');
@@ -383,6 +391,7 @@ export default function AdminClientsPage() {
             description: `Complete and file the first provisional tax return for ${client.name}.`,
             assignedTo: accountingAndTaxStaff,
             dueDate: Timestamp.fromDate(firstProvDueDate),
+            createdAt: Timestamp.now(),
             recurrence: 'Annually',
             priority: 'Medium',
             status: 'To-Do',
@@ -397,6 +406,7 @@ export default function AdminClientsPage() {
             description: `Complete and file the second provisional tax return for ${client.name}.`,
             assignedTo: accountingAndTaxStaff,
             dueDate: Timestamp.fromDate(secondProvDueDate),
+            createdAt: Timestamp.now(),
             recurrence: 'Annually',
             priority: 'Medium',
             status: 'To-Do',
@@ -414,6 +424,7 @@ export default function AdminClientsPage() {
             description: `File the ITR14 corporate income tax return for ${client.name}.`,
             assignedTo: accountingAndTaxStaff,
             dueDate: Timestamp.fromDate(itr14DueDate),
+            createdAt: Timestamp.now(),
             recurrence: 'Annually',
             priority: 'Medium',
             status: 'To-Do',
@@ -429,6 +440,7 @@ export default function AdminClientsPage() {
         description: `File the CIPC annual return for ${client.name}.`,
         assignedTo: adminStaff,
         dueDate: Timestamp.fromDate(addMonths(new Date(getYear(new Date()), yearEndMonthIndex, 1), 1)), // Due in the anniversary month
+        createdAt: Timestamp.now(),
         recurrence: 'Annually',
         priority: 'Medium',
         status: 'To-Do',
@@ -444,6 +456,7 @@ export default function AdminClientsPage() {
             description: `Prepare annual financial statements for ${client.name}.`,
             assignedTo: accountingAndTaxStaff,
             dueDate: client.financialsDueDate,
+            createdAt: Timestamp.now(),
             recurrence: 'Annually',
             priority: 'Medium',
             status: 'To-Do',
@@ -464,6 +477,7 @@ export default function AdminClientsPage() {
             description: `Prepare ${client.managementAccountsFrequency} management accounts.`,
             assignedTo: accountingAndTaxStaff,
             dueDate: client.managementAccountsDueDate,
+            createdAt: Timestamp.now(),
             recurrence: recurrence,
             priority: 'Medium',
             status: 'To-Do',
@@ -505,6 +519,7 @@ export default function AdminClientsPage() {
             description: `File VAT201 return (Category ${client.vatCategory}).`,
             assignedTo: accountingAndTaxStaff,
             dueDate: Timestamp.fromDate(firstDueDate),
+            createdAt: Timestamp.now(),
             recurrence: client.vatCategory === 'C' ? 'Monthly' : 'Bi-Monthly',
             priority: 'Medium',
             status: 'To-Do',
@@ -521,6 +536,7 @@ export default function AdminClientsPage() {
             description: 'Process monthly payroll.',
             assignedTo: accountingAndTaxStaff,
             dueDate: client.payrollDueDate,
+            createdAt: Timestamp.now(),
             recurrence: 'Monthly',
             priority: 'Medium',
             status: 'To-Do',
@@ -537,6 +553,7 @@ export default function AdminClientsPage() {
             description: 'Submit monthly EMP201 declaration.',
             assignedTo: accountingAndTaxStaff,
             dueDate: Timestamp.fromDate(set(new Date(), { date: 7, month: getMonth(new Date()) + 1 })),
+            createdAt: Timestamp.now(),
             recurrence: 'Monthly',
             priority: 'Medium',
             status: 'To-Do',
@@ -553,6 +570,7 @@ export default function AdminClientsPage() {
             description: 'Submit bi-annual EMP501 reconciliation for the period 1 March - 31 August.',
             assignedTo: accountingAndTaxStaff,
             dueDate: Timestamp.fromDate(new Date(getYear(new Date()), 9, 31)), // October 31
+            createdAt: Timestamp.now(),
             recurrence: 'Annually',
             priority: 'Medium',
             status: 'To-Do',
@@ -565,6 +583,7 @@ export default function AdminClientsPage() {
             description: 'Submit final EMP501 reconciliation for the period 1 March - 28/29 February.',
             assignedTo: accountingAndTaxStaff,
             dueDate: Timestamp.fromDate(new Date(getYear(new Date()) + 1, 4, 31)), // May 31 of next year
+            createdAt: Timestamp.now(),
             recurrence: 'Annually',
             priority: 'Medium',
             status: 'To-Do',
@@ -575,12 +594,38 @@ export default function AdminClientsPage() {
     }
 
 
-    tasksToCreate.forEach(task => {
+    for (const task of tasksToCreate) {
         if (task.assignedTo.length > 0) {
             const taskRef = doc(collection(db, 'tasks'));
             batch.set(taskRef, task);
+            
+            // Send email notifications
+            for (const assigneeId of task.assignedTo) {
+                if (assigneeId !== creatorId) { // Don't email the user who created the task
+                    const assignee = allStaff.find(s => s.id === assigneeId);
+                    if (assignee?.email) {
+                        try {
+                            const emailHtml = render(<NewTaskEmail 
+                                assigneeName={assignee.name.split(' ')[0]}
+                                taskTitle={task.title}
+                                taskDescription={task.description}
+                                dueDate={format(task.dueDate.toDate(), 'dd MMMM yyyy')}
+                                assignedBy={currentUser?.name || 'System'}
+                                taskUrl={`${window.location.origin}/admin/dashboard`}
+                            />);
+                            await sendEmail({
+                                to: assignee.email,
+                                subject: `New Task Assigned: ${task.title}`,
+                                html: emailHtml,
+                            });
+                        } catch (emailError) {
+                            console.error(`Failed to send task notification email to ${assignee.email}:`, emailError);
+                        }
+                    }
+                }
+            }
         }
-    });
+    }
     
     await batch.commit();
     return tasksToCreate.length;
@@ -638,7 +683,7 @@ export default function AdminClientsPage() {
                 });
             }
         }
-        fetchClients();
+        fetchClientsAndStaff();
         setIsFormOpen(false);
         setSelectedClient(null);
     } catch (error) {

@@ -31,6 +31,9 @@ import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, q
 import { firebaseApp } from '@/lib/firebase';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { sendEmail } from '@/lib/email';
+import { render } from '@react-email/components';
+import NewTaskEmail from '@/components/emails/NewTaskEmail';
 
 const db = getFirestore(firebaseApp);
 
@@ -471,8 +474,35 @@ export default function AdminTasksPage() {
                 createdAt: Timestamp.now(),
                 comments: [],
             };
-            await addDoc(collection(db, 'tasks'), newTask);
-            toast({ title: 'Task Created', description: `Task assigned to ${data.assignedTo.length} member(s).` });
+            const docRef = await addDoc(collection(db, 'tasks'), newTask);
+            toast({ title: 'Task Created', description: `Task assigned.` });
+
+            // Send email notifications
+            for (const assigneeId of data.assignedTo) {
+                if (assigneeId !== user.id) { // Don't email the user who created the task
+                    const assignee = allStaff.find(s => s.id === assigneeId);
+                    if (assignee?.email) {
+                        try {
+                            const emailHtml = render(<NewTaskEmail 
+                                assigneeName={assignee.name.split(' ')[0]}
+                                taskTitle={data.title}
+                                taskDescription={data.description}
+                                dueDate={format(data.dueDate, 'dd MMMM yyyy')}
+                                assignedBy={user.name}
+                                taskUrl={`${window.location.origin}/admin/dashboard`}
+                            />);
+                            await sendEmail({
+                                to: assignee.email,
+                                subject: `New Task Assigned: ${data.title}`,
+                                html: emailHtml,
+                            });
+                        } catch (emailError) {
+                            console.error(`Failed to send email to ${assignee.email}:`, emailError);
+                            // Non-blocking, so we just log the error
+                        }
+                    }
+                }
+            }
         }
         fetchTasks();
         setIsFormOpen(false);
@@ -773,4 +803,5 @@ export default function AdminTasksPage() {
 
 
     
+
 
