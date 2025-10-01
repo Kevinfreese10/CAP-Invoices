@@ -840,77 +840,51 @@ export default function AdminDashboardPage() {
                 </div>
             </div>
             
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-                <ProductivityStats tasks={allMyTasks} className="lg:col-span-3" />
-                
-                {user?.role === 'admin' ? (
-                <Card className="lg:col-span-4">
-                    <CardHeader>
-                        <CardTitle>AI Training</CardTitle>
-                        <CardDescription>
-                            Review questions that users have asked which the AI could not answer.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {unansweredQuestions.length > 0 ? (
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Question</TableHead>
-                                        <TableHead>Asked</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {unansweredQuestions.slice(0, 3).map((q) => (
-                                        <TableRow key={q.id}>
-                                            <TableCell className="font-medium max-w-[300px] truncate">{q.question}</TableCell>
-                                            <TableCell>{format(q.timestamp, 'dd MMM yyyy')}</TableCell>
+            {user?.role === 'admin' && (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+                    <ProductivityStats tasks={allMyTasks} className="lg:col-span-3" />
+                    
+                    <Card className="lg:col-span-4">
+                        <CardHeader>
+                            <CardTitle>AI Training</CardTitle>
+                            <CardDescription>
+                                Review questions that users have asked which the AI could not answer.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {unansweredQuestions.length > 0 ? (
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Question</TableHead>
+                                            <TableHead>Asked</TableHead>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        ) : (
-                            <div className="flex flex-col items-center justify-center text-center p-8 h-full">
-                                <BrainCircuit className="h-10 w-10 text-muted-foreground mb-4" />
-                                <h3 className="font-semibold">All Caught Up!</h3>
-                                <p className="text-sm text-muted-foreground">There are no unanswered questions right now.</p>
-                            </div>
-                        )}
-                        <Button asChild variant="secondary" className="w-full mt-4">
-                            <Link href="/admin/knowledge-base">
-                                Go to AI Training Center
-                            </Link>
-                        </Button>
-                    </CardContent>
-                </Card>
-                ) : (
-                <Card className="lg:col-span-4">
-                    <CardHeader>
-                        <CardTitle>Task Summary</CardTitle>
-                    </CardHeader>
-                    <CardContent className="grid gap-8">
-                        <div className="flex items-center">
-                            <div className="ml-4 space-y-1">
-                                <p className="text-sm font-medium leading-none">My Tasks</p>
-                                <p className="text-sm text-muted-foreground">
-                                {myTasks.length} tasks assigned to you
-                                </p>
-                            </div>
-                            <div className="ml-auto font-medium">{myTasks.filter(t => t.status === 'Done').length} / {myTasks.length}</div>
-                        </div>
-                        <div className="flex items-center">
-                            <div className="ml-4 space-y-1">
-                                <p className="text-sm font-medium leading-none">Delegated Tasks</p>
-                                <p className="text-sm text-muted-foreground">
-                                    {delegatedTasks.length} tasks created by you
-                                </p>
-                            </div>
-                            <div className="ml-auto font-medium">{delegatedTasks.filter(t => t.status === 'Done').length} / {delegatedTasks.length}</div>
-                        </div>
-                    </CardContent>
-                </Card>
-                )}
-            </div>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {unansweredQuestions.slice(0, 3).map((q) => (
+                                            <TableRow key={q.id}>
+                                                <TableCell className="font-medium max-w-[300px] truncate">{q.question}</TableCell>
+                                                <TableCell>{format(q.timestamp, 'dd MMM yyyy')}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center text-center p-8 h-full">
+                                    <BrainCircuit className="h-10 w-10 text-muted-foreground mb-4" />
+                                    <h3 className="font-semibold">All Caught Up!</h3>
+                                    <p className="text-sm text-muted-foreground">There are no unanswered questions right now.</p>
+                                </div>
+                            )}
+                            <Button asChild variant="secondary" className="w-full mt-4">
+                                <Link href="/admin/knowledge-base">
+                                    Go to AI Training Center
+                                </Link>
+                            </Button>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
 
              <Separator />
 
@@ -1018,3 +992,4 @@ export default function AdminDashboardPage() {
     );
 }
     
+
