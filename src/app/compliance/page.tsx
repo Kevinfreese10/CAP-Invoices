@@ -13,18 +13,31 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { useState } from 'react';
 import { Loader2, ShieldCheck } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { getFirestore, addDoc, doc, setDoc, serverTimestamp, collection } from 'firebase/firestore';
+import { getFirestore, addDoc, doc, setDoc, serverTimestamp, collection, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { customAlphabet } from 'nanoid';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import WelcomeDiscountEmail from '@/components/emails/WelcomeDiscountEmail';
-import { DiscountCode } from '@/lib/types';
+import { DiscountCode, Task, User } from '@/lib/types';
+import { users } from '@/lib/data';
 
 
 const db = getFirestore(firebaseApp);
 const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 8);
 
+// This is a simplified in-memory counter for round-robin.
+// In a real multi-server environment, this state should be managed in a shared store like Firestore.
+let adminStaffCounter = 0;
+
+const getNextAdminStaff = (): User | undefined => {
+    const adminStaff = users.filter(u => u.department === 'Administration' && (u.role === 'staff' || u.role === 'admin'));
+    if (adminStaff.length === 0) return undefined;
+
+    const nextStaff = adminStaff[adminStaffCounter % adminStaff.length];
+    adminStaffCounter = (adminStaffCounter + 1) % adminStaff.length;
+    return nextStaff;
+}
 
 const complianceFormSchema = z.object({
   companyName: z.string().min(2, 'Company name is required.'),
@@ -75,7 +88,33 @@ export default function CompliancePage() {
       // 2. Create the discount code
       await setDoc(doc(db, 'discounts', discountCode), discountData);
 
-      // 3. Send the welcome email with the discount
+      // 3. Create a task for an admin
+      const assignedStaff = getNextAdminStaff();
+      if (assignedStaff) {
+          const taskData: Omit<Task, 'id'> = {
+              title: `Follow up on Compliance Assessment for ${values.companyName}`,
+              description: `A new compliance assessment request has been submitted by ${values.yourName} (${values.yourEmail}). Please review and follow up.`,
+              assignedTo: [assignedStaff.id],
+              status: 'To-Do',
+              priority: 'Medium',
+              dueDate: Timestamp.fromDate(new Date(Date.now() + 2 * 24 * 60 * 60 * 1000)), // 2 days from now
+              createdBy: 'system',
+              comments: [],
+          };
+          await addDoc(collection(db, 'tasks'), taskData);
+          toast({
+              title: 'Task Created',
+              description: `A follow-up task has been assigned to ${assignedStaff.name}.`
+          });
+      } else {
+          toast({
+              title: 'Warning',
+              description: 'No admin staff available to assign a follow-up task.',
+              variant: 'destructive',
+          });
+      }
+
+      // 4. Send the welcome email with the discount
       const emailHtml = render(<WelcomeDiscountEmail name={values.yourName} discountCode={discountCode} />);
       await sendEmail({
         to: values.yourEmail,
