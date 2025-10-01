@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -21,14 +22,10 @@ export default function NewVisitorPopup() {
 
   useEffect(() => {
     // This code runs only on the client
-    const hasSeenPopup = localStorage.getItem(POPUP_STORAGE_KEY);
-    if (!hasSeenPopup) {
-      // Show the popup after a short delay
-      const timer = setTimeout(() => {
+    const timer = setTimeout(() => {
         setIsOpen(true);
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
+    }, 500); // Shortened delay for immediate viewing
+    return () => clearTimeout(timer);
   }, []);
 
   const handleClose = () => {
