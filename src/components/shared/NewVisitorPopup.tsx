@@ -11,14 +11,14 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Mail } from 'lucide-react';
 import { Separator } from '../ui/separator';
+import { useRouter } from 'next/navigation';
 
 const POPUP_STORAGE_KEY = 'my-accountant-visitor-popup-seen';
 
 export default function NewVisitorPopup() {
   const [isOpen, setIsOpen] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     // This code runs only on the client
@@ -33,10 +33,9 @@ export default function NewVisitorPopup() {
     setIsOpen(false);
   };
   
-  const handleSubscribe = () => {
-    // In a real app, you would handle the subscription here.
-    // For now, we'll just close the dialog.
+  const handleRedirect = () => {
     handleClose();
+    router.push('/compliance');
   }
 
   return (
@@ -60,11 +59,7 @@ export default function NewVisitorPopup() {
             </p>
         </div>
         <div className="space-y-4">
-            <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input type="email" placeholder="Enter your email address" className="pl-10" />
-            </div>
-             <Button onClick={handleSubscribe} className="w-full">Subscribe & Get Discount</Button>
+             <Button onClick={handleRedirect} className="w-full">Get My Free Assessment</Button>
         </div>
         <AlertDialogFooter>
           <Button variant="ghost" onClick={handleClose}>
