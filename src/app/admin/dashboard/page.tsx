@@ -26,7 +26,6 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
-import ProductivityStats from '@/components/dashboard/ProductivityStats';
 import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, where, orderBy, arrayUnion, Timestamp, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -617,18 +616,9 @@ export default function AdminDashboardPage() {
             (!task.recurrence || task.recurrence === 'None')
         ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
     }, [tasks, user]);
-    
-    const allMyTasks = useMemo(() => {
-        if (!user) return [];
-        return tasks.filter(task => 
-            Array.isArray(task.assignedTo) && 
-            task.assignedTo.includes(user.id)
-        );
-    }, [tasks, user]);
 
     const delegatedTasks = useMemo(() => {
         if (!user) return [];
-        // A task is delegated if the current user created it, but it is NOT assigned to them.
         return tasks.filter(task => 
             (task.createdBy === user.id || (user.role === 'admin' && task.createdBy === 'system')) &&
             !task.assignedTo.includes(user.id) &&
@@ -651,12 +641,18 @@ export default function AdminDashboardPage() {
         if (!user?.department) return [];
         const deptIdentifier = `dept:${user.department.toLowerCase().replace(/ & /g, '-and-').replace(/ /g, '-')}`;
         const deptTasks = tasks.filter(task => {
-            if (task.recurrence && task.recurrence !== 'None') return false;
-            return task.assignedTo.includes(deptIdentifier) && task.status !== 'Done';
+            if (task.status === 'Done') return false;
+            
+            const isAssignedToDept = task.assignedTo.includes(deptIdentifier);
+            const isAssignedToMemberOfDept = task.assignedTo.some(assigneeId => 
+                allStaff.find(s => s.id === assigneeId && s.department === user.department)
+            );
+
+            return isAssignedToDept || isAssignedToMemberOfDept;
         });
         
         return deptTasks.sort((a, b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : b.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
-    }, [tasks, user]);
+    }, [tasks, user, allStaff]);
 
 
     const automatedTasks = useMemo(() => {
@@ -667,7 +663,7 @@ export default function AdminDashboardPage() {
         if (!user) return [];
         return tasks.filter(task => 
             task.status === 'Done' &&
-            (task.assignedTo.includes(user.id) || task.createdBy === user.id)
+            (task.assignedTo.includes(user.id) || (user.role === 'admin' && task.createdBy === 'system'))
         );
     }, [tasks, user]);
 
@@ -841,47 +837,45 @@ export default function AdminDashboardPage() {
             </div>
             
             {user?.role === 'admin' && (
-                <div className="grid gap-4">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>AI Training</CardTitle>
-                            <CardDescription>
-                                Review questions that users have asked which the AI could not answer.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            {unansweredQuestions.length > 0 ? (
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Question</TableHead>
-                                            <TableHead>Asked</TableHead>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>AI Training</CardTitle>
+                        <CardDescription>
+                            Review questions that users have asked which the AI could not answer.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {unansweredQuestions.length > 0 ? (
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Question</TableHead>
+                                        <TableHead>Asked</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {unansweredQuestions.slice(0, 3).map((q) => (
+                                        <TableRow key={q.id}>
+                                            <TableCell className="font-medium max-w-[300px] truncate">{q.question}</TableCell>
+                                            <TableCell>{format(q.timestamp, 'dd MMM yyyy')}</TableCell>
                                         </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {unansweredQuestions.slice(0, 3).map((q) => (
-                                            <TableRow key={q.id}>
-                                                <TableCell className="font-medium max-w-[300px] truncate">{q.question}</TableCell>
-                                                <TableCell>{format(q.timestamp, 'dd MMM yyyy')}</TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            ) : (
-                                <div className="flex flex-col items-center justify-center text-center p-8 h-full">
-                                    <BrainCircuit className="h-10 w-10 text-muted-foreground mb-4" />
-                                    <h3 className="font-semibold">All Caught Up!</h3>
-                                    <p className="text-sm text-muted-foreground">There are no unanswered questions right now.</p>
-                                </div>
-                            )}
-                            <Button asChild variant="secondary" className="w-full mt-4">
-                                <Link href="/admin/knowledge-base">
-                                    Go to AI Training Center
-                                </Link>
-                            </Button>
-                        </CardContent>
-                    </Card>
-                </div>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center text-center p-8 h-full">
+                                <BrainCircuit className="h-10 w-10 text-muted-foreground mb-4" />
+                                <h3 className="font-semibold">All Caught Up!</h3>
+                                <p className="text-sm text-muted-foreground">There are no unanswered questions right now.</p>
+                            </div>
+                        )}
+                        <Button asChild variant="secondary" className="w-full mt-4">
+                            <Link href="/admin/knowledge-base">
+                                Go to AI Training Center
+                            </Link>
+                        </Button>
+                    </CardContent>
+                </Card>
             )}
 
              <Separator />
@@ -896,7 +890,7 @@ export default function AdminDashboardPage() {
                         <TaskTable 
                             tasks={myTasks} 
                             title="My Tasks" 
-                            description="All non-automated tasks assigned directly to you."
+                            description="All tasks assigned directly to you."
                             onEdit={handleEdit}
                             onUpdateStatus={handleUpdateStatus}
                             onDelete={handleDelete}
@@ -992,5 +986,7 @@ export default function AdminDashboardPage() {
     
 
 
+
+    
 
     
