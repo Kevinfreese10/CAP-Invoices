@@ -664,8 +664,12 @@ export default function AdminDashboardPage() {
     }, [tasks]);
     
     const completedTasks = useMemo(() => {
-         return tasks.filter(task => task.status === 'Done');
-    }, [tasks]);
+        if (!user) return [];
+        return tasks.filter(task => 
+            task.status === 'Done' &&
+            (task.assignedTo.includes(user.id) || task.createdBy === user.id)
+        );
+    }, [tasks, user]);
 
 
     const handleAdd = () => {
@@ -950,7 +954,7 @@ export default function AdminDashboardPage() {
                         <TaskTable 
                             tasks={completedTasks} 
                             title="Completed Tasks" 
-                            description="All tasks that have been marked as 'Done'."
+                            description="Tasks assigned to or created by you that have been marked as 'Done'."
                             onEdit={handleEdit}
                             onUpdateStatus={handleUpdateStatus}
                             onDelete={handleDelete}
