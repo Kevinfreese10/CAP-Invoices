@@ -2165,6 +2165,7 @@ export default function NumeraPage() {
   const [isRuleFormOpen, setIsRuleFormOpen] = useState(false);
   const [selectedRule, setSelectedRule] = useState<AllocationRule | null>(null);
   const [allocationRules, setAllocationRules] = useState<AllocationRule[]>([]);
+  const [isClientRulesModalOpen, setIsClientRulesModalOpen] = useState(false);
 
 
   const importForm = useForm();
@@ -2302,7 +2303,8 @@ export default function NumeraPage() {
 
   const handleClientFormSubmit = async (data: z.infer<typeof clientFormSchema>) => {
     if (!currentUser) return;
-
+    
+    setIsLoading(true);
     const isNewClient = !selectedClient?.id;
 
     const clientData: Partial<User> = {
@@ -2318,10 +2320,12 @@ export default function NumeraPage() {
     };
     
      if (isNewClient) {
-      clientData.chartOfAccounts = chartOfAccountsData;
-      clientData.allocationRules = initialAllocationRules;
-      clientData.customers = [];
-      clientData.suppliers = [];
+        // Fetch master rules to copy to new client
+        const masterRulesSnapshot = await getDocs(collection(db, "allocationRules"));
+        const masterRules = masterRulesSnapshot.docs.map(doc => ({...doc.data(), id: doc.id} as AllocationRule));
+        
+        clientData.chartOfAccounts = initialChartOfAccounts;
+        clientData.allocationRules = masterRules;
     }
 
 
@@ -2337,7 +2341,7 @@ export default function NumeraPage() {
         await addDoc(collection(db, "clients"), clientData);
         toast({
             title: 'Client Created',
-            description: 'The new client has been added to the database.',
+            description: 'The new client has been added to the database with the latest settings.',
         });
       }
       fetchClients();
@@ -2346,6 +2350,8 @@ export default function NumeraPage() {
     } catch (error) {
         console.error("Error saving client:", error);
         toast({ title: 'Error', description: 'Could not save the client.', variant: 'destructive'});
+    } finally {
+        setIsLoading(false);
     }
   };
   
@@ -3417,6 +3423,10 @@ export default function NumeraPage() {
                                             <RefreshCw className="mr-2 h-4 w-4" />
                                             Clear
                                         </Button>
+                                        <Button variant="outline" size="sm" onClick={() => setIsClientRulesModalOpen(true)}>
+                                            <ListOrdered className="mr-2 h-4 w-4" />
+                                            Allocation Rules
+                                        </Button>
                                         <div className="relative">
                                             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                             <Input
@@ -4003,6 +4013,32 @@ export default function NumeraPage() {
                     onCancel={() => setIsRuleFormOpen(false)}
                     chartOfAccounts={chartOfAccountsData}
                 />
+            </DialogContent>
+        </Dialog>
+        <Dialog open={isClientRulesModalOpen} onOpenChange={setIsClientRulesModalOpen}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Allocation Rules for {activeClient?.name}</DialogTitle>
+                    <DialogDescription>These are the rules currently being used for this client's allocations.</DialogDescription>
+                </DialogHeader>
+                <div className="max-h-[60vh] overflow-y-auto">
+                    <Table>
+                        <TableHeader><TableRow><TableHead>Rule</TableHead><TableHead>Account</TableHead><TableHead>VAT</TableHead></TableRow></TableHeader>
+                        <TableBody>
+                            {allocationRules.map(rule => (
+                                <TableRow key={rule.id}>
+                                    <TableCell>
+                                        <p className="font-medium capitalize">{rule.type} Rule</p>
+                                        <p className="text-xs text-muted-foreground">{rule.description}</p>
+                                        {rule.keywords.length > 0 && <p className="text-xs text-muted-foreground">Keywords: {rule.keywords.join(', ')}</p>}
+                                    </TableCell>
+                                    <TableCell>{rule.accountId}</TableCell>
+                                    <TableCell>{rule.vatType}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
             </DialogContent>
         </Dialog>
         <EditBankAccountForm 

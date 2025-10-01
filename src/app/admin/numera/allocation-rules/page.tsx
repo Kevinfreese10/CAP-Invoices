@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Loader2 } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, HardHat, Feather } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -27,7 +27,9 @@ const db = getFirestore(firebaseApp);
 
 const formSchema = z.object({
   id: z.string().optional(),
-  keywords: z.string().min(2, 'At least one keyword must be provided.'),
+  type: z.enum(['hard', 'soft']).default('hard'),
+  description: z.string().min(5, 'Description is required.'),
+  keywords: z.string().optional(),
   accountId: z.string().min(1, 'Please select an account.'),
   vatType: z.custom<VatType>(),
 });
@@ -37,21 +39,56 @@ function RuleForm({ rule, onSubmit, onCancel }: { rule: AllocationRule | null, o
         resolver: zodResolver(formSchema),
         defaultValues: {
             id: rule?.id || '',
+            type: rule?.type || 'hard',
+            description: rule?.description || '',
             keywords: rule?.keywords.join(', ') || '',
             accountId: rule?.accountId || '',
             vatType: rule?.vatType || 'no_vat',
         },
     });
 
+    const ruleType = form.watch('type');
+
     const handleSubmit = (values: z.infer<typeof formSchema>) => {
-        const keywords = values.keywords.split(',').map(k => k.trim()).filter(Boolean);
+        const keywords = values.type === 'hard' ? values.keywords?.split(',').map(k => k.trim()).filter(Boolean) : [];
         onSubmit({ ...values, keywords });
     };
     
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-                <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords (comma-separated)</FormLabel><FormControl><Input placeholder="e.g., Telkom, Bank Fee, Fees" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField
+                    control={form.control}
+                    name="type"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Rule Type</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select a rule type" />
+                                </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="hard">
+                                        <div className="flex items-center gap-2"><HardHat className="h-4 w-4"/> Hard Rule (Keywords)</div>
+                                    </SelectItem>
+                                    <SelectItem value="soft">
+                                        <div className="flex items-center gap-2"><Feather className="h-4 w-4"/> Soft Rule (Conceptual)</div>
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+
+                <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input placeholder={ruleType === 'hard' ? "e.g. Catches all bank fees" : "e.g. All fast food purchases"} {...field} /></FormControl><FormMessage /></FormItem>)} />
+                
+                {ruleType === 'hard' && (
+                    <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords (comma-separated)</FormLabel><FormControl><Input placeholder="e.g., Telkom, Bank Fee, Fees" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                )}
+                
                 <FormField control={form.control} name="accountId" render={({ field }) => ( <FormItem><FormLabel>Allocate to Account</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl><SelectContent>{chartOfAccounts.map(account => <SelectItem key={account.id} value={account.accountNumber}>{account.accountNumber} - {account.description}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="vatType" render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vat => <SelectItem key={vat.name} value={vat.name}>{vat.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                 
@@ -64,7 +101,7 @@ function RuleForm({ rule, onSubmit, onCancel }: { rule: AllocationRule | null, o
     )
 }
 
-export default function AllocationRulesPage() {
+export default function MasterAllocationRulesPage() {
   const [rules, setRules] = useState<AllocationRule[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -105,12 +142,12 @@ export default function AllocationRulesPage() {
         fetchRules();
         toast({
             title: 'Rule Deleted',
-            description: 'The allocation rule has been removed.',
+            description: 'The master allocation rule has been removed.',
             variant: 'destructive',
         });
     } catch (error) {
         console.error("Error deleting rule:", error);
-        toast({ title: 'Error', description: 'Could not delete rule.', variant: 'destructive' });
+        toast({ title: 'Error', description: 'Could not delete master rule.', variant: 'destructive' });
     }
   };
 
@@ -120,17 +157,17 @@ export default function AllocationRulesPage() {
         if (id) {
             const ruleRef = doc(db, "allocationRules", id);
             await setDoc(ruleRef, ruleData, { merge: true });
-            toast({ title: 'Rule Updated', description: 'The rule has been successfully saved.'});
+            toast({ title: 'Rule Updated', description: 'The master rule has been successfully saved.'});
         } else {
             await addDoc(collection(db, "allocationRules"), ruleData);
-            toast({ title: 'Rule Created', description: 'The new allocation rule has been added.'});
+            toast({ title: 'Rule Created', description: 'The new master allocation rule has been added.'});
         }
         fetchRules();
         setIsFormOpen(false);
         setSelectedRule(null);
     } catch (error) {
         console.error("Error saving rule:", error);
-        toast({ title: 'Error', description: 'Could not save the rule.', variant: 'destructive'});
+        toast({ title: 'Error', description: 'Could not save the master rule.', variant: 'destructive'});
     }
   };
   
@@ -145,7 +182,7 @@ export default function AllocationRulesPage() {
   return (
     <div className="space-y-8">
         <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold tracking-tight">Allocation Rules</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Master Allocation Rules</h1>
             <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
             <DialogTrigger asChild>
                     <Button onClick={handleAdd}>
@@ -157,7 +194,7 @@ export default function AllocationRulesPage() {
                     <DialogHeader>
                         <DialogTitle>{selectedRule ? 'Edit Rule' : 'Create New Rule'}</DialogTitle>
                         <DialogDescription>
-                            {selectedRule ? 'Update this allocation rule.' : 'Create a rule to automatically categorize transactions.'}
+                            {selectedRule ? 'Update this master allocation rule.' : 'Create a master rule to automatically categorize transactions for new clients.'}
                         </DialogDescription>
                     </DialogHeader>
                     <RuleForm 
@@ -171,8 +208,8 @@ export default function AllocationRulesPage() {
         
         <Card>
             <CardHeader>
-                <CardTitle>Transaction Allocation Rules</CardTitle>
-                <CardDescription>These rules automatically categorize transactions when you import a bank statement.</CardDescription>
+                <CardTitle>Master Transaction Allocation Rules</CardTitle>
+                <CardDescription>These rules are copied to new clients in Numera upon creation.</CardDescription>
             </CardHeader>
             <CardContent>
                  {isLoading ? (
@@ -183,7 +220,7 @@ export default function AllocationRulesPage() {
                 <Table>
                     <TableHeader>
                     <TableRow>
-                        <TableHead>Keywords</TableHead>
+                        <TableHead>Rule</TableHead>
                         <TableHead>Allocated Account</TableHead>
                         <TableHead>VAT Type</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
@@ -192,51 +229,58 @@ export default function AllocationRulesPage() {
                     <TableBody>
                     {rules.map(rule => (
                         <TableRow key={rule.id}>
-                        <TableCell className="font-semibold">
-                            <div className="flex flex-wrap gap-1">
-                                {rule.keywords.map(kw => <Badge key={kw} variant="secondary">{kw}</Badge>)}
-                            </div>
-                        </TableCell>
-                        <TableCell>{getAccountDescription(rule.accountId)}</TableCell>
-                        <TableCell>{getVatLabel(rule.vatType)}</TableCell>
-                        <TableCell className="text-right">
-                            <AlertDialog>
-                                <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" className="h-8 w-8 p-0">
-                                    <span className="sr-only">Open menu</span>
-                                    <MoreHorizontal className="h-4 w-4" />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                    <DropdownMenuItem onClick={() => handleEdit(rule)}>
-                                        Edit
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem className="text-destructive">
-                                            Delete
+                            <TableCell className="font-semibold max-w-xs">
+                                <div className="flex items-center gap-2">
+                                    {rule.type === 'hard' ? <HardHat className="h-4 w-4 text-muted-foreground" /> : <Feather className="h-4 w-4 text-muted-foreground" />}
+                                    <span className="capitalize">{rule.type} Rule</span>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">{rule.description}</p>
+                                {rule.type === 'hard' && (
+                                    <div className="flex flex-wrap gap-1 mt-2">
+                                    {rule.keywords.map(kw => <Badge key={kw} variant="secondary">{kw}</Badge>)}
+                                    </div>
+                                )}
+                            </TableCell>
+                            <TableCell>{getAccountDescription(rule.accountId)}</TableCell>
+                            <TableCell>{getVatLabel(rule.vatType)}</TableCell>
+                            <TableCell className="text-right">
+                                <AlertDialog>
+                                    <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" className="h-8 w-8 p-0">
+                                        <span className="sr-only">Open menu</span>
+                                        <MoreHorizontal className="h-4 w-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                        <DropdownMenuItem onClick={() => handleEdit(rule)}>
+                                            Edit
                                         </DropdownMenuItem>
-                                    </AlertDialogTrigger>
-                                </DropdownMenuContent>
-                                </DropdownMenu>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                        This will permanently delete the rule for keywords <span className="font-semibold">"{rule.keywords.join(', ')}"</span>.
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => handleDelete(rule.id)}>
-                                            Continue
-                                        </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                        </TableCell>
+                                        <DropdownMenuSeparator />
+                                        <AlertDialogTrigger asChild>
+                                            <DropdownMenuItem className="text-destructive">
+                                                Delete
+                                            </DropdownMenuItem>
+                                        </AlertDialogTrigger>
+                                    </DropdownMenuContent>
+                                    </DropdownMenu>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                This will permanently delete the master rule for keywords <span className="font-semibold">"{rule.keywords.join(', ')}"</span>.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={() => handleDelete(rule.id)}>
+                                                Continue
+                                            </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </TableCell>
                         </TableRow>
                     ))}
                     </TableBody>
