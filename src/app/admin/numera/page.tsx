@@ -293,7 +293,7 @@ function AddBankAccountForm({ activeClient, onAccountAdded, chartOfAccounts }: {
     defaultValues: { name: '' },
   });
 
-  const handleSubmit = async (values: z.infer<typeof bankAccountFormSchema>) => {
+  const handleSubmit = async (values: z.infer<typeof bankAccountFormSchema>>) => {
     if (!activeClient) return;
     setIsSaving(true);
     try {
@@ -2166,6 +2166,7 @@ export default function NumeraPage() {
   const [selectedRule, setSelectedRule] = useState<AllocationRule | null>(null);
   const [allocationRules, setAllocationRules] = useState<AllocationRule[]>([]);
   const [isClientRulesModalOpen, setIsClientRulesModalOpen] = useState(false);
+  const [masterRules, setMasterRules] = useState<AllocationRule[]>([]);
 
 
   const importForm = useForm();
@@ -2213,6 +2214,12 @@ export default function NumeraPage() {
 
   useEffect(() => {
     fetchClients();
+    const fetchMasterRules = async () => {
+      const querySnapshot = await getDocs(collection(db, "allocationRules"));
+      const fetchedRules = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as AllocationRule));
+      setMasterRules(fetchedRules);
+    };
+    fetchMasterRules();
   }, []);
 
   const fetchTransactions = async (clientId: string) => {
@@ -4015,25 +4022,25 @@ export default function NumeraPage() {
                 />
             </DialogContent>
         </Dialog>
-        <Dialog open={isClientRulesModalOpen} onOpenChange={setIsClientRulesModalOpen}>
+         <Dialog open={isClientRulesModalOpen} onOpenChange={setIsClientRulesModalOpen}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Allocation Rules for {activeClient?.name}</DialogTitle>
-                    <DialogDescription>These are the rules currently being used for this client's allocations.</DialogDescription>
+                    <DialogTitle>Master Allocation Rules</DialogTitle>
+                    <DialogDescription>These are the global rules used as a template for new clients.</DialogDescription>
                 </DialogHeader>
                 <div className="max-h-[60vh] overflow-y-auto">
                     <Table>
                         <TableHeader><TableRow><TableHead>Rule</TableHead><TableHead>Account</TableHead><TableHead>VAT</TableHead></TableRow></TableHeader>
                         <TableBody>
-                            {allocationRules.map(rule => (
+                            {masterRules.map(rule => (
                                 <TableRow key={rule.id}>
                                     <TableCell>
                                         <p className="font-medium capitalize">{rule.type} Rule</p>
                                         <p className="text-xs text-muted-foreground">{rule.description}</p>
                                         {rule.keywords.length > 0 && <p className="text-xs text-muted-foreground">Keywords: {rule.keywords.join(', ')}</p>}
                                     </TableCell>
-                                    <TableCell>{rule.accountId}</TableCell>
-                                    <TableCell>{rule.vatType}</TableCell>
+                                    <TableCell>{initialChartOfAccounts.find(a => a.accountNumber === rule.accountId)?.description || rule.accountId}</TableCell>
+                                    <TableCell>{allVatTypesData.find(v => v.name === rule.vatType)?.label || rule.vatType}</TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
