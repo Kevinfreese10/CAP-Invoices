@@ -56,7 +56,7 @@ export default function NewVisitorPopup() {
         <div className="space-y-2 text-center">
             <p className="font-semibold">Put Our Services to the Test</p>
             <p className="text-sm text-muted-foreground">
-                Join our newsletter for a free SARS & CIPC compliance request and 10% off your next order.
+                Join our newsletter for a free SARS & CIPC compliance assessment
             </p>
         </div>
         <div className="space-y-4">
