@@ -1,8 +1,9 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getFirestore, collection, getDocs, orderBy, query } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, orderBy, query, addDoc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -11,6 +12,8 @@ import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Task, User } from '@/lib/types';
+import { useAuth } from '@/contexts/AuthContext';
 
 const db = getFirestore(firebaseApp);
 
@@ -30,11 +33,34 @@ export default function AdminCompliancePage() {
   const [requests, setRequests] = useState<ComplianceRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [viewingRequest, setViewingRequest] = useState<ComplianceRequest | null>(null);
+  const { user } = useAuth();
+  const [allStaff, setAllStaff] = useState<User[]>([]);
+  const [staffCounters, setStaffCounters] = useState<{ [key: string]: number }>({});
+  
+  const getNextAdminStaff = (): User | undefined => {
+      const adminStaff = allStaff.filter(u => u.department === 'Administration' && u.role === 'staff');
+      if (adminStaff.length === 0) return undefined;
+
+      const currentIndex = staffCounters['Administration'] || 0;
+      const nextStaff = adminStaff[currentIndex];
+      
+      setStaffCounters(prev => ({
+          ...prev,
+          ['Administration']: (currentIndex + 1) % adminStaff.length
+      }));
+      
+      return nextStaff;
+  }
 
   useEffect(() => {
-    const fetchRequests = async () => {
+    const fetchRequestsAndStaff = async () => {
       setIsLoading(true);
       try {
+        const staffQuery = collection(db, "users");
+        const staffSnapshot = await getDocs(staffQuery);
+        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+        setAllStaff(fetchedStaff);
+
         const q = query(collection(db, 'complianceRequests'), orderBy('submittedAt', 'desc'));
         const querySnapshot = await getDocs(q);
         const fetchedRequests = querySnapshot.docs.map(doc => ({
@@ -48,8 +74,32 @@ export default function AdminCompliancePage() {
         setIsLoading(false);
       }
     };
-    fetchRequests();
+    fetchRequestsAndStaff();
   }, []);
+
+   const createTask = async (request: ComplianceRequest) => {
+    if (!user) return;
+
+    const assignedStaff = getNextAdminStaff();
+    if (!assignedStaff) {
+        console.error("No staff in Administration department to assign task.");
+        return;
+    }
+
+    const taskData: Omit<Task, 'id'> = {
+        title: `Follow up on Compliance Assessment for ${request.companyName}`,
+        description: `A new compliance assessment request has been submitted by ${request.yourName} (${request.yourEmail}). Please review and follow up.`,
+        assignedTo: [assignedStaff.id],
+        status: 'To-Do',
+        priority: 'Medium',
+        dueDate: Timestamp.fromDate(new Date(Date.now() + 2 * 24 * 60 * 60 * 1000)), // 2 days from now
+        createdBy: user.id,
+        createdAt: Timestamp.now(),
+        comments: [],
+    };
+    await addDoc(collection(db, 'tasks'), taskData);
+  };
+
 
   const formatDate = (timestamp: any): string => {
     if (!timestamp) return 'N/A';

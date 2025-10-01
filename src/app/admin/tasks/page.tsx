@@ -449,7 +449,7 @@ export default function AdminTasksPage() {
     }
   };
 
-  const handleFormSubmit = async (data: Omit<Task, 'id' | 'status' | 'createdBy' | 'comments' | 'priority'>) => {
+  const handleFormSubmit = async (data: Omit<Task, 'id' | 'status' | 'createdBy' | 'comments' | 'priority' | 'createdAt'>) => {
     if (!user) return;
     setIsLoading(true);
     
@@ -468,6 +468,7 @@ export default function AdminTasksPage() {
                 ...taskData,
                 status: 'To-Do',
                 createdBy: user.id,
+                createdAt: Timestamp.now(),
                 comments: [],
             };
             await addDoc(collection(db, 'tasks'), newTask);
@@ -603,7 +604,7 @@ export default function AdminTasksPage() {
                 <TableHead>Task</TableHead>
                 <TableHead>Assigned To</TableHead>
                 <TableHead>Tags</TableHead>
-                <TableHead>Due Date</TableHead>
+                <TableHead>Dates</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Related Order</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -688,7 +689,12 @@ export default function AdminTasksPage() {
                             )}
                         </div>
                     </TableCell>
-                    <TableCell className="align-top">{task.dueDate.toDate ? format(task.dueDate.toDate(), 'dd MMM yyyy') : format(task.dueDate, 'dd MMM yyyy')}</TableCell>
+                    <TableCell className="align-top text-xs">
+                        <div className="flex flex-col">
+                            <span className="font-semibold">Due: {task.dueDate?.toDate ? format(task.dueDate.toDate(), 'dd MMM yyyy') : 'N/A'}</span>
+                            <span className="text-muted-foreground">Created: {task.createdAt?.toDate ? format(task.createdAt.toDate(), 'dd MMM yyyy') : 'N/A'}</span>
+                        </div>
+                    </TableCell>
                     <TableCell className="align-top">
                         <Badge variant={getStatusVariant(task.status)}>
                             {task.status}
@@ -767,3 +773,4 @@ export default function AdminTasksPage() {
 
 
     
+

@@ -385,7 +385,7 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                         <TableHead>Task</TableHead>
                         <TableHead>Assigned To</TableHead>
                         <TableHead>Tags</TableHead>
-                        <TableHead>Due Date</TableHead>
+                        <TableHead>Dates</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Related Order</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
@@ -482,7 +482,12 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                                 )}
                             </div>
                         </TableCell>
-                        <TableCell className="align-top">{task.dueDate.toDate ? format(task.dueDate.toDate(), 'dd MMM yyyy') : format(task.dueDate, 'dd MMM yyyy')}</TableCell>
+                         <TableCell className="align-top text-xs">
+                            <div className="flex flex-col">
+                                <span className="font-semibold">Due: {task.dueDate?.toDate ? format(task.dueDate.toDate(), 'dd MMM yyyy') : 'N/A'}</span>
+                                <span className="text-muted-foreground">Created: {task.createdAt?.toDate ? format(task.createdAt.toDate(), 'dd MMM yyyy') : 'N/A'}</span>
+                            </div>
+                        </TableCell>
                         <TableCell className="align-top">
                             <Badge variant={getStatusVariant(task.status)}>
                                 {task.status}
@@ -635,7 +640,7 @@ export default function AdminDashboardPage() {
     const delegatedTasks = useMemo(() => {
         if (!user) return [];
         return tasks.filter(task => 
-            (task.createdBy === user.id || (user.role === 'admin' && task.createdBy === 'system')) &&
+            (task.createdBy === user.id) &&
             !task.assignedTo.includes(user.id) &&
              task.status !== 'Done' &&
             (!task.recurrence || task.recurrence === 'None')
@@ -735,7 +740,7 @@ export default function AdminDashboardPage() {
         }
     };
 
-    const handleFormSubmit = async (data: Omit<Task, 'id' | 'status' | 'createdBy' | 'comments' | 'priority'>) => {
+    const handleFormSubmit = async (data: Omit<Task, 'id' | 'status' | 'createdBy' | 'comments' | 'priority' | 'createdAt'>) => {
         if (!user) return;
         setIsLoading(true);
 
@@ -755,6 +760,7 @@ export default function AdminDashboardPage() {
                     status: 'To-Do',
                     priority: 'Medium',
                     createdBy: user.id,
+                    createdAt: Timestamp.now(),
                     comments: [],
                 };
                 await addDoc(collection(db, 'tasks'), newTask);
@@ -1005,4 +1011,5 @@ export default function AdminDashboardPage() {
     
 
     
+
 
