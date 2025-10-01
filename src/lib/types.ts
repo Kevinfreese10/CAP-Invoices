@@ -102,6 +102,8 @@ export type Order = {
   date: any;
   items: any[];
   total: number;
+  discountCode?: string;
+  discountAmount?: number;
   clientTotal?: number;
   status: 'Pending Payment' | 'Processing' | 'Completed' | 'Cancelled' | 'Outsourced';
   isOutsourced?: boolean;
@@ -168,6 +170,17 @@ export type User = {
   chartOfAccounts?: ChartOfAccount[];
   allocationRules?: AllocationRule[];
 };
+
+export type DiscountCode = {
+  id: string; // The code itself
+  percentage: number;
+  status: 'active' | 'used';
+  clientEmail: string;
+  orderId?: string;
+  createdAt: any;
+  usedAt?: any;
+};
+
 
 export type TaskComment = {
   text: string;

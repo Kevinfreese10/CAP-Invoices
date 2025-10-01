@@ -13,10 +13,10 @@ import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Loader2 } from 'lucide-react';
-import { getFirestore, doc, setDoc, Timestamp } from 'firebase/firestore';
+import { Loader2, Tag } from 'lucide-react';
+import { getFirestore, doc, setDoc, Timestamp, getDoc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service, User } from '@/lib/types';
+import { Order, Service, User, DiscountCode } from '@/lib/types';
 import { Checkbox } from '../ui/checkbox';
 import { Separator } from '../ui/separator';
 import { sendEmail } from '@/lib/email';
@@ -37,6 +37,7 @@ const formSchema = z.object({
   agreeRefund: z.boolean().refine(val => val === true, {
     message: 'You must agree to the refund policy.',
   }),
+  discountCode: z.string().optional(),
 });
 
 const formatPrice = (price: number) => {
@@ -54,6 +55,8 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
   const { signup } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; amount: number } | null>(null);
+  const [isVerifyingDiscount, setIsVerifyingDiscount] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -63,9 +66,40 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
       phone: '',
       agreePrereqs: false,
       agreeRefund: false,
+      discountCode: '',
     },
     mode: 'onChange',
   });
+
+  const finalTotal = appliedDiscount ? service.price - appliedDiscount.amount : service.price;
+  
+  const handleApplyDiscount = async () => {
+    const code = form.getValues('discountCode');
+    if (!code) {
+        toast({ title: 'No Code Entered', description: 'Please enter a discount code to apply.', variant: 'destructive'});
+        return;
+    }
+    setIsVerifyingDiscount(true);
+    try {
+        const discountRef = doc(db, 'discounts', code);
+        const discountSnap = await getDoc(discountRef);
+
+        if (!discountSnap.exists() || discountSnap.data()?.status !== 'active') {
+            toast({ title: 'Invalid Code', description: 'This discount code is either invalid or has already been used.', variant: 'destructive'});
+            setAppliedDiscount(null);
+            return;
+        }
+
+        const discountData = discountSnap.data() as Omit<DiscountCode, 'id'>;
+        const discountAmount = service.price * (discountData.percentage / 100);
+        setAppliedDiscount({ code: discountSnap.id, amount: discountAmount });
+        toast({ title: 'Discount Applied!', description: `You've received a ${discountData.percentage}% discount.`});
+    } catch (error) {
+        toast({ title: 'Error', description: 'Could not verify discount code.', variant: 'destructive'});
+    } finally {
+        setIsVerifyingDiscount(false);
+    }
+  };
 
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
@@ -89,7 +123,9 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
             price: service.price,
             quantity: 1
         }],
-        total: service.price,
+        total: finalTotal,
+        discountCode: appliedDiscount?.code,
+        discountAmount: appliedDiscount?.amount,
         status: 'Pending Payment',
         date: Timestamp.now(),
         department: department || null,
@@ -97,7 +133,6 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
         source: 'Client',
       };
 
-      // Create a user account if one doesn't exist
       const existingUser = users.find(u => u.email === values.email);
       if (!existingUser) {
         signup(values.name, values.email);
@@ -105,7 +140,15 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
 
       await setDoc(doc(db, 'orders', orderId), orderData);
       
-      // Send confirmation email
+      if (appliedDiscount) {
+          const discountRef = doc(db, 'discounts', appliedDiscount.code);
+          await updateDoc(discountRef, {
+              status: 'used',
+              usedAt: Timestamp.now(),
+              orderId: orderId,
+          });
+      }
+      
       const emailHtml = render(<OrderConfirmationEmail order={orderData} />);
       await sendEmail({
           to: values.email,
@@ -137,94 +180,36 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
           <form onSubmit={form.handleSubmit(onSubmit)}>
             <CardContent className="space-y-6">
                 <div className="space-y-4">
-                    <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>Full Name</FormLabel>
-                        <FormControl>
-                            <Input placeholder="John Doe" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                    />
-                    <FormField
-                    control={form.control}
-                    name="email"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>Email Address</FormLabel>
-                        <FormControl>
-                            <Input placeholder="name@example.com" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                    />
-                    <FormField
-                    control={form.control}
-                    name="phone"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>Phone Number</FormLabel>
-                        <FormControl>
-                            <Input placeholder="082 123 4567" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                    />
+                    <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input placeholder="John Doe" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input placeholder="name@example.com" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="phone" render={({ field }) => ( <FormItem><FormLabel>Phone Number</FormLabel><FormControl><Input placeholder="082 123 4567" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                </div>
+                 <Separator />
+                <div className="space-y-2">
+                    <FormLabel>Discount Code</FormLabel>
+                    <div className="flex gap-2">
+                        <FormField control={form.control} name="discountCode" render={({ field }) => ( <FormItem className="flex-grow"><FormControl><Input placeholder="Enter your code" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <Button type="button" variant="secondary" onClick={handleApplyDiscount} disabled={isVerifyingDiscount}>
+                            {isVerifyingDiscount ? <Loader2 className="h-4 w-4 animate-spin" /> : <Tag className="h-4 w-4" />}
+                            <span className="ml-2">Apply</span>
+                        </Button>
+                    </div>
                 </div>
                 <Separator />
                 <div className="space-y-4">
-                     <FormField
-                        control={form.control}
-                        name="agreePrereqs"
-                        render={({ field }) => (
-                            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                            <FormControl>
-                                <Checkbox
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                                />
-                            </FormControl>
-                            <div className="space-y-1 leading-none">
-                                <FormLabel>
-                                 I confirm I have all the prerequisite documents ready.
-                                </FormLabel>
-                                <FormMessage />
-                            </div>
-                            </FormItem>
-                        )}
-                        />
-                     <FormField
-                        control={form.control}
-                        name="agreeRefund"
-                        render={({ field }) => (
-                            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                            <FormControl>
-                                <Checkbox
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                                />
-                            </FormControl>
-                            <div className="space-y-1 leading-none">
-                                <FormLabel>
-                                 I understand and agree to the <Link href="/refund-policy" className="underline hover:text-primary" target="_blank">refund policy</Link>.
-                                </FormLabel>
-                                <FormMessage />
-                            </div>
-                            </FormItem>
-                        )}
-                        />
+                     <FormField control={form.control} name="agreePrereqs" render={({ field }) => ( <FormItem className="flex flex-row items-start space-x-3 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><div className="space-y-1 leading-none"><FormLabel>I confirm I have all the prerequisite documents ready.</FormLabel><FormMessage /></div></FormItem>)} />
+                     <FormField control={form.control} name="agreeRefund" render={({ field }) => ( <FormItem className="flex flex-row items-start space-x-3 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><div className="space-y-1 leading-none"><FormLabel>I understand and agree to the <Link href="/refund-policy" className="underline hover:text-primary" target="_blank">refund policy</Link>.</FormLabel><FormMessage /></div></FormItem>)} />
                 </div>
             </CardContent>
             <CardFooter className="flex flex-col items-start gap-4">
                 <div className="flex justify-between items-center w-full">
                     <span className="text-muted-foreground">Total:</span>
-                    <p className="text-2xl font-bold">{formatPrice(service.price)}</p>
+                    <div className="text-right">
+                        {appliedDiscount && (
+                            <p className="text-sm line-through text-muted-foreground">{formatPrice(service.price)}</p>
+                        )}
+                        <p className="text-2xl font-bold">{formatPrice(finalTotal)}</p>
+                    </div>
                 </div>
                 <Button type="submit" className="w-full" size="lg" disabled={isLoading || !form.formState.isValid}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

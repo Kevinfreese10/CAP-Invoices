@@ -1,4 +1,5 @@
 
+
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -22,6 +23,7 @@ import {
   FileSpreadsheet,
   Book,
   ListOrdered,
+  Percent,
 } from 'lucide-react';
 
 import {
@@ -61,6 +63,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/categories', label: 'Manage Categories', icon: Shapes, roles: ['admin'] },
     { href: '/admin/blog', label: 'Manage Blog', icon: BookMarked, roles: ['admin'] },
     { href: '/admin/staff', label: 'Manage Staff', icon: Users, roles: ['admin'] },
+    { href: '/admin/discounts', label: 'Manage Discounts', icon: Percent, roles: ['admin'] },
     { href: '/admin/knowledge-base', label: 'Knowledge Base & Training', icon: BrainCircuit, roles: ['admin'] },
     { href: '/admin/media', label: 'Media', icon: Images, roles: ['admin'] },
     { href: '/admin/seo', label: 'SEO Management', icon: Search, roles: ['admin'] },

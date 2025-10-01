@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { z } from 'zod';
@@ -12,6 +13,18 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { useState } from 'react';
 import { Loader2, ShieldCheck } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { getFirestore, addDoc, doc, setDoc, serverTimestamp, collection } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
+import { customAlphabet } from 'nanoid';
+import { sendEmail } from '@/lib/email';
+import { render } from '@react-email/components';
+import WelcomeDiscountEmail from '@/components/emails/WelcomeDiscountEmail';
+import { DiscountCode } from '@/lib/types';
+
+
+const db = getFirestore(firebaseApp);
+const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 8);
+
 
 const complianceFormSchema = z.object({
   companyName: z.string().min(2, 'Company name is required.'),
@@ -43,17 +56,51 @@ export default function CompliancePage() {
 
   async function handleSubmit(values: z.infer<typeof complianceFormSchema>) {
     setIsLoading(true);
-    console.log("Compliance Check Request:", values);
-    // Simulate API call
-    setTimeout(() => {
+    
+    const discountCode = `WELCOME-${nanoid()}`;
+    const discountData: Omit<DiscountCode, 'id'> = {
+        percentage: 5,
+        status: 'active',
+        clientEmail: values.yourEmail,
+        createdAt: serverTimestamp(),
+    };
+
+    try {
+      // 1. Log the compliance request
+      await addDoc(collection(db, 'complianceRequests'), {
+        ...values,
+        submittedAt: serverTimestamp(),
+      });
+      
+      // 2. Create the discount code
+      await setDoc(doc(db, 'discounts', discountCode), discountData);
+
+      // 3. Send the welcome email with the discount
+      const emailHtml = render(<WelcomeDiscountEmail name={values.yourName} discountCode={discountCode} />);
+      await sendEmail({
+        to: values.yourEmail,
+        subject: `Your Free Compliance Assessment & 5% Discount!`,
+        html: emailHtml,
+      });
+
       toast({
         title: 'Request Submitted!',
-        description: "We've received your compliance check request and will be in touch shortly with your results.",
+        description: "We've received your request and sent a welcome email with your discount code.",
       });
-      setIsLoading(false);
+
       setIsComplete(true);
       form.reset();
-    }, 2000);
+
+    } catch(error) {
+       console.error("Compliance signup error:", error);
+       toast({
+        title: 'Error',
+        description: 'There was a problem submitting your request. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   return (
@@ -75,7 +122,7 @@ export default function CompliancePage() {
               <ShieldCheck className="h-4 w-4" />
               <AlertTitle>Thank You!</AlertTitle>
               <AlertDescription>
-                Your request has been submitted. One of our consultants will contact you within 24 hours with the results of your free compliance check.
+                Your request has been submitted. One of our consultants will contact you within 24 hours with the results of your free compliance check. We have also sent a welcome email with your 5% discount code.
               </AlertDescription>
             </Alert>
           ) : (
@@ -161,7 +208,7 @@ export default function CompliancePage() {
                 />
                 <Button type="submit" disabled={isLoading} className="w-full">
                   {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {isLoading ? 'Signing up...' : 'Sign up, get my free compliance assessment and 5% discount'}
+                  {isLoading ? 'Submitting...' : 'Sign up, get my free compliance assessment and 5% discount'}
                 </Button>
               </form>
             </Form>
