@@ -8,6 +8,7 @@ import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDo
 import { firebaseApp } from '@/lib/firebase';
 import { Order, User, Service, OrderNote, Task } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
+import { services as allServices } from '@/lib/data';
 import {
   Table,
   TableBody,
@@ -33,7 +34,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { users, services as allServices } from '@/lib/data';
 import {
   Tooltip,
   TooltipContent,
@@ -48,44 +48,49 @@ import ReviewRequestEmail from '@/components/emails/ReviewRequestEmail';
 
 const db = getFirestore(firebaseApp);
 
-const allStaff = users.filter(u => u.role === 'staff' || u.role === 'admin');
+export default function AdminOrdersPage() {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const [allStaff, setAllStaff] = useState<User[]>([]);
 
-// Simple round-robin counter for staff assignment
-let staffCounters: { [key: string]: number } = {};
+  // Simple round-robin counter for staff assignment
+  const [staffCounters, setStaffCounters] = useState<{ [key: string]: number }>({});
+  
+  const getNextStaffMember = (department: 'Accounting and Tax' | 'Administration' | 'CAP'): User | undefined => {
+      const staffInDept = allStaff.filter(u => u.role === 'staff' && u.department === department);
+      if (staffInDept.length === 0) return undefined;
 
-const getNextStaffMember = (department: 'Accounting and Tax' | 'Administration' | 'CAP'): User | undefined => {
-    const staffInDept = users.filter(u => u.role === 'staff' && u.department === department);
-    if (staffInDept.length === 0) return undefined;
+      const currentIndex = staffCounters[department] || 0;
+      const nextStaff = staffInDept[currentIndex];
+      
+      setStaffCounters(prev => ({
+          ...prev,
+          [department]: (currentIndex + 1) % staffInDept.length
+      }));
+      
+      return nextStaff;
+  };
 
-    if (staffCounters[department] === undefined) {
-        staffCounters[department] = 0;
-    }
-
-    const staffMember = staffInDept[staffCounters[department]];
-    staffCounters[department] = (staffCounters[department] + 1) % staffInDept.length;
-    
-    return staffMember;
-};
-
-
-const formatPrice = (price: number) => {
+  const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
       currency: 'ZAR',
       minimumFractionDigits: price % 1 === 0 ? 0 : 2,
       maximumFractionDigits: 2,
     }).format(price);
-};
+  };
 
-export default function AdminOrdersPage() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const { toast } = useToast();
-  const { user } = useAuth();
 
-  const fetchOrders = async () => {
+  const fetchOrdersAndStaff = async () => {
       setIsLoading(true);
       try {
+        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
+        const staffSnapshot = await getDocs(staffQuery);
+        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+        setAllStaff(fetchedStaff);
+
         const ordersRef = collection(db, 'orders');
         let filteredOrders: Order[] = [];
 
@@ -141,7 +146,7 @@ export default function AdminOrdersPage() {
     
   useEffect(() => {
     if (user) {
-        fetchOrders();
+        fetchOrdersAndStaff();
     }
   }, [user]);
 
@@ -264,7 +269,7 @@ export default function AdminOrdersPage() {
         description: `Order ${orderId} has been marked as ${newStatus}.`,
       });
       
-      const reseller = orderToUpdate.resellerId ? users.find(u => u.id === orderToUpdate.resellerId) : undefined;
+      const reseller = orderToUpdate.resellerId ? allStaff.find(u => u.id === orderToUpdate.resellerId) : undefined;
       const isOutsourced = !!orderToUpdate.resellerId;
       const emailTo = isOutsourced ? orderToUpdate.endCustomerEmail : orderToUpdate.customerEmail;
       const customerName = isOutsourced ? orderToUpdate.endCustomerName : orderToUpdate.customerName;
@@ -328,7 +333,7 @@ export default function AdminOrdersPage() {
 
   const getAssignee = (userId?: string): User | undefined => {
     if (!userId) return undefined;
-    return users.find(u => u.id === userId);
+    return allStaff.find(u => u.id === userId);
   }
 
   const getStatusVariant = (status: Order['status']) => {

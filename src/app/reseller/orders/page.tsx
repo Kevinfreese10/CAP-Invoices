@@ -9,7 +9,6 @@ import { firebaseApp } from '@/lib/firebase';
 import { Order, User, Service } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { services as allServices } from '@/lib/data';
-import { users } from '@/lib/data';
 import {
   Table,
   TableBody,
@@ -57,33 +56,6 @@ import { Separator } from '@/components/ui/separator';
 
 const db = getFirestore(firebaseApp);
 
-// Simple round-robin counter for staff assignment
-let staffCounters: { [key: string]: number } = {};
-
-const getNextStaffMember = (department: 'Accounting and Tax' | 'Administration' | 'CAP'): User | undefined => {
-    const staffInDept = users.filter(u => u.role === 'staff' && u.department === department);
-    if (staffInDept.length === 0) return undefined;
-
-    if (staffCounters[department] === undefined) {
-        staffCounters[department] = 0;
-    }
-
-    const staffMember = staffInDept[staffCounters[department]];
-    staffCounters[department] = (staffCounters[department] + 1) % staffInDept.length;
-    
-    return staffMember;
-};
-
-const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-ZA', {
-      style: 'currency',
-      currency: 'ZAR',
-      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
-      maximumFractionDigits: 2,
-    }).format(price);
-};
-
-
 export default function ResellerOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [outsourcedOrders, setOutsourcedOrders] = useState<Order[]>([]);
@@ -92,13 +64,37 @@ export default function ResellerOrdersPage() {
   const { user } = useAuth();
   const [isOutsourceModalOpen, setIsOutsourceModalOpen] = useState(false);
   const [outsourcedOrderDetails, setOutsourcedOrderDetails] = useState<Order | null>(null);
+  const [allStaff, setAllStaff] = useState<User[]>([]);
+
+  // Simple round-robin counter for staff assignment
+  const [staffCounters, setStaffCounters] = useState<{ [key: string]: number }>({});
+  
+  const getNextStaffMember = (department: 'Accounting and Tax' | 'Administration' | 'CAP'): User | undefined => {
+      const staffInDept = allStaff.filter(u => u.role === 'staff' && u.department === department);
+      if (staffInDept.length === 0) return undefined;
+
+      const currentIndex = staffCounters[department] || 0;
+      const nextStaff = staffInDept[currentIndex];
+      
+      setStaffCounters(prev => ({
+          ...prev,
+          [department]: (currentIndex + 1) % staffInDept.length
+      }));
+      
+      return nextStaff;
+  };
   
   const orderStatuses: Order['status'][] = ['Pending Payment', 'Processing', 'Completed', 'Cancelled'];
   
-  const fetchOrders = async () => {
+  const fetchOrdersAndStaff = async () => {
       if (!user) return;
       setIsLoading(true);
       try {
+        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
+        const staffSnapshot = await getDocs(staffQuery);
+        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+        setAllStaff(fetchedStaff);
+
         const ordersRef = collection(db, 'orders');
         
         // Fetch client-facing orders (no originalOrderId)
@@ -141,7 +137,7 @@ export default function ResellerOrdersPage() {
 
   useEffect(() => {
     if (user) {
-        fetchOrders();
+        fetchOrdersAndStaff();
     }
   }, [user, toast]);
 
@@ -196,7 +192,7 @@ export default function ResellerOrdersPage() {
             status: 'Outsourced',
         });
 
-        fetchOrders(); // Re-fetch all orders to update the UI correctly
+        fetchOrdersAndStaff(); // Re-fetch all orders to update the UI correctly
         
         setOutsourcedOrderDetails(newOrderData as Order);
         setIsOutsourceModalOpen(true);
@@ -251,6 +247,15 @@ export default function ResellerOrdersPage() {
     }
   };
 
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
+      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(price);
+  };
+
   const getStatusVariant = (status: Order['status']) => {
     switch (status) {
       case 'Completed':
@@ -267,11 +272,6 @@ export default function ResellerOrdersPage() {
         return 'secondary';
     }
   };
-  
-  const getAssignee = (userIds?: string[]): User | undefined => {
-    if (!userIds || userIds.length === 0) return undefined;
-    return users.find(u => u.id === userIds[0]);
-  }
   
   const pendingApprovalOrders = outsourcedOrders.filter(o => o.status === 'Pending Payment');
   const activeOutsourcedOrders = outsourcedOrders.filter(o => o.status !== 'Pending Payment');
@@ -594,13 +594,3 @@ export default function ResellerOrdersPage() {
     </>
   );
 }
-
-    
-
-    
-
-
-
-
-
-

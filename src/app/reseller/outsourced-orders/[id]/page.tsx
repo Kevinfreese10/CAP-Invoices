@@ -1,12 +1,12 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
 import { notFound, useParams } from 'next/navigation';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, User, OrderNote } from '@/lib/types';
-import { users } from '@/lib/data';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -34,11 +34,17 @@ export default function ResellerOutsourcedOrderDetailsPage() {
   const id = params.id as string;
   const [assignee, setAssignee] = useState<User | null>(null);
   const { user: currentUser } = useAuth();
+  const [allStaff, setAllStaff] = useState<User[]>([]);
 
   const fetchOrder = async () => {
       if (!id || !currentUser) return;
       setIsLoading(true);
       try {
+        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
+        const staffSnapshot = await getDocs(staffQuery);
+        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+        setAllStaff(fetchedStaff);
+
         const docRef = doc(db, 'orders', id);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
@@ -58,7 +64,7 @@ export default function ResellerOutsourcedOrderDetailsPage() {
           setOrder(fetchedOrder);
           
           if (fetchedOrder.assignedTo && fetchedOrder.assignedTo.length > 0) {
-            const assignedUser = users.find(u => u.id === fetchedOrder.assignedTo[0]);
+            const assignedUser = fetchedStaff.find(u => u.id === fetchedOrder.assignedTo[0]);
             setAssignee(assignedUser || null);
           }
 
@@ -96,7 +102,7 @@ export default function ResellerOutsourcedOrderDetailsPage() {
   };
   
   const getAuthor = (authorId: string): User | undefined => {
-    return users.find(u => u.id === authorId);
+    return allStaff.find(u => u.id === authorId);
   }
   
   if (isLoading) {

@@ -22,7 +22,6 @@ import { Loader2, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { users } from '@/lib/data';
 import {
   Tooltip,
   TooltipContent,
@@ -49,12 +48,18 @@ export default function OutsourcedOrdersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const { user } = useAuth();
+  const [allStaff, setAllStaff] = useState<User[]>([]);
 
   useEffect(() => {
     const fetchOrders = async () => {
       if (!user) return;
       setIsLoading(true);
       try {
+        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
+        const staffSnapshot = await getDocs(staffQuery);
+        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+        setAllStaff(fetchedStaff);
+
         const ordersRef = collection(db, 'orders');
         // Query for orders that belong to this reseller AND have an originalOrderId,
         // which marks them as outsourced orders.
@@ -90,7 +95,7 @@ export default function OutsourcedOrdersPage() {
 
   const getAssignee = (userId?: string): User | undefined => {
     if (!userId) return undefined;
-    return users.find(u => u.id === userId);
+    return allStaff.find(u => u.id === userId);
   }
 
   const getStatusVariant = (status: Order['status']) => {
@@ -149,7 +154,7 @@ export default function OutsourcedOrdersPage() {
                 </TableHeader>
                 <TableBody>
                     {orders.map((order) => {
-                    const assignee = getAssignee(order.assignedTo);
+                    const assignee = getAssignee(order.assignedTo?.[0]);
                     return (
                     <TableRow key={order.id}>
                         <TableCell className="font-medium">{order.id}</TableCell>

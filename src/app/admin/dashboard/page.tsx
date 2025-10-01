@@ -30,8 +30,6 @@ import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, q
 import { firebaseApp } from '@/lib/firebase';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { users } from '@/lib/data';
-
 
 const db = getFirestore(firebaseApp);
 
@@ -90,7 +88,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
     }
     
     const getAuthor = (authorId: string): User | undefined => {
-        return allStaff.find(u => u.id === authorId) || users.find(u => u.id === authorId);
+        return allStaff.find(u => u.id === authorId);
     }
     
     return (
@@ -347,7 +345,7 @@ const getUserColor = (userId: string) => {
 const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete, allStaff }: { tasks: Task[], title: string, description: string, onEdit: (task: Task) => void, onUpdateStatus: (taskId: string, status: Task['status']) => void, onDelete: (taskId: string) => void, allStaff: User[] }) => {
     const getAssignee = (userId?: string): User | undefined => {
         if (!userId) return undefined;
-        return allStaff.find(u => u.id === userId) || users.find(u => u.id === userId);
+        return allStaff.find(u => u.id === userId);
     }
     
     const getStatusVariant = (status: Task['status']) => {
@@ -412,7 +410,7 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                                 <div className="mt-2 flex items-start gap-2 border-l-2 border-primary/50 pl-2">
                                     <MessageSquare className="h-3 w-3 text-muted-foreground flex-shrink-0 mt-0.5" />
                                     <div className="text-xs">
-                                        <span className="font-semibold">{commentAuthor.name}:</span>
+                                        <span className="font-semibold">{commentAuthor.name.split(' ')[0]}:</span>
                                         <span className="text-muted-foreground ml-1">"{lastComment.text}"</span>
                                     </div>
                                 </div>
@@ -446,7 +444,7 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                                                     <span className={cn("h-6 w-6 border-2 border-background rounded-full flex items-center justify-center text-xs font-semibold", getUserColor(assignee.id))}>{assignee.name.charAt(0)}</span>
                                                 </TooltipTrigger>
                                                 <TooltipContent>
-                                                    <p>{assignee.name}</p>
+                                                    <p>{assignee.name.split(' ')[0]}</p>
                                                 </TooltipContent>
                                             </Tooltip>
                                         </TooltipProvider>
@@ -468,10 +466,10 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                                          <TooltipProvider key={userId}>
                                             <Tooltip>
                                                 <TooltipTrigger>
-                                                    <span className="h-6 w-6 border-2 border-background rounded-full bg-muted flex items-center justify-center text-xs opacity-70">{taggedUser.name.charAt(0)}</span>
+                                                    <span className={cn("h-6 w-6 border-2 border-background rounded-full flex items-center justify-center text-xs", getUserColor(taggedUser.id))}>{taggedUser.name.charAt(0)}</span>
                                                 </TooltipTrigger>
                                                 <TooltipContent>
-                                                    <p>Tagged: {taggedUser.name}</p>
+                                                    <p>Tagged: {taggedUser.name.split(' ')[0]}</p>
                                                 </TooltipContent>
                                             </Tooltip>
                                         </TooltipProvider>
@@ -1007,3 +1005,4 @@ export default function AdminDashboardPage() {
     
 
     
+

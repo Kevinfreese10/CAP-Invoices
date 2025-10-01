@@ -4,11 +4,10 @@
 
 import { useState, useEffect } from 'react';
 import { notFound, useParams } from 'next/navigation';
-import { getFirestore, doc, getDoc, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, updateDoc, arrayUnion, Timestamp, collection, getDocs, where, query } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service, User, OrderNote } from '@/lib/types';
 import { services } from '@/lib/data';
-import { users } from '@/lib/data';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -56,7 +55,7 @@ const emailFormSchema = z.object({
     message: z.string().min(20, 'Message must be at least 20 characters long.'),
 });
 
-function EmailClientDialog({ order, user, onEmailSent }: { order: Order, user: User | null, onEmailSent: (subject: string, message: string) => Promise<void> }) {
+function EmailClientDialog({ order, user, allStaff, onEmailSent }: { order: Order, user: User | null, allStaff: User[], onEmailSent: (subject: string, message: string) => Promise<void> }) {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isSending, setIsSending] = useState(false);
@@ -177,16 +176,22 @@ export default function AdminOrderDetailsPage() {
   const [customer, setCustomer] = useState<User | null>(null);
   const { user: currentUser } = useAuth();
   const { toast } = useToast();
+  const [allStaff, setAllStaff] = useState<User[]>([]);
   
   const noteForm = useForm<z.infer<typeof noteFormSchema>>({
     resolver: zodResolver(noteFormSchema),
     defaultValues: { noteText: "" },
   });
 
-  const fetchOrder = async () => {
+  const fetchOrderAndStaff = async () => {
       if (!id) return;
       setIsLoading(true);
       try {
+        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
+        const staffSnapshot = await getDocs(staffQuery);
+        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+        setAllStaff(fetchedStaff);
+
         const docRef = doc(db, 'orders', id);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
@@ -212,12 +217,13 @@ export default function AdminOrderDetailsPage() {
           setOrder(fetchedOrder);
           
           if (fetchedOrder.assignedTo) {
-            const assignedUser = users.find(u => u.id === fetchedOrder.assignedTo);
+            const assignedUser = fetchedStaff.find(u => u.id === fetchedOrder.assignedTo);
             setAssignee(assignedUser || null);
           }
           
           if (fetchedOrder.userId) {
-            const customerUser = users.find(u => u.id === fetchedOrder.userId);
+            // Check dynamic users first
+            let customerUser = fetchedStaff.find(u => u.id === fetchedOrder.userId);
             setCustomer(customerUser || null);
           }
 
@@ -244,7 +250,7 @@ export default function AdminOrderDetailsPage() {
     };
 
   useEffect(() => {
-    fetchOrder();
+    fetchOrderAndStaff();
   }, [id]);
 
    const onNoteSubmit = async (values: z.infer<typeof noteFormSchema>) => {
@@ -265,7 +271,7 @@ export default function AdminOrderDetailsPage() {
 
       toast({ title: "Note Added", description: "Your note has been saved." });
       noteForm.reset();
-      await fetchOrder(); // Re-fetch to display the new note
+      await fetchOrderAndStaff(); // Re-fetch to display the new note
     } catch (error) {
       console.error("Error adding note:", error);
       toast({ title: "Error", description: "Failed to add note.", variant: "destructive" });
@@ -288,7 +294,7 @@ export default function AdminOrderDetailsPage() {
       await updateDoc(orderRef, {
         notes: arrayUnion(emailNote),
       });
-      await fetchOrder();
+      await fetchOrderAndStaff();
     } catch (error) {
         console.error("Error logging email to history:", error);
         // We don't show a toast here because the user already got a "sent" confirmation
@@ -311,7 +317,7 @@ export default function AdminOrderDetailsPage() {
   };
   
   const getAuthor = (authorId: string): User | undefined => {
-    return users.find(u => u.id === authorId);
+    return allStaff.find(u => u.id === authorId);
   }
 
   const handleQuickActionEmail = async (type: 'docs' | 'payment' | 'review') => {
@@ -321,7 +327,7 @@ export default function AdminOrderDetailsPage() {
       let subject = '';
       let message = '';
       const isOutsourced = !!order.resellerId;
-      const reseller = isOutsourced ? users.find(u => u.id === order.resellerId) : undefined;
+      const reseller = isOutsourced ? allStaff.find(u => u.id === order.resellerId) : undefined;
       const emailTo = isOutsourced ? order.endCustomerEmail : order.customerEmail;
       const customerName = isOutsourced ? order.endCustomerName : order.customerName;
       const orderForEmail = { ...order, customerName, id: order.originalOrderId || order.id };
@@ -544,7 +550,7 @@ export default function AdminOrderDetailsPage() {
                             <Star className="mr-2 h-4 w-4" /> Request a Review
                         </Button>
                         <Separator className="my-2" />
-                        <EmailClientDialog order={order} user={customer} onEmailSent={addEmailToHistory} />
+                        <EmailClientDialog order={order} user={customer} allStaff={allStaff} onEmailSent={addEmailToHistory} />
                     </CardContent>
                  </Card>
             </div>

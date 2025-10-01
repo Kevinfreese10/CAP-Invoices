@@ -4,10 +4,9 @@
 
 import { useState, useEffect } from 'react';
 import { notFound, useParams } from 'next/navigation';
-import { getFirestore, doc, getDoc, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, updateDoc, arrayUnion, Timestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service, User, OrderNote } from '@/lib/types';
-import { services } from '@/lib/data';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,7 +21,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { users as allUsers } from '@/lib/data';
 
 const db = getFirestore(firebaseApp);
 
@@ -46,6 +44,7 @@ export default function ResellerOrderDetailsPage() {
   const id = params.id as string;
   const { user: currentUser } = useAuth();
   const { toast } = useToast();
+  const [allStaff, setAllStaff] = useState<User[]>([]);
 
   const noteForm = useForm<z.infer<typeof noteFormSchema>>({
     resolver: zodResolver(noteFormSchema),
@@ -56,6 +55,11 @@ export default function ResellerOrderDetailsPage() {
       if (!id || !currentUser) return;
       setIsLoading(true);
       try {
+        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
+        const staffSnapshot = await getDocs(staffQuery);
+        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+        setAllStaff(fetchedStaff);
+
         const docRef = doc(db, 'orders', id);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
@@ -115,7 +119,7 @@ export default function ResellerOrderDetailsPage() {
   };
   
    const getAuthor = (authorId: string): User | undefined => {
-    return allUsers.find(u => u.id === authorId);
+    return allStaff.find(u => u.id === authorId);
   }
 
    const getStatusVariant = (status: Order['status']) => {
@@ -124,12 +128,12 @@ export default function ResellerOrderDetailsPage() {
         return 'success';
       case 'Processing':
         return 'info';
+      case 'Outsourced':
+        return 'info';
       case 'Pending Payment':
         return 'warning';
       case 'Cancelled':
         return 'destructive';
-      case 'Outsourced':
-        return 'info';
       default:
         return 'secondary';
     }

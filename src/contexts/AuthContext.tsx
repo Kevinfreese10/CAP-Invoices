@@ -4,8 +4,7 @@
 import { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import type { User } from '@/lib/types';
 import { useRouter } from 'next/navigation';
-import { users } from '@/lib/data';
-import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
+import { getFirestore, collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 
 const db = getFirestore(firebaseApp);
@@ -25,13 +24,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | undefined>(undefined);
 
   useEffect(() => {
-    // This is a mock persistence check. In a real app, you'd check a token.
+    // This is a persistence check.
     try {
       const storedUser = localStorage.getItem('my-accountant-user');
       if (storedUser) {
         const parsedUser = JSON.parse(storedUser);
-        // Ensure we don't log in 'client' roles
-        if (parsedUser.role !== 'client') {
+         if (parsedUser.role !== 'client') {
             setUser(parsedUser);
             setIsAuthenticated(true);
         } else {
@@ -48,7 +46,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
   
   const updateUserState = (user: User | null) => {
-    // Do not set user state for 'client' role
     if (user && user.role === 'client') {
         setUser(null);
         setIsAuthenticated(false);
@@ -66,30 +63,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   const login = async (email: string): Promise<User | undefined> => {
-    // 1. Check Firestore first for dynamic users
     try {
-        const q = query(collection(db, "users"), where("email", "==", email));
+        const usersRef = collection(db, "users");
+        const q = query(usersRef, where("email", "==", email));
         const querySnapshot = await getDocs(q);
+        
         if (!querySnapshot.empty) {
-            const doc = querySnapshot.docs[0];
-            const foundUser = { ...doc.data(), id: doc.id } as User;
+            const userDoc = querySnapshot.docs[0];
+            const foundUser = { ...userDoc.data(), id: userDoc.id } as User;
+            
             if (foundUser.role !== 'client') {
                 updateUserState(foundUser);
                 return foundUser;
             }
         }
     } catch (error) {
-        console.error("Error querying Firestore for user:", error);
-    }
-    
-    // 2. Fallback to static data file
-    const foundUser = users.find(u => u.email === email);
-    
-    if (foundUser && foundUser.role !== 'client') {
-        if (user?.id !== foundUser.id) {
-            updateUserState(foundUser);
-        }
-        return foundUser;
+        console.error("Error logging in:", error);
     }
 
     return undefined;
@@ -101,8 +90,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signup = (name: string, email: string) => {
     const newUser: User = { id: `new-user-${Date.now()}`, name, email, role: 'client' };
-    (users as User[]).push(newUser);
-    // We don't log in the new client, just create their record.
+    // This is a placeholder. In a real app, this would write to Firestore.
+    console.log("New client signup (placeholder):", newUser);
     return newUser;
   };
   

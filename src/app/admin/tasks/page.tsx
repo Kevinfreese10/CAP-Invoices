@@ -25,14 +25,12 @@ import { Calendar } from '@/components/ui/calendar';
 import { format, isPast } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, arrayUnion, Timestamp, writeBatch, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { users } from '@/lib/data';
 
 const db = getFirestore(firebaseApp);
 
@@ -84,7 +82,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
     }
     
     const getAuthor = (authorId: string): User | undefined => {
-        return allStaff.find(u => u.id === authorId) || users.find(u => u.id === authorId);
+        return allStaff.find(u => u.id === authorId);
     }
     
     return (
@@ -283,10 +281,6 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                     const date = comment.date?.toDate ? comment.date.toDate() : new Date(comment.date);
                                     return (
                                     <div key={index} className="flex items-start gap-3">
-                                         <Avatar className="h-8 w-8 border">
-                                            <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${author?.email}`} />
-                                            <AvatarFallback>{author?.name.charAt(0)}</AvatarFallback>
-                                        </Avatar>
                                         <div className="bg-muted p-3 rounded-lg w-full">
                                             <div className="flex justify-between items-center mb-1">
                                                 <p className="text-xs font-semibold">{author?.name}</p>
@@ -529,7 +523,7 @@ export default function AdminTasksPage() {
 
   const getAssignee = (userId?: string): User | undefined => {
     if (!userId) return undefined;
-    return allStaff.find(u => u.id === userId) || users.find(u => u.id === userId);
+    return allStaff.find(u => u.id === userId);
   }
 
     const getStatusVariant = (status: Task['status']) => {
@@ -656,7 +650,7 @@ export default function AdminTasksPage() {
                                                 <span className={cn("h-6 w-6 border-2 border-background rounded-full flex items-center justify-center text-xs font-semibold", getUserColor(assignee.id))}>{assignee.name.charAt(0)}</span>
                                             </TooltipTrigger>
                                             <TooltipContent>
-                                                <p>{assignee.name}</p>
+                                                <p>{assignee.name.split(' ')[0]}</p>
                                             </TooltipContent>
                                         </Tooltip>
                                     </TooltipProvider>
@@ -678,13 +672,10 @@ export default function AdminTasksPage() {
                                         <TooltipProvider key={userId}>
                                         <Tooltip>
                                             <TooltipTrigger>
-                                                <Avatar className="h-6 w-6 border-2 border-background opacity-70">
-                                                    <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${taggedUser.email}`} alt={taggedUser.name} />
-                                                    <AvatarFallback>{taggedUser.name.charAt(0)}</AvatarFallback>
-                                                </Avatar>
+                                                <span className={cn("h-6 w-6 border-2 border-background rounded-full flex items-center justify-center text-xs", getUserColor(taggedUser.id))}>{taggedUser.name.charAt(0)}</span>
                                             </TooltipTrigger>
                                             <TooltipContent>
-                                                <p>Tagged: {taggedUser.name}</p>
+                                                <p>Tagged: {taggedUser.name.split(' ')[0]}</p>
                                             </TooltipContent>
                                         </Tooltip>
                                     </TooltipProvider>
@@ -776,5 +767,3 @@ export default function AdminTasksPage() {
 
 
     
-
-
