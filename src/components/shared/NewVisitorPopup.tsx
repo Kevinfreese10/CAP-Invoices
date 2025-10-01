@@ -56,7 +56,7 @@ export default function NewVisitorPopup() {
         <div className="space-y-2 text-center">
             <p className="font-semibold">Put Our Services to the Test</p>
             <p className="text-sm text-muted-foreground">
-                As a new visitor, subscribe to our newsletter and get 10% OFF your first service order.
+                Free SARS & CIPC compliance request when you subscribe—plus 10% off your next order.
             </p>
         </div>
         <div className="space-y-4">
