@@ -326,6 +326,24 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
     )
 }
 
+const userColors = [
+  'bg-red-200 text-red-800',
+  'bg-blue-200 text-blue-800',
+  'bg-green-200 text-green-800',
+  'bg-yellow-200 text-yellow-800',
+  'bg-purple-200 text-purple-800',
+  'bg-pink-200 text-pink-800',
+  'bg-indigo-200 text-indigo-800',
+  'bg-teal-200 text-teal-800',
+];
+
+const getUserColor = (userId: string) => {
+  // Simple hash function to get a consistent color for a user
+  const hash = userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return userColors[hash % userColors.length];
+};
+
+
 const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete, allStaff }: { tasks: Task[], title: string, description: string, onEdit: (task: Task) => void, onUpdateStatus: (taskId: string, status: Task['status']) => void, onDelete: (taskId: string) => void, allStaff: User[] }) => {
     const getAssignee = (userId?: string): User | undefined => {
         if (!userId) return undefined;
@@ -425,7 +443,7 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                                          <TooltipProvider key={userId}>
                                             <Tooltip>
                                                 <TooltipTrigger>
-                                                    <span className="h-6 w-6 border-2 border-background rounded-full bg-muted flex items-center justify-center text-xs">{assignee.name.charAt(0)}</span>
+                                                    <span className={cn("h-6 w-6 border-2 border-background rounded-full flex items-center justify-center text-xs font-semibold", getUserColor(assignee.id))}>{assignee.name.charAt(0)}</span>
                                                 </TooltipTrigger>
                                                 <TooltipContent>
                                                     <p>{assignee.name}</p>
@@ -612,8 +630,7 @@ export default function AdminDashboardPage() {
         return tasks.filter(task => 
             Array.isArray(task.assignedTo) && 
             task.assignedTo.includes(user.id) &&
-            task.status !== 'Done' &&
-            (!task.recurrence || task.recurrence === 'None')
+            task.status !== 'Done'
         ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
     }, [tasks, user]);
 

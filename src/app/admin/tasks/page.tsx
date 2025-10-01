@@ -321,6 +321,23 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
     )
 }
 
+const userColors = [
+  'bg-red-200 text-red-800',
+  'bg-blue-200 text-blue-800',
+  'bg-green-200 text-green-800',
+  'bg-yellow-200 text-yellow-800',
+  'bg-purple-200 text-purple-800',
+  'bg-pink-200 text-pink-800',
+  'bg-indigo-200 text-indigo-800',
+  'bg-teal-200 text-teal-800',
+];
+
+const getUserColor = (userId: string) => {
+  // Simple hash function to get a consistent color for a user
+  const hash = userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return userColors[hash % userColors.length];
+};
+
 export default function AdminTasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [allStaff, setAllStaff] = useState<User[]>([]);
@@ -636,10 +653,7 @@ export default function AdminTasksPage() {
                                         <TooltipProvider key={userId}>
                                         <Tooltip>
                                             <TooltipTrigger>
-                                                <Avatar className="h-6 w-6 border-2 border-background">
-                                                    <AvatarImage src={`https://api.dicebear.com/7.x/micah/svg?seed=${assignee.email}`} alt={assignee.name} />
-                                                    <AvatarFallback>{assignee.name.charAt(0)}</AvatarFallback>
-                                                </Avatar>
+                                                <span className={cn("h-6 w-6 border-2 border-background rounded-full flex items-center justify-center text-xs font-semibold", getUserColor(assignee.id))}>{assignee.name.charAt(0)}</span>
                                             </TooltipTrigger>
                                             <TooltipContent>
                                                 <p>{assignee.name}</p>
@@ -762,4 +776,5 @@ export default function AdminTasksPage() {
 
 
     
+
 
