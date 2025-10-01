@@ -57,9 +57,9 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/compliance', label: 'Compliance', icon: ShieldCheck, roles: ['admin'] },
     { href: '/admin/tasks', label: 'Manage Tasks', icon: ClipboardCheck, roles: ['admin', 'staff'] },
     { href: '/admin/clients', label: 'Manage Clients', icon: BookUser, roles: ['admin'] },
-    { href: '/admin/numera', label: 'Numera', icon: FileSpreadsheet, roles: ['admin'] },
-    { href: '/admin/numera/chart-of-accounts', label: 'Chart of Accounts', icon: Book, roles: ['admin'], isSubItem: true },
-    { href: '/admin/numera/allocation-rules', label: 'Allocation Rules', icon: ListOrdered, roles: ['admin'], isSubItem: true },
+    { href: '/admin/numera', label: 'Numera', icon: FileSpreadsheet, roles: ['admin', 'staff'], department: 'Accounting and Tax' },
+    { href: '/admin/numera/chart-of-accounts', label: 'Chart of Accounts', icon: Book, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
+    { href: '/admin/numera/allocation-rules', label: 'Allocation Rules', icon: ListOrdered, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
     { href: '/admin/services', label: 'Manage Services', icon: Briefcase, roles: ['admin'] },
     { href: '/admin/categories', label: 'Manage Categories', icon: Shapes, roles: ['admin'] },
     { href: '/admin/blog', label: 'Manage Blog', icon: BookMarked, roles: ['admin'] },
@@ -80,7 +80,11 @@ export default function DashboardNav({ user }: { user: UserType }) {
   ];
 
   const visibleNavItems = navItems.filter(item => item.roles.includes(user.role));
-  const visibleAdminNavItems = adminNavItems.filter(item => item.roles.includes(user.role));
+  const visibleAdminNavItems = adminNavItems.filter(item => {
+    if (!item.roles.includes(user.role)) return false;
+    if (item.department && user.department !== item.department) return false;
+    return true;
+  });
   const visibleResellerNavItems = resellerNavItems.filter(item => item.roles.includes(user.role));
 
   return (
