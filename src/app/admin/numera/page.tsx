@@ -283,7 +283,7 @@ const bankAccountFormSchema = z.object({
   name: z.string().min(2, "Bank name is required (e.g., FNB, ABSA)."),
 });
 
-function AddBankAccountForm({ activeClient, onAccountAdded, chartOfAccounts }: { activeClient: User; onAccountAdded: (newAccount: ChartOfAccount) => void; chartOfAccounts: ChartOfAccount[]; }) {
+function AddBankAccountForm({ activeClient, onAccountAdded, chartOfAccounts }: { activeClient: User; onAccountAdded: (newAccount: ChartOfAccount) => void; chartOfAccounts: ChartOfAccount[] }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
@@ -293,7 +293,7 @@ function AddBankAccountForm({ activeClient, onAccountAdded, chartOfAccounts }: {
     defaultValues: { name: '' },
   });
 
-  const handleSubmit = async (values: z.infer<typeof bankAccountFormSchema>>) => {
+  const handleSubmit = async (values: z.infer<typeof bankAccountFormSchema>) => {
     if (!activeClient) return;
     setIsSaving(true);
     try {
@@ -3284,7 +3284,6 @@ export default function NumeraPage() {
                         <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
                         <TabsTrigger value="customers">Customers</TabsTrigger>
                         <TabsTrigger value="chart-of-accounts">Chart of Accounts</TabsTrigger>
-                        <TabsTrigger value="allocation-rules">Allocation Rules</TabsTrigger>
                     </TabsList>
                     <TabsContent value="reporting" className="space-y-4">
                         <TrialBalanceCard activeClient={activeClient} onAccountClick={handleTBAccountClick} allocatedTransactions={allAllocated} unallocatedTransactions={allUnallocated} chartOfAccounts={chartOfAccountsData} />
@@ -3781,75 +3780,6 @@ export default function NumeraPage() {
                                             </TableRow>
                                         ))}
                                     </TableBody>
-                                </Table>
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-                    <TabsContent value="allocation-rules">
-                        <Card>
-                            <CardHeader className="flex flex-row items-center justify-between">
-                                <div>
-                                <CardTitle>Allocation Rules for {activeClient.name}</CardTitle>
-                                <CardDescription>Manage the AI allocation rules for this specific client.</CardDescription>
-                                </div>
-                                <Button onClick={() => { setSelectedRule(null); setIsRuleFormOpen(true); }}><PlusCircle className="mr-2 h-4 w-4" /> Add Rule</Button>
-                            </CardHeader>
-                            <CardContent>
-                                <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                    <TableHead>Rule</TableHead>
-                                    <TableHead>Allocated Account</TableHead>
-                                    <TableHead>VAT Type</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {allocationRules.map(rule => (
-                                    <TableRow key={rule.id}>
-                                        <TableCell className="font-semibold max-w-xs">
-                                        <div className="flex items-center gap-2">
-                                            {rule.type === 'hard' ? <HardHat className="h-4 w-4 text-muted-foreground" /> : <Feather className="h-4 w-4 text-muted-foreground" />}
-                                            <span className="capitalize">{rule.type} Rule</span>
-                                        </div>
-                                        <p className="text-xs text-muted-foreground mt-1">{rule.description}</p>
-                                        {rule.type === 'hard' && (
-                                            <div className="flex flex-wrap gap-1 mt-2">
-                                            {rule.keywords.map(kw => <Badge key={kw} variant="secondary">{kw}</Badge>)}
-                                            </div>
-                                        )}
-                                        </TableCell>
-                                        <TableCell>{chartOfAccountsData.find(a => a.accountNumber === rule.accountId)?.description || 'N/A'}</TableCell>
-                                        <TableCell>{allVatTypesData.find(v => v.name === rule.vatType)?.label || 'N/A'}</TableCell>
-                                        <TableCell className="text-right">
-                                        <AlertDialog>
-                                            <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" className="h-8 w-8 p-0">
-                                                <span className="sr-only">Open menu</span>
-                                                <MoreHorizontal className="h-4 w-4" />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end">
-                                                <DropdownMenuItem onClick={() => { setSelectedRule(rule); setIsRuleFormOpen(true); }}>Edit</DropdownMenuItem>
-                                                <AlertDialogTrigger asChild><DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem></AlertDialogTrigger>
-                                            </DropdownMenuContent>
-                                            </DropdownMenu>
-                                            <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                <AlertDialogDescription>This will permanently delete this rule for this client.</AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                <AlertDialogAction onClick={() => handleRuleDelete(rule.id)}>Continue</AlertDialogAction>
-                                            </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                        </AlertDialog>
-                                        </TableCell>
-                                    </TableRow>
-                                    ))}
-                                </TableBody>
                                 </Table>
                             </CardContent>
                         </Card>
