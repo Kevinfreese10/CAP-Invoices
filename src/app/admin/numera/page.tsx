@@ -25,7 +25,6 @@ import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format, add, sub, getMonth, getYear, startOfYear, endOfYear, startOfMonth, endOfMonth, addMonths, parse } from 'date-fns';
 import { chartOfAccounts as initialChartOfAccounts } from '@/lib/chart-of-accounts';
-import { allocationRules as initialAllocationRules } from '@/lib/allocation-rules';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
@@ -35,18 +34,14 @@ import { Check } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Papa from 'papaparse';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { users as allUsers } from '@/lib/data';
-import { allocateTransaction } from '@/ai/flows/allocate-transaction';
-import { refineAllocationKnowledge } from '@/ai/flows/refine-allocation-knowledge';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import { getAISuggestions } from '@/ai/flows/get-ai-suggestions';
 import { allVatTypes as allVatTypesData } from '@/lib/vat-types';
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 const db = getFirestore(firebaseApp);
 
@@ -293,7 +288,7 @@ function AddBankAccountForm({ activeClient, onAccountAdded, chartOfAccounts }: {
     defaultValues: { name: '' },
   });
 
-  const handleSubmit = async (values: z.infer<typeof bankAccountFormSchema>) => {
+  const handleSubmit = (values: z.infer<typeof bankAccountFormSchema>) => {
     if (!activeClient) return;
     setIsSaving(true);
     try {
@@ -2267,7 +2262,7 @@ export default function NumeraPage() {
         fetchClientSubCollections(activeClient.id);
         const clientCOA = activeClient.chartOfAccounts || initialChartOfAccounts;
         setChartOfAccountsData(clientCOA);
-        const clientRules = activeClient.allocationRules || initialAllocationRules;
+        const clientRules = activeClient.allocationRules || [];
         setAllocationRules(clientRules);
     }
   }, [activeClient]);
@@ -2327,10 +2322,6 @@ export default function NumeraPage() {
     };
     
      if (isNewClient) {
-        // Fetch master rules to copy to new client
-        const masterRulesSnapshot = await getDocs(collection(db, "allocationRules"));
-        const masterRules = masterRulesSnapshot.docs.map(doc => ({...doc.data(), id: doc.id} as AllocationRule));
-        
         clientData.chartOfAccounts = initialChartOfAccounts;
         clientData.allocationRules = masterRules;
     }
@@ -2408,7 +2399,7 @@ export default function NumeraPage() {
         const lowerCaseDescription = description.toLowerCase();
         let matchedRule = null;
         
-        for (const rule of allocationRules) {
+        for (const rule of masterRules) {
             if (rule.type === 'hard') {
                 for (const keyword of rule.keywords) {
                     if (lowerCaseDescription.includes(keyword.toLowerCase())) {
@@ -2704,7 +2695,7 @@ export default function NumeraPage() {
     }
 };
 
- const handleRuleCreationAndAutoAllocate = async (feedbackData: {
+  const handleRuleCreationAndAutoAllocate = async (feedbackData: {
     transaction: ImportedTransaction | AllocatedTransaction;
     description: string;
     correctAccount: string;
@@ -2737,10 +2728,8 @@ export default function NumeraPage() {
           setAllocationRules(updatedRules);
           toast({ title: "Client-specific AI Rule Created", description: "The new rule has been saved for this client." });
       } else { // Global
-          // In a real app, this would be an API call to a secure backend to update a shared ruleset.
-          // For this demo, we'll just log it.
-          console.log("Saving new GLOBAL rule to master database:", newRuleWithKeywords);
-          toast({ title: "Global AI Rule Submitted", description: "The new rule has been submitted for global use." });
+          await addDoc(collection(db, "allocationRules"), newRuleWithKeywords);
+          toast({ title: "Global AI Rule Submitted", description: "The new rule has been submitted for global use and will be available for future clients." });
       }
 
       setFeedbackTransaction(null);
@@ -4230,4 +4219,3 @@ function BulkAllocateDialog({ isOpen, onClose, onBulkAllocate, count, customers,
         </Dialog>
     );
 }
-
