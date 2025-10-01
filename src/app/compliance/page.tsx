@@ -31,7 +31,7 @@ const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 8);
 let adminStaffCounter = 0;
 
 const getNextAdminStaff = (): User | undefined => {
-    const adminStaff = users.filter(u => u.department === 'Administration' && (u.role === 'staff' || u.role === 'admin'));
+    const adminStaff = users.filter(u => u.department === 'Administration' && u.role === 'staff');
     if (adminStaff.length === 0) return undefined;
 
     const nextStaff = adminStaff[adminStaffCounter % adminStaff.length];
