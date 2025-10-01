@@ -630,7 +630,7 @@ export default function AdminDashboardPage() {
         if (!user) return [];
         // A task is delegated if the current user created it, but it is NOT assigned to them.
         return tasks.filter(task => 
-            task.createdBy === user.id &&
+            (task.createdBy === user.id || (user.role === 'admin' && task.createdBy === 'system')) &&
             !task.assignedTo.includes(user.id) &&
              task.status !== 'Done' &&
             (!task.recurrence || task.recurrence === 'None')
@@ -841,10 +841,8 @@ export default function AdminDashboardPage() {
             </div>
             
             {user?.role === 'admin' && (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-                    <ProductivityStats tasks={allMyTasks} className="lg:col-span-3" />
-                    
-                    <Card className="lg:col-span-4">
+                <div className="grid gap-4">
+                    <Card>
                         <CardHeader>
                             <CardTitle>AI Training</CardTitle>
                             <CardDescription>
@@ -993,3 +991,6 @@ export default function AdminDashboardPage() {
 }
     
 
+
+
+    
