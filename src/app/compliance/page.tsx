@@ -161,7 +161,7 @@ export default function CompliancePage() {
                 />
                 <Button type="submit" disabled={isLoading} className="w-full">
                   {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {isLoading ? 'Submitting...' : 'Get My Free Compliance Check'}
+                  {isLoading ? 'Signing up...' : 'Sign up, get my free compliance assessment and 10% discount'}
                 </Button>
               </form>
             </Form>
