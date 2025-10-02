@@ -3,11 +3,10 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, MoreHorizontal, Edit, Trash2, FileCheck2, Hourglass, CheckCircle2 } from 'lucide-react';
+import { Loader2, MoreHorizontal, Edit, Trash2, CheckCircle2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -134,13 +133,13 @@ export default function ControlSheetPage() {
     const fetchInvoices = async () => {
         setIsLoading(true);
         try {
-            const q = query(collection(db, 'extractedInvoices'), orderBy('createdAt', 'desc'));
+            const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'approved'), orderBy('createdAt', 'desc'));
             const querySnapshot = await getDocs(q);
             const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
             setInvoices(fetchedInvoices);
         } catch (error) {
             console.error("Error fetching invoices:", error);
-            toast({ title: 'Error', description: 'Could not fetch invoices.', variant: 'destructive'});
+            toast({ title: 'Error', description: 'Could not fetch approved invoices.', variant: 'destructive'});
         } finally {
             setIsLoading(false);
         }
@@ -163,17 +162,6 @@ export default function ControlSheetPage() {
         }
     };
     
-    const handleApprove = async (id: string) => {
-        try {
-            const docRef = doc(db, 'extractedInvoices', id);
-            await updateDoc(docRef, { status: 'approved' });
-            toast({ title: 'Invoice Approved', description: 'The invoice has been marked as approved.' });
-            fetchInvoices();
-        } catch (error) {
-            toast({ title: 'Error', description: 'Could not approve the invoice.', variant: 'destructive'});
-        }
-    };
-    
     const handleDelete = async (id: string) => {
          try {
             await deleteDoc(doc(db, 'extractedInvoices', id));
@@ -189,9 +177,9 @@ export default function ControlSheetPage() {
       <h1 className="text-3xl font-bold tracking-tight">CAP Suppliers Control Sheet</h1>
       <Card>
         <CardHeader>
-          <CardTitle>Extracted Invoices</CardTitle>
+          <CardTitle>Approved Invoices</CardTitle>
           <CardDescription>
-            Review, edit, and approve the data extracted from uploaded invoices.
+            These invoices have been reviewed and approved.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -200,7 +188,7 @@ export default function ControlSheetPage() {
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
             ) : invoices.length === 0 ? (
-                <p className="text-center text-muted-foreground py-10">No invoices have been processed yet.</p>
+                <p className="text-center text-muted-foreground py-10">No approved invoices yet.</p>
             ) : (
                 <Table>
                     <TableHeader>
@@ -219,8 +207,8 @@ export default function ControlSheetPage() {
                         {invoices.map((invoice) => (
                             <TableRow key={invoice.id}>
                                 <TableCell>
-                                    <Badge variant={invoice.status === 'approved' ? 'success' : 'warning'}>
-                                         {invoice.status === 'approved' ? <CheckCircle2 className="mr-1 h-3 w-3" /> : <Hourglass className="mr-1 h-3 w-3" />}
+                                    <Badge variant={'success'}>
+                                         <CheckCircle2 className="mr-1 h-3 w-3" />
                                         {invoice.status.replace('_', ' ')}
                                     </Badge>
                                 </TableCell>
@@ -239,11 +227,6 @@ export default function ControlSheetPage() {
                                             <DropdownMenuItem onSelect={() => setEditingInvoice(invoice)}>
                                                 <Edit className="mr-2 h-4 w-4" /> Edit
                                             </DropdownMenuItem>
-                                             {invoice.status === 'pending_review' && (
-                                                <DropdownMenuItem onSelect={() => handleApprove(invoice.id)}>
-                                                    <FileCheck2 className="mr-2 h-4 w-4" /> Approve
-                                                </DropdownMenuItem>
-                                            )}
                                             <AlertDialog>
                                                 <AlertDialogTrigger asChild>
                                                     <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">

@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, MoreHorizontal, Edit, Trash2, FileCheck2, Hourglass, CheckCircle2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -134,13 +134,13 @@ export default function ReviewPage() {
     const fetchInvoices = async () => {
         setIsLoading(true);
         try {
-            const q = query(collection(db, 'extractedInvoices'), orderBy('createdAt', 'desc'));
+            const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'pending_review'), orderBy('createdAt', 'desc'));
             const querySnapshot = await getDocs(q);
             const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
             setInvoices(fetchedInvoices);
         } catch (error) {
             console.error("Error fetching invoices:", error);
-            toast({ title: 'Error', description: 'Could not fetch invoices.', variant: 'destructive'});
+            toast({ title: 'Error', description: 'Could not fetch invoices for review.', variant: 'destructive'});
         } finally {
             setIsLoading(false);
         }
@@ -167,7 +167,7 @@ export default function ReviewPage() {
         try {
             const docRef = doc(db, 'extractedInvoices', id);
             await updateDoc(docRef, { status: 'approved' });
-            toast({ title: 'Invoice Approved', description: 'The invoice has been marked as approved.' });
+            toast({ title: 'Invoice Approved', description: 'The invoice has been moved to the control sheet.' });
             fetchInvoices();
         } catch (error) {
             toast({ title: 'Error', description: 'Could not approve the invoice.', variant: 'destructive'});
@@ -189,9 +189,9 @@ export default function ReviewPage() {
       <h1 className="text-3xl font-bold tracking-tight">Review Invoices</h1>
       <Card>
         <CardHeader>
-          <CardTitle>Extracted Invoices</CardTitle>
+          <CardTitle>Extracted Invoices for Review</CardTitle>
           <CardDescription>
-            Review, edit, and approve the data extracted from uploaded invoices.
+            Review, edit, and approve the data extracted from uploaded invoices. Approved invoices will be moved to the control sheet.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -200,7 +200,7 @@ export default function ReviewPage() {
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
             ) : invoices.length === 0 ? (
-                <p className="text-center text-muted-foreground py-10">No invoices have been processed yet.</p>
+                <p className="text-center text-muted-foreground py-10">No invoices are pending review.</p>
             ) : (
                 <Table>
                     <TableHeader>
@@ -219,8 +219,8 @@ export default function ReviewPage() {
                         {invoices.map((invoice) => (
                             <TableRow key={invoice.id}>
                                 <TableCell>
-                                    <Badge variant={invoice.status === 'approved' ? 'success' : 'warning'}>
-                                         {invoice.status === 'approved' ? <CheckCircle2 className="mr-1 h-3 w-3" /> : <Hourglass className="mr-1 h-3 w-3" />}
+                                    <Badge variant={'warning'}>
+                                         <Hourglass className="mr-1 h-3 w-3" />
                                         {invoice.status.replace('_', ' ')}
                                     </Badge>
                                 </TableCell>
@@ -236,14 +236,12 @@ export default function ReviewPage() {
                                             <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent>
+                                            <DropdownMenuItem onSelect={() => handleApprove(invoice.id)}>
+                                                <FileCheck2 className="mr-2 h-4 w-4" /> Approve
+                                            </DropdownMenuItem>
                                             <DropdownMenuItem onSelect={() => setEditingInvoice(invoice)}>
                                                 <Edit className="mr-2 h-4 w-4" /> Edit
                                             </DropdownMenuItem>
-                                             {invoice.status === 'pending_review' && (
-                                                <DropdownMenuItem onSelect={() => handleApprove(invoice.id)}>
-                                                    <FileCheck2 className="mr-2 h-4 w-4" /> Approve
-                                                </DropdownMenuItem>
-                                            )}
                                             <AlertDialog>
                                                 <AlertDialogTrigger asChild>
                                                     <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
