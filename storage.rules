@@ -1,17 +1,18 @@
 rules_version = '2';
-
 service firebase.storage {
   match /b/{bucket}/o {
-    // Function to check if the user is an admin or staff from Firestore
-    function isStaffOrAdmin() {
-      return get(/databases/(default)/documents/users/$(request.auth.uid)).data.role in ['admin', 'staff'];
+    // Allow public read access to all files so images can be displayed.
+    match /{allPaths=**} {
+      allow read;
     }
 
+    // Restrict write access (uploads/deletes) to the 'uploads' folder.
+    // Only authenticated users whose role is 'admin' or 'staff' in Firestore can write.
     match /uploads/{allPaths=**} {
-      // Only allow admin or staff to upload files
-      allow write: if request.auth != null && isStaffOrAdmin();
-      // Allow everyone to read files (e.g., to display images in the app)
-      allow read;
+      allow write: if request.auth != null && (
+        get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'staff'
+      );
     }
   }
 }
