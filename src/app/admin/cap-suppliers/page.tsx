@@ -69,7 +69,12 @@ export default function CAPSuppliersPage() {
         null, 
         (error) => {
             console.error('Upload failed:', error);
-            toast({ title: 'Upload Failed', description: 'Could not upload the invoice file.', variant: 'destructive' });
+            toast({
+              title: 'Upload Failed',
+              description: `Error: ${error.code} - ${error.message}`,
+              variant: 'destructive',
+              duration: 9000,
+            });
             setIsUploading(false);
         }, 
         async () => {
