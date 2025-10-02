@@ -4,7 +4,7 @@
 import { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import type { User } from '@/lib/types';
 import { useRouter } from 'next/navigation';
-import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
+import { getFirestore, collection, query, where, getDocs, doc, setDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -109,6 +109,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             return 'invalid_role';
         }
 
+        // Link the UID to the Firestore document
+        const userDocRef = doc(db, "users", userDoc.id);
+        await setDoc(userDocRef, { uid: firebaseUser.uid }, { merge: true });
+        
         const userWithUid = { ...foundUser, uid: firebaseUser.uid };
         
         updateUser(userWithUid);
@@ -118,7 +122,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error: any) {
         // This handles Firebase Auth errors and any re-thrown Firestore errors
         if (error.code !== 'permission-denied') { // Avoid double-logging our custom error
-             console.error("Error logging in:", error.code);
+             console.error("Error logging in:", error.code, error.message);
         }
 
         if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
