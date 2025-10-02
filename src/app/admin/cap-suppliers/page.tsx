@@ -13,14 +13,16 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, Upload, Sparkles, FileText } from 'lucide-react';
 import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
-import { db } from '@/lib/firebase';
+import { db, firebaseApp } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, StoragePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
-const storage = getStorage();
+const storage = getStorage(firebaseApp);
+const auth = getAuth(firebaseApp);
 
 const formSchema = z.object({
   invoice: z.custom<FileList>().refine((files) => files && files.length > 0, 'An invoice file is required.'),
@@ -67,15 +69,17 @@ export default function CAPSuppliersPage() {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const file = values.invoice[0];
-    if (!preview || !user?.uid) {
-      toast({ title: 'Error', description: 'No file or user session available.', variant: 'destructive' });
+    const currentUser = auth.currentUser;
+
+    if (!preview || !currentUser?.uid) {
+      toast({ title: 'Error', description: 'No file selected or you are not logged in.', variant: 'destructive' });
       return;
     }
 
     setIsUploading(true);
     toast({ title: 'Uploading Invoice...', description: 'Please wait while the file is being uploaded.' });
     
-    const storageRef = ref(storage, `invoices/${user.uid}/${Date.now()}-${file.name}`);
+    const storageRef = ref(storage, `invoices/${currentUser.uid}/${Date.now()}-${file.name}`);
     const uploadTask = uploadBytesResumable(storageRef, file);
 
     uploadTask.on('state_changed', 
@@ -118,7 +122,7 @@ export default function CAPSuppliersPage() {
                     pdfUrl: downloadURL,
                     fileName: file.name,
                     status: 'pending_review',
-                    uploadedBy: user.uid,
+                    uploadedBy: currentUser.uid,
                     createdAt: serverTimestamp(),
                 };
                 
@@ -194,7 +198,7 @@ export default function CAPSuppliersPage() {
                     </object>
                   </div>
                 )}
-                <Button type="submit" disabled={isLoading || !preview}>
+                <Button type="submit" disabled={isLoading || !preview || !user}>
                   {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : isExtracting ? <Sparkles className="mr-2 h-4 w-4 animate-ping" /> : <Upload className="mr-2 h-4 w-4" />}
                   {isUploading ? 'Uploading...' : isExtracting ? 'Extracting Data...' : 'Upload & Extract'}
                 </Button>
