@@ -84,7 +84,7 @@ export default function CAPSuppliersPage() {
         <Card>
           <CardHeader>
             <CardTitle>Upload Invoice</CardTitle>
-            <CardDescription>Upload an invoice image to automatically extract its details using AI.</CardDescription>
+            <CardDescription>Upload an invoice PDF to automatically extract its details using AI.</CardDescription>
           </CardHeader>
           <CardContent>
             <Form {...form}>
@@ -98,7 +98,7 @@ export default function CAPSuppliersPage() {
                       <FormControl>
                         <Input
                           type="file"
-                          accept="image/*"
+                          accept="application/pdf"
                           onChange={(e) => {
                             field.onChange(e.target.files);
                             handleFileChange(e);
@@ -110,8 +110,10 @@ export default function CAPSuppliersPage() {
                   )}
                 />
                 {preview && (
-                  <div className="relative mt-4 aspect-auto w-full overflow-hidden rounded-md border">
-                    <Image src={preview} alt="Invoice preview" width={500} height={700} style={{ width: '100%', height: 'auto' }} />
+                  <div className="relative mt-4 aspect-auto w-full overflow-hidden rounded-md border h-[700px]">
+                    <object data={preview} type="application/pdf" width="100%" height="100%">
+                        <p>This browser does not support PDF previews. Please download the PDF to view it: <a href={preview}>Download PDF</a></p>
+                    </object>
                   </div>
                 )}
                 <Button type="submit" disabled={isLoading || !preview}>

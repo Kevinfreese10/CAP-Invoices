@@ -3,7 +3,7 @@
 /**
  * @fileOverview An AI agent for extracting data from invoices.
  *
- * - extractInvoiceData - A function that takes an invoice image and returns structured data.
+ * - extractInvoiceData - A function that takes an invoice document and returns structured data.
  * - ExtractInvoiceDataInput - The input type for the extractInvoiceData function.
  * - ExtractInvoiceDataOutput - The return type for the extractInvoiceData function.
  */
@@ -13,7 +13,7 @@ import { z } from 'genkit';
 
 const ExtractInvoiceDataInputSchema = z.object({
   invoiceImage: z.string().describe(
-    "A photo of an invoice, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
+    "A document of an invoice (image or PDF), as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
   ),
 });
 export type ExtractInvoiceDataInput = z.infer<typeof ExtractInvoiceDataInputSchema>;
@@ -44,7 +44,7 @@ const prompt = ai.definePrompt({
   output: { schema: ExtractInvoiceDataOutputSchema },
   prompt: `You are an expert OCR and data extraction agent specializing in South African supplier invoices.
 
-Your task is to analyze the provided invoice image and extract the following information with perfect accuracy:
+Your task is to analyze the provided invoice document and extract the following information with perfect accuracy:
 1.  **Supplier Name**: The name of the company that issued the invoice.
 2.  **Invoice Date**: The date the invoice was issued, formatted as DD/MM/YYYY.
 3.  **Line Items**: For each distinct item or service on the invoice, extract:
