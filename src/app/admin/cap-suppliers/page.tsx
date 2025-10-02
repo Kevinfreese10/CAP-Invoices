@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -26,6 +26,7 @@ const formSchema = z.object({
   invoice: z.custom<FileList>().refine((files) => files && files.length > 0, 'An invoice file is required.'),
 });
 
+const SESSION_STORAGE_KEY = 'cap-invoice-preview';
 
 export default function CAPSuppliersPage() {
   const [isUploading, setIsUploading] = useState(false);
@@ -39,16 +40,28 @@ export default function CAPSuppliersPage() {
     resolver: zodResolver(formSchema),
   });
 
+  useEffect(() => {
+    // On component mount, check if there's an invoice in session storage
+    const savedInvoice = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if (savedInvoice) {
+      setPreview(savedInvoice);
+    }
+  }, []);
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setPreview(reader.result as string);
+        const dataUrl = reader.result as string;
+        setPreview(dataUrl);
+        // Save the data URL to session storage
+        sessionStorage.setItem(SESSION_STORAGE_KEY, dataUrl);
       };
       reader.readAsDataURL(file);
     } else {
       setPreview(null);
+      sessionStorage.removeItem(SESSION_STORAGE_KEY);
     }
   };
 
@@ -113,6 +126,7 @@ export default function CAPSuppliersPage() {
                 addDoc(collRef, invoiceData)
                   .then(() => {
                       toast({ title: 'Extraction Complete!', description: 'Data successfully extracted and saved for review.' });
+                      sessionStorage.removeItem(SESSION_STORAGE_KEY); // Clear storage on success
                       router.push('/admin/cap-suppliers/control-sheet');
                   })
                   .catch(async (serverError) => {
@@ -175,7 +189,7 @@ export default function CAPSuppliersPage() {
                 />
                 {preview && (
                   <div className="relative mt-4 aspect-auto w-full overflow-hidden rounded-md border h-[700px]">
-                    <object data={preview} type={form.getValues('invoice')?.[0]?.type} width="100%" height="100%">
+                    <object data={preview} type={form.getValues('invoice')?.[0]?.type || 'application/pdf'} width="100%" height="100%">
                         <p>This browser does not support PDF previews. Please download the file to view it.</p>
                     </object>
                   </div>
