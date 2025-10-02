@@ -62,6 +62,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/numera/chart-of-accounts', label: 'Chart of Accounts', icon: Book, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
     { href: '/admin/numera/allocation-rules', label: 'Allocation Rules', icon: ListOrdered, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
     { href: '/admin/cap-suppliers', label: 'CAP Suppliers', icon: FileText, roles: ['admin', 'staff'] },
+    { href: '/admin/cap-suppliers/control-sheet', label: 'Control Sheet', icon: ClipboardCheck, roles: ['admin', 'staff'], isSubItem: true },
     { href: '/admin/services', label: 'Manage Services', icon: Briefcase, roles: ['admin'] },
     { href: '/admin/categories', label: 'Manage Categories', icon: Shapes, roles: ['admin'] },
     { href: '/admin/blog', label: 'Manage Blog', icon: BookMarked, roles: ['admin'] },
