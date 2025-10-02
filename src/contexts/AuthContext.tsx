@@ -14,6 +14,7 @@ interface AuthContextType {
   login: (email: string, password?: string) => Promise<User | 'invalid_role' | 'invalid_credentials' | undefined>;
   logout: () => void;
   signup: (name: string, email: string) => User;
+  updateUser: (updatedUser: User | null) => void;
   isAuthenticated: boolean | undefined;
 }
 
@@ -45,20 +46,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
   
-  const updateUserState = (user: User | null) => {
-    if (user && user.role === 'client') {
-        setUser(null);
-        setIsAuthenticated(false);
-        localStorage.removeItem('my-accountant-user');
-        return;
-    }
-    
-    setUser(user);
-    setIsAuthenticated(!!user);
-     if (user) {
-      localStorage.setItem('my-accountant-user', JSON.stringify(user));
+  const updateUser = (updatedUser: User | null) => {
+    setUser(updatedUser);
+    if (updatedUser) {
+        localStorage.setItem('my-accountant-user', JSON.stringify(updatedUser));
     } else {
-      localStorage.removeItem('my-accountant-user');
+        localStorage.removeItem('my-accountant-user');
     }
   }
 
@@ -72,17 +65,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             const userDoc = querySnapshot.docs[0];
             const foundUser = { ...userDoc.data(), id: userDoc.id } as User;
             
-            // Check if user has a staff or admin role
             if (foundUser.role !== 'admin' && foundUser.role !== 'staff' && foundUser.role !== 'reseller') {
                 return 'invalid_role';
             }
 
-            // Verify password
             if (foundUser.password !== password) {
                 return 'invalid_credentials';
             }
 
-            updateUserState(foundUser);
+            updateUser(foundUser);
+            setIsAuthenticated(true);
             return foundUser;
         } else {
             return 'invalid_credentials';
@@ -94,18 +86,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = () => {
-    updateUserState(null);
+    updateUser(null);
+    setIsAuthenticated(false);
   };
 
   const signup = (name: string, email: string) => {
     const newUser: User = { id: `new-user-${Date.now()}`, name, email, role: 'client' };
-    // This is a placeholder. In a real app, this would write to Firestore.
     console.log("New client signup (placeholder):", newUser);
     return newUser;
   };
   
   return (
-    <AuthContext.Provider value={{ user, login, logout, signup, isAuthenticated }}>
+    <AuthContext.Provider value={{ user, login, logout, signup, updateUser, isAuthenticated }}>
       {children}
     </AuthContext.Provider>
   );
@@ -119,7 +111,6 @@ export const useAuth = () => {
   return context;
 };
 
-// A client component to protect routes
 export const ProtectedRoute = ({ children }: { children: ReactNode }) => {
   const { isAuthenticated } = useAuth();
   const router = useRouter();
@@ -132,6 +123,5 @@ export const ProtectedRoute = ({ children }: { children: ReactNode }) => {
   
   if(isAuthenticated === false) return null;
   if(isAuthenticated === true) return <>{children}</>;
-  // You can return a loader here while checking auth state
   return null;
 }
