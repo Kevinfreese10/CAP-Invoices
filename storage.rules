@@ -1,24 +1,17 @@
-
 rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    
-    // Helper function to check for Admin or Staff roles from Firestore
-    function isAuthorized() {
-      // The request.auth object is available on all Storage requests.
-      // We check the user's role by reading their user document from Firestore.
-      return request.auth != null && get(/databases/(default)/documents/users/$(request.auth.uid)).data.role in ['admin', 'staff'];
+    // Function to check if the user is an admin or staff from Firestore
+    function isStaffOrAdmin() {
+      return get(/databases/(default)/documents/users/$(request.auth.uid)).data.role in ['admin', 'staff'];
     }
 
-    // Only allow authorized admins or staff to read and write to the uploads folder.
     match /uploads/{allPaths=**} {
-      allow read, write: if isAuthorized();
-    }
-
-    // Deny all other access to prevent unauthorized file operations.
-    match /{allPaths=**} {
-        allow read, write: if false;
+      // Only allow admin or staff to upload files
+      allow write: if request.auth != null && isStaffOrAdmin();
+      // Allow everyone to read files (e.g., to display images in the app)
+      allow read;
     }
   }
 }
