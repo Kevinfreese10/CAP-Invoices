@@ -95,24 +95,30 @@ export default function CAPSuppliersPage() {
                     uploadedBy: user.uid,
                     createdAt: serverTimestamp(),
                 };
-
-                addDoc(collection(db, "extractedInvoices"), invoiceData).catch(serverError => {
-                  const permissionError = new FirestorePermissionError({
-                    path: `extractedInvoices/${invoiceData.invoiceNumber}`,
-                    operation: 'create',
-                    requestResourceData: invoiceData,
+                
+                const collRef = collection(db, "extractedInvoices");
+                addDoc(collRef, invoiceData)
+                  .then(() => {
+                      toast({ title: 'Extraction Complete!', description: 'Data successfully extracted and saved for review.' });
+                      router.push('/admin/cap-suppliers/control-sheet');
+                  })
+                  .catch(serverError => {
+                      const permissionError = new FirestorePermissionError({
+                        path: collRef.path,
+                        operation: 'create',
+                        requestResourceData: invoiceData,
+                      });
+                      errorEmitter.emit('permission-error', permissionError);
                   });
-                  errorEmitter.emit('permission-error', permissionError);
-                });
-
-                toast({ title: 'Extraction Complete!', description: 'Data successfully extracted and saved for review.' });
-                router.push('/admin/cap-suppliers/control-sheet');
 
             } catch (error) {
                 console.error('Invoice extraction error:', error);
                 toast({ title: 'Extraction Failed', description: 'Could not extract data from the invoice. Please try again.', variant: 'destructive' });
             } finally {
-                setIsExtracting(false);
+                // This ensures the loading state is always reset if extraction fails before the Firestore write
+                if (form.formState.isSubmitting) {
+                  setIsExtracting(false);
+                }
             }
         }
     );
