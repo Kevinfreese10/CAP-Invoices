@@ -6,7 +6,7 @@ import type { User } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 import { getFirestore, collection, query, where, getDocs, doc, setDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, User as FirebaseUser } from 'firebase/auth';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
@@ -16,6 +16,7 @@ const auth = getAuth(firebaseApp);
 interface AuthContextType {
   user: User | null;
   login: (email: string, password?: string) => Promise<User | 'invalid_role' | 'invalid_credentials' | undefined>;
+  reauthenticate: (currentUser: User) => Promise<User | 'invalid_credentials' | undefined>;
   logout: () => void;
   signup: (name: string, email: string) => User;
   updateUser: (updatedUser: User | null) => void;
@@ -45,6 +46,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
         if (firebaseUser) {
+            if (user && firebaseUser.uid === user.uid) {
+                // User is already in context, no need to re-fetch
+                return;
+            }
             const usersRef = collection(db, "users");
             const q = query(usersRef, where("uid", "==", firebaseUser.uid));
             const querySnapshot = await getDocs(q);
@@ -54,8 +59,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 updateUser(foundUser);
                 setIsAuthenticated(true);
             } else {
-                // This case might happen if a user exists in Auth but not Firestore.
-                // For this app's logic, we treat them as logged out.
                 logout(); 
             }
         } else {
@@ -79,10 +82,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!password) return 'invalid_credentials';
     try {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        const firebaseUser = userCredential.user;
+        return reauthenticate(userCredential.user);
+    } catch (error: any) {
+        if (error.code !== 'permission-denied') { 
+             console.error("Error logging in:", error.code, error.message);
+        }
 
+        if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+             return 'invalid_credentials';
+        }
+        return undefined;
+    }
+  };
+
+  const reauthenticate = async (firebaseUser: FirebaseUser | User): Promise<User | 'invalid_credentials' | undefined> => {
+        if (!firebaseUser.email) return 'invalid_credentials';
         const usersRef = collection(db, "users");
-        const q = query(usersRef, where("email", "==", email));
+        const q = query(usersRef, where("email", "==", firebaseUser.email));
         
         const querySnapshot = await getDocs(q).catch(async (serverError) => {
             if (serverError.code === 'permission-denied') {
@@ -92,7 +108,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 } satisfies SecurityRuleContext);
                 errorEmitter.emit('permission-error', permissionError);
             }
-            // Re-throw other errors
             throw serverError;
         });
         
@@ -106,32 +121,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         if (foundUser.role !== 'admin' && foundUser.role !== 'staff' && foundUser.role !== 'reseller') {
             await auth.signOut();
-            return 'invalid_role';
+            return undefined; // Not an invalid role, just not an admin/staff/reseller for this flow
         }
 
-        // Link the UID to the Firestore document
-        const userDocRef = doc(db, "users", userDoc.id);
-        await setDoc(userDocRef, { uid: firebaseUser.uid }, { merge: true });
+        if (foundUser.uid !== firebaseUser.uid) {
+            const userDocRef = doc(db, "users", userDoc.id);
+            await setDoc(userDocRef, { uid: firebaseUser.uid }, { merge: true });
+        }
         
         const userWithUid = { ...foundUser, uid: firebaseUser.uid };
         
         updateUser(userWithUid);
         setIsAuthenticated(true);
         return userWithUid;
-
-    } catch (error: any) {
-        // This handles Firebase Auth errors and any re-thrown Firestore errors
-        if (error.code !== 'permission-denied') { // Avoid double-logging our custom error
-             console.error("Error logging in:", error.code, error.message);
-        }
-
-        if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-             return 'invalid_credentials';
-        }
-        // Don't return anything for other errors like permission denied, as they are handled by the emitter
-        return undefined;
-    }
-  };
+  }
 
   const logout = () => {
     auth.signOut();
@@ -146,7 +149,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
   
   return (
-    <AuthContext.Provider value={{ user, login, logout, signup, updateUser, isAuthenticated }}>
+    <AuthContext.Provider value={{ user, login, reauthenticate, logout, signup, updateUser, isAuthenticated }}>
       {children}
     </AuthContext.Provider>
   );

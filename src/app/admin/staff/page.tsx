@@ -19,8 +19,12 @@ import { User } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc, query, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
+import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
+import { useAuth } from '@/contexts/AuthContext';
 
 const db = getFirestore(firebaseApp);
+const auth = getAuth(firebaseApp);
+
 const departments = ['Accounting and Tax', 'Administration', 'CAP'] as const;
 const roles = ['staff', 'admin'] as const;
 
@@ -28,7 +32,7 @@ const formSchema = z.object({
   uid: z.string().optional(),
   name: z.string().min(2, 'Name is required.'),
   email: z.string().email('A valid email is required.'),
-  password: z.string().min(1, 'Password is required.'),
+  password: z.string().min(6, 'Password must be at least 6 characters.'),
   department: z.enum(departments),
   role: z.enum(roles),
 });
@@ -40,11 +44,23 @@ function StaffForm({ staffMember, onSubmit, onCancel }: { staffMember: User | nu
             uid: staffMember?.uid || '',
             name: staffMember?.name || '',
             email: staffMember?.email || '',
-            password: staffMember?.password || 'Thinkestry10$',
+            password: staffMember?.password || '',
             department: staffMember?.department || 'Administration',
             role: staffMember?.role === 'admin' ? 'admin' : 'staff',
         },
     });
+
+    const isEditing = !!staffMember;
+
+    useEffect(() => {
+        if(isEditing){
+            form.reset({
+                ...staffMember,
+                role: staffMember?.role === 'admin' ? 'admin' : 'staff',
+                password: staffMember?.password || ''
+            });
+        }
+    }, [staffMember, isEditing, form]);
 
     const handleSubmit = (values: z.infer<typeof formSchema>) => {
         onSubmit(values);
@@ -53,75 +69,22 @@ function StaffForm({ staffMember, onSubmit, onCancel }: { staffMember: User | nu
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-                <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Full Name</FormLabel>
-                            <FormControl><Input {...field} /></FormControl>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
-                <FormField
-                    control={form.control}
-                    name="email"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Email Address</FormLabel>
-                            <FormControl><Input {...field} /></FormControl>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
+                <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )}/>
+                <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input {...field} disabled={isEditing} /></FormControl><FormMessage /></FormItem> )}/>
                  <FormField
                     control={form.control}
                     name="password"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Password</FormLabel>
+                            <FormLabel>{isEditing ? 'New Password (Optional)' : 'Password'}</FormLabel>
                             <FormControl><Input type="password" {...field} /></FormControl>
+                             <FormDescription>{isEditing ? 'Leave blank to keep the current password.' : 'The user can change this later.'}</FormDescription>
                             <FormMessage />
                         </FormItem>
                     )}
                 />
-                 <FormField
-                    control={form.control}
-                    name="department"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>Department</FormLabel>
-                         <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                                <SelectTrigger><SelectValue placeholder="Select a department" /></SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                                {departments.map(dep => <SelectItem key={dep} value={dep}>{dep}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                />
-                 <FormField
-                    control={form.control}
-                    name="role"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>Role</FormLabel>
-                         <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                                <SelectTrigger><SelectValue placeholder="Select a role" /></SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                                {roles.map(role => <SelectItem key={role} value={role} className="capitalize">{role}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                />
+                 <FormField control={form.control} name="department" render={({ field }) => ( <FormItem><FormLabel>Department</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a department" /></SelectTrigger></FormControl><SelectContent>{departments.map(dep => <SelectItem key={dep} value={dep}>{dep}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )}/>
+                 <FormField control={form.control} name="role" render={({ field }) => ( <FormItem><FormLabel>Role</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a role" /></SelectTrigger></FormControl><SelectContent>{roles.map(role => <SelectItem key={role} value={role} className="capitalize">{role}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )}/>
                 <div className="flex justify-end gap-2">
                     <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
                     <Button type="submit">Save Staff Member</Button>
@@ -137,6 +100,7 @@ export default function AdminStaffPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<User | null>(null);
   const { toast } = useToast();
+  const { user: adminUser, reauthenticate } = useAuth();
   
   const fetchStaff = async () => {
     setIsLoading(true);
@@ -169,11 +133,13 @@ export default function AdminStaffPage() {
   
   const handleDelete = async (staffId: string) => {
     try {
+        // Note: This only deletes the Firestore record. Deleting from Firebase Auth
+        // requires admin privileges and is typically done server-side.
         await deleteDoc(doc(db, "users", staffId));
         fetchStaff();
         toast({
             title: 'Staff Member Deleted',
-            description: 'The staff member has been removed.',
+            description: 'The staff member has been removed from Firestore.',
             variant: 'destructive',
         });
     } catch (error) {
@@ -182,25 +148,41 @@ export default function AdminStaffPage() {
     }
   };
 
-  const handleFormSubmit = async (data: Omit<User, 'uid'> & { uid?: string }) => {
-    const { uid, ...staffData } = data as any;
+  const handleFormSubmit = async (data: z.infer<typeof formSchema>) => {
+    const { uid, ...staffData } = data;
     
     try {
-        if (uid) {
+        if (uid) { // Editing existing user
              const docRef = doc(db, "users", uid);
              await setDoc(docRef, staffData, { merge: true });
              toast({ title: 'Staff Member Updated', description: 'The staff details have been saved.' });
-        } else {
-            const newStaffData = { ...staffData, role: staffData.role || 'staff' };
-            await addDoc(collection(db, "users"), newStaffData);
+        } else { // Creating new user
+            if (!adminUser) {
+                toast({ title: 'Error', description: 'Admin user not found.', variant: 'destructive'});
+                return;
+            }
+            // 1. Create user in Firebase Auth
+            const userCredential = await createUserWithEmailAndPassword(auth, staffData.email, staffData.password);
+            const newFirebaseUser = userCredential.user;
+
+            // 2. Create user document in Firestore with the new UID
+            const newUserDocRef = doc(db, "users", newFirebaseUser.uid);
+            await setDoc(newUserDocRef, {
+                ...staffData,
+                uid: newFirebaseUser.uid,
+            });
+
+            // 3. Re-authenticate the admin user to restore their session
+            await reauthenticate(adminUser);
+
             toast({ title: 'Staff Member Created', description: 'The new staff member has been added.' });
         }
         fetchStaff();
         setIsFormOpen(false);
         setSelectedStaff(null);
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error saving staff member:", error);
-        toast({ title: 'Error', description: 'Could not save the staff member.', variant: 'destructive'});
+        toast({ title: 'Error', description: error.message || 'Could not save the staff member.', variant: 'destructive'});
     }
   };
 
@@ -246,7 +228,6 @@ export default function AdminStaffPage() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Password</TableHead>
                 <TableHead>Department</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -259,9 +240,6 @@ export default function AdminStaffPage() {
                     {staffMember.name}
                   </TableCell>
                   <TableCell>{staffMember.email}</TableCell>
-                  <TableCell>
-                    <Input type="password" value={staffMember.password} readOnly className="w-32" />
-                  </TableCell>
                   <TableCell>{staffMember.department}</TableCell>
                   <TableCell className="capitalize">
                     <span className="bg-secondary text-secondary-foreground px-2 py-1 text-xs rounded-full">
@@ -295,7 +273,7 @@ export default function AdminStaffPage() {
                                 <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                 <AlertDialogDescription>
                                 This action cannot be undone. This will permanently delete the staff account for:
-                                <span className="font-semibold"> {staffMember.name}</span>.
+                                <span className="font-semibold"> {staffMember.name}</span>. This only removes them from Firestore.
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
