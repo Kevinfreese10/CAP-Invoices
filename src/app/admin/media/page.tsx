@@ -48,8 +48,12 @@ export default function MediaPage() {
 
     const fetchUploadedImages = async () => {
         setIsLoading(true);
+        if (!user?.uid) {
+            setIsLoading(false);
+            return;
+        }
         try {
-            const storageRef = ref(storage, 'uploads');
+            const storageRef = ref(storage, `uploads/${user.uid}`);
             const result = await listAll(storageRef);
             
             const urls = await Promise.all(
@@ -75,7 +79,7 @@ export default function MediaPage() {
 
     useEffect(() => {
         fetchUploadedImages();
-    }, []);
+    }, [user]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -92,8 +96,7 @@ export default function MediaPage() {
         setIsUploading(true);
         setUploadProgress(0);
 
-        // Corrected path for general media uploads
-        const storageRef = ref(storage, `uploads/${Date.now()}-${file.name}`);
+        const storageRef = ref(storage, `uploads/${user.uid}/${Date.now()}-${file.name}`);
         const uploadTask = uploadBytesResumable(storageRef, file);
 
         uploadTask.on('state_changed',
@@ -126,8 +129,7 @@ export default function MediaPage() {
         setIsTesting(true);
         toast({ title: "Running Test...", description: "Attempting to write a test file to storage." });
         
-        // Corrected path to use a general uploads folder
-        const testPath = `uploads/test-rule-${user.uid}.txt`;
+        const testPath = `uploads/${user.uid}/test-rule.txt`;
         const testRef = ref(storage, testPath);
         const testString = `Test write by ${user.email} at ${new Date().toISOString()}`;
 
