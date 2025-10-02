@@ -7,6 +7,8 @@ import { useRouter } from 'next/navigation';
 import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 const db = getFirestore(firebaseApp);
 const auth = getAuth(firebaseApp);
@@ -76,17 +78,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = async (email: string, password?: string): Promise<User | 'invalid_role' | 'invalid_credentials' | undefined> => {
     if (!password) return 'invalid_credentials';
     try {
-        // Step 1: Authenticate with Firebase Auth
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const firebaseUser = userCredential.user;
 
-        // Step 2: Fetch user profile from Firestore
         const usersRef = collection(db, "users");
         const q = query(usersRef, where("email", "==", email));
-        const querySnapshot = await getDocs(q);
+        
+        const querySnapshot = await getDocs(q).catch(async (serverError) => {
+            if (serverError.code === 'permission-denied') {
+                const permissionError = new FirestorePermissionError({
+                    path: usersRef.path,
+                    operation: 'list',
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
+            }
+            // Re-throw other errors
+            throw serverError;
+        });
         
         if (querySnapshot.empty) {
-            // This case should ideally not happen if user creation is handled correctly
             await auth.signOut();
             return 'invalid_credentials';
         }
@@ -99,7 +109,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             return 'invalid_role';
         }
 
-        // This is the critical fix: ensure the uid from Firebase Auth is on the user object
         const userWithUid = { ...foundUser, uid: firebaseUser.uid };
         
         updateUser(userWithUid);
@@ -107,10 +116,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return userWithUid;
 
     } catch (error: any) {
-        console.error("Error logging in:", error.code);
+        // This handles Firebase Auth errors and any re-thrown Firestore errors
+        if (error.code !== 'permission-denied') { // Avoid double-logging our custom error
+             console.error("Error logging in:", error.code);
+        }
+
         if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
              return 'invalid_credentials';
         }
+        // Don't return anything for other errors like permission denied, as they are handled by the emitter
         return undefined;
     }
   };
@@ -122,7 +136,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signup = (name: string, email: string) => {
-    // This is a placeholder for client-side signup and doesn't create a real user.
     const newUser: User = { id: `new-user-${Date.now()}`, uid: `new-uid-${Date.now()}`, name, email, role: 'client' };
     console.log("New client signup (placeholder):", newUser);
     return newUser;
