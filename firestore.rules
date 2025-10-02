@@ -1,14 +1,49 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-  
-    // Allow users to read their own user document
     match /users/{userId} {
       allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false; // Users can't directly write to their profile
     }
 
-    match /{document=**} {
-      allow read, write: if false;
+    match /unansweredQuestions/{docId} {
+      allow read, write: if true; // Publicly accessible for now
+    }
+    
+    match /complianceRequests/{docId} {
+        allow create: if true; // Allow public submissions
+        allow read, update, delete: if request.auth.token.role == 'admin';
+    }
+    
+    match /discounts/{docId} {
+      allow read, write: if request.auth.token.role == 'admin';
+      // Allow a user to read a discount if it's assigned to them, for checkout
+      allow get: if request.auth != null && resource.data.clientEmail == request.auth.token.email;
+    }
+    
+    match /orders/{orderId} {
+      allow create: if true;
+      allow read, update, delete: if request.auth.token.role == 'admin' || request.auth.token.role == 'staff';
+      // Allow a reseller to access their own orders
+      allow read: if request.auth != null && resource.data.resellerId == request.auth.uid;
+    }
+    
+    match /tasks/{taskId} {
+      allow read, write: if request.auth.token.role == 'admin' || request.auth.token.role == 'staff';
+    }
+    
+    match /clients/{clientId} {
+      allow read, write: if request.auth.token.role == 'admin';
+    }
+
+    // Rules for subcollections
+    match /clients/{clientId}/{subcollection}/{docId} {
+       allow read, write: if request.auth.token.role == 'admin';
+    }
+
+    match /sequences/{docId} {
+      allow read, write: if true; // Needs to be accessible server-side
     }
   }
 }
