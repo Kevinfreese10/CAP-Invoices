@@ -95,7 +95,6 @@ export default function CAPSuppliersPage() {
         
         const invoiceData = {
             ...result,
-            pdfUrl: '', // No longer saving to storage
             fileName: fileName || 'N/A',
             status: 'pending_review' as const,
             uploadedBy: currentUser.uid,

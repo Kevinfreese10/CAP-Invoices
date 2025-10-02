@@ -28,6 +28,7 @@ type ExtractedInvoice = {
   id: string;
   supplier: string;
   invoiceNumber: string;
+  commissionNumber?: string;
   date: string;
   lineItems: { description: string; exclusiveAmount: number; vatAmount: number; }[];
   invoiceTotal: number;
@@ -45,6 +46,7 @@ const lineItemSchema = z.object({
 const formSchema = z.object({
   supplier: z.string().min(1, "Supplier name is required"),
   invoiceNumber: z.string().min(1, "Invoice number is required"),
+  commissionNumber: z.string().optional(),
   date: z.string().min(1, "Date is required"),
   lineItems: z.array(lineItemSchema),
   invoiceTotal: z.preprocess((val) => Number(val), z.number()),
@@ -57,6 +59,7 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
         defaultValues: {
             supplier: invoice?.supplier || '',
             invoiceNumber: invoice?.invoiceNumber || '',
+            commissionNumber: invoice?.commissionNumber || '',
             date: invoice?.date || '',
             lineItems: invoice?.lineItems || [],
             invoiceTotal: invoice?.invoiceTotal || 0,
@@ -87,6 +90,7 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
                     <FormField control={form.control} name="invoiceNumber" render={({ field }) => ( <FormItem><FormLabel>Invoice Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                 </div>
                  <FormField control={form.control} name="date" render={({ field }) => ( <FormItem><FormLabel>Date</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                 <FormField control={form.control} name="commissionNumber" render={({ field }) => ( <FormItem><FormLabel>Commission Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                 
                 <h4 className="font-medium">Line Items</h4>
                 <div className="space-y-2">
@@ -204,6 +208,7 @@ export default function ControlSheetPage() {
                             <TableHead>Status</TableHead>
                             <TableHead>Supplier</TableHead>
                             <TableHead>Invoice #</TableHead>
+                            <TableHead>Comm #</TableHead>
                             <TableHead>Date</TableHead>
                             <TableHead>File</TableHead>
                             <TableHead className="text-right">Total</TableHead>
@@ -221,6 +226,7 @@ export default function ControlSheetPage() {
                                 </TableCell>
                                 <TableCell className="font-medium">{invoice.supplier}</TableCell>
                                 <TableCell>{invoice.invoiceNumber}</TableCell>
+                                <TableCell>{invoice.commissionNumber}</TableCell>
                                 <TableCell>{invoice.date}</TableCell>
                                 <TableCell>{invoice.fileName}</TableCell>
                                 <TableCell className="text-right font-mono">R {invoice.invoiceTotal.toFixed(2)}</TableCell>

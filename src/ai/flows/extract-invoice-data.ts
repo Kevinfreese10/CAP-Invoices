@@ -27,6 +27,7 @@ const LineItemSchema = z.object({
 const ExtractInvoiceDataOutputSchema = z.object({
   supplier: z.string().describe('The name of the supplier or vendor from the invoice.'),
   invoiceNumber: z.string().describe("The unique invoice number or identifier from the invoice."),
+  commissionNumber: z.string().optional().describe("The commission number from the invoice, if present."),
   date: z.string().describe("The invoice date in 'DD/MM/YYYY' format."),
   lineItems: z.array(LineItemSchema).describe("An array of all line items from the invoice."),
   invoiceTotal: z.number().describe("The final, total amount of the invoice including all taxes."),
@@ -48,12 +49,13 @@ const prompt = ai.definePrompt({
 Your task is to analyze the provided invoice document and extract the following information with perfect accuracy:
 1.  **Supplier Name**: The name of the company that issued the invoice.
 2.  **Invoice Number**: The unique invoice number, reference number, or document ID.
-3.  **Invoice Date**: The date the invoice was issued, formatted as DD/MM/YYYY.
-4.  **Line Items**: For each distinct item or service on the invoice, extract:
+3.  **Commission Number**: The commission number, if it is present on the invoice.
+4.  **Invoice Date**: The date the invoice was issued, formatted as DD/MM/YYYY.
+5.  **Line Items**: For each distinct item or service on the invoice, extract:
     *   The full line item description.
     *   The amount excluding VAT (exclusiveAmount).
     *   The VAT amount for that specific line item.
-5.  **Invoice Total**: The final, grand total amount due on the invoice.
+6.  **Invoice Total**: The final, grand total amount due on the invoice.
 
 If the invoice does not explicitly separate exclusive and VAT amounts per line, calculate them assuming a standard South African VAT rate of 15% on the items that include VAT.
 
