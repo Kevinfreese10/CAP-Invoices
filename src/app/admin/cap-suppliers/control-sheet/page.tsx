@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useToast } from '@/hooks/use-toast';
@@ -65,6 +65,11 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
         control: form.control,
         name: "lineItems",
     });
+    
+    const watchedLineItems = useWatch({
+        control: form.control,
+        name: "lineItems",
+    });
 
     const onSubmit = (data: z.infer<typeof formSchema>) => {
         if (invoice) {
@@ -82,18 +87,27 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
                 
                 <h4 className="font-medium">Line Items</h4>
                 <div className="space-y-2">
-                    {fields.map((field, index) => (
+                    {fields.map((field, index) => {
+                        const exclusive = watchedLineItems?.[index]?.exclusiveAmount || 0;
+                        const vat = watchedLineItems?.[index]?.vatAmount || 0;
+                        const inclusive = exclusive + vat;
+                        return (
                         <div key={field.id} className="grid grid-cols-12 gap-2 items-end">
-                            <FormField control={form.control} name={`lineItems.${index}.description`} render={({ field }) => (<FormItem className="col-span-6"><FormLabel className={index > 0 ? "hidden": ""}>Description</FormLabel><FormControl><Textarea {...field} rows={1} /></FormControl></FormItem>)} />
-                            <FormField control={form.control} name={`lineItems.${index}.exclusiveAmount`} render={({ field }) => (<FormItem className="col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>Exclusive</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>)} />
-                            <FormField control={form.control} name={`lineItems.${index}.vatAmount`} render={({ field }) => (<FormItem className="col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>VAT</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>)} />
-                            <div className="col-span-2"><Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button></div>
+                            <FormField control={form.control} name={`lineItems.${index}.description`} render={({ field }) => (<FormItem className="col-span-5"><FormLabel className={index > 0 ? "hidden": ""}>Description</FormLabel><FormControl><Textarea {...field} rows={1} /></FormControl></FormItem>)} />
+                            <FormField control={form.control} name={`lineItems.${index}.exclusiveAmount`} render={({ field }) => (<FormItem className="col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>Exclusive</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
+                            <FormField control={form.control} name={`lineItems.${index}.vatAmount`} render={({ field }) => (<FormItem className="col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>VAT</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
+                            <FormItem className="col-span-2">
+                                <FormLabel className={index > 0 ? "hidden": ""}>Inclusive</FormLabel>
+                                <Input type="number" value={inclusive.toFixed(2)} readOnly className="bg-muted" />
+                            </FormItem>
+                            <div className="col-span-1"><Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button></div>
                         </div>
-                    ))}
+                        )
+                    })}
                 </div>
                  <Button type="button" variant="outline" size="sm" onClick={() => append({ description: '', exclusiveAmount: 0, vatAmount: 0 })}>Add Line</Button>
                 
-                <FormField control={form.control} name="invoiceTotal" render={({ field }) => ( <FormItem><FormLabel>Invoice Total</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                <FormField control={form.control} name="invoiceTotal" render={({ field }) => ( <FormItem><FormLabel>Invoice Total</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem> )} />
                 
                 <DialogFooter>
                     <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
@@ -245,7 +259,7 @@ export default function ControlSheetPage() {
       </Card>
       
       <Dialog open={!!editingInvoice} onOpenChange={(isOpen) => !isOpen && setEditingInvoice(null)}>
-        <DialogContent className="sm:max-w-3xl">
+        <DialogContent className="sm:max-w-4xl">
             <DialogHeader>
                 <DialogTitle>Edit Invoice: {editingInvoice?.supplier}</DialogTitle>
                 <DialogDescription>Review and correct the extracted data.</DialogDescription>
