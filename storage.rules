@@ -1,9 +1,18 @@
 
 rules_version = '2';
+
 service firebase.storage {
   match /b/{bucket}/o {
+    // Allow users to write to their own folder within the 'invoices' directory.
+    // The {userId} wildcard in the path must match the UID of the authenticated user.
+    match /invoices/{userId}/{allPaths=**} {
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Allow authenticated users to write to their own folder in 'uploads'
     match /uploads/{userId}/{allPaths=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
+      allow read; 
     }
   }
 }
