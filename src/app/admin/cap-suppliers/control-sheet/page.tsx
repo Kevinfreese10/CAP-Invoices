@@ -124,7 +124,7 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
     );
 }
 
-export default function ControlSheetPage() {
+export default function SecondReviewPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
@@ -174,7 +174,7 @@ export default function ControlSheetPage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-3xl font-bold tracking-tight">CAP Suppliers Control Sheet</h1>
+      <h1 className="text-3xl font-bold tracking-tight">2nd Review</h1>
       <Card>
         <CardHeader>
           <CardTitle>Approved Invoices</CardTitle>
