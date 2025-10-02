@@ -239,3 +239,16 @@ export type Supplier = {
     email?: string;
     phone?: string;
 };
+
+export type ExtractedInvoice = {
+  id: string;
+  supplier: string;
+  date: string;
+  lineItems: { description: string; exclusiveAmount: number; vatAmount: number; }[];
+  invoiceTotal: number;
+  status: 'pending_review' | 'approved';
+  pdfUrl: string;
+  fileName: string;
+  createdAt: any;
+  uploadedBy: string;
+};
