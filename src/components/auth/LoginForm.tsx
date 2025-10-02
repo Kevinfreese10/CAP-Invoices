@@ -15,6 +15,7 @@ import { User } from '@/lib/types';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email.' }),
+  password: z.string().min(1, { message: 'Password is required.' }),
 });
 
 export default function LoginForm() {
@@ -26,15 +27,35 @@ export default function LoginForm() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: '',
+      password: '',
     },
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    const user = await login(values.email);
+    const user = await login(values.email, values.password);
+    
+    if (user === 'invalid_credentials') {
+        toast({
+            title: 'Login Failed',
+            description: 'Invalid email or password.',
+            variant: 'destructive',
+        });
+        return;
+    }
+    
+    if (user === 'invalid_role') {
+      toast({
+        title: 'Access Denied',
+        description: 'This portal is for staff and admins only.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     if (!user) {
         toast({
             title: 'Login Failed',
-            description: 'Invalid email address.',
+            description: 'An unknown error occurred.',
             variant: 'destructive',
         });
         return;
@@ -65,6 +86,19 @@ export default function LoginForm() {
               <FormLabel>Email</FormLabel>
               <FormControl>
                 <Input placeholder="name@example.com" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+         <FormField
+          control={form.control}
+          name="password"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Password</FormLabel>
+              <FormControl>
+                <Input type="password" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

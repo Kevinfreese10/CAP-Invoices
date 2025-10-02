@@ -1,5 +1,6 @@
 
 
+
 export type VatType =
   // Output Tax
   | 'standard_rated_sales'
@@ -119,6 +120,7 @@ export type User = {
   name: string;
   email: string;
   role: 'client' | 'admin' | 'staff' | 'reseller';
+  password?: string;
   source?: 'Numera' | 'Client Management';
   department?: 'Accounting and Tax' | 'Administration' | 'CAP';
   status?: 'Active' | 'Inactive';

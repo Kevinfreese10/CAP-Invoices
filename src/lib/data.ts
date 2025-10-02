@@ -1,4 +1,5 @@
 
+
 import type { Service, BlogPost, FAQ, Order, User } from './types';
 
 // IMPORTANT: Passwords are in plaintext for demonstration purposes ONLY.
@@ -12,6 +13,7 @@ export const users: User[] = [
     email: 'kev@thinkestry.co.za', 
     role: 'admin',
     department: 'Administration',
+    password: 'Thinkestry10$',
     smtpDetails: {
         host: 'mail.myacc.co.za',
         port: '465',
@@ -25,6 +27,7 @@ export const users: User[] = [
     email: 'admin@myacc.co.za',
     role: 'admin',
     department: 'Administration',
+    password: 'Thinkestry10$',
   },
   { 
     id: '4', 
@@ -34,6 +37,7 @@ export const users: User[] = [
     companyName: 'Reseller Pro (Pty) Ltd',
     contactPerson: 'Alex King',
     contactNumber: '0721234567',
+    password: 'Thinkestry10$',
     address: {
         street: '123 Reseller Road',
         city: 'Johannesburg',

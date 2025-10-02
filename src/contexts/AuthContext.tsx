@@ -1,4 +1,5 @@
 
+
 'use client';
 import { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import type { User } from '@/lib/types';
@@ -10,7 +11,7 @@ const db = getFirestore(firebaseApp);
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string) => Promise<User | undefined>;
+  login: (email: string, password?: string) => Promise<User | 'invalid_role' | 'invalid_credentials' | undefined>;
   logout: () => void;
   signup: (name: string, email: string) => User;
   isAuthenticated: boolean | undefined;
@@ -61,7 +62,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
-  const login = async (email: string): Promise<User | undefined> => {
+  const login = async (email: string, password?: string): Promise<User | 'invalid_role' | 'invalid_credentials' | undefined> => {
     try {
         const usersRef = collection(db, "users");
         const q = query(usersRef, where("email", "==", email));
@@ -71,16 +72,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             const userDoc = querySnapshot.docs[0];
             const foundUser = { ...userDoc.data(), id: userDoc.id } as User;
             
-            if (foundUser.role === 'admin' || foundUser.role === 'staff' || foundUser.role === 'reseller') {
-                updateUserState(foundUser);
-                return foundUser;
+            // Check if user has a staff or admin role
+            if (foundUser.role !== 'admin' && foundUser.role !== 'staff' && foundUser.role !== 'reseller') {
+                return 'invalid_role';
             }
+
+            // Verify password
+            if (foundUser.password !== password) {
+                return 'invalid_credentials';
+            }
+
+            updateUserState(foundUser);
+            return foundUser;
+        } else {
+            return 'invalid_credentials';
         }
     } catch (error) {
         console.error("Error logging in:", error);
+        return undefined;
     }
-    // If no user is found or role is not correct, return undefined
-    return undefined;
   };
 
   const logout = () => {

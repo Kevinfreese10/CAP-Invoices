@@ -28,6 +28,7 @@ const formSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(2, 'Name is required.'),
   email: z.string().email('A valid email is required.'),
+  password: z.string().min(1, 'Password is required.'),
   department: z.enum(departments),
   role: z.enum(roles),
 });
@@ -39,6 +40,7 @@ function StaffForm({ staffMember, onSubmit, onCancel }: { staffMember: User | nu
             id: staffMember?.id || '',
             name: staffMember?.name || '',
             email: staffMember?.email || '',
+            password: staffMember?.password || 'Thinkestry10$',
             department: staffMember?.department || 'Administration',
             role: staffMember?.role === 'admin' ? 'admin' : 'staff',
         },
@@ -69,6 +71,17 @@ function StaffForm({ staffMember, onSubmit, onCancel }: { staffMember: User | nu
                         <FormItem>
                             <FormLabel>Email Address</FormLabel>
                             <FormControl><Input {...field} /></FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                 <FormField
+                    control={form.control}
+                    name="password"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Password</FormLabel>
+                            <FormControl><Input type="password" {...field} /></FormControl>
                             <FormMessage />
                         </FormItem>
                     )}
@@ -233,6 +246,7 @@ export default function AdminStaffPage() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Password</TableHead>
                 <TableHead>Department</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -245,6 +259,9 @@ export default function AdminStaffPage() {
                     {staffMember.name}
                   </TableCell>
                   <TableCell>{staffMember.email}</TableCell>
+                  <TableCell>
+                    <Input type="password" value={staffMember.password} readOnly className="w-32" />
+                  </TableCell>
                   <TableCell>{staffMember.department}</TableCell>
                   <TableCell className="capitalize">
                     <span className="bg-secondary text-secondary-foreground px-2 py-1 text-xs rounded-full">
