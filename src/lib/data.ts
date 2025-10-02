@@ -19,6 +19,13 @@ export const users: User[] = [
         pass: 'Thinkestry10$',
     }
   },
+  {
+    id: '3',
+    name: 'Admin User',
+    email: 'admin@myacc.co.za',
+    role: 'admin',
+    department: 'Administration',
+  },
   { 
     id: '4', 
     name: 'Reseller Pro', 
