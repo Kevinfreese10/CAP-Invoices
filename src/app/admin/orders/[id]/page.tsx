@@ -189,7 +189,7 @@ export default function AdminOrderDetailsPage() {
       try {
         const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
         const staffSnapshot = await getDocs(staffQuery);
-        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
         setAllStaff(fetchedStaff);
 
         const docRef = doc(db, 'orders', id);
@@ -217,13 +217,13 @@ export default function AdminOrderDetailsPage() {
           setOrder(fetchedOrder);
           
           if (fetchedOrder.assignedTo) {
-            const assignedUser = fetchedStaff.find(u => u.id === fetchedOrder.assignedTo);
+            const assignedUser = fetchedStaff.find(u => u.uid === fetchedOrder.assignedTo);
             setAssignee(assignedUser || null);
           }
           
           if (fetchedOrder.userId) {
             // Check dynamic users first
-            let customerUser = fetchedStaff.find(u => u.id === fetchedOrder.userId);
+            let customerUser = fetchedStaff.find(u => u.uid === fetchedOrder.userId);
             setCustomer(customerUser || null);
           }
 
@@ -258,7 +258,7 @@ export default function AdminOrderDetailsPage() {
 
     const newNote: OrderNote = {
       text: values.noteText,
-      authorId: currentUser.id,
+      authorId: currentUser.uid,
       date: Timestamp.now(),
       type: 'note',
     };
@@ -284,7 +284,7 @@ export default function AdminOrderDetailsPage() {
      const emailNote: OrderNote = {
       text: message,
       subject: subject,
-      authorId: currentUser.id,
+      authorId: currentUser.uid,
       date: Timestamp.now(),
       type: 'email',
     };
@@ -317,7 +317,7 @@ export default function AdminOrderDetailsPage() {
   };
   
   const getAuthor = (authorId: string): User | undefined => {
-    return allStaff.find(u => u.id === authorId);
+    return allStaff.find(u => u.uid === authorId);
   }
 
   const handleQuickActionEmail = async (type: 'docs' | 'payment' | 'review') => {
@@ -327,7 +327,7 @@ export default function AdminOrderDetailsPage() {
       let subject = '';
       let message = '';
       const isOutsourced = !!order.resellerId;
-      const reseller = isOutsourced ? allStaff.find(u => u.id === order.resellerId) : undefined;
+      const reseller = isOutsourced ? allStaff.find(u => u.uid === order.resellerId) : undefined;
       const emailTo = isOutsourced ? order.endCustomerEmail : order.customerEmail;
       const customerName = isOutsourced ? order.endCustomerName : order.customerName;
       const orderForEmail = { ...order, customerName, id: order.originalOrderId || order.id };

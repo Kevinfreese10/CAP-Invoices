@@ -91,7 +91,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
     }
     
     const getAuthor = (authorId: string): User | undefined => {
-        return allStaff.find(u => u.id === authorId);
+        return allStaff.find(u => u.uid === authorId);
     }
     
     return (
@@ -137,14 +137,14 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                     <CommandGroup heading="Individual Staff">
                                         {allStaff.map((staff) => (
                                         <CommandItem
-                                            key={staff.id}
+                                            key={staff.uid}
                                             value={staff.name}
                                             onSelect={() => {
                                             const selection = new Set(field.value);
-                                            if (selection.has(staff.id)) {
-                                                selection.delete(staff.id);
+                                            if (selection.has(staff.uid)) {
+                                                selection.delete(staff.uid);
                                             } else {
-                                                selection.add(staff.id);
+                                                selection.add(staff.uid);
                                             }
                                             field.onChange(Array.from(selection));
                                             }}
@@ -152,7 +152,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                             <div
                                             className={cn(
                                                 "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                                                field.value?.includes(staff.id)
+                                                field.value?.includes(staff.uid)
                                                 ? "bg-primary text-primary-foreground"
                                                 : "opacity-50 [&_svg]:invisible"
                                             )}
@@ -242,14 +242,14 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                     <CommandGroup heading="Individual Staff">
                                         {allStaff.map((staff) => (
                                         <CommandItem
-                                            key={staff.id}
+                                            key={staff.uid}
                                             value={staff.name}
                                             onSelect={() => {
                                             const selection = new Set(field.value);
-                                            if (selection.has(staff.id)) {
-                                                selection.delete(staff.id);
+                                            if (selection.has(staff.uid)) {
+                                                selection.delete(staff.uid);
                                             } else {
-                                                selection.add(staff.id);
+                                                selection.add(staff.uid);
                                             }
                                             field.onChange(Array.from(selection));
                                             }}
@@ -257,7 +257,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                             <div
                                             className={cn(
                                                 "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                                                field.value?.includes(staff.id)
+                                                field.value?.includes(staff.uid)
                                                 ? "bg-primary text-primary-foreground"
                                                 : "opacity-50 [&_svg]:invisible"
                                             )}
@@ -348,7 +348,7 @@ const getUserColor = (userId: string) => {
 const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete, allStaff }: { tasks: Task[], title: string, description: string, onEdit: (task: Task) => void, onUpdateStatus: (taskId: string, status: Task['status']) => void, onDelete: (taskId: string) => void, allStaff: User[] }) => {
     const getAssignee = (userId?: string): User | undefined => {
         if (!userId) return undefined;
-        return allStaff.find(u => u.id === userId);
+        return allStaff.find(u => u.uid === userId);
     }
     
     const getStatusVariant = (status: Task['status']) => {
@@ -444,7 +444,7 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                                          <TooltipProvider key={userId}>
                                             <Tooltip>
                                                 <TooltipTrigger>
-                                                    <span className={cn("h-6 w-6 border-2 border-background rounded-full flex items-center justify-center text-xs font-semibold", getUserColor(assignee.id))}>{assignee.name.charAt(0)}</span>
+                                                    <span className={cn("h-6 w-6 border-2 border-background rounded-full flex items-center justify-center text-xs font-semibold", getUserColor(assignee.uid))}>{assignee.name.charAt(0)}</span>
                                                 </TooltipTrigger>
                                                 <TooltipContent>
                                                     <p>{assignee.name.split(' ')[0]}</p>
@@ -469,7 +469,7 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                                          <TooltipProvider key={userId}>
                                             <Tooltip>
                                                 <TooltipTrigger>
-                                                    <span className={cn("h-6 w-6 border-2 border-background rounded-full flex items-center justify-center text-xs", getUserColor(taggedUser.id))}>{taggedUser.name.charAt(0)}</span>
+                                                    <span className={cn("h-6 w-6 border-2 border-background rounded-full flex items-center justify-center text-xs", getUserColor(taggedUser.uid))}>{taggedUser.name.charAt(0)}</span>
                                                 </TooltipTrigger>
                                                 <TooltipContent>
                                                     <p>Tagged: {taggedUser.name.split(' ')[0]}</p>
@@ -585,7 +585,7 @@ export default function AdminDashboardPage() {
             // Fetch staff
             const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
             const staffSnapshot = await getDocs(staffQuery);
-            const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+            const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
             setAllStaff(fetchedStaff);
 
             // Fetch unanswered questions
@@ -635,7 +635,7 @@ export default function AdminDashboardPage() {
         if (!user) return [];
         return tasks.filter(task => 
             Array.isArray(task.assignedTo) && 
-            task.assignedTo.includes(user.id) &&
+            task.assignedTo.includes(user.uid) &&
             task.status !== 'Done'
         ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
     }, [tasks, user]);
@@ -643,8 +643,8 @@ export default function AdminDashboardPage() {
     const delegatedTasks = useMemo(() => {
         if (!user) return [];
         return tasks.filter(task => 
-            (task.createdBy === user.id) &&
-            !task.assignedTo.includes(user.id) &&
+            (task.createdBy === user.uid) &&
+            !task.assignedTo.includes(user.uid) &&
              task.status !== 'Done' &&
             (!task.recurrence || task.recurrence === 'None')
         ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : b.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
@@ -654,7 +654,7 @@ export default function AdminDashboardPage() {
         if (!user) return [];
         return tasks.filter(task => 
             Array.isArray(task.tags) && 
-            task.tags.includes(user.id) &&
+            task.tags.includes(user.uid) &&
             task.status !== 'Done' &&
             (!task.recurrence || task.recurrence === 'None')
         ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : b.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
@@ -668,7 +668,7 @@ export default function AdminDashboardPage() {
             
             const isAssignedToDept = task.assignedTo.includes(deptIdentifier);
             const isAssignedToMemberOfDept = task.assignedTo.some(assigneeId => 
-                allStaff.find(s => s.id === assigneeId && s.department === user.department)
+                allStaff.find(s => s.uid === assigneeId && s.department === user.department)
             );
 
             return isAssignedToDept || isAssignedToMemberOfDept;
@@ -686,7 +686,7 @@ export default function AdminDashboardPage() {
         if (!user) return [];
         return tasks.filter(task => 
             task.status === 'Done' &&
-            (task.assignedTo.includes(user.id) || (user.role === 'admin' && task.createdBy === 'system'))
+            (task.assignedTo.includes(user.uid) || (user.role === 'admin' && task.createdBy === 'system'))
         );
     }, [tasks, user]);
 
@@ -762,7 +762,7 @@ export default function AdminDashboardPage() {
                     ...taskData,
                     status: 'To-Do',
                     priority: 'Medium',
-                    createdBy: user.id,
+                    createdBy: user.uid,
                     createdAt: Timestamp.now(),
                     comments: [],
                 };
@@ -771,8 +771,8 @@ export default function AdminDashboardPage() {
 
                 // Send email notifications
                 for (const assigneeId of data.assignedTo) {
-                    if (assigneeId !== user.id) { // Don't email the user who created the task
-                        const assignee = allStaff.find(s => s.id === assigneeId);
+                    if (assigneeId !== user.uid) { // Don't email the user who created the task
+                        const assignee = allStaff.find(s => s.uid === assigneeId);
                         if (assignee?.email) {
                             try {
                                 const emailHtml = render(<NewTaskEmail 
@@ -813,7 +813,7 @@ export default function AdminDashboardPage() {
         const newComment: TaskComment = {
             text: commentText,
             date: Timestamp.now(),
-            authorId: user.id,
+            authorId: user.uid,
         };
 
         try {
@@ -1041,6 +1041,7 @@ export default function AdminDashboardPage() {
     
 
     
+
 
 
 
