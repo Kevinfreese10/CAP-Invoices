@@ -22,10 +22,10 @@ export default function NewVisitorPopup() {
 
   useEffect(() => {
     // This code runs only on the client
-    const timer = setTimeout(() => {
-        setIsOpen(true);
-    }, 500); // Shortened delay for immediate viewing
-    return () => clearTimeout(timer);
+    // const timer = setTimeout(() => {
+    //     setIsOpen(true);
+    // }, 500); // Shortened delay for immediate viewing
+    // return () => clearTimeout(timer);
   }, []);
 
   const handleClose = () => {
@@ -37,6 +37,8 @@ export default function NewVisitorPopup() {
     handleClose();
     router.push('/compliance');
   }
+
+  if (!isOpen) return null;
 
   return (
     <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
