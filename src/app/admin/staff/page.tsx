@@ -173,7 +173,9 @@ export default function AdminStaffPage() {
             });
 
             // 3. Re-authenticate the admin user to restore their session
-            await reauthenticate(adminUser);
+            if(adminUser) {
+              await reauthenticate(adminUser);
+            }
 
             toast({ title: 'Staff Member Created', description: 'The new staff member has been added.' });
         }
