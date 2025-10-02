@@ -244,6 +244,7 @@ export type Supplier = {
 export type ExtractedInvoice = {
   id: string;
   supplier: string;
+  invoiceNumber: string;
   date: string;
   lineItems: { description: string; exclusiveAmount: number; vatAmount: number; }[];
   invoiceTotal: number;

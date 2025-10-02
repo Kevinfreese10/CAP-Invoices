@@ -27,6 +27,7 @@ const db = getFirestore(firebaseApp);
 type ExtractedInvoice = {
   id: string;
   supplier: string;
+  invoiceNumber: string;
   date: string;
   lineItems: { description: string; exclusiveAmount: number; vatAmount: number; }[];
   invoiceTotal: number;
@@ -44,6 +45,7 @@ const lineItemSchema = z.object({
 
 const formSchema = z.object({
   supplier: z.string().min(1, "Supplier name is required"),
+  invoiceNumber: z.string().min(1, "Invoice number is required"),
   date: z.string().min(1, "Date is required"),
   lineItems: z.array(lineItemSchema),
   invoiceTotal: z.preprocess((val) => Number(val), z.number()),
@@ -55,6 +57,7 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
         resolver: zodResolver(formSchema),
         defaultValues: {
             supplier: invoice?.supplier || '',
+            invoiceNumber: invoice?.invoiceNumber || '',
             date: invoice?.date || '',
             lineItems: invoice?.lineItems || [],
             invoiceTotal: invoice?.invoiceTotal || 0,
@@ -82,8 +85,9 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto pr-4">
                 <div className="grid grid-cols-2 gap-4">
                     <FormField control={form.control} name="supplier" render={({ field }) => ( <FormItem><FormLabel>Supplier</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="date" render={({ field }) => ( <FormItem><FormLabel>Date</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="invoiceNumber" render={({ field }) => ( <FormItem><FormLabel>Invoice Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                 </div>
+                 <FormField control={form.control} name="date" render={({ field }) => ( <FormItem><FormLabel>Date</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                 
                 <h4 className="font-medium">Line Items</h4>
                 <div className="space-y-2">
@@ -200,6 +204,7 @@ export default function ControlSheetPage() {
                         <TableRow>
                             <TableHead>Status</TableHead>
                             <TableHead>Supplier</TableHead>
+                            <TableHead>Invoice #</TableHead>
                             <TableHead>Date</TableHead>
                             <TableHead>File</TableHead>
                             <TableHead className="text-right">Total</TableHead>
@@ -216,6 +221,7 @@ export default function ControlSheetPage() {
                                     </Badge>
                                 </TableCell>
                                 <TableCell className="font-medium">{invoice.supplier}</TableCell>
+                                <TableCell>{invoice.invoiceNumber}</TableCell>
                                 <TableCell>{invoice.date}</TableCell>
                                 <TableCell><a href={invoice.pdfUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{invoice.fileName}</a></TableCell>
                                 <TableCell className="text-right font-mono">R {invoice.invoiceTotal.toFixed(2)}</TableCell>

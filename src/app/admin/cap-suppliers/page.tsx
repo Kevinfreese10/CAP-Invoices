@@ -127,7 +127,7 @@ export default function CAPSuppliersPage() {
                       <FormControl>
                         <Input
                           type="file"
-                          accept="application/pdf"
+                          accept="application/pdf,image/*"
                           onChange={(e) => {
                             field.onChange(e.target.files);
                             handleFileChange(e);
@@ -140,8 +140,8 @@ export default function CAPSuppliersPage() {
                 />
                 {preview && (
                   <div className="relative mt-4 aspect-auto w-full overflow-hidden rounded-md border h-[700px]">
-                    <object data={preview} type="application/pdf" width="100%" height="100%">
-                        <p>This browser does not support PDF previews. Please download the PDF to view it: <a href={preview}>Download PDF</a></p>
+                    <object data={preview} type={form.getValues('invoice')?.[0]?.type} width="100%" height="100%">
+                        <p>This browser does not support PDF previews. Please download the file to view it.</p>
                     </object>
                   </div>
                 )}
