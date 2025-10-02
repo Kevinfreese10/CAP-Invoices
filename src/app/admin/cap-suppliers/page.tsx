@@ -18,7 +18,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
+import { FirestorePermissionError, StoragePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 const storage = getStorage();
 
@@ -68,13 +68,21 @@ export default function CAPSuppliersPage() {
     uploadTask.on('state_changed', 
         null, 
         (error) => {
+            if (error.code === 'storage/unauthorized') {
+                const permissionError = new StoragePermissionError({
+                    path: storageRef.fullPath,
+                    operation: 'write',
+                });
+                errorEmitter.emit('storage-permission-error', permissionError);
+            } else {
+                 toast({
+                    title: 'Upload Failed',
+                    description: `Error: ${error.code} - Please try again.`,
+                    variant: 'destructive',
+                    duration: 9000,
+                });
+            }
             console.error('Upload failed:', error);
-            toast({
-              title: 'Upload Failed',
-              description: `Error: ${error.code} - ${error.message}`,
-              variant: 'destructive',
-              duration: 9000,
-            });
             setIsUploading(false);
         }, 
         async () => {

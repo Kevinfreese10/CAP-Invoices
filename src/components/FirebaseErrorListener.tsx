@@ -3,7 +3,7 @@
 
 import { useEffect } from 'react';
 import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
+import { FirestorePermissionError, StoragePermissionError } from '@/firebase/errors';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 
@@ -11,7 +11,7 @@ export function FirebaseErrorListener() {
   const { toast } = useToast();
 
   useEffect(() => {
-    const handler = (error: FirestorePermissionError) => {
+    const firestoreHandler = (error: FirestorePermissionError) => {
       toast({
         variant: 'destructive',
         duration: 20000,
@@ -33,11 +33,33 @@ export function FirebaseErrorListener() {
         ),
       });
     };
+    
+    const storageHandler = (error: StoragePermissionError) => {
+      toast({
+        variant: 'destructive',
+        duration: 20000,
+        title: 'Storage Permission Error',
+        description: (
+          <div className="space-y-2">
+            <p>Your request was denied by storage security rules.</p>
+            <Alert variant="destructive">
+              <AlertTitle>Error Details:</AlertTitle>
+              <AlertDescription className="font-mono text-xs">
+                <p>Operation: {error.context.operation}</p>
+                <p>Path: {error.context.path}</p>
+              </AlertDescription>
+            </Alert>
+          </div>
+        ),
+      });
+    };
 
-    errorEmitter.on('permission-error', handler);
+    errorEmitter.on('permission-error', firestoreHandler);
+    errorEmitter.on('storage-permission-error', storageHandler);
 
     return () => {
-      errorEmitter.off('permission-error', handler);
+      errorEmitter.off('permission-error', firestoreHandler);
+      errorEmitter.off('storage-permission-error', storageHandler);
     };
   }, [toast]);
 
