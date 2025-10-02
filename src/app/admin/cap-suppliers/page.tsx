@@ -18,7 +18,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 const storage = getStorage();
 
@@ -102,13 +102,13 @@ export default function CAPSuppliersPage() {
                       toast({ title: 'Extraction Complete!', description: 'Data successfully extracted and saved for review.' });
                       router.push('/admin/cap-suppliers/control-sheet');
                   })
-                  .catch(serverError => {
-                      const permissionError = new FirestorePermissionError({
+                  .catch(async (serverError) => {
+                    const permissionError = new FirestorePermissionError({
                         path: collRef.path,
                         operation: 'create',
                         requestResourceData: invoiceData,
-                      });
-                      errorEmitter.emit('permission-error', permissionError);
+                    } satisfies SecurityRuleContext);
+                    errorEmitter.emit('permission-error', permissionError);
                   });
 
             } catch (error) {
