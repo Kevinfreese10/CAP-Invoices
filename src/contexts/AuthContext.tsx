@@ -121,7 +121,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         if (foundUser.role !== 'admin' && foundUser.role !== 'staff' && foundUser.role !== 'reseller') {
             await auth.signOut();
-            return undefined; // Not an invalid role, just not an admin/staff/reseller for this flow
+            return 'invalid_role';
         }
 
         if (foundUser.uid !== firebaseUser.uid) {

@@ -46,7 +46,7 @@ export default function LoginForm() {
     if (user === 'invalid_role') {
       toast({
         title: 'Access Denied',
-        description: 'This portal is for staff and admins only.',
+        description: 'This portal is for staff, admins, and resellers only.',
         variant: 'destructive',
       });
       return;
