@@ -2,98 +2,13 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
   
-    // =================================================
-    // Default Deny
-    // =================================================
+    // Allow users to read their own user document
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
-    
-    // =================================================
-    // Users Collection
-    // =================================================
-    match /users/{userId} {
-      // Any authenticated user can read their own profile
-      allow get: if request.auth != null && request.auth.uid == userId;
-
-      // Admins and staff can read any user profile
-      allow list: if request.auth != null && request.auth.token.role IN ['admin', 'staff'];
-      
-      // Allow users to update their own profile, but not change their role
-      allow update: if request.auth != null && request.auth.uid == userId && !("role" in request.resource.data);
-      
-      // Admins can create/update any user profile
-      allow write: if request.auth != null && request.auth.token.role == 'admin';
-    }
-
-    // =================================================
-    // Orders Collection
-    // =================================================
-    match /orders/{orderId} {
-      allow read, write: if request.auth != null && request.auth.token.role IN ['admin', 'staff', 'reseller'];
-      allow create: if true; // Allow anyone to create an order
-    }
-    
-    // =================================================
-    // Services & other public collections
-    // =================================================
-    match /services/{serviceId} {
-      allow read: if true;
-    }
-    
-    match /blog/{postId} {
-       allow read: if true;
-    }
-
-    // =================================================
-    // Sequences
-    // =================================================
-    match /sequences/{sequenceId} {
-      allow read, write: if true; // Or restrict to admins if needed
-    }
-
-    // =================================================
-    // Discounts Collection
-    // =================================================
-    match /discounts/{discountId} {
-      allow read, write: if request.auth != null && request.auth.token.role IN ['admin', 'staff'];
-      allow get: if true; // Allow anyone to check a discount code
-    }
-
-    // =================================================
-    // Compliance & Unanswered Questions
-    // =================================================
-     match /complianceRequests/{requestId} {
-      allow read, write: if request.auth != null && request.auth.token.role == 'admin';
-      allow create: if true;
-    }
-
-    match /unansweredQuestions/{questionId} {
-      allow read, write: if request.auth != null && request.auth.token.role == 'admin';
-      allow create: if true;
-    }
-
-    // =================================================
-    // Tasks Collection
-    // =================================================
-    match /tasks/{taskId} {
-      allow read, write: if request.auth != null && request.auth.token.role IN ['admin', 'staff'];
-    }
-
-    // =================================================
-    // Client-specific subcollections
-    // =================================================
-    match /clients/{clientId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.token.role IN ['admin', 'staff'];
-    }
-    
-    // =================================================
-    // CAP Suppliers & Invoices
-    // =================================================
-     match /extractedInvoices/{invoiceId} {
-      allow write: if request.auth != null && request.auth.token.role IN ['admin', 'staff'];
-      allow read: if request.auth != null && request.auth.token.role IN ['admin', 'staff'];
-    }
-
   }
 }
