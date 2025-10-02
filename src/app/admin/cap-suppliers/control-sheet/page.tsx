@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, MoreHorizontal, Edit, Trash2, CheckCircle2 } from 'lucide-react';
+import { Loader2, MoreHorizontal, Edit, Trash2, CheckCircle2, FileCheck2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -31,7 +31,7 @@ type ExtractedInvoice = {
   date: string;
   lineItems: { description: string; exclusiveAmount: number; vatAmount: number; }[];
   invoiceTotal: number;
-  status: 'pending_review' | 'approved';
+  status: 'pending_review' | 'approved' | 'approved_for_payment';
   fileName: string;
   createdAt: any;
 };
@@ -133,7 +133,7 @@ export default function SecondReviewPage() {
     const fetchInvoices = async () => {
         setIsLoading(true);
         try {
-            const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'approved'), orderBy('createdAt', 'desc'));
+            const q = query(collection(db, 'extractedInvoices'), where('status', 'in', ['approved', 'approved_for_payment']), orderBy('createdAt', 'desc'));
             const querySnapshot = await getDocs(q);
             const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
             setInvoices(fetchedInvoices);
@@ -162,6 +162,17 @@ export default function SecondReviewPage() {
         }
     };
     
+    const handleApproveForPayment = async (id: string) => {
+        try {
+            const docRef = doc(db, 'extractedInvoices', id);
+            await updateDoc(docRef, { status: 'approved_for_payment' });
+            toast({ title: 'Invoice Approved for Payment', description: 'The invoice has been marked for payment.' });
+            fetchInvoices();
+        } catch (error) {
+            toast({ title: 'Error', description: 'Could not approve for payment.', variant: 'destructive'});
+        }
+    };
+
     const handleDelete = async (id: string) => {
          try {
             await deleteDoc(doc(db, 'extractedInvoices', id));
@@ -169,6 +180,27 @@ export default function SecondReviewPage() {
             fetchInvoices();
         } catch (error) {
             toast({ title: 'Error', description: 'Could not delete the invoice.', variant: 'destructive'});
+        }
+    }
+
+    const getStatusBadge = (status: ExtractedInvoice['status']) => {
+        switch(status) {
+            case 'approved':
+                return (
+                    <Badge variant={'success'}>
+                        <CheckCircle2 className="mr-1 h-3 w-3" />
+                        Approved
+                    </Badge>
+                );
+            case 'approved_for_payment':
+                 return (
+                    <Badge variant={'payment'}>
+                        <FileCheck2 className="mr-1 h-3 w-3" />
+                        Approved for Payment
+                    </Badge>
+                );
+            default:
+                return <Badge>{status.replace('_', ' ')}</Badge>;
         }
     }
 
@@ -207,10 +239,7 @@ export default function SecondReviewPage() {
                         {invoices.map((invoice) => (
                             <TableRow key={invoice.id}>
                                 <TableCell>
-                                    <Badge variant={'success'}>
-                                         <CheckCircle2 className="mr-1 h-3 w-3" />
-                                        {invoice.status.replace('_', ' ')}
-                                    </Badge>
+                                    {getStatusBadge(invoice.status)}
                                 </TableCell>
                                 <TableCell className="font-medium">{invoice.supplier}</TableCell>
                                 <TableCell>{invoice.invoiceNumber}</TableCell>
@@ -224,6 +253,9 @@ export default function SecondReviewPage() {
                                             <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent>
+                                            <DropdownMenuItem onSelect={() => handleApproveForPayment(invoice.id)} disabled={invoice.status === 'approved_for_payment'}>
+                                                <FileCheck2 className="mr-2 h-4 w-4" /> Approve for Payment
+                                            </DropdownMenuItem>
                                             <DropdownMenuItem onSelect={() => setEditingInvoice(invoice)}>
                                                 <Edit className="mr-2 h-4 w-4" /> Edit
                                             </DropdownMenuItem>
@@ -268,3 +300,4 @@ export default function SecondReviewPage() {
     </div>
   );
 }
+
