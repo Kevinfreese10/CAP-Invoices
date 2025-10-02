@@ -5,10 +5,9 @@ import type { Service, BlogPost, FAQ, Order, User } from './types';
 // IMPORTANT: Passwords are in plaintext for demonstration purposes ONLY.
 // In a real-world application, you MUST hash and salt passwords securely.
 // This file is now deprecated for user data. Users should be managed in Firestore.
-export const users: User[] = [
-  { id: '1', name: 'John Doe', email: 'client@test.com', role: 'client' },
+export const users: Omit<User, 'uid'>[] = [
+  { name: 'John Doe', email: 'client@test.com', role: 'client' },
   { 
-    id: '2', 
     name: 'Kevin Freese', 
     email: 'kev@thinkestry.co.za', 
     role: 'admin',
@@ -22,7 +21,6 @@ export const users: User[] = [
     }
   },
   {
-    id: '3',
     name: 'Admin User',
     email: 'admin@myacc.co.za',
     role: 'admin',
@@ -30,7 +28,6 @@ export const users: User[] = [
     password: 'Thinkestry10$',
   },
   { 
-    id: '4', 
     name: 'Reseller Pro', 
     email: 'reseller@test.com', 
     role: 'reseller',

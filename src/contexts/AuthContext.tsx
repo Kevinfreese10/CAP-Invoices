@@ -50,7 +50,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             const querySnapshot = await getDocs(q);
             if (!querySnapshot.empty) {
                 const userDoc = querySnapshot.docs[0];
-                const foundUser = { ...userDoc.data(), id: userDoc.id, uid: firebaseUser.uid } as User;
+                const foundUser = { ...userDoc.data(), uid: userDoc.id } as User;
                 updateUser(foundUser);
                 setIsAuthenticated(true);
             } else {
@@ -102,7 +102,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
 
         const userDoc = querySnapshot.docs[0];
-        const foundUser = { ...userDoc.data(), id: userDoc.id } as User;
+        const foundUser = { ...userDoc.data(), uid: userDoc.id } as User;
         
         if (foundUser.role !== 'admin' && foundUser.role !== 'staff' && foundUser.role !== 'reseller') {
             await auth.signOut();
@@ -140,7 +140,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signup = (name: string, email: string) => {
-    const newUser: User = { id: `new-user-${Date.now()}`, uid: `new-uid-${Date.now()}`, name, email, role: 'client' };
+    const newUser: User = { uid: `new-uid-${Date.now()}`, name, email, role: 'client' };
     console.log("New client signup (placeholder):", newUser);
     return newUser;
   };

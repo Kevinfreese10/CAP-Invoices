@@ -25,7 +25,7 @@ const departments = ['Accounting and Tax', 'Administration', 'CAP'] as const;
 const roles = ['staff', 'admin'] as const;
 
 const formSchema = z.object({
-  id: z.string().optional(),
+  uid: z.string().optional(),
   name: z.string().min(2, 'Name is required.'),
   email: z.string().email('A valid email is required.'),
   password: z.string().min(1, 'Password is required.'),
@@ -37,7 +37,7 @@ function StaffForm({ staffMember, onSubmit, onCancel }: { staffMember: User | nu
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
-            id: staffMember?.id || '',
+            uid: staffMember?.uid || '',
             name: staffMember?.name || '',
             email: staffMember?.email || '',
             password: staffMember?.password || 'Thinkestry10$',
@@ -143,7 +143,7 @@ export default function AdminStaffPage() {
     try {
         const q = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
         const querySnapshot = await getDocs(q);
-        const fetchedStaff = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+        const fetchedStaff = querySnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
         setStaff(fetchedStaff);
     } catch (error) {
         console.error("Error fetching staff:", error);
@@ -182,12 +182,12 @@ export default function AdminStaffPage() {
     }
   };
 
-  const handleFormSubmit = async (data: Omit<User, 'id'> & { id?: string }) => {
-    const { id, ...staffData } = data as any;
+  const handleFormSubmit = async (data: Omit<User, 'uid'> & { uid?: string }) => {
+    const { uid, ...staffData } = data as any;
     
     try {
-        if (id) {
-             const docRef = doc(db, "users", id);
+        if (uid) {
+             const docRef = doc(db, "users", uid);
              await setDoc(docRef, staffData, { merge: true });
              toast({ title: 'Staff Member Updated', description: 'The staff details have been saved.' });
         } else {
@@ -254,7 +254,7 @@ export default function AdminStaffPage() {
             </TableHeader>
             <TableBody>
               {staff.map(staffMember => (
-                <TableRow key={staffMember.id}>
+                <TableRow key={staffMember.uid}>
                   <TableCell className="font-medium">
                     {staffMember.name}
                   </TableCell>
@@ -300,7 +300,7 @@ export default function AdminStaffPage() {
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDelete(staffMember.id)}>
+                                <AlertDialogAction onClick={() => handleDelete(staffMember.uid)}>
                                     Continue
                                 </AlertDialogAction>
                             </AlertDialogFooter>

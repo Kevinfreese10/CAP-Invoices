@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -61,7 +62,7 @@ export default function ProfilePage() {
   const onProfileSubmit = async (values: z.infer<typeof profileFormSchema>) => {
     setIsSaving(true);
      try {
-        const userRef = doc(db, 'users', user.id);
+        const userRef = doc(db, 'users', user.uid);
         await updateDoc(userRef, { name: values.name });
         updateUser({ ...user, name: values.name });
         toast({ title: 'Profile Updated', description: 'Your name has been updated.' });
@@ -76,7 +77,7 @@ export default function ProfilePage() {
   const onPasswordSubmit = async (values: z.infer<typeof passwordFormSchema>) => {
     setIsPasswordSaving(true);
     try {
-        const userRef = doc(db, 'users', user.id);
+        const userRef = doc(db, 'users', user.uid);
         await updateDoc(userRef, { password: values.password });
         updateUser({ ...user, password: values.password });
         toast({ title: 'Password Updated', description: 'Your password has been changed successfully.' });

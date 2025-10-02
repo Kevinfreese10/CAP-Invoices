@@ -1,6 +1,5 @@
 
 
-
 export type VatType =
   // Output Tax
   | 'standard_rated_sales'
@@ -116,7 +115,6 @@ export type Order = {
 };
 
 export type User = {
-  id: string;
   uid: string; // Firebase Authentication UID
   name: string;
   email: string;

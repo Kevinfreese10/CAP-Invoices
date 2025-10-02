@@ -61,7 +61,7 @@ export default function AdminCompliancePage() {
       try {
         const staffQuery = collection(db, "users");
         const staffSnapshot = await getDocs(staffQuery);
-        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
         setAllStaff(fetchedStaff);
 
         const q = query(collection(db, 'complianceRequests'), orderBy('submittedAt', 'desc'));
@@ -93,18 +93,18 @@ export default function AdminCompliancePage() {
     const taskData: Omit<Task, 'id'> = {
         title: `Follow up on Compliance Assessment for ${request.companyName}`,
         description: `A new compliance assessment request has been submitted by ${request.yourName} (${request.yourEmail}). Please review and follow up.`,
-        assignedTo: [assignedStaff.id],
+        assignedTo: [assignedStaff.uid],
         status: 'To-Do',
         priority: 'Medium',
         dueDate: Timestamp.fromDate(dueDate),
-        createdBy: user.id,
+        createdBy: user.uid,
         createdAt: Timestamp.now(),
         comments: [],
     };
     await addDoc(collection(db, 'tasks'), taskData);
 
      // Send email notification
-    if (assignedStaff.id !== user.id && assignedStaff.email) {
+    if (assignedStaff.uid !== user.uid && assignedStaff.email) {
       try {
         const emailHtml = render(<NewTaskEmail 
             assigneeName={assignedStaff.name.split(' ')[0]}
