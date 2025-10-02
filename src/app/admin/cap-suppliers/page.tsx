@@ -53,7 +53,7 @@ export default function CAPSuppliersPage() {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const file = values.invoice[0];
-    if (!preview || !user) {
+    if (!preview || !user?.uid) {
       toast({ title: 'Error', description: 'No file or user session available.', variant: 'destructive' });
       return;
     }
@@ -61,7 +61,7 @@ export default function CAPSuppliersPage() {
     setIsUploading(true);
     toast({ title: 'Uploading Invoice...', description: 'Please wait while the file is being uploaded.' });
     
-    const storageRef = ref(storage, `invoices/${user.id}/${Date.now()}-${file.name}`);
+    const storageRef = ref(storage, `invoices/${user.uid}/${Date.now()}-${file.name}`);
     const uploadTask = uploadBytesResumable(storageRef, file);
 
     uploadTask.on('state_changed', 
@@ -85,7 +85,7 @@ export default function CAPSuppliersPage() {
                     pdfUrl: downloadURL,
                     fileName: file.name,
                     status: 'pending_review',
-                    uploadedBy: user.id,
+                    uploadedBy: user.uid,
                     createdAt: serverTimestamp(),
                 });
 

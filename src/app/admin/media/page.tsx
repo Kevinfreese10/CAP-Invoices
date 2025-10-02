@@ -84,7 +84,7 @@ export default function MediaPage() {
     };
 
     const handleUpload = () => {
-        if (!file || !user) {
+        if (!file || !user?.uid) {
             toast({ title: "No file or user selected", description: "Please choose a file to upload.", variant: "destructive" });
             return;
         }
@@ -92,7 +92,8 @@ export default function MediaPage() {
         setIsUploading(true);
         setUploadProgress(0);
 
-        const storageRef = ref(storage, `invoices/${user.id}/${Date.now()}-${file.name}`);
+        // Corrected path to use user.uid for security rules
+        const storageRef = ref(storage, `invoices/${user.uid}/${Date.now()}-${file.name}`);
         const uploadTask = uploadBytesResumable(storageRef, file);
 
         uploadTask.on('state_changed',
@@ -118,14 +119,15 @@ export default function MediaPage() {
     };
 
     const handleTestRules = async () => {
-        if (!user) {
+        if (!user?.uid) {
             toast({ title: "Not Logged In", description: "Cannot perform test without a logged-in user.", variant: "destructive" });
             return;
         }
         setIsTesting(true);
         toast({ title: "Running Test...", description: "Attempting to write a test file to storage." });
         
-        const testPath = `invoices/${user.id}/test-rule.txt`;
+        // Corrected path to use user.uid
+        const testPath = `invoices/${user.uid}/test-rule.txt`;
         const testRef = ref(storage, testPath);
         const testString = `Test write by ${user.email} at ${new Date().toISOString()}`;
 

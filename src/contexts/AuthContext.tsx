@@ -6,8 +6,10 @@ import type { User } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
 
 const db = getFirestore(firebaseApp);
+const auth = getAuth(firebaseApp);
 
 interface AuthContextType {
   user: User | null;
@@ -25,25 +27,45 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | undefined>(undefined);
 
   useEffect(() => {
-    // This is a persistence check.
-    try {
-      const storedUser = localStorage.getItem('my-accountant-user');
-      if (storedUser) {
-        const parsedUser = JSON.parse(storedUser);
-         if (parsedUser.role !== 'client') {
-            setUser(parsedUser);
-            setIsAuthenticated(true);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+        if (firebaseUser) {
+            // User is signed in, find their profile in Firestore
+            const usersRef = collection(db, "users");
+            const q = query(usersRef, where("uid", "==", firebaseUser.uid));
+            const querySnapshot = await getDocs(q);
+            if (!querySnapshot.empty) {
+                const userDoc = querySnapshot.docs[0];
+                const foundUser = { ...userDoc.data(), id: userDoc.id, uid: firebaseUser.uid } as User;
+                updateUser(foundUser);
+                setIsAuthenticated(true);
+            } else {
+                // Handle case where there's a Firebase user but no profile
+                logout();
+            }
         } else {
-             setIsAuthenticated(false);
-             localStorage.removeItem('my-accountant-user');
+            // User is signed out
+            logout();
         }
-      } else {
+    });
+    
+    // Fallback for persistence if onAuthStateChanged is slow
+    const storedUser = localStorage.getItem('my-accountant-user');
+    if (storedUser) {
+        try {
+            const parsedUser = JSON.parse(storedUser);
+            if (parsedUser.role !== 'client') {
+                setUser(parsedUser);
+                setIsAuthenticated(true);
+            }
+        } catch (e) {
+            console.error("Could not parse user from localStorage", e);
+        }
+    } else {
         setIsAuthenticated(false);
-      }
-    } catch (error) {
-      console.error("Could not parse user from localStorage", error);
-      setIsAuthenticated(false);
     }
+
+
+    return () => unsubscribe();
   }, []);
   
   const updateUser = (updatedUser: User | null) => {
@@ -72,10 +94,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             if (foundUser.password !== password) {
                 return 'invalid_credentials';
             }
-
-            updateUser(foundUser);
+            
+            // This is a mock sign-in for the demo. In a real app, use Firebase Auth.
+            const userWithUid = { ...foundUser, uid: foundUser.id }; // Using doc id as UID for demo
+            updateUser(userWithUid);
             setIsAuthenticated(true);
-            return foundUser;
+            return userWithUid;
         } else {
             return 'invalid_credentials';
         }

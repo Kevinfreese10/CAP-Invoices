@@ -117,6 +117,7 @@ export type Order = {
 
 export type User = {
   id: string;
+  uid: string; // Firebase Authentication UID
   name: string;
   email: string;
   role: 'client' | 'admin' | 'staff' | 'reseller';

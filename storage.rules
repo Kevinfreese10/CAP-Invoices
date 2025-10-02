@@ -6,9 +6,8 @@ service firebase.storage {
     match /{allPaths=**} {
       allow read;
     }
-    
-    // Allow authenticated users to write only to their own folder within 'invoices'.
-    // The `userId` in the path must match the UID of the person making the request.
+
+    // Allow authenticated users to write only to their own folder inside 'invoices'
     match /invoices/{userId}/{allPaths=**} {
       allow write: if request.auth != null && request.auth.uid == userId;
     }
