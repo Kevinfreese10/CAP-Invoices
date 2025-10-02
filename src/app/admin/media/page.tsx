@@ -92,8 +92,8 @@ export default function MediaPage() {
         setIsUploading(true);
         setUploadProgress(0);
 
-        // Corrected path to use user.uid for security rules
-        const storageRef = ref(storage, `invoices/${user.uid}/${Date.now()}-${file.name}`);
+        // Corrected path for general media uploads
+        const storageRef = ref(storage, `uploads/${Date.now()}-${file.name}`);
         const uploadTask = uploadBytesResumable(storageRef, file);
 
         uploadTask.on('state_changed',
@@ -126,8 +126,8 @@ export default function MediaPage() {
         setIsTesting(true);
         toast({ title: "Running Test...", description: "Attempting to write a test file to storage." });
         
-        // Corrected path to use user.uid
-        const testPath = `invoices/${user.uid}/test-rule.txt`;
+        // Corrected path to use a general uploads folder
+        const testPath = `uploads/test-rule-${user.uid}.txt`;
         const testRef = ref(storage, testPath);
         const testString = `Test write by ${user.email} at ${new Date().toISOString()}`;
 

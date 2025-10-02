@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service firebase.storage {
@@ -7,9 +8,14 @@ service firebase.storage {
       allow read;
     }
 
-    // Allow authenticated users to write only to their own folder inside 'invoices'
-    match /invoices/{userId}/{allPaths=**} {
-      allow write: if request.auth != null && request.auth.uid == userId;
+    // Allow authenticated users to write to the 'uploads' directory
+    match /uploads/{fileName} {
+      allow write: if request.auth != null;
+    }
+
+    // Secure the invoices path: only allow users to write to their own folder
+    match /invoices/{userId}/{fileName} {
+        allow write: if request.auth != null && request.auth.uid == userId;
     }
   }
 }
