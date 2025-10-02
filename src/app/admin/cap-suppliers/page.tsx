@@ -140,7 +140,7 @@ export default function CAPSuppliersPage() {
         toast({ title: 'Batch Complete!', description: `${successCount} out of ${previews.length} invoices successfully extracted.` });
         sessionStorage.removeItem(SESSION_STORAGE_KEY_PREVIEWS);
         sessionStorage.removeItem(SESSION_STORAGE_KEY_NAMES);
-        router.push('/admin/cap-suppliers/control-sheet');
+        router.push('/admin/cap-suppliers/review');
     } else {
         toast({ title: 'Batch Failed', description: 'No invoices could be processed.', variant: 'destructive' });
     }
@@ -218,10 +218,10 @@ export default function CAPSuppliersPage() {
           <CardContent>
              <div className="flex flex-col items-center justify-center h-64 text-center text-muted-foreground border-2 border-dashed rounded-lg p-4">
                 <FileText className="h-10 w-10 mb-4" />
-                <p className="font-semibold">Extracted data will appear on the Control Sheet.</p>
+                <p className="font-semibold">Extracted data will appear on the Review page.</p>
                 <p className="text-sm mt-2">1. Upload one or more invoice files.</p>
                 <p className="text-sm">2. Click "Extract Invoices".</p>
-                <p className="text-sm">3. You will be redirected to the Control Sheet to review.</p>
+                <p className="text-sm">3. You will be redirected to the Review page.</p>
             </div>
           </CardContent>
         </Card>
