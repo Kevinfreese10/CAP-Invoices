@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -5,6 +6,7 @@ import AppShell from '@/components/layout/AppShell';
 import ClientProviders from '@/contexts/ClientProviders';
 import { bodyFont, headlineFont } from '@/app/fonts';
 import { cn } from '@/lib/utils';
+import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 
 export const metadata: Metadata = {
   title: {
@@ -47,6 +49,7 @@ export default function RootLayout({
       <body className={cn("antialiased", bodyFont.variable, headlineFont.variable)}>
         <AuthProvider>
             <ClientProviders>
+                <FirebaseErrorListener />
                 <AppShell>
                 {children}
                 </AppShell>

@@ -1,5 +1,8 @@
 
-import { initializeApp, getApps, getApp } from 'firebase/app';
+
+import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
+import { getAuth, Auth } from 'firebase/auth';
+import { getFirestore, Firestore } from 'firebase/firestore';
 
 export const firebaseConfig = {
   "projectId": "studio-2604127518-57889",
@@ -10,12 +13,24 @@ export const firebaseConfig = {
   "messagingSenderId": "248831476160"
 };
 
-// Initialize Firebase
-let app;
-if (!getApps().length) {
-  app = initializeApp(firebaseConfig);
-} else {
-  app = getApp();
+type FirebaseServices = {
+  app: FirebaseApp;
+  auth: Auth;
+  db: Firestore;
+};
+
+let firebaseServices: FirebaseServices | null = null;
+
+function initializeFirebase(): FirebaseServices {
+  if (!firebaseServices) {
+    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    firebaseServices = { app, auth, db };
+  }
+  return firebaseServices;
 }
 
-export { app as firebaseApp };
+const { app: firebaseApp, auth, db } = initializeFirebase();
+
+export { firebaseApp, auth, db };

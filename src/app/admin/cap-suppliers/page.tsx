@@ -11,15 +11,16 @@ import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Upload, Sparkles, FileText } from 'lucide-react';
-import { extractInvoiceData, ExtractInvoiceDataOutput } from '@/ai/flows/extract-invoice-data';
+import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import { getFirestore, addDoc, collection, serverTimestamp } from "firebase/firestore";
-import { firebaseApp } from '@/lib/firebase';
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
-const storage = getStorage(firebaseApp);
-const db = getFirestore(firebaseApp);
+const storage = getStorage();
 
 const formSchema = z.object({
   invoice: z.custom<FileList>().refine((files) => files && files.length > 0, 'An invoice file is required.'),
@@ -79,17 +80,32 @@ export default function CAPSuppliersPage() {
 
             try {
                 const result = await extractInvoiceData({ invoiceImage: preview });
+
+                if (!result || !result.supplier) {
+                    toast({ title: 'Extraction Failed', description: 'AI could not extract valid data from the invoice. Please try a clearer image.', variant: 'destructive' });
+                    setIsExtracting(false);
+                    return;
+                }
                 
-                await addDoc(collection(db, "extractedInvoices"), {
+                const invoiceData = {
                     ...result,
                     pdfUrl: downloadURL,
                     fileName: file.name,
                     status: 'pending_review',
                     uploadedBy: user.uid,
                     createdAt: serverTimestamp(),
+                };
+
+                addDoc(collection(db, "extractedInvoices"), invoiceData).catch(serverError => {
+                  const permissionError = new FirestorePermissionError({
+                    path: `extractedInvoices/${invoiceData.invoiceNumber}`,
+                    operation: 'create',
+                    requestResourceData: invoiceData,
+                  });
+                  errorEmitter.emit('permission-error', permissionError);
                 });
 
-                toast({ title: 'Extraction Complete!', description: 'Data successfully extracted and saved.' });
+                toast({ title: 'Extraction Complete!', description: 'Data successfully extracted and saved for review.' });
                 router.push('/admin/cap-suppliers/control-sheet');
 
             } catch (error) {
