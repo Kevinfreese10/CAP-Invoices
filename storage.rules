@@ -2,15 +2,15 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // Allow public read access for all files
+    // Grant public read access to all files.
     match /{allPaths=**} {
-      allow read;
+      allow read: if true;
     }
 
-    // Allow any authenticated user to write to the invoices directory.
-    // Access to the upload page itself is controlled by the application's auth context.
+    // Allow authenticated users to write only to their own folder within 'invoices'.
+    // The {userId} wildcard in the path is matched against the UID of the user making the request.
     match /invoices/{userId}/{allPaths=**} {
-      allow write: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
   }
 }
