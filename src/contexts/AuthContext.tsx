@@ -71,7 +71,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             const userDoc = querySnapshot.docs[0];
             const foundUser = { ...userDoc.data(), id: userDoc.id } as User;
             
-            if (foundUser.role !== 'client') {
+            if (foundUser.role === 'admin' || foundUser.role === 'staff' || foundUser.role === 'reseller') {
                 updateUserState(foundUser);
                 return foundUser;
             }
@@ -79,7 +79,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
         console.error("Error logging in:", error);
     }
-
+    // If no user is found or role is not correct, return undefined
     return undefined;
   };
 
