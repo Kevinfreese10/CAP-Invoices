@@ -1,18 +1,18 @@
+
 rules_version = '2';
+
 service firebase.storage {
   match /b/{bucket}/o {
-    // Allow public read access to all files so images can be displayed.
+    // Allow public read access to all files
     match /{allPaths=**} {
       allow read;
     }
 
-    // Restrict write access (uploads/deletes) to the 'uploads' folder.
-    // Only authenticated users whose role is 'admin' or 'staff' in Firestore can write.
+    // Restrict write access to the 'uploads' folder
     match /uploads/{allPaths=**} {
-      allow write: if request.auth != null && (
-        get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-        get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'staff'
-      );
+      // Allow write only if the user is authenticated and their role is 'admin' or 'staff'
+      allow write: if request.auth != null && 
+                      get(/databases/(default)/documents/users/$(request.auth.uid)).data.role in ['admin', 'staff'];
     }
   }
 }
