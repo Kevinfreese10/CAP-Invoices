@@ -32,7 +32,6 @@ type ExtractedInvoice = {
   lineItems: { description: string; exclusiveAmount: number; vatAmount: number; }[];
   invoiceTotal: number;
   status: 'pending_review' | 'approved';
-  pdfUrl: string;
   fileName: string;
   createdAt: any;
 };
@@ -223,7 +222,7 @@ export default function ControlSheetPage() {
                                 <TableCell className="font-medium">{invoice.supplier}</TableCell>
                                 <TableCell>{invoice.invoiceNumber}</TableCell>
                                 <TableCell>{invoice.date}</TableCell>
-                                <TableCell><a href={invoice.pdfUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{invoice.fileName}</a></TableCell>
+                                <TableCell>{invoice.fileName}</TableCell>
                                 <TableCell className="text-right font-mono">R {invoice.invoiceTotal.toFixed(2)}</TableCell>
                                 <TableCell className="text-right">
                                      <DropdownMenu>

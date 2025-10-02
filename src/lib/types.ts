@@ -1,5 +1,4 @@
 
-
 export type VatType =
   // Output Tax
   | 'standard_rated_sales'
@@ -247,7 +246,6 @@ export type ExtractedInvoice = {
   lineItems: { description: string; exclusiveAmount: number; vatAmount: number; }[];
   invoiceTotal: number;
   status: 'pending_review' | 'approved';
-  pdfUrl: string;
   fileName: string;
   createdAt: any;
   uploadedBy: string;

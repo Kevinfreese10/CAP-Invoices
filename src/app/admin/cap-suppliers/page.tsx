@@ -12,16 +12,14 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Upload, Sparkles, FileText } from 'lucide-react';
 import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
-import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { getAuth } from 'firebase/auth';
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db, firebaseApp } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError, StoragePermissionError, type SecurityRuleContext } from '@/firebase/errors';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
-const storage = getStorage(firebaseApp);
 const auth = getAuth(firebaseApp);
 
 const formSchema = z.object({
@@ -31,9 +29,9 @@ const formSchema = z.object({
 const SESSION_STORAGE_KEY = 'cap-invoice-preview';
 
 export default function CAPSuppliersPage() {
-  const [isUploading, setIsUploading] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
   const router = useRouter();
@@ -45,8 +43,12 @@ export default function CAPSuppliersPage() {
   useEffect(() => {
     // On component mount, check if there's an invoice in session storage
     const savedInvoice = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    const savedFileName = sessionStorage.getItem(`${SESSION_STORAGE_KEY}_name`);
     if (savedInvoice) {
       setPreview(savedInvoice);
+    }
+    if (savedFileName) {
+        setFileName(savedFileName);
     }
   }, []);
 
@@ -57,18 +59,21 @@ export default function CAPSuppliersPage() {
       reader.onloadend = () => {
         const dataUrl = reader.result as string;
         setPreview(dataUrl);
+        setFileName(file.name);
         // Save the data URL to session storage
         sessionStorage.setItem(SESSION_STORAGE_KEY, dataUrl);
+        sessionStorage.setItem(`${SESSION_STORAGE_KEY}_name`, file.name);
       };
       reader.readAsDataURL(file);
     } else {
       setPreview(null);
+      setFileName(null);
       sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      sessionStorage.removeItem(`${SESSION_STORAGE_KEY}_name`);
     }
   };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    const file = values.invoice[0];
     const currentUser = auth.currentUser;
 
     if (!preview || !currentUser?.uid) {
@@ -76,86 +81,53 @@ export default function CAPSuppliersPage() {
       return;
     }
 
-    setIsUploading(true);
-    toast({ title: 'Uploading Invoice...', description: 'Please wait while the file is being uploaded.' });
+    setIsExtracting(true);
+    toast({ title: 'Extracting Data with AI...', description: 'Please wait while the invoice is being processed.' });
     
-    const storageRef = ref(storage, `invoices/${currentUser.uid}/${Date.now()}-${file.name}`);
-    const uploadTask = uploadBytesResumable(storageRef, file);
+    try {
+        const result = await extractInvoiceData({ invoiceImage: preview });
 
-    uploadTask.on('state_changed', 
-        null, 
-        (error) => {
-            if (error.code === 'storage/unauthorized') {
-                const permissionError = new StoragePermissionError({
-                    path: storageRef.fullPath,
-                    operation: 'write',
-                });
-                errorEmitter.emit('storage-permission-error', permissionError);
-            } else {
-                 toast({
-                    title: 'Upload Failed',
-                    description: `Error: ${error.code} - Please try again.`,
-                    variant: 'destructive',
-                    duration: 9000,
-                });
-            }
-            console.error('Upload failed:', error);
-            setIsUploading(false);
-        }, 
-        async () => {
-            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-            setIsUploading(false);
-            setIsExtracting(true);
-            toast({ title: 'Upload Complete!', description: 'Now extracting data with AI...' });
-
-            try {
-                const result = await extractInvoiceData({ invoiceImage: preview });
-
-                if (!result || !result.supplier) {
-                    toast({ title: 'Extraction Failed', description: 'AI could not extract valid data from the invoice. Please try a clearer image.', variant: 'destructive' });
-                    setIsExtracting(false);
-                    return;
-                }
-                
-                const invoiceData = {
-                    ...result,
-                    pdfUrl: downloadURL,
-                    fileName: file.name,
-                    status: 'pending_review',
-                    uploadedBy: currentUser.uid,
-                    createdAt: serverTimestamp(),
-                };
-                
-                const collRef = collection(db, "extractedInvoices");
-                addDoc(collRef, invoiceData)
-                  .then(() => {
-                      toast({ title: 'Extraction Complete!', description: 'Data successfully extracted and saved for review.' });
-                      sessionStorage.removeItem(SESSION_STORAGE_KEY); // Clear storage on success
-                      router.push('/admin/cap-suppliers/control-sheet');
-                  })
-                  .catch(async (serverError) => {
-                    const permissionError = new FirestorePermissionError({
-                        path: collRef.path,
-                        operation: 'create',
-                        requestResourceData: invoiceData,
-                    } satisfies SecurityRuleContext);
-                    errorEmitter.emit('permission-error', permissionError);
-                  });
-
-            } catch (error) {
-                console.error('Invoice extraction error:', error);
-                toast({ title: 'Extraction Failed', description: 'Could not extract data from the invoice. Please try again.', variant: 'destructive' });
-            } finally {
-                // This ensures the loading state is always reset if extraction fails before the Firestore write
-                if (form.formState.isSubmitting) {
-                  setIsExtracting(false);
-                }
-            }
+        if (!result || !result.supplier) {
+            toast({ title: 'Extraction Failed', description: 'AI could not extract valid data from the invoice. Please try a clearer image.', variant: 'destructive' });
+            setIsExtracting(false);
+            return;
         }
-    );
+        
+        const invoiceData = {
+            ...result,
+            pdfUrl: '', // No longer saving to storage
+            fileName: fileName || 'N/A',
+            status: 'pending_review' as const,
+            uploadedBy: currentUser.uid,
+            createdAt: serverTimestamp(),
+        };
+        
+        const collRef = collection(db, "extractedInvoices");
+        addDoc(collRef, invoiceData)
+          .then(() => {
+              toast({ title: 'Extraction Complete!', description: 'Data successfully extracted and saved for review.' });
+              sessionStorage.removeItem(SESSION_STORAGE_KEY); // Clear storage on success
+              sessionStorage.removeItem(`${SESSION_STORAGE_KEY}_name`);
+              router.push('/admin/cap-suppliers/control-sheet');
+          })
+          .catch(async (serverError) => {
+            const permissionError = new FirestorePermissionError({
+                path: collRef.path,
+                operation: 'create',
+                requestResourceData: invoiceData,
+            } satisfies SecurityRuleContext);
+            errorEmitter.emit('permission-error', permissionError);
+            setIsExtracting(false);
+          });
+
+    } catch (error) {
+        console.error('Invoice extraction error:', error);
+        toast({ title: 'Extraction Failed', description: 'Could not extract data from the invoice. Please try again.', variant: 'destructive' });
+        setIsExtracting(false);
+    }
   };
 
-  const isLoading = isUploading || isExtracting;
+  const isLoading = isExtracting;
 
   return (
     <div className="space-y-8">
@@ -166,7 +138,7 @@ export default function CAPSuppliersPage() {
         <Card>
           <CardHeader>
             <CardTitle>Upload Invoice</CardTitle>
-            <CardDescription>Upload an invoice PDF to automatically extract its details using AI.</CardDescription>
+            <CardDescription>Upload an invoice PDF or image to automatically extract its details using AI.</CardDescription>
           </CardHeader>
           <CardContent>
             <Form {...form}>
@@ -199,8 +171,8 @@ export default function CAPSuppliersPage() {
                   </div>
                 )}
                 <Button type="submit" disabled={isLoading || !preview || !user}>
-                  {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : isExtracting ? <Sparkles className="mr-2 h-4 w-4 animate-ping" /> : <Upload className="mr-2 h-4 w-4" />}
-                  {isUploading ? 'Uploading...' : isExtracting ? 'Extracting Data...' : 'Upload & Extract'}
+                  {isExtracting ? <Sparkles className="mr-2 h-4 w-4 animate-ping" /> : <Upload className="mr-2 h-4 w-4" />}
+                  {isExtracting ? 'Extracting Data...' : 'Extract Invoice Data'}
                 </Button>
               </form>
             </Form>
@@ -216,8 +188,8 @@ export default function CAPSuppliersPage() {
              <div className="flex flex-col items-center justify-center h-64 text-center text-muted-foreground border-2 border-dashed rounded-lg p-4">
                 <FileText className="h-10 w-10 mb-4" />
                 <p className="font-semibold">Your extracted data will be displayed on the Control Sheet.</p>
-                <p className="text-sm mt-2">1. Upload an invoice PDF.</p>
-                <p className="text-sm">2. Click "Upload & Extract".</p>
+                <p className="text-sm mt-2">1. Upload an invoice file.</p>
+                <p className="text-sm">2. Click "Extract Invoice Data".</p>
                 <p className="text-sm">3. You will be redirected to the Control Sheet to review.</p>
             </div>
           </CardContent>
