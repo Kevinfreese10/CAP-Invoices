@@ -14,6 +14,8 @@ import '@/ai/flows/numera-flow.ts';
 import '@/ai/flows/allocate-transaction.ts';
 import '@/ai/flows/refine-allocation-knowledge.ts';
 import '@/ai/flows/get-ai-suggestions.ts';
+import '@/ai/flows/extract-invoice-data.ts';
+
 
 
 
