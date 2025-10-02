@@ -1,14 +1,16 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Allow any authenticated user to write to the general uploads folder
-    match /uploads/{allPaths=**} {
-      allow write: if request.auth != null;
+    // Allow writes to a user-specific folder in 'invoices'
+    // The {userId} wildcard matches the user's UID in the path.
+    // The rule checks if the authenticated user's UID matches the folder name.
+    match /invoices/{userId}/{allPaths=**} {
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Allow users to write to their own folder within 'invoices'
-    match /invoices/{userId}/{fileName} {
-      allow write: if request.auth != null && request.auth.uid == userId;
+    // Allow writes to a general 'uploads' folder for authenticated users
+    match /uploads/{allPaths=**} {
+        allow write: if request.auth != null;
     }
   }
 }
