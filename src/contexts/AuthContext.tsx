@@ -6,7 +6,7 @@ import type { User } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 
 const db = getFirestore(firebaseApp);
 const auth = getAuth(firebaseApp);
@@ -27,9 +27,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | undefined>(undefined);
 
   useEffect(() => {
+    const storedUser = localStorage.getItem('my-accountant-user');
+    if (storedUser) {
+        try {
+            const parsedUser = JSON.parse(storedUser);
+            setUser(parsedUser);
+            setIsAuthenticated(true);
+        } catch (e) {
+            console.error("Could not parse user from localStorage", e);
+            setIsAuthenticated(false);
+        }
+    } else {
+        setIsAuthenticated(false);
+    }
+    
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
         if (firebaseUser) {
-            // User is signed in, find their profile in Firestore
             const usersRef = collection(db, "users");
             const q = query(usersRef, where("uid", "==", firebaseUser.uid));
             const querySnapshot = await getDocs(q);
@@ -39,31 +52,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 updateUser(foundUser);
                 setIsAuthenticated(true);
             } else {
-                // Handle case where there's a Firebase user but no profile
-                logout();
+                // This case might happen if a user exists in Auth but not Firestore.
+                // For this app's logic, we treat them as logged out.
+                logout(); 
             }
         } else {
-            // User is signed out
             logout();
         }
     });
-    
-    // Fallback for persistence if onAuthStateChanged is slow
-    const storedUser = localStorage.getItem('my-accountant-user');
-    if (storedUser) {
-        try {
-            const parsedUser = JSON.parse(storedUser);
-            if (parsedUser.role !== 'client') {
-                setUser(parsedUser);
-                setIsAuthenticated(true);
-            }
-        } catch (e) {
-            console.error("Could not parse user from localStorage", e);
-        }
-    } else {
-        setIsAuthenticated(false);
-    }
-
 
     return () => unsubscribe();
   }, []);
@@ -78,44 +74,56 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   const login = async (email: string, password?: string): Promise<User | 'invalid_role' | 'invalid_credentials' | undefined> => {
+    if (!password) return 'invalid_credentials';
     try {
+        // Step 1: Authenticate with Firebase Auth
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const firebaseUser = userCredential.user;
+
+        // Step 2: Fetch user profile from Firestore
         const usersRef = collection(db, "users");
         const q = query(usersRef, where("email", "==", email));
         const querySnapshot = await getDocs(q);
         
-        if (!querySnapshot.empty) {
-            const userDoc = querySnapshot.docs[0];
-            const foundUser = { ...userDoc.data(), id: userDoc.id } as User;
-            
-            if (foundUser.role !== 'admin' && foundUser.role !== 'staff' && foundUser.role !== 'reseller') {
-                return 'invalid_role';
-            }
-
-            if (foundUser.password !== password) {
-                return 'invalid_credentials';
-            }
-            
-            // This is a mock sign-in for the demo. In a real app, use Firebase Auth.
-            const userWithUid = { ...foundUser, uid: foundUser.id }; // Using doc id as UID for demo
-            updateUser(userWithUid);
-            setIsAuthenticated(true);
-            return userWithUid;
-        } else {
+        if (querySnapshot.empty) {
+            // This case should ideally not happen if user creation is handled correctly
+            await auth.signOut();
             return 'invalid_credentials';
         }
-    } catch (error) {
-        console.error("Error logging in:", error);
+
+        const userDoc = querySnapshot.docs[0];
+        const foundUser = { ...userDoc.data(), id: userDoc.id } as User;
+        
+        if (foundUser.role !== 'admin' && foundUser.role !== 'staff' && foundUser.role !== 'reseller') {
+            await auth.signOut();
+            return 'invalid_role';
+        }
+
+        // This is the critical fix: ensure the uid from Firebase Auth is on the user object
+        const userWithUid = { ...foundUser, uid: firebaseUser.uid };
+        
+        updateUser(userWithUid);
+        setIsAuthenticated(true);
+        return userWithUid;
+
+    } catch (error: any) {
+        console.error("Error logging in:", error.code);
+        if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+             return 'invalid_credentials';
+        }
         return undefined;
     }
   };
 
   const logout = () => {
+    auth.signOut();
     updateUser(null);
     setIsAuthenticated(false);
   };
 
   const signup = (name: string, email: string) => {
-    const newUser: User = { id: `new-user-${Date.now()}`, name, email, role: 'client' };
+    // This is a placeholder for client-side signup and doesn't create a real user.
+    const newUser: User = { id: `new-user-${Date.now()}`, uid: `new-uid-${Date.now()}`, name, email, role: 'client' };
     console.log("New client signup (placeholder):", newUser);
     return newUser;
   };
