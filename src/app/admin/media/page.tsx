@@ -6,13 +6,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { services } from '@/lib/data';
 import { blogPosts } from '@/lib/data';
 import { useState, useEffect } from 'react';
-import { getStorage, ref, uploadBytesResumable, getDownloadURL, listAll } from 'firebase/storage';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL, listAll, uploadString } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Upload } from 'lucide-react';
+import { Loader2, Upload, FlaskConical } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import { useAuth } from '@/contexts/AuthContext';
 
 const storage = getStorage(firebaseApp);
 
@@ -41,7 +42,9 @@ export default function MediaPage() {
     const [file, setFile] = useState<File | null>(null);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [isUploading, setIsUploading] = useState(false);
+    const [isTesting, setIsTesting] = useState(false);
     const { toast } = useToast();
+    const { user } = useAuth();
 
     const fetchUploadedImages = async () => {
         setIsLoading(true);
@@ -81,15 +84,15 @@ export default function MediaPage() {
     };
 
     const handleUpload = () => {
-        if (!file) {
-            toast({ title: "No file selected", description: "Please choose a file to upload.", variant: "destructive" });
+        if (!file || !user) {
+            toast({ title: "No file or user selected", description: "Please choose a file to upload.", variant: "destructive" });
             return;
         }
 
         setIsUploading(true);
         setUploadProgress(0);
 
-        const storageRef = ref(storage, `uploads/${Date.now()}-${file.name}`);
+        const storageRef = ref(storage, `invoices/${user.id}/${Date.now()}-${file.name}`);
         const uploadTask = uploadBytesResumable(storageRef, file);
 
         uploadTask.on('state_changed',
@@ -114,6 +117,39 @@ export default function MediaPage() {
         );
     };
 
+    const handleTestRules = async () => {
+        if (!user) {
+            toast({ title: "Not Logged In", description: "Cannot perform test without a logged-in user.", variant: "destructive" });
+            return;
+        }
+        setIsTesting(true);
+        toast({ title: "Running Test...", description: "Attempting to write a test file to storage." });
+        
+        const testPath = `invoices/${user.id}/test-rule.txt`;
+        const testRef = ref(storage, testPath);
+        const testString = `Test write by ${user.email} at ${new Date().toISOString()}`;
+
+        try {
+            await uploadString(testRef, testString);
+            toast({
+                title: "Test Successful!",
+                description: `Successfully wrote to path: ${testPath}. Your rules are working correctly for this path and user.`,
+                variant: "success",
+                duration: 9000,
+            });
+        } catch (error: any) {
+            console.error("Rule test failed:", error);
+             toast({
+                title: "Test Failed: Permission Denied",
+                description: `Code: ${error.code}. Message: ${error.message}. Please check your storage rules.`,
+                variant: "destructive",
+                duration: 9000,
+            });
+        } finally {
+            setIsTesting(false);
+        }
+    }
+
     const combinedImages = [...allImages, ...uploadedImages];
     const uniqueImages = Array.from(new Map(combinedImages.map(item => [item.url, item])).values());
 
@@ -132,6 +168,10 @@ export default function MediaPage() {
                     <Button onClick={handleUpload} disabled={isUploading || !file}>
                         {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
                         {isUploading ? `Uploading... ${Math.round(uploadProgress)}%` : 'Upload Image'}
+                    </Button>
+                    <Button onClick={handleTestRules} variant="outline" disabled={isTesting}>
+                        {isTesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FlaskConical className="mr-2 h-4 w-4" />}
+                        Test Storage Rules
                     </Button>
                 </div>
                 {isUploading && <Progress value={uploadProgress} className="w-full" />}
