@@ -608,8 +608,8 @@ export default function AdminDashboardPage() {
     };
     
     useEffect(() => {
-        if (user) fetchDashboardData();
-    }, [user]);
+        fetchDashboardData();
+    }, []);
 
     const staffByDept = useMemo(() => {
         const result: Record<string, User[]> = {};
@@ -1037,6 +1037,7 @@ export default function AdminDashboardPage() {
     
 
     
+
 
 
 
