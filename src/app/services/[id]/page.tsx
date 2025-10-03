@@ -7,7 +7,7 @@ import { Service } from '@/lib/types';
 import ClientServiceCheckoutForm from '@/components/checkout/ClientServiceCheckoutForm';
 import { Separator } from '@/components/ui/separator';
 import type { Metadata } from 'next';
-import Image from 'next/image';
+import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
 
 const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -51,7 +51,7 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
   };
 }
 
-export default function ServiceDetailPage({ params }: { params: { id: string } }) {
+export default async function ServiceDetailPage({ params }: { params: { id: string } }) {
   const service = services.find(s => s.id === params.id) as Service;
 
   if (!service) {
@@ -60,6 +60,9 @@ export default function ServiceDetailPage({ params }: { params: { id: string } }
 
   return (
     <div className="container mx-auto px-4 py-12">
+        <div className="text-center mb-8">
+            <TrustIndexWidget />
+        </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
         <div className="space-y-8 md:col-span-2">
             
