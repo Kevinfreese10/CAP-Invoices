@@ -1,5 +1,4 @@
 
-
 'use client';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -46,7 +45,7 @@ const formSchema = z.object({
 
 type ServiceFormProps = {
   service: Service | null;
-  onSubmit: (data: Service) => void;
+  onSubmit: (data: any) => void;
 };
 
 const serviceCategories = [
@@ -81,8 +80,8 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
       category: service?.category || '',
       department: service?.department || 'Administration',
       turnaroundTime: service?.turnaroundTime || '',
-      whatsIncluded: service?.whatsIncluded.map(v => ({ value: v })) || [{ value: '' }],
-      clientRequirements: service?.clientRequirements.map(v => ({ value: v })) || [{ value: '' }],
+      whatsIncluded: service?.whatsIncluded?.map(v => ({ value: v })) || [{ value: '' }],
+      clientRequirements: service?.clientRequirements?.map(v => ({ value: v })) || [{ value: '' }],
       informationToProvide: service?.informationToProvide || [],
       metaTitle: service?.metaTitle || '',
       metaDescription: service?.metaDescription || '',
@@ -161,7 +160,7 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
         clientRequirements: values.clientRequirements.map(v => v.value),
         informationToProvide: values.informationToProvide,
         metaKeywords: values.metaKeywords?.map(v => v.value),
-    } as Service
+    }
     onSubmit(serviceData);
   };
 
@@ -468,5 +467,3 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
     </Form>
   );
 }
-
-    

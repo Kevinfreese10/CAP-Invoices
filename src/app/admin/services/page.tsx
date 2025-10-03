@@ -1,26 +1,49 @@
 
 'use client';
-import { useState } from 'react';
-import { services as initialServices } from '@/lib/data';
+import { useState, useEffect } from 'react';
 import { Service } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import ServiceForm from '@/components/admin/ServiceForm';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import ServicePreview from '@/components/admin/ServicePreview';
+import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
+
+const db = getFirestore(firebaseApp);
 
 export default function AdminServicesPage() {
-  const [services, setServices] = useState<Service[]>(initialServices);
+  const [services, setServices] = useState<Service[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [viewingService, setViewingService] = useState<Service | null>(null);
   const { toast } = useToast();
+
+  const fetchServices = async () => {
+    setIsLoading(true);
+    try {
+        const q = query(collection(db, "services"), orderBy("title"));
+        const querySnapshot = await getDocs(q);
+        const fetchedServices = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Service));
+        setServices(fetchedServices);
+    } catch (error) {
+        console.error("Error fetching services:", error);
+        toast({ title: 'Error', description: 'Could not fetch services from the database.', variant: 'destructive'});
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchServices();
+  }, []);
 
   const handleAddService = () => {
     setSelectedService(null);
@@ -32,38 +55,38 @@ export default function AdminServicesPage() {
     setIsFormOpen(true);
   };
   
-  const handleDeleteService = (serviceId: string) => {
-    setServices(prevServices => prevServices.filter(s => s.id !== serviceId));
-    toast({
-        title: 'Service Deleted',
-        description: 'The service has been successfully removed.',
-        variant: 'destructive',
-    })
+  const handleDeleteService = async (serviceId: string) => {
+    try {
+        await deleteDoc(doc(db, "services", serviceId));
+        fetchServices();
+        toast({
+            title: 'Service Deleted',
+            description: 'The service has been successfully removed.',
+            variant: 'destructive',
+        });
+    } catch (error) {
+        console.error("Error deleting service:", error);
+        toast({ title: 'Error', description: 'Could not delete the service.', variant: 'destructive' });
+    }
   };
 
-  const handleFormSubmit = (serviceData: Service) => {
-    if (selectedService) {
-      // Update existing service
-      setServices(prevServices =>
-        prevServices.map(s => (s.id === serviceData.id ? serviceData : s))
-      );
-       toast({
-        title: 'Service Updated',
-        description: 'The service details have been saved.',
-      });
-    } else {
-      // Add new service
-      setServices(prevServices => [
-        ...prevServices,
-        { ...serviceData, id: `new-service-${Date.now()}` }, // Mock ID
-      ]);
-       toast({
-        title: 'Service Created',
-        description: 'The new service has been added successfully.',
-      });
+  const handleFormSubmit = async (serviceData: Omit<Service, 'id'> & { id?: string }) => {
+    const { id, ...data } = serviceData;
+    try {
+        if (id) {
+            await setDoc(doc(db, "services", id), data, { merge: true });
+            toast({ title: 'Service Updated', description: 'The service details have been saved.' });
+        } else {
+            await addDoc(collection(db, "services"), { ...data, createdAt: serverTimestamp() });
+            toast({ title: 'Service Created', description: 'The new service has been added successfully.' });
+        }
+        fetchServices();
+        setIsFormOpen(false);
+        setSelectedService(null);
+    } catch (error) {
+        console.error("Error saving service:", error);
+        toast({ title: 'Error', description: 'Could not save the service.', variant: 'destructive'});
     }
-    setIsFormOpen(false);
-    setSelectedService(null);
   };
 
 
@@ -98,6 +121,11 @@ export default function AdminServicesPage() {
           <CardDescription>View, edit, and delete your company's services.</CardDescription>
         </CardHeader>
         <CardContent>
+          {isLoading ? (
+            <div className="flex justify-center items-center h-64">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -178,6 +206,7 @@ export default function AdminServicesPage() {
               ))}
             </TableBody>
           </Table>
+          )}
         </CardContent>
       </Card>
     </div>
