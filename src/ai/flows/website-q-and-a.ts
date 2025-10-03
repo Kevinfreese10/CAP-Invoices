@@ -10,12 +10,11 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { services } from '@/lib/data';
-import { blogPosts } from '@/lib/data';
 import { faqs } from '@/lib/data';
 import { knowledgeBaseItems } from '@/lib/knowledge-base';
-import { getFirestore, collection, addDoc, Timestamp } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, Timestamp, getDocs, query, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
+import { Service, BlogPost } from '@/lib/types';
 
 const db = getFirestore(firebaseApp);
 
@@ -34,6 +33,13 @@ export type WebsiteQAndAOutput = z.infer<typeof WebsiteQAndAOutputSchema>;
 export async function websiteQAndA(
   input: WebsiteQAndAInput
 ): Promise<WebsiteQAndAOutput> {
+  // Fetch live data from Firestore
+  const servicesSnapshot = await getDocs(query(collection(db, 'services'), orderBy('title')));
+  const services = servicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
+
+  const blogPostsSnapshot = await getDocs(query(collection(db, 'blogPosts'), orderBy('date', 'desc')));
+  const blogPosts = blogPostsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BlogPost));
+
   // Serialize the website content to pass to the prompt
   const websiteContent = `
     SERVICES:
