@@ -132,6 +132,8 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
         form.setValue('description', result.shortDescription);
         form.setValue('longDescription', result.longDescription);
         form.setValue('turnaroundTime', result.turnaroundTime);
+        form.setValue('whatsIncluded', result.whatsIncluded.map(item => ({ value: item })));
+        form.setValue('clientRequirements', result.clientRequirements.map(item => ({ value: item })));
         form.setValue('metaTitle', result.metaTitle);
         form.setValue('metaDescription', result.metaDescription);
         form.setValue('metaKeywords', result.metaKeywords.map(k => ({ value: k })));

@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview An AI agent for generating service details and SEO content.
@@ -20,6 +21,8 @@ const GenerateServiceDetailsOutputSchema = z.object({
   shortDescription: z.string().describe('A concise, one-sentence description of the service.'),
   longDescription: z.string().describe('A detailed, paragraph-long description of the service, highlighting its benefits and features.'),
   turnaroundTime: z.string().describe('A typical turnaround time for this service (e.g., "5-7 working days").'),
+  whatsIncluded: z.array(z.string()).describe("A bulleted list of what is included in the service package."),
+  clientRequirements: z.array(z.string()).describe("A bulleted list of documents or information required from the client before work can begin."),
   metaTitle: z.string().describe('An SEO-optimized meta title, under 60 characters. It should be compelling, include the main keyword (service title), and end with the brand name "| My Accountant".'),
   metaDescription: z.string().describe('An SEO-optimized meta description, between 140-160 characters. It should be a compelling, actionable summary that encourages clicks.'),
   metaKeywords: z.array(z.string()).describe('A list of 3-5 relevant SEO keywords or keyphrases.'),
@@ -49,6 +52,8 @@ const prompt = ai.definePrompt({
   - **Short Description**: A concise, one-sentence description of the service.
   - **Long Description**: A detailed long description (one paragraph) explaining what the service is, who it's for, and its benefits.
   - **Turnaround Time**: A typical turnaround time for this service (e.g., "5-7 working days").
+  - **What's Included**: A list of 3-5 key deliverables or components that the client receives as part of this service.
+  - **Client Requirements**: A list of 3-5 essential documents or pieces of information the client *must* provide before work can begin.
   
   ---
   
