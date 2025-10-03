@@ -1,6 +1,6 @@
 
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Service } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,12 +11,25 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import ServiceForm from '@/components/admin/ServiceForm';
 import { useToast } from '@/hooks/use-toast';
-import Link from 'next/link';
 import ServicePreview from '@/components/admin/ServicePreview';
 import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const db = getFirestore(firebaseApp);
+
+const serviceCategories = [
+    "SARS Services",
+    "Entity Registrations",
+    "CIPC Services",
+    "COIDA Services",
+    "NCR Registrations",
+    "Accounting Services",
+    "CIDB Services",
+];
+
+const departments = ['Accounting and Tax', 'Administration', 'CAP'] as const;
 
 export default function AdminServicesPage() {
   const [services, setServices] = useState<Service[]>([]);
@@ -25,6 +38,10 @@ export default function AdminServicesPage() {
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [viewingService, setViewingService] = useState<Service | null>(null);
   const { toast } = useToast();
+
+  const [titleFilter, setTitleFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [departmentFilter, setDepartmentFilter] = useState('all');
 
   const fetchServices = async () => {
     setIsLoading(true);
@@ -44,6 +61,16 @@ export default function AdminServicesPage() {
   useEffect(() => {
     fetchServices();
   }, []);
+
+  const filteredServices = useMemo(() => {
+    return services.filter(service => {
+        const titleMatch = service.title.toLowerCase().includes(titleFilter.toLowerCase());
+        const categoryMatch = categoryFilter === 'all' || service.category === categoryFilter;
+        const departmentMatch = departmentFilter === 'all' || service.department === departmentFilter;
+        return titleMatch && categoryMatch && departmentMatch;
+    });
+  }, [services, titleFilter, categoryFilter, departmentFilter]);
+
 
   const handleAddService = () => {
     setSelectedService(null);
@@ -75,7 +102,7 @@ export default function AdminServicesPage() {
     
     const finalData = {
         ...data,
-        resellerPrice: data.resellerPrice,
+        resellerPrice: data.price * 0.9,
     };
     
     try {
@@ -125,6 +152,36 @@ export default function AdminServicesPage() {
         <CardHeader>
           <CardTitle>All Services</CardTitle>
           <CardDescription>View, edit, and delete your company's services.</CardDescription>
+           <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                <Input
+                    placeholder="Filter by title..."
+                    value={titleFilter}
+                    onChange={(e) => setTitleFilter(e.target.value)}
+                    className="max-w-sm"
+                />
+                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                    <SelectTrigger className="w-full sm:w-[180px]">
+                        <SelectValue placeholder="Filter by category..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Categories</SelectItem>
+                        {serviceCategories.map(cat => (
+                            <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+                 <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+                    <SelectTrigger className="w-full sm:w-[180px]">
+                        <SelectValue placeholder="Filter by department..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Departments</SelectItem>
+                        {departments.map(dep => (
+                            <SelectItem key={dep} value={dep}>{dep}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -144,7 +201,7 @@ export default function AdminServicesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {services.map(service => (
+              {filteredServices.map(service => (
                 <TableRow key={service.id}>
                   <TableCell className="font-medium">{service.title}</TableCell>
                   <TableCell>{service.category}</TableCell>
