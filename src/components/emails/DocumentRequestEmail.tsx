@@ -20,6 +20,7 @@ interface DocumentRequestEmailProps {
   order: Order;
   items: { service: Service }[];
   reseller?: User;
+  replyTo: string;
 }
 
 const main = {
@@ -89,7 +90,7 @@ const prereqItem = {
     lineHeight: '22px',
 }
 
-export const DocumentRequestEmail = ({ order, items, reseller }: DocumentRequestEmailProps) => {
+export const DocumentRequestEmail = ({ order, items, reseller, replyTo }: DocumentRequestEmailProps) => {
     const previewText = `Action Required for Order #${order.id}`;
 
     const companyName = reseller?.companyName || 'My Accountant';
@@ -126,6 +127,10 @@ export const DocumentRequestEmail = ({ order, items, reseller }: DocumentRequest
                 ))}
                 
                 <Hr style={hr} />
+                
+                <Text style={paragraph}>
+                    If you have any questions, please reply directly to this email or contact us at <a href={`mailto:${replyTo}`} style={anchor}>{replyTo}</a>.
+                </Text>
                 
                 <Text style={paragraph}>
                     Regards,

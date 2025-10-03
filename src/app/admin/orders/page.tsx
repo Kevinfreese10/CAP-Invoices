@@ -283,7 +283,9 @@ export default function AdminOrdersPage() {
         
         const subject = `Action Required: Documents needed for your order #${emailOrder.id}`;
         const message = "Sent 'Request Documents' email to client.";
-        const emailHtml = render(<DocumentRequestEmail order={emailOrder} items={itemsWithServices} reseller={reseller} />);
+        const replyToEmail = assignedStaffMember?.email || 'info@myacc.co.za';
+
+        const emailHtml = render(<DocumentRequestEmail order={emailOrder} items={itemsWithServices} reseller={reseller} replyTo={replyToEmail} />);
         
         const attachments = itemsWithServices
             .filter(item => item.service.attachmentUrl)
@@ -298,6 +300,7 @@ export default function AdminOrdersPage() {
             html: emailHtml,
             resellerId: orderToUpdate.resellerId,
             attachments: attachments,
+            replyTo: replyToEmail,
         });
         
         await addEmailToHistory(orderToUpdate.id, subject, message);

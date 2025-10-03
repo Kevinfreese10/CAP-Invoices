@@ -14,9 +14,10 @@ type EmailPayload = {
     bcc?: string | string[];
     resellerId?: string;
     attachments?: { filename: string; path: string }[];
+    replyTo?: string;
 }
 
-export async function sendEmail({ to, subject, html, from, bcc, resellerId, attachments }: EmailPayload) {
+export async function sendEmail({ to, subject, html, from, bcc, resellerId, attachments, replyTo }: EmailPayload) {
   
   const admin = users.find(u => u.role === 'admin');
   const smtpConfig = admin?.smtpDetails;
@@ -47,6 +48,7 @@ export async function sendEmail({ to, subject, html, from, bcc, resellerId, atta
             subject: subject,
             html: html,
             attachments: attachments,
+            replyTo: replyTo,
         });
         console.log('Email sent successfully via SMTP:', info.messageId);
         return info;
@@ -67,6 +69,7 @@ export async function sendEmail({ to, subject, html, from, bcc, resellerId, atta
         bcc: bcc,
         subject: subject,
         html: html,
+        reply_to: replyTo,
         });
 
         if (error) {
