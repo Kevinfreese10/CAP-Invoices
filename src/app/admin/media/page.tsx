@@ -6,14 +6,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { services } from '@/lib/data';
 import { blogPosts } from '@/lib/data';
 import { useState, useEffect } from 'react';
-import { getStorage, ref, uploadBytesResumable, getDownloadURL, listAll, uploadString } from 'firebase/storage';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL, listAll, uploadString, deleteObject } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Upload, FlaskConical } from 'lucide-react';
+import { Loader2, Upload, FlaskConical, Trash2, X } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { useAuth } from '@/contexts/AuthContext';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 const storage = getStorage(firebaseApp);
 
@@ -39,7 +40,7 @@ export default function MediaPage() {
     const [uploadedImages, setUploadedImages] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    const [file, setFile] = useState<File | null>(null);
+    const [files, setFiles] = useState<File[]>([]);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [isUploading, setIsUploading] = useState(false);
     const [isTesting, setIsTesting] = useState(false);
@@ -82,44 +83,64 @@ export default function MediaPage() {
     }, [user]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            setFile(e.target.files[0]);
+        if (e.target.files) {
+            setFiles(Array.from(e.target.files));
         }
     };
 
-    const handleUpload = () => {
-        if (!file || !user?.uid) {
-            toast({ title: "No file or user selected", description: "Please choose a file to upload.", variant: "destructive" });
+    const handleUpload = async () => {
+        if (files.length === 0 || !user?.uid) {
+            toast({ title: "No files or user selected", description: "Please choose one or more files to upload.", variant: "destructive" });
             return;
         }
 
         setIsUploading(true);
         setUploadProgress(0);
 
-        const storageRef = ref(storage, `uploads/${user.uid}/${Date.now()}-${file.name}`);
-        const uploadTask = uploadBytesResumable(storageRef, file);
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            const storageRef = ref(storage, `uploads/${user.uid}/${Date.now()}-${file.name}`);
+            const uploadTask = uploadBytesResumable(storageRef, file);
 
-        uploadTask.on('state_changed',
-            (snapshot) => {
-                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                setUploadProgress(progress);
-            },
-            (error) => {
-                console.error("Upload error:", error);
-                toast({ title: "Upload Failed", description: "There was an error uploading your file.", variant: "destructive"});
-                setIsUploading(false);
-            },
-            () => {
-                getDownloadURL(uploadTask.snapshot.ref).then(() => {
-                    toast({ title: "Upload Successful", description: "Your image has been added to the library." });
-                    setIsUploading(false);
-                    setFile(null);
-                    // Refresh the list of images
-                    fetchUploadedImages();
-                });
-            }
-        );
+            await new Promise<void>((resolve, reject) => {
+                 uploadTask.on('state_changed',
+                    (snapshot) => {
+                        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                        setUploadProgress((i * 100 + progress) / files.length);
+                    },
+                    (error) => {
+                        console.error("Upload error:", error);
+                        toast({ title: "Upload Failed", description: `Error uploading ${file.name}.`, variant: "destructive"});
+                        reject(error);
+                    },
+                    () => {
+                        getDownloadURL(uploadTask.snapshot.ref).then(() => {
+                           resolve();
+                        });
+                    }
+                );
+            });
+        }
+        
+        toast({ title: "Upload Successful", description: `${files.length} image(s) have been added to the library.` });
+        setIsUploading(false);
+        setFiles([]);
+        const fileInput = document.getElementById('media-file-input') as HTMLInputElement;
+        if(fileInput) fileInput.value = '';
+        await fetchUploadedImages();
     };
+    
+    const handleDelete = async (imageUrl: string) => {
+        try {
+            const imageRef = ref(storage, imageUrl);
+            await deleteObject(imageRef);
+            toast({ title: 'Image Deleted', description: 'The image has been removed from your storage.' });
+            fetchUploadedImages();
+        } catch(error) {
+            console.error("Delete error:", error);
+            toast({ title: 'Delete Failed', description: 'There was an error deleting the image.', variant: 'destructive' });
+        }
+    }
 
     const handleTestRules = async () => {
         if (!user?.uid) {
@@ -163,15 +184,15 @@ export default function MediaPage() {
       <h1 className="text-3xl font-bold tracking-tight">Media Database</h1>
         <Card>
             <CardHeader>
-                <CardTitle>Upload New Image</CardTitle>
-                <CardDescription>Add a new image to your Firebase Storage library.</CardDescription>
+                <CardTitle>Upload New Image(s)</CardTitle>
+                <CardDescription>Add new images to your Firebase Storage library.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
                  <div className="flex flex-col sm:flex-row gap-4">
-                    <Input type="file" onChange={handleFileChange} accept="image/*" className="max-w-xs" />
-                    <Button onClick={handleUpload} disabled={isUploading || !file}>
+                    <Input id="media-file-input" type="file" onChange={handleFileChange} multiple accept="image/*" className="max-w-xs" />
+                    <Button onClick={handleUpload} disabled={isUploading || files.length === 0}>
                         {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                        {isUploading ? `Uploading... ${Math.round(uploadProgress)}%` : 'Upload Image'}
+                        {isUploading ? `Uploading ${files.length} images...` : `Upload ${files.length} Image(s)`}
                     </Button>
                     <Button onClick={handleTestRules} variant="outline" disabled={isTesting}>
                         {isTesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FlaskConical className="mr-2 h-4 w-4" />}
@@ -205,6 +226,25 @@ export default function MediaPage() {
                             className="object-cover group-hover:opacity-75"
                             data-ai-hint={image.hint}
                         />
+                        {image.source === 'Uploaded' && (
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="destructive" size="icon" className="absolute top-2 right-2 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </AlertDialogTrigger>
+                                 <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>This will permanently delete the image <span className="font-semibold">{image.title}</span> from your storage.</AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleDelete(image.url)}>Delete</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        )}
                         </div>
                         <div className="mt-2 text-sm text-foreground">
                              <h3 className="font-medium truncate">{image.title}</h3>
