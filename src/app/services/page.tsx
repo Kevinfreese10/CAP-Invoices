@@ -1,7 +1,5 @@
 
-
 import Link from 'next/link';
-import { services } from '@/lib/data';
 import {
   Card,
   CardContent,
@@ -12,6 +10,18 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Clock } from 'lucide-react';
+import { collection, getDocs, getFirestore, orderBy, query } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
+import { Service } from '@/lib/types';
+
+const db = getFirestore(firebaseApp);
+
+async function getServices(): Promise<Service[]> {
+    const servicesCollection = collection(db, 'services');
+    const q = query(servicesCollection, orderBy('title'));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
+}
 
 const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -22,7 +32,9 @@ const formatPrice = (price: number) => {
     }).format(price);
 };
 
-export default function ServicesPage() {
+export default async function ServicesPage() {
+  const services = await getServices();
+  
   const serviceCategories = [
     {
       name: "SARS Services",

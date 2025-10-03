@@ -1,6 +1,5 @@
 
 import { notFound } from 'next/navigation';
-import { services } from '@/lib/data';
 import { Badge } from '@/components/ui/badge';
 import { BadgeCheck, Clock, ClipboardCheck } from 'lucide-react';
 import { Service } from '@/lib/types';
@@ -8,6 +7,29 @@ import ClientServiceCheckoutForm from '@/components/checkout/ClientServiceChecko
 import { Separator } from '@/components/ui/separator';
 import type { Metadata } from 'next';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
+import { getFirestore, doc, getDoc, collection, getDocs } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
+
+const db = getFirestore(firebaseApp);
+
+async function getService(id: string): Promise<Service | null> {
+    const docRef = doc(db, 'services', id);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+        return { id: docSnap.id, ...docSnap.data() } as Service;
+    }
+    return null;
+}
+
+export async function generateStaticParams() {
+  const servicesCollection = collection(db, 'services');
+  const servicesSnapshot = await getDocs(servicesCollection);
+  const services = servicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
+
+  return services.map((service) => ({
+    id: service.id,
+  }))
+}
 
 const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -19,7 +41,7 @@ const formatPrice = (price: number) => {
 };
 
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
-  const service = services.find(s => s.id === params.id);
+  const service = await getService(params.id);
 
   if (!service) {
     return {
@@ -52,7 +74,7 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
 }
 
 export default async function ServiceDetailPage({ params }: { params: { id: string } }) {
-  const service = services.find(s => s.id === params.id) as Service;
+  const service = await getService(params.id);
 
   if (!service) {
     notFound();

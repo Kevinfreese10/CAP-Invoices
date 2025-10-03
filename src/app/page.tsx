@@ -10,18 +10,30 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { services } from '@/lib/data';
 import { Rocket, ShieldCheck, Wallet, Clock, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import WebsiteAIWidget from '@/components/shared/WebsiteAIWidget';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
+import { collection, getDocs, orderBy, query, getFirestore } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
+import { Service } from '@/lib/types';
+
+const db = getFirestore(firebaseApp);
 
 const formatPrice = (price: number) => {
     // Use simple formatting to avoid hydration mismatch between server/client
     return `R ${price.toLocaleString('en-US')}`;
 };
 
-export default function Home() {
+async function getServices(): Promise<Service[]> {
+    const servicesCollection = collection(db, 'services');
+    const q = query(servicesCollection, orderBy('title'));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
+}
+
+export default async function Home() {
+  const services = await getServices();
 
   const whyChooseUs = [
     {
