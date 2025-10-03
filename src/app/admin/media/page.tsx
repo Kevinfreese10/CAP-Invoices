@@ -12,7 +12,7 @@ import { firebaseApp } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Upload, Trash2 } from 'lucide-react';
+import { Loader2, Upload, Trash2, RefreshCw } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { useAuth } from '@/contexts/AuthContext';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -185,10 +185,18 @@ export default function MediaPage() {
         </Card>
       <Card>
         <CardHeader>
-          <CardTitle>Image Library</CardTitle>
-          <CardDescription>
-            A collection of all images from services, blog posts, and direct uploads.
-          </CardDescription>
+            <div className="flex items-center justify-between">
+                <div>
+                    <CardTitle>Image Library</CardTitle>
+                    <CardDescription>
+                        A collection of all images from services, blog posts, and direct uploads.
+                    </CardDescription>
+                </div>
+                 <Button variant="outline" size="sm" onClick={fetchUploadedImages} disabled={isLoading}>
+                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                    Refresh
+                </Button>
+            </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
