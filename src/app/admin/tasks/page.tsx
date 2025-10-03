@@ -85,7 +85,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
     }
     
     const getAuthor = (authorId: string): User | undefined => {
-        return allStaff.find(u => u.id === authorId);
+        return allStaff.find(u => u.uid === authorId);
     }
     
     return (
@@ -125,21 +125,21 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                     <CommandEmpty>No results found.</CommandEmpty>
                                     <CommandGroup heading="Teams">
                                         <CommandItem onSelect={() => field.onChange(['all'])}>All Staff</CommandItem>
-                                        <CommandItem onSelect={() => field.onChange(staffByDept['Accounting and Tax']?.map(s => s.id) || [])}>Accounting and Tax Dept</CommandItem>
-                                        <CommandItem onSelect={() => field.onChange(staffByDept['Administration']?.map(s => s.id) || [])}>Administration Dept</CommandItem>
-                                        <CommandItem onSelect={() => field.onChange(staffByDept['CAP']?.map(s => s.id) || [])}>CAP Dept</CommandItem>
+                                        <CommandItem onSelect={() => field.onChange(staffByDept['Accounting and Tax']?.map(s => s.uid) || [])}>Accounting and Tax Dept</CommandItem>
+                                        <CommandItem onSelect={() => field.onChange(staffByDept['Administration']?.map(s => s.uid) || [])}>Administration Dept</CommandItem>
+                                        <CommandItem onSelect={() => field.onChange(staffByDept['CAP']?.map(s => s.uid) || [])}>CAP Dept</CommandItem>
                                     </CommandGroup>
                                     <CommandGroup heading="Individual Staff">
                                         {allStaff.map((staff) => (
                                         <CommandItem
-                                            key={staff.id}
+                                            key={staff.uid}
                                             value={staff.name}
                                             onSelect={() => {
                                             const selection = new Set(field.value);
-                                            if (selection.has(staff.id)) {
-                                                selection.delete(staff.id);
+                                            if (selection.has(staff.uid)) {
+                                                selection.delete(staff.uid);
                                             } else {
-                                                selection.add(staff.id);
+                                                selection.add(staff.uid);
                                             }
                                             field.onChange(Array.from(selection));
                                             }}
@@ -147,7 +147,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                             <div
                                             className={cn(
                                                 "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                                                field.value?.includes(staff.id)
+                                                field.value?.includes(staff.uid)
                                                 ? "bg-primary text-primary-foreground"
                                                 : "opacity-50 [&_svg]:invisible"
                                             )}
@@ -237,14 +237,14 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                     <CommandGroup heading="Individual Staff">
                                         {allStaff.map((staff) => (
                                         <CommandItem
-                                            key={staff.id}
+                                            key={staff.uid}
                                             value={staff.name}
                                             onSelect={() => {
                                             const selection = new Set(field.value);
-                                            if (selection.has(staff.id)) {
-                                                selection.delete(staff.id);
+                                            if (selection.has(staff.uid)) {
+                                                selection.delete(staff.uid);
                                             } else {
-                                                selection.add(staff.id);
+                                                selection.add(staff.uid);
                                             }
                                             field.onChange(Array.from(selection));
                                             }}
@@ -252,7 +252,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                             <div
                                             className={cn(
                                                 "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                                                field.value?.includes(staff.id)
+                                                field.value?.includes(staff.uid)
                                                 ? "bg-primary text-primary-foreground"
                                                 : "opacity-50 [&_svg]:invisible"
                                             )}
@@ -355,7 +355,7 @@ export default function AdminTasksPage() {
 
         const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
         const staffSnapshot = await getDocs(staffQuery);
-        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
         setAllStaff(fetchedStaff);
 
     } catch (error) {
@@ -393,7 +393,7 @@ export default function AdminTasksPage() {
   const filteredTasks = useMemo(() => {
     let tasksToFilter = tasks;
     if (user?.role === 'staff') {
-        tasksToFilter = tasks.filter(task => Array.isArray(task.assignedTo) && task.assignedTo.includes(user.id));
+        tasksToFilter = tasks.filter(task => Array.isArray(task.assignedTo) && task.assignedTo.includes(user.uid));
     }
     
     if (taskTypeFilter !== 'all' && taskTypeFilter !== 'All Tasks') {
@@ -470,7 +470,7 @@ export default function AdminTasksPage() {
             const newTask: Omit<Task, 'id' | 'priority'> = {
                 ...taskData,
                 status: 'To-Do',
-                createdBy: user.id,
+                createdBy: user.uid,
                 createdAt: Timestamp.now(),
                 comments: [],
             };
@@ -479,8 +479,8 @@ export default function AdminTasksPage() {
 
             // Send email notifications
             for (const assigneeId of data.assignedTo) {
-                if (assigneeId !== user.id) { // Don't email the user who created the task
-                    const assignee = allStaff.find(s => s.id === assigneeId);
+                if (assigneeId !== user.uid) { // Don't email the user who created the task
+                    const assignee = allStaff.find(s => s.uid === assigneeId);
                     if (assignee?.email) {
                         try {
                             const emailHtml = render(<NewTaskEmail 
@@ -521,7 +521,7 @@ export default function AdminTasksPage() {
     const newComment: TaskComment = {
         text: commentText,
         date: Timestamp.now(),
-        authorId: user.id,
+        authorId: user.uid,
     };
 
     try {
@@ -554,7 +554,7 @@ export default function AdminTasksPage() {
 
   const getAssignee = (userId?: string): User | undefined => {
     if (!userId) return undefined;
-    return allStaff.find(u => u.id === userId);
+    return allStaff.find(u => u.uid === userId);
   }
 
     const getStatusVariant = (status: Task['status']) => {
@@ -678,7 +678,7 @@ export default function AdminTasksPage() {
                                         <TooltipProvider key={userId}>
                                         <Tooltip>
                                             <TooltipTrigger>
-                                                <span className={cn("h-6 w-6 border-2 border-background rounded-full flex items-center justify-center text-xs font-semibold", getUserColor(assignee.id))}>{assignee.name.charAt(0)}</span>
+                                                <span className={cn("h-6 w-6 border-2 border-background rounded-full flex items-center justify-center text-xs font-semibold", getUserColor(assignee.uid))}>{assignee.name.charAt(0)}</span>
                                             </TooltipTrigger>
                                             <TooltipContent>
                                                 <p>{assignee.name.split(' ')[0]}</p>
@@ -703,7 +703,7 @@ export default function AdminTasksPage() {
                                         <TooltipProvider key={userId}>
                                         <Tooltip>
                                             <TooltipTrigger>
-                                                <span className={cn("h-6 w-6 border-2 border-background rounded-full flex items-center justify-center text-xs", getUserColor(taggedUser.id))}>{taggedUser.name.charAt(0)}</span>
+                                                <span className={cn("h-6 w-6 border-2 border-background rounded-full flex items-center justify-center text-xs", getUserColor(taggedUser.uid))}>{taggedUser.name.charAt(0)}</span>
                                             </TooltipTrigger>
                                             <TooltipContent>
                                                 <p>Tagged: {taggedUser.name.split(' ')[0]}</p>
@@ -803,5 +803,6 @@ export default function AdminTasksPage() {
 
 
     
+
 
 

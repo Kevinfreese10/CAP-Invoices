@@ -315,12 +315,12 @@ export default function AdminClientsPage() {
     try {
         const staffQuery = query(collection(db, "users"), where("role", "in", ['staff', 'admin']));
         const staffSnapshot = await getDocs(staffQuery);
-        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
         setAllStaff(fetchedStaff);
 
         const clientsQuery = query(collection(db, "clients"), where("source", "==", "Client Management"), orderBy("name"));
         const clientsSnapshot = await getDocs(clientsQuery);
-        const fetchedClients = clientsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Client));
+        const fetchedClients = clientsSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as Client));
         setClients(fetchedClients);
     } catch (error) {
         console.error("Error fetching data:", error);
@@ -360,7 +360,7 @@ export default function AdminClientsPage() {
   };
 
    const createRecurringTasks = async (client: Client, creatorId: string) => {
-    if (client.status === 'Inactive' || !client.yearEnd || !client.id) {
+    if (client.status === 'Inactive' || !client.yearEnd || !client.uid) {
         if (client.status === 'Inactive') {
             toast({
                 title: 'Task Creation Skipped',
@@ -372,7 +372,7 @@ export default function AdminClientsPage() {
     }
 
     const getDepartmentStaffIds = (department: string): string[] => {
-        return allStaff.filter(u => u.department === department && (u.role === 'staff' || u.role === 'admin')).map(u => u.id);
+        return allStaff.filter(u => u.department === department && (u.role === 'staff' || u.role === 'admin')).map(u => u.uid);
     };
 
     const accountingAndTaxStaff = getDepartmentStaffIds('Accounting and Tax');
@@ -396,7 +396,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
-            clientId: client.id,
+            clientId: client.uid,
             comments: [],
         });
         
@@ -411,7 +411,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
-            clientId: client.id,
+            clientId: client.uid,
             comments: [],
         });
     }
@@ -429,7 +429,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
-            clientId: client.id,
+            clientId: client.uid,
             comments: [],
         });
     }
@@ -445,7 +445,7 @@ export default function AdminClientsPage() {
         priority: 'Medium',
         status: 'To-Do',
         createdBy: creatorId,
-        clientId: client.id,
+        clientId: client.uid,
         comments: [],
     });
     
@@ -461,7 +461,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
-            clientId: client.id,
+            clientId: client.uid,
             comments: [],
         });
     }
@@ -482,7 +482,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
-            clientId: client.id,
+            clientId: client.uid,
             comments: [],
         });
     }
@@ -524,7 +524,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
-            clientId: client.id,
+            clientId: client.uid,
             comments: [],
         });
     }
@@ -541,7 +541,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
-            clientId: client.id,
+            clientId: client.uid,
             comments: [],
         });
     }
@@ -558,7 +558,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
-            clientId: client.id,
+            clientId: client.uid,
             comments: [],
         });
     }
@@ -575,7 +575,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
-            clientId: client.id,
+            clientId: client.uid,
             comments: [],
         });
         tasksToCreate.push({
@@ -588,7 +588,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
-            clientId: client.id,
+            clientId: client.uid,
             comments: [],
         });
     }
@@ -602,7 +602,7 @@ export default function AdminClientsPage() {
             // Send email notifications
             for (const assigneeId of task.assignedTo) {
                 if (assigneeId !== creatorId) { // Don't email the user who created the task
-                    const assignee = allStaff.find(s => s.id === assigneeId);
+                    const assignee = allStaff.find(s => s.uid === assigneeId);
                     if (assignee?.email) {
                         try {
                             const emailHtml = render(<NewTaskEmail 
@@ -642,26 +642,26 @@ export default function AdminClientsPage() {
     return querySnapshot.size;
   }
 
-  const handleFormSubmit = async (data: Omit<User, 'id' | 'role'>) => {
+  const handleFormSubmit = async (data: Omit<User, 'uid' | 'role'>) => {
     if (!currentUser) return;
     
-    const clientData: Omit<Client, 'id'> = {
+    const clientData: Omit<Client, 'uid'> = {
         ...data,
         role: 'client',
         source: 'Client Management',
     };
 
     try {
-        if (selectedClient?.id) {
-            const clientRef = doc(db, "clients", selectedClient.id);
+        if (selectedClient?.uid) {
+            const clientRef = doc(db, "clients", selectedClient.uid);
             await setDoc(clientRef, clientData, { merge: true });
             toast({
                 title: 'Client Updated',
                 description: 'The client details have been saved.',
             });
             // Regenerate tasks for the updated client
-            await deleteRecurringTasks(selectedClient.id);
-            const numTasks = await createRecurringTasks({ ...clientData, id: selectedClient.id } as Client, currentUser.id);
+            await deleteRecurringTasks(selectedClient.uid);
+            const numTasks = await createRecurringTasks({ ...clientData, uid: selectedClient.uid } as Client, currentUser.uid);
              if (numTasks > 0) {
                 toast({
                     title: 'Recurring Tasks Updated',
@@ -674,8 +674,8 @@ export default function AdminClientsPage() {
                 title: 'Client Created',
                 description: 'The new client has been added to the database.',
             });
-            const newClient = { ...clientData, id: newDocRef.id } as Client;
-            const numTasks = await createRecurringTasks(newClient, currentUser.id);
+            const newClient = { ...clientData, uid: newDocRef.id } as Client;
+            const numTasks = await createRecurringTasks(newClient, currentUser.uid);
             if (numTasks > 0) {
                 toast({
                     title: 'Recurring Tasks Created',
@@ -763,7 +763,7 @@ export default function AdminClientsPage() {
             </TableHeader>
             <TableBody>
               {clients.map(client => (
-                <TableRow key={client.id}>
+                <TableRow key={client.uid}>
                   <TableCell className="font-medium">
                     <div>
                         <span>{client.name}</span>
@@ -817,7 +817,7 @@ export default function AdminClientsPage() {
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDelete(client.id)}>
+                                <AlertDialogAction onClick={() => handleDelete(client.uid)}>
                                     Continue
                                 </AlertDialogAction>
                             </AlertDialogFooter>

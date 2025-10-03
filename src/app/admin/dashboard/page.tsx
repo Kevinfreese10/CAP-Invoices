@@ -768,7 +768,7 @@ export default function AdminDashboardPage() {
                 // Send email notifications
                 for (const assigneeId of data.assignedTo) {
                     if (assigneeId !== user.uid) { // Don't email the user who created the task
-                        const assignee = allStaff.find(s => s.id === assigneeId);
+                        const assignee = allStaff.find(s => s.uid === assigneeId);
                         if (assignee?.email) {
                             try {
                                 const emailHtml = render(<NewTaskEmail 
@@ -1037,6 +1037,7 @@ export default function AdminDashboardPage() {
     
 
     
+
 
 
 
