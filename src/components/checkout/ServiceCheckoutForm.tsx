@@ -16,7 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/componen
 import { Loader2, Tag } from 'lucide-react';
 import { getFirestore, doc, setDoc, Timestamp, getDoc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service, User, DiscountCode } from '@/lib/types';
+import { Order, Service, User, DiscountCode, OrderNote } from '@/lib/types';
 import { Checkbox } from '../ui/checkbox';
 import { Separator } from '../ui/separator';
 import { sendEmail } from '@/lib/email';
@@ -52,7 +52,7 @@ const formatPrice = (price: number) => {
 
 export default function ServiceCheckoutForm({ service }: { service: Service }) {
   const router = useRouter();
-  const { signup } = useAuth();
+  const { signup, user: currentUser } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; amount: number } | null>(null);
@@ -113,6 +113,16 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
       const orderId = await getNextOrderId();
       const department = service.department as 'Accounting and Tax' | 'Administration' | undefined;
 
+      const confirmationEmailSubject = `My Accountant | Your Order Confirmation: #${orderId}`;
+      
+      const confirmationNote: OrderNote = {
+          text: 'Order confirmation email sent to client.',
+          date: Timestamp.now(),
+          authorId: currentUser?.uid || 'system',
+          type: 'email',
+          subject: confirmationEmailSubject,
+      };
+
       const orderData: Order = {
         id: orderId,
         customerName: values.name,
@@ -130,6 +140,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
         date: Timestamp.now(),
         department: department || null,
         assignedTo: null,
+        notes: [confirmationNote],
         source: 'Client',
       };
 
@@ -153,7 +164,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
       await sendEmail({
           to: values.email,
           bcc: 'kev@thinkestry.co.za',
-          subject: `Your My Accountant Order Confirmation: #${orderId}`,
+          subject: confirmationEmailSubject,
           html: emailHtml,
       });
 

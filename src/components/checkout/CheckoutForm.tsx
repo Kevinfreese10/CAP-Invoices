@@ -16,7 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, Tag } from 'lucide-react';
 import { getFirestore, doc, setDoc, Timestamp, getDoc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, User, Service, DiscountCode } from '@/lib/types';
+import { Order, User, Service, DiscountCode, OrderNote } from '@/lib/types';
 import { users } from '@/lib/data';
 import { sendEmail } from '@/lib/email';
 import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
@@ -35,7 +35,7 @@ const formSchema = z.object({
 
 export default function CheckoutForm() {
   const router = useRouter();
-  const { signup } = useAuth();
+  const { signup, user: currentUser } = useAuth();
   const { cartItems, cartTotal, clearCart } = useCart();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -95,6 +95,16 @@ export default function CheckoutForm() {
       const firstService = cartItems[0]?.service;
       const department = firstService?.department as 'Accounting and Tax' | 'Administration' | undefined;
       
+      const confirmationEmailSubject = `My Accountant | Your Order Confirmation: #${orderId}`;
+      
+      const confirmationNote: OrderNote = {
+          text: 'Order confirmation email sent to client.',
+          date: Timestamp.now(),
+          authorId: currentUser?.uid || 'system',
+          type: 'email',
+          subject: confirmationEmailSubject,
+      };
+
       const orderData: Order = {
         id: orderId,
         customerName: values.name,
@@ -112,6 +122,8 @@ export default function CheckoutForm() {
         date: Timestamp.now(),
         department: department || null,
         assignedTo: null,
+        notes: [confirmationNote],
+        source: 'Client',
       };
 
       const existingUser = users.find(u => u.email === values.email);
@@ -134,7 +146,7 @@ export default function CheckoutForm() {
       await sendEmail({
           to: values.email,
           bcc: 'kev@thinkestry.co.za',
-          subject: `Your My Accountant Order Confirmation: #${orderId}`,
+          subject: confirmationEmailSubject,
           html: emailHtml,
       });
 

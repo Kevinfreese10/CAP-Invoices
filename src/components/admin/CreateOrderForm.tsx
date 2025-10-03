@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Loader2, Plus, Trash, RefreshCw, Clock, ClipboardCheck } from 'lucide-react';
 import { getFirestore, doc, setDoc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service } from '@/lib/types';
+import { Order, Service, OrderNote } from '@/lib/types';
 import { Separator } from '../ui/separator';
 import { services as allServices } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -23,6 +23,8 @@ import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 import { getNextOrderId } from '@/lib/sequence';
+import { useAuth } from '@/contexts/AuthContext';
+
 
 const db = getFirestore(firebaseApp);
 
@@ -59,6 +61,7 @@ export default function CreateOrderForm() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [total, setTotal] = useState(0);
+  const { user: currentUser } = useAuth();
 
   const form = useForm<CreateOrderFormValues>({
     resolver: zodResolver(formSchema),
@@ -133,6 +136,7 @@ export default function CreateOrderForm() {
 
 
   async function onSubmit(values: CreateOrderFormValues) {
+    if (!currentUser) return;
     setIsLoading(true);
     toast({
       title: 'Creating Order...',
@@ -143,6 +147,16 @@ export default function CreateOrderForm() {
         const orderId = await getNextOrderId();
         const firstService = allServices.find(s => s.id === values.items[0]?.serviceId);
         const department = firstService?.department;
+
+        const confirmationEmailSubject = `My Accountant | Order Confirmation: #${orderId}`;
+
+        const confirmationNote: OrderNote = {
+            text: 'Order confirmation email sent to client.',
+            date: Timestamp.now(),
+            authorId: currentUser.uid,
+            type: 'email',
+            subject: confirmationEmailSubject,
+        };
 
       const orderData: Order = {
         id: orderId,
@@ -159,6 +173,7 @@ export default function CreateOrderForm() {
         date: Timestamp.now(),
         department: department || null,
         assignedTo: null,
+        notes: [confirmationNote],
         source: 'Staff',
       };
 
@@ -169,7 +184,7 @@ export default function CreateOrderForm() {
       await sendEmail({
         to: values.customerEmail,
         bcc: 'kev@thinkestry.co.za',
-        subject: `Your My Accountant Order Confirmation: #${orderId}`,
+        subject: confirmationEmailSubject,
         html: emailHtml,
       });
 
