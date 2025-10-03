@@ -9,6 +9,8 @@ import {
   Section,
   Text,
   Link,
+  Row,
+  Column,
 } from '@react-email/components';
 import * as React from 'react';
 import { Order, User } from '@/lib/types';
@@ -63,12 +65,51 @@ const heading = {
   color: '#333'
 }
 
+const paymentInstructionSection = {
+    border: '1px solid #e6ebf1',
+    borderRadius: '5px',
+    padding: '20px',
+    marginTop: '20px',
+    backgroundColor: '#fafafa',
+}
+
+const paymentRow = {
+    marginBottom: '10px'
+}
+
+const paymentLabel = {
+    fontSize: '14px',
+    color: '#525f7f',
+    width: '150px'
+}
+
+const paymentValue = {
+    fontSize: '14px',
+    fontWeight: 'bold' as const,
+    color: '#333'
+}
+
+const referenceValue = {
+    ...paymentValue,
+    color: '#c00',
+    backgroundColor: '#fff0f0',
+    padding: '4px 8px',
+    borderRadius: '4px',
+}
+
 export const PaymentFollowUpEmail = ({ order, reseller }: PaymentFollowUpEmailProps) => {
     const previewText = `Payment Reminder for Order #${order.id}`;
 
     const companyName = reseller?.companyName || 'My Accountant';
     const companyEmail = reseller?.email || 'info@myacc.co.za';
     const companyAddress = reseller?.address ? `${reseller.address.street}, ${reseller.address.city}` : '369 Oak Avenue, Ferndale, Randburg';
+
+    const bankingDetails = reseller?.bankingDetails || {
+        bankName: 'FNB',
+        accountHolder: 'My Accountant (Pty) Ltd',
+        accountNumber: '6280 123 4567',
+        branchCode: '250655',
+    };
 
     return (
         <Html>
@@ -82,18 +123,37 @@ export const PaymentFollowUpEmail = ({ order, reseller }: PaymentFollowUpEmailPr
                     Hi {order.customerName},
                 </Text>
                 <Text style={paragraph}>
-                    This is a friendly reminder that your order <strong style={{color: '#214392'}}>{order.id}</strong> is still awaiting payment.
+                    This is a friendly reminder that your order <strong style={{color: '#214392'}}>{order.id}</strong> is still awaiting payment. To proceed with your services, please make the payment at your earliest convenience.
                 </Text>
-                <Text style={paragraph}>
-                    To proceed with your services, please make the payment at your earliest convenience. You can find the payment instructions in your original order confirmation email.
+
+                <Section style={paymentInstructionSection}>
+                    <Row style={paymentRow}>
+                        <Column style={paymentLabel}>Bank Name:</Column>
+                        <Column style={paymentValue}>{bankingDetails.bankName}</Column>
+                    </Row>
+                     <Row style={paymentRow}>
+                        <Column style={paymentLabel}>Account Holder:</Column>
+                        <Column style={paymentValue}>{bankingDetails.accountHolder}</Column>
+                    </Row>
+                     <Row style={paymentRow}>
+                        <Column style={paymentLabel}>Account Number:</Column>
+                        <Column style={paymentValue}>{bankingDetails.accountNumber}</Column>
+                    </Row>
+                     <Row style={paymentRow}>
+                        <Column style={paymentLabel}>Branch Code:</Column>
+                        <Column style={paymentValue}>{bankingDetails.branchCode}</Column>
+                    </Row>
+                    <Row style={paymentRow}>
+                        <Column style={paymentLabel}>Reference:</Column>
+                        <Column style={referenceValue}>{order.id}</Column>
+                    </Row>
+                </Section>
+                
+                 <Text style={{...paragraph, marginTop: '20px'}}>
+                    If you have already made the payment, please disregard this email. It may take some time for the payment to reflect on our side. If you have any questions, please don't hesitate to contact us.
                 </Text>
-                 <Text style={paragraph}>
-                    If you have already made the payment, please disregard this email. It may take some time for the payment to reflect on our side.
-                </Text>
+
                 <Hr style={hr} />
-                <Text style={paragraph}>
-                    If you have any questions, please don't hesitate to contact us.
-                </Text>
 
                 <Text style={paragraph}>
                     Regards,
