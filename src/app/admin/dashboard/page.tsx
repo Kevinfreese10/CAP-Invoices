@@ -661,7 +661,7 @@ export default function AdminDashboardPage() {
     }, [tasks, user]);
     
     const departmentTasks = useMemo(() => {
-        if (!user?.department) return [];
+        if (user?.role !== 'admin') return [];
         
         const deptTasks = tasks.filter(task => {
             if (task.status === 'Done' || !task.clientId) return false;
@@ -671,7 +671,7 @@ export default function AdminDashboardPage() {
         });
         
         return deptTasks.sort((a, b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : b.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
-    }, [tasks, user, allStaff]);
+    }, [tasks, user]);
 
 
     const automatedTasks = useMemo(() => {
@@ -768,7 +768,7 @@ export default function AdminDashboardPage() {
                 // Send email notifications
                 for (const assigneeId of data.assignedTo) {
                     if (assigneeId !== user.uid) { // Don't email the user who created the task
-                        const assignee = allStaff.find(s => s.id === assigneeId);
+                        const assignee = allStaff.find(s => s.uid === assigneeId);
                         if (assignee?.email) {
                             try {
                                 const emailHtml = render(<NewTaskEmail 
@@ -975,11 +975,11 @@ export default function AdminDashboardPage() {
                         />
 
 
-                        {departmentTasks.length > 0 && (
+                        {user?.role === 'admin' && departmentTasks.length > 0 && (
                              <TaskTable 
                                 tasks={departmentTasks} 
                                 title={`${user?.department} Department Tasks`} 
-                                description={`All tasks assigned to your department.`}
+                                description={`All automated tasks generated for clients.`}
                                 onEdit={handleEdit}
                                 onUpdateStatus={handleUpdateStatus}
                                 onDelete={handleDelete}
@@ -1037,6 +1037,7 @@ export default function AdminDashboardPage() {
     
 
     
+
 
 
 
