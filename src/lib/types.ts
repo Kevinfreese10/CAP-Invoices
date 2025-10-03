@@ -46,6 +46,7 @@ export type Service = {
   informationToProvide: {
     label: string;
   }[];
+  attachmentUrl?: string;
   metaTitle?: string;
   metaDescription?: string;
   metaKeywords?: string[];

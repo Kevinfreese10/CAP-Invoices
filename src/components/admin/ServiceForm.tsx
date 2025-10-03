@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -29,6 +30,7 @@ const formSchema = z.object({
   resellerPrice: z.preprocess(val => Number(val), z.number().min(0, 'Reseller price must be a positive number.').optional()),
   imageUrl: z.string().url('Must be a valid URL.'),
   imageHint: z.string().min(1, 'Image hint is required.'),
+  attachmentUrl: z.string().url('Must be a valid URL.').optional().or(z.literal('')),
   category: z.string().min(1, 'Category is required.'),
   department: z.enum(departments),
   turnaroundTime: z.string().min(1, 'Turnaround time is required.'),
@@ -73,6 +75,7 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
       resellerPrice: service?.resellerPrice || 0,
       imageUrl: service?.imageUrl || 'https://picsum.photos/seed/new/600/400',
       imageHint: service?.imageHint || 'abstract',
+      attachmentUrl: service?.attachmentUrl || '',
       category: service?.category || '',
       department: service?.department || 'Administration',
       turnaroundTime: service?.turnaroundTime || '',
@@ -381,6 +384,17 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
                     <FormItem>
                     <FormLabel>Display Image AI Hint</FormLabel>
                     <FormControl><Input {...field} /></FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+            />
+             <FormField
+                control={form.control}
+                name="attachmentUrl"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Attachment URL (Optional)</FormLabel>
+                    <FormControl><Input {...field} placeholder="e.g., https://storage.googleapis.com/..." /></FormControl>
                     <FormMessage />
                     </FormItem>
                 )}

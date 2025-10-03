@@ -285,11 +285,19 @@ export default function AdminOrdersPage() {
         const message = "Sent 'Request Documents' email to client.";
         const emailHtml = render(<DocumentRequestEmail order={emailOrder} items={itemsWithServices} reseller={reseller} />);
         
+        const attachments = itemsWithServices
+            .filter(item => item.service.attachmentUrl)
+            .map(item => ({
+                filename: `${item.service.title.replace(/\s/g, '_')}.pdf`,
+                path: item.service.attachmentUrl!,
+            }));
+        
         await sendEmail({
             to: emailTo,
             subject: subject,
             html: emailHtml,
-            resellerId: orderToUpdate.resellerId
+            resellerId: orderToUpdate.resellerId,
+            attachments: attachments,
         });
         
         await addEmailToHistory(orderToUpdate.id, subject, message);

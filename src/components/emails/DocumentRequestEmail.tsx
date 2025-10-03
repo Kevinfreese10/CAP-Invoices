@@ -108,7 +108,7 @@ export const DocumentRequestEmail = ({ order, items, reseller }: DocumentRequest
                     Hi {order.customerName},
                 </Text>
                 <Text style={paragraph}>
-                    Your order <strong style={{color: '#214392'}}>{order.id}</strong> is now being processed. To continue, we need some information from you. Please reply to this email and attach the documents listed below.
+                    Your order <strong style={{color: '#214392'}}>{order.id}</strong> is now being processed. To continue, we need some information from you. Please reply to this email and attach the documents listed below. Any forms you need to fill out are attached to this email.
                 </Text>
                 
                 <Hr style={hr} />

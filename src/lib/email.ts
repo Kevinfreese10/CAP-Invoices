@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { Resend } from 'resend';
@@ -12,9 +13,10 @@ type EmailPayload = {
     from?: string;
     bcc?: string | string[];
     resellerId?: string;
+    attachments?: { filename: string; path: string }[];
 }
 
-export async function sendEmail({ to, subject, html, from, bcc, resellerId }: EmailPayload) {
+export async function sendEmail({ to, subject, html, from, bcc, resellerId, attachments }: EmailPayload) {
   
   // Task notifications should always come from My Accountant, not the reseller.
   const isTaskNotification = subject.includes('New Task Assigned');
@@ -52,6 +54,7 @@ export async function sendEmail({ to, subject, html, from, bcc, resellerId }: Em
             bcc: bcc,
             subject: subject,
             html: html,
+            attachments: attachments,
         });
         console.log('Email sent successfully via SMTP:', info.messageId);
         return info;
