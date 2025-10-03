@@ -67,7 +67,7 @@ function EmailClientDialog({ order, user, allStaff, onEmailSent }: { order: Orde
     const form = useForm<z.infer<typeof emailFormSchema>>({
         resolver: zodResolver(emailFormSchema),
         defaultValues: {
-            subject: `Regarding Your Order: ${order.originalOrderId || order.id}`,
+            subject: `My Accountant | Regarding Your Order: ${order.originalOrderId || order.id}`,
             message: '',
         },
     });
