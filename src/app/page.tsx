@@ -1,7 +1,5 @@
 
-
 import Link from 'next/link';
-import Script from 'next/script';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -16,17 +14,15 @@ import { services } from '@/lib/data';
 import { Rocket, ShieldCheck, Wallet, Clock, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import WebsiteAIWidget from '@/components/shared/WebsiteAIWidget';
+import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
 
 const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-ZA', {
-      style: 'currency',
-      currency: 'ZAR',
-      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
-      maximumFractionDigits: 2,
-    }).format(price);
+    // Use simple formatting to avoid hydration mismatch between server/client
+    return `R ${price.toLocaleString('en-US')}`;
 };
 
 export default function Home() {
+
   const whyChooseUs = [
     {
       title: 'Expert & Reliable',
@@ -87,12 +83,8 @@ export default function Home() {
         </div>
       </section>
 
-      <Script
-        id="trustindex-sdk"
-        src="https://cdn.trustindex.io/loader.js?ba9c9164025b8697c4168930da4"
-        defer
-        async
-      />
+      {/* Trustindex Reviews Widget */}
+      <TrustIndexWidget />
 
       <section id="ai-assistant" className="container mx-auto px-4 scroll-m-20">
         <WebsiteAIWidget />

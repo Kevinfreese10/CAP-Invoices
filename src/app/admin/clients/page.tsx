@@ -315,12 +315,12 @@ export default function AdminClientsPage() {
     try {
         const staffQuery = query(collection(db, "users"), where("role", "in", ['staff', 'admin']));
         const staffSnapshot = await getDocs(staffQuery);
-        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
+        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
         setAllStaff(fetchedStaff);
 
         const clientsQuery = query(collection(db, "clients"), where("source", "==", "Client Management"), orderBy("name"));
         const clientsSnapshot = await getDocs(clientsQuery);
-        const fetchedClients = clientsSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as Client));
+        const fetchedClients = clientsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Client));
         setClients(fetchedClients);
     } catch (error) {
         console.error("Error fetching data:", error);
@@ -360,7 +360,7 @@ export default function AdminClientsPage() {
   };
 
    const createRecurringTasks = async (client: Client, creatorId: string) => {
-    if (client.status === 'Inactive' || !client.yearEnd || !client.uid) {
+    if (client.status === 'Inactive' || !client.yearEnd || !client.id) {
         if (client.status === 'Inactive') {
             toast({
                 title: 'Task Creation Skipped',
@@ -372,7 +372,7 @@ export default function AdminClientsPage() {
     }
 
     const getDepartmentStaffIds = (department: string): string[] => {
-        return allStaff.filter(u => u.department === department && (u.role === 'staff' || u.role === 'admin')).map(u => u.uid);
+        return allStaff.filter(u => u.department === department && (u.role === 'staff' || u.role === 'admin')).map(u => u.id);
     };
 
     const accountingAndTaxStaff = getDepartmentStaffIds('Accounting and Tax');
@@ -396,7 +396,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
-            clientId: client.uid,
+            clientId: client.id,
             comments: [],
         });
         
@@ -411,7 +411,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
-            clientId: client.uid,
+            clientId: client.id,
             comments: [],
         });
     }
@@ -429,7 +429,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
-            clientId: client.uid,
+            clientId: client.id,
             comments: [],
         });
     }
@@ -445,7 +445,7 @@ export default function AdminClientsPage() {
         priority: 'Medium',
         status: 'To-Do',
         createdBy: creatorId,
-        clientId: client.uid,
+        clientId: client.id,
         comments: [],
     });
     
@@ -461,7 +461,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
-            clientId: client.uid,
+            clientId: client.id,
             comments: [],
         });
     }
@@ -482,7 +482,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
-            clientId: client.uid,
+            clientId: client.id,
             comments: [],
         });
     }
@@ -524,7 +524,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
-            clientId: client.uid,
+            clientId: client.id,
             comments: [],
         });
     }
@@ -541,7 +541,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
-            clientId: client.uid,
+            clientId: client.id,
             comments: [],
         });
     }
@@ -558,7 +558,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
-            clientId: client.uid,
+            clientId: client.id,
             comments: [],
         });
     }
@@ -575,7 +575,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
-            clientId: client.uid,
+            clientId: client.id,
             comments: [],
         });
         tasksToCreate.push({
@@ -588,7 +588,7 @@ export default function AdminClientsPage() {
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
-            clientId: client.uid,
+            clientId: client.id,
             comments: [],
         });
     }
@@ -598,6 +598,32 @@ export default function AdminClientsPage() {
         if (task.assignedTo.length > 0) {
             const taskRef = doc(collection(db, 'tasks'));
             batch.set(taskRef, task);
+            
+            // Send email notifications
+            for (const assigneeId of task.assignedTo) {
+                if (assigneeId !== creatorId) { // Don't email the user who created the task
+                    const assignee = allStaff.find(s => s.id === assigneeId);
+                    if (assignee?.email) {
+                        try {
+                            const emailHtml = render(<NewTaskEmail 
+                                assigneeName={assignee.name.split(' ')[0]}
+                                taskTitle={task.title}
+                                taskDescription={task.description}
+                                dueDate={format(task.dueDate.toDate(), 'dd MMMM yyyy')}
+                                assignedBy={currentUser?.name || 'System'}
+                                taskUrl={`${window.location.origin}/admin/dashboard`}
+                            />);
+                            await sendEmail({
+                                to: assignee.email,
+                                subject: `New Task Assigned: ${task.title}`,
+                                html: emailHtml,
+                            });
+                        } catch (emailError) {
+                            console.error(`Failed to send task notification email to ${assignee.email}:`, emailError);
+                        }
+                    }
+                }
+            }
         }
     }
     
@@ -616,26 +642,26 @@ export default function AdminClientsPage() {
     return querySnapshot.size;
   }
 
-  const handleFormSubmit = async (data: Omit<User, 'uid' | 'role'>) => {
+  const handleFormSubmit = async (data: Omit<User, 'id' | 'role'>) => {
     if (!currentUser) return;
     
-    const clientData: Omit<Client, 'uid'> = {
+    const clientData: Omit<Client, 'id'> = {
         ...data,
         role: 'client',
         source: 'Client Management',
     };
 
     try {
-        if (selectedClient?.uid) {
-            const clientRef = doc(db, "clients", selectedClient.uid);
+        if (selectedClient?.id) {
+            const clientRef = doc(db, "clients", selectedClient.id);
             await setDoc(clientRef, clientData, { merge: true });
             toast({
                 title: 'Client Updated',
                 description: 'The client details have been saved.',
             });
             // Regenerate tasks for the updated client
-            await deleteRecurringTasks(selectedClient.uid);
-            const numTasks = await createRecurringTasks({ ...clientData, uid: selectedClient.uid } as Client, currentUser.uid);
+            await deleteRecurringTasks(selectedClient.id);
+            const numTasks = await createRecurringTasks({ ...clientData, id: selectedClient.id } as Client, currentUser.id);
              if (numTasks > 0) {
                 toast({
                     title: 'Recurring Tasks Updated',
@@ -648,8 +674,8 @@ export default function AdminClientsPage() {
                 title: 'Client Created',
                 description: 'The new client has been added to the database.',
             });
-            const newClient = { ...clientData, uid: newDocRef.id } as Client;
-            const numTasks = await createRecurringTasks(newClient, currentUser.uid);
+            const newClient = { ...clientData, id: newDocRef.id } as Client;
+            const numTasks = await createRecurringTasks(newClient, currentUser.id);
             if (numTasks > 0) {
                 toast({
                     title: 'Recurring Tasks Created',
@@ -737,7 +763,7 @@ export default function AdminClientsPage() {
             </TableHeader>
             <TableBody>
               {clients.map(client => (
-                <TableRow key={client.uid}>
+                <TableRow key={client.id}>
                   <TableCell className="font-medium">
                     <div>
                         <span>{client.name}</span>
@@ -791,7 +817,7 @@ export default function AdminClientsPage() {
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDelete(client.uid)}>
+                                <AlertDialogAction onClick={() => handleDelete(client.id)}>
                                     Continue
                                 </AlertDialogAction>
                             </AlertDialogFooter>
