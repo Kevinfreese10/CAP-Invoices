@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, MoreHorizontal, Edit, Trash2, FileCheck2, Hourglass, CheckCircle2 } from 'lucide-react';
+import { Loader2, MoreHorizontal, Edit, Trash2, FileCheck2, Hourglass, CheckCircle2, Eye } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
@@ -130,6 +130,7 @@ export default function ReviewPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
+    const [viewingFileUrl, setViewingFileUrl] = useState<string | null>(null);
     const { toast } = useToast();
 
     const fetchInvoices = async () => {
@@ -230,9 +231,9 @@ export default function ReviewPage() {
                                 <TableCell>{invoice.commissionNumber}</TableCell>
                                 <TableCell>{invoice.date}</TableCell>
                                 <TableCell>
-                                    <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                                    <Button variant="link" className="p-0 h-auto" onClick={() => setViewingFileUrl(invoice.fileUrl)}>
                                         {invoice.fileName}
-                                    </a>
+                                    </Button>
                                 </TableCell>
                                 <TableCell className="text-right font-mono">R {invoice.invoiceTotal.toFixed(2)}</TableCell>
                                 <TableCell className="text-right">
@@ -283,6 +284,19 @@ export default function ReviewPage() {
                 onSave={handleSave} 
                 onCancel={() => setEditingInvoice(null)} 
             />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!viewingFileUrl} onOpenChange={(isOpen) => !isOpen && setViewingFileUrl(null)}>
+        <DialogContent className="max-w-4xl h-[90vh]">
+            <DialogHeader>
+                <DialogTitle>Invoice Viewer</DialogTitle>
+            </DialogHeader>
+            {viewingFileUrl && (
+                <div className="h-full w-full">
+                    <iframe src={viewingFileUrl} className="h-full w-full border-0" title="Invoice file" />
+                </div>
+            )}
         </DialogContent>
       </Dialog>
     </div>
