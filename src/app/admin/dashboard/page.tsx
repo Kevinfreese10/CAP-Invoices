@@ -662,17 +662,12 @@ export default function AdminDashboardPage() {
     
     const departmentTasks = useMemo(() => {
         if (!user?.department) return [];
-        const deptIdentifier = `dept:${user.department.toLowerCase().replace(/ & /g, '-and-').replace(/ /g, '-')}`;
         
         const deptTasks = tasks.filter(task => {
             if (task.status === 'Done' || !task.clientId) return false;
 
-            const isAssignedToDept = task.assignedTo.includes(deptIdentifier);
-            const isAssignedToMemberOfDept = task.assignedTo.some(assigneeId => 
-                allStaff.find(s => s.uid === assigneeId && s.department === user.department)
-            );
-
-            return isAssignedToDept || isAssignedToMemberOfDept;
+            // Only include tasks associated with a client
+            return true;
         });
         
         return deptTasks.sort((a, b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : b.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
@@ -773,7 +768,7 @@ export default function AdminDashboardPage() {
                 // Send email notifications
                 for (const assigneeId of data.assignedTo) {
                     if (assigneeId !== user.uid) { // Don't email the user who created the task
-                        const assignee = allStaff.find(s => s.uid === assigneeId);
+                        const assignee = allStaff.find(s => s.id === assigneeId);
                         if (assignee?.email) {
                             try {
                                 const emailHtml = render(<NewTaskEmail 
@@ -1042,6 +1037,7 @@ export default function AdminDashboardPage() {
     
 
     
+
 
 
 
