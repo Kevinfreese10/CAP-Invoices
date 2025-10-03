@@ -18,20 +18,12 @@ type EmailPayload = {
 
 export async function sendEmail({ to, subject, html, from, bcc, resellerId, attachments }: EmailPayload) {
   
-  // Task notifications should always come from My Accountant, not the reseller.
-  const isTaskNotification = subject.includes('New Task Assigned');
-  const effectiveResellerId = isTaskNotification ? undefined : resellerId;
-
-  const reseller = users.find(u => u.id === effectiveResellerId && u.role === 'reseller');
   const admin = users.find(u => u.role === 'admin');
-
-  const smtpConfig = reseller?.smtpDetails || admin?.smtpDetails;
+  const smtpConfig = admin?.smtpDetails;
   
   let fromAddress: string;
   if (from) {
     fromAddress = from;
-  } else if (reseller) {
-    fromAddress = `"${reseller.companyName || reseller.name}" <${smtpConfig?.user}>`;
   } else {
     fromAddress = `"My Accountant" <${smtpConfig?.user || 'onboarding@resend.dev'}>`;
   }
