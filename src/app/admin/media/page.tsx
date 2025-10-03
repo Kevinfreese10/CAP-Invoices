@@ -6,20 +6,31 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { services } from '@/lib/data';
 import { blogPosts } from '@/lib/data';
 import { useState, useEffect } from 'react';
-import { getStorage, ref, uploadBytesResumable, getDownloadURL, listAll, uploadString, deleteObject } from 'firebase/storage';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, query, where, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Upload, FlaskConical, Trash2, X } from 'lucide-react';
+import { Loader2, Upload, Trash2 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { useAuth } from '@/contexts/AuthContext';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 const storage = getStorage(firebaseApp);
+const db = getFirestore(firebaseApp);
+
+type MediaItem = {
+    id: string;
+    title: string;
+    url: string;
+    hint?: string;
+    source: 'Service' | 'Blog' | 'Uploaded';
+    uploadedBy?: string;
+};
 
 export default function MediaPage() {
-    const serviceImages = services.map(s => ({
+    const serviceImages: MediaItem[] = services.map(s => ({
         id: s.id,
         title: s.title,
         url: s.imageUrl,
@@ -27,7 +38,7 @@ export default function MediaPage() {
         source: 'Service'
     }));
 
-    const blogImages = blogPosts.map(p => ({
+    const blogImages: MediaItem[] = blogPosts.map(p => ({
         id: p.id,
         title: p.title,
         url: p.imageUrl,
@@ -37,13 +48,12 @@ export default function MediaPage() {
 
     const allImages = [...serviceImages, ...blogImages];
     
-    const [uploadedImages, setUploadedImages] = useState<any[]>([]);
+    const [uploadedImages, setUploadedImages] = useState<MediaItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     const [files, setFiles] = useState<File[]>([]);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [isUploading, setIsUploading] = useState(false);
-    const [isTesting, setIsTesting] = useState(false);
     const { toast } = useToast();
     const { user } = useAuth();
 
@@ -54,25 +64,22 @@ export default function MediaPage() {
             return;
         }
         try {
-            const storageRef = ref(storage, `uploads/${user.uid}`);
-            const result = await listAll(storageRef);
-            
-            const urls = await Promise.all(
-              result.items.map(async (itemRef) => {
-                const url = await getDownloadURL(itemRef);
+            const q = query(collection(db, 'media'), where('uploadedBy', '==', user.uid));
+            const querySnapshot = await getDocs(q);
+            const urls = querySnapshot.docs.map(doc => {
+                const data = doc.data();
                 return {
-                  id: `uploaded-${itemRef.name}`,
-                  title: itemRef.name,
-                  url: url,
-                  hint: '',
-                  source: 'Uploaded',
-                };
-              })
-            );
+                    id: doc.id,
+                    title: data.name,
+                    url: data.url,
+                    source: 'Uploaded',
+                    uploadedBy: data.uploadedBy,
+                } as MediaItem;
+            });
             setUploadedImages(urls);
         } catch (error) {
             console.error("Error fetching uploaded images:", error);
-            toast({ title: "Error", description: "Could not load uploaded images. Please check storage permissions.", variant: "destructive"});
+            toast({ title: "Error", description: "Could not load uploaded images. Please check your database permissions.", variant: "destructive"});
         } finally {
             setIsLoading(false);
         }
@@ -113,10 +120,16 @@ export default function MediaPage() {
                         toast({ title: "Upload Failed", description: `Error uploading ${file.name}.`, variant: "destructive"});
                         reject(error);
                     },
-                    () => {
-                        getDownloadURL(uploadTask.snapshot.ref).then(() => {
-                           resolve();
+                    async () => {
+                        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                        // Save metadata to Firestore
+                        await addDoc(collection(db, 'media'), {
+                            name: file.name,
+                            url: downloadURL,
+                            uploadedBy: user.uid,
+                            createdAt: serverTimestamp(),
                         });
+                        resolve();
                     }
                 );
             });
@@ -130,48 +143,20 @@ export default function MediaPage() {
         await fetchUploadedImages();
     };
     
-    const handleDelete = async (imageUrl: string) => {
+    const handleDelete = async (image: MediaItem) => {
         try {
-            const imageRef = ref(storage, imageUrl);
+            // Delete from Firestore
+            await deleteDoc(doc(db, 'media', image.id));
+
+            // Delete from Storage
+            const imageRef = ref(storage, image.url);
             await deleteObject(imageRef);
-            toast({ title: 'Image Deleted', description: 'The image has been removed from your storage.' });
+
+            toast({ title: 'Image Deleted', description: 'The image has been removed from your library.' });
             fetchUploadedImages();
         } catch(error) {
             console.error("Delete error:", error);
             toast({ title: 'Delete Failed', description: 'There was an error deleting the image.', variant: 'destructive' });
-        }
-    }
-
-    const handleTestRules = async () => {
-        if (!user?.uid) {
-            toast({ title: "Not Logged In", description: "Cannot perform test without a logged-in user.", variant: "destructive" });
-            return;
-        }
-        setIsTesting(true);
-        toast({ title: "Running Test...", description: "Attempting to write a test file to storage." });
-        
-        const testPath = `uploads/${user.uid}/test-rule.txt`;
-        const testRef = ref(storage, testPath);
-        const testString = `Test write by ${user.email} at ${new Date().toISOString()}`;
-
-        try {
-            await uploadString(testRef, testString);
-            toast({
-                title: "Test Successful!",
-                description: `Successfully wrote to path: ${testPath}. Your rules are working correctly for this path and user.`,
-                variant: "success",
-                duration: 9000,
-            });
-        } catch (error: any) {
-            console.error("Rule test failed:", error);
-             toast({
-                title: "Test Failed: Permission Denied",
-                description: `Code: ${error.code}. Message: ${error.message}. Please check your storage rules.`,
-                variant: "destructive",
-                duration: 9000,
-            });
-        } finally {
-            setIsTesting(false);
         }
     }
 
@@ -185,7 +170,7 @@ export default function MediaPage() {
         <Card>
             <CardHeader>
                 <CardTitle>Upload New Image(s)</CardTitle>
-                <CardDescription>Add new images to your Firebase Storage library.</CardDescription>
+                <CardDescription>Add new images to your Firebase Storage library and Firestore database.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
                  <div className="flex flex-col sm:flex-row gap-4">
@@ -193,10 +178,6 @@ export default function MediaPage() {
                     <Button onClick={handleUpload} disabled={isUploading || files.length === 0}>
                         {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
                         {isUploading ? `Uploading ${files.length} images...` : `Upload ${files.length} Image(s)`}
-                    </Button>
-                    <Button onClick={handleTestRules} variant="outline" disabled={isTesting}>
-                        {isTesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FlaskConical className="mr-2 h-4 w-4" />}
-                        Test Storage Rules
                     </Button>
                 </div>
                 {isUploading && <Progress value={uploadProgress} className="w-full" />}
@@ -236,11 +217,11 @@ export default function MediaPage() {
                                  <AlertDialogContent>
                                     <AlertDialogHeader>
                                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                        <AlertDialogDescription>This will permanently delete the image <span className="font-semibold">{image.title}</span> from your storage.</AlertDialogDescription>
+                                        <AlertDialogDescription>This will permanently delete the image <span className="font-semibold">{image.title}</span> from your storage and database.</AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
                                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => handleDelete(image.url)}>Delete</AlertDialogAction>
+                                        <AlertDialogAction onClick={() => handleDelete(image)}>Delete</AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
