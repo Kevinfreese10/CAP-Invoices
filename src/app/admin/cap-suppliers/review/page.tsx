@@ -20,6 +20,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import Link from 'next/link';
 
 
 const db = getFirestore(firebaseApp);
@@ -130,7 +131,6 @@ export default function ReviewPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
-    const [viewingFileUrl, setViewingFileUrl] = useState<string | null>(null);
     const { toast } = useToast();
 
     const fetchInvoices = async () => {
@@ -231,8 +231,10 @@ export default function ReviewPage() {
                                 <TableCell>{invoice.commissionNumber}</TableCell>
                                 <TableCell>{invoice.date}</TableCell>
                                 <TableCell>
-                                    <Button variant="link" className="p-0 h-auto" onClick={() => setViewingFileUrl(invoice.fileUrl)}>
-                                        {invoice.fileName}
+                                    <Button variant="link" className="p-0 h-auto" asChild>
+                                        <Link href={invoice.fileUrl} target="_blank" rel="noopener noreferrer">
+                                            {invoice.fileName}
+                                        </Link>
                                     </Button>
                                 </TableCell>
                                 <TableCell className="text-right font-mono">R {invoice.invoiceTotal.toFixed(2)}</TableCell>
@@ -287,18 +289,6 @@ export default function ReviewPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!viewingFileUrl} onOpenChange={(isOpen) => !isOpen && setViewingFileUrl(null)}>
-        <DialogContent className="max-w-4xl h-[90vh]">
-            <DialogHeader>
-                <DialogTitle>Invoice Viewer</DialogTitle>
-            </DialogHeader>
-            {viewingFileUrl && (
-                <div className="h-full w-full">
-                    <iframe src={viewingFileUrl} className="h-full w-full border-0" title="Invoice file" />
-                </div>
-            )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
