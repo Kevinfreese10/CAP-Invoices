@@ -1,12 +1,22 @@
 
 import { MetadataRoute } from 'next';
-import { services } from '@/lib/data';
-import { blogPosts } from '@/lib/data';
+import { getFirestore, collection, getDocs } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
+import { Service, BlogPost } from '@/lib/types';
 
-export default function sitemap(): MetadataRoute.Sitemap {
+const db = getFirestore(firebaseApp);
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://my-accountant-app.com';
+
+  // Fetch dynamic pages
+  const servicesSnapshot = await getDocs(collection(db, 'services'));
+  const services = servicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
   
-  // In a real app, you'd get this from an environment variable
-  const siteUrl = 'https://studio--studio-2604127518-57889.us-central1.hosted.app'; 
+  // This assumes blog posts are also in a 'blogPosts' collection.
+  // If not, this will return an empty array, which is safe.
+  const blogPostsSnapshot = await getDocs(collection(db, 'blogPosts'));
+  const blogPosts = blogPostsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BlogPost));
 
   const servicePages = services.map(service => ({
     url: `${siteUrl}/services/${service.id}`,
