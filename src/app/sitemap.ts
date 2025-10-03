@@ -13,8 +13,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const servicesSnapshot = await getDocs(collection(db, 'services'));
   const services = servicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
   
-  // This assumes blog posts are also in a 'blogPosts' collection.
-  // If not, this will return an empty array, which is safe.
   const blogPostsSnapshot = await getDocs(collection(db, 'blogPosts'));
   const blogPosts = blogPostsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BlogPost));
 
@@ -23,10 +21,23 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     lastModified: new Date(),
   }));
 
-  const blogPostPages = blogPosts.map(post => ({
-    url: `${siteUrl}/blog/${post.slug}`,
-    lastModified: new Date(post.date),
-  }));
+  const blogPostPages = blogPosts.map(post => {
+    let lastModifiedDate;
+    if (typeof post.date === 'string') {
+      lastModifiedDate = new Date(post.date);
+    } else if (post.date && typeof post.date.toDate === 'function') {
+      // Handle Firestore Timestamp
+      lastModifiedDate = post.date.toDate();
+    } else {
+      // Fallback for any other case
+      lastModifiedDate = new Date();
+    }
+    
+    return {
+      url: `${siteUrl}/blog/${post.slug}`,
+      lastModified: lastModifiedDate,
+    };
+  });
 
   const staticPages = [
     { url: `${siteUrl}/`, lastModified: new Date() },
