@@ -20,20 +20,34 @@ import { Service } from '@/lib/types';
 
 const db = getFirestore(firebaseApp);
 
+type Category = { 
+    id: string; 
+    name: string; 
+    description: string; 
+    order: number; 
+};
+
 const formatPrice = (price: number) => {
     // Use simple formatting to avoid hydration mismatch between server/client
     return `R ${price.toLocaleString('en-US')}`;
 };
 
-async function getServices(): Promise<Service[]> {
+async function getData(): Promise<{ services: Service[], categories: Category[] }> {
     const servicesCollection = collection(db, 'services');
-    const q = query(servicesCollection, orderBy('title'));
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
+    const servicesQuery = query(servicesCollection, orderBy('title'));
+    const servicesSnapshot = await getDocs(servicesQuery);
+    const services = servicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
+
+    const categoriesCollection = collection(db, 'categories');
+    const categoriesQuery = query(categoriesCollection, orderBy('order'));
+    const categoriesSnapshot = await getDocs(categoriesQuery);
+    const categories = categoriesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category));
+
+    return { services, categories };
 }
 
 export default async function Home() {
-  const services = await getServices();
+  const { services, categories: serviceCategories } = await getData();
 
   const whyChooseUs = [
     {
@@ -51,16 +65,6 @@ export default async function Home() {
       description: 'We prioritize efficiency to meet your deadlines without compromising quality.',
       icon: Rocket,
     },
-  ];
-
-  const serviceCategories = [
-    { name: "SARS Services", description: "Comprehensive tax services to ensure you are compliant with SARS.", order: 1 },
-    { name: "Entity Registrations", description: "Register your new business entity with all the necessary bodies.", order: 2 },
-    { name: "CIPC Services", description: "All services related to the Companies and Intellectual Property Commission.", order: 3 },
-    { name: "COIDA Services", description: "Services related to the Compensation for Occupational Injuries and Diseases Act.", order: 4 },
-    { name: "NCR Registrations", description: "Registration services for the National Credit Regulator.", order: 5 },
-    { name: "Accounting Services", description: "Professional accounting and bookkeeping to keep your finances in order.", order: 6 },
-    { name: "CIDB Services", description: "Services for the Construction Industry Development Board.", order: 7 }
   ];
   
   const categorizedServices = serviceCategories

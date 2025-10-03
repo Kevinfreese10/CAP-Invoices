@@ -1,10 +1,10 @@
 
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, ArrowUp, ArrowDown } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, ArrowUp, ArrowDown, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -15,19 +15,17 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc, query, orderBy, writeBatch } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
 
-// Mock data, as there's no database
-const initialCategories = [
-    { id: '1', name: "SARS Services", description: "Comprehensive tax services to ensure you are compliant with SARS.", order: 1 },
-    { id: '2', name: "Entity Registrations", description: "Register your new business entity with all the necessary bodies.", order: 2 },
-    { id: '3', name: "CIPC Services", description: "All services related to the Companies and Intellectual Property Commission.", order: 3 },
-    { id: '4', name: "COIDA Services", description: "Services related to the Compensation for Occupational Injuries and Diseases Act.", order: 4 },
-    { id: '5', name: "NCR Registrations", description: "Registration services for the National Credit Regulator.", order: 5 },
-    { id: '6', name: "Accounting Services", description: "Professional accounting and bookkeeping to keep your finances in order.", order: 6 },
-    { id: '7', name: "CIDB Services", description: "Services for the Construction Industry Development Board.", order: 7 }
-];
+const db = getFirestore(firebaseApp);
 
-type Category = { id: string; name: string; description: string; order: number; };
+type Category = { 
+    id: string; 
+    name: string; 
+    description: string; 
+    order: number; 
+};
 
 const formSchema = z.object({
   id: z.string().optional(),
@@ -38,12 +36,12 @@ const formSchema = z.object({
 function CategoryForm({ category, onSubmit, onCancel }: { category: Omit<Category, 'order'> | null, onSubmit: (data: any) => void, onCancel: () => void }) {
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
-        defaultValues: {
-            id: category?.id || '',
-            name: category?.name || '',
-            description: category?.description || '',
-        },
+        defaultValues: category || { id: '', name: '', description: '' },
     });
+    
+    useEffect(() => {
+        form.reset(category || { id: '', name: '', description: '' });
+    }, [category, form]);
 
     const handleSubmit = (values: z.infer<typeof formSchema>) => {
         onSubmit(values);
@@ -84,10 +82,30 @@ function CategoryForm({ category, onSubmit, onCancel }: { category: Omit<Categor
 }
 
 export default function AdminCategoriesPage() {
-  const [categories, setCategories] = useState<Category[]>(initialCategories.sort((a,b) => a.order - b.order));
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const { toast } = useToast();
+
+  const fetchCategories = async () => {
+    setIsLoading(true);
+    try {
+        const q = query(collection(db, "categories"), orderBy("order"));
+        const querySnapshot = await getDocs(q);
+        const fetchedCategories = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Category));
+        setCategories(fetchedCategories);
+    } catch(error) {
+        console.error("Error fetching categories:", error);
+        toast({ title: 'Error', description: 'Could not fetch categories.', variant: 'destructive'});
+    } finally {
+        setIsLoading(false);
+    }
+  };
+  
+  useEffect(() => {
+    fetchCategories();
+  }, []);
 
   const handleAdd = () => {
     setSelectedCategory(null);
@@ -99,42 +117,42 @@ export default function AdminCategoriesPage() {
     setIsFormOpen(true);
   };
   
-  const handleDelete = (categoryId: string) => {
-    setCategories(prev => prev.filter(c => c.id !== categoryId));
-    toast({
-        title: 'Category Deleted',
-        description: 'The category has been successfully removed.',
-        variant: 'destructive',
-    })
-  };
-
-  const handleFormSubmit = (data: Omit<Category, 'id' | 'order'>) => {
-    if (selectedCategory) {
-      // Update
-      setCategories(prev =>
-        prev.map(c => (c.id === selectedCategory.id ? { ...c, ...data } : c))
-      );
-       toast({
-        title: 'Category Updated',
-        description: 'The category details have been saved.',
-      });
-    } else {
-      // Add
-       const newOrder = categories.length > 0 ? Math.max(...categories.map(c => c.order)) + 1 : 1;
-      setCategories(prev => [
-        ...prev,
-        { ...data, id: `new-cat-${Date.now()}`, order: newOrder }, // Mock ID
-      ]);
-       toast({
-        title: 'Category Created',
-        description: 'The new category has been added successfully.',
-      });
+  const handleDelete = async (categoryId: string) => {
+    try {
+        await deleteDoc(doc(db, "categories", categoryId));
+        toast({
+            title: 'Category Deleted',
+            description: 'The category has been removed.',
+            variant: 'destructive',
+        });
+        fetchCategories();
+    } catch(error) {
+         toast({ title: 'Error', description: 'Could not delete category.', variant: 'destructive'});
     }
-    setIsFormOpen(false);
-    setSelectedCategory(null);
   };
 
-  const moveCategory = (index: number, direction: 'up' | 'down') => {
+  const handleFormSubmit = async (data: Omit<Category, 'order'>) => {
+    try {
+        if (selectedCategory) {
+            // Update
+            const docRef = doc(db, "categories", selectedCategory.id);
+            await setDoc(docRef, { name: data.name, description: data.description }, { merge: true });
+            toast({ title: 'Category Updated' });
+        } else {
+            // Add
+            const maxOrder = categories.length > 0 ? Math.max(...categories.map(c => c.order)) : 0;
+            await addDoc(collection(db, "categories"), { ...data, order: maxOrder + 1 });
+            toast({ title: 'Category Created' });
+        }
+        fetchCategories();
+        setIsFormOpen(false);
+        setSelectedCategory(null);
+    } catch (error) {
+        toast({ title: 'Error', description: 'Could not save category.', variant: 'destructive'});
+    }
+  };
+
+  const moveCategory = async (index: number, direction: 'up' | 'down') => {
     if (
       (direction === 'up' && index === 0) ||
       (direction === 'down' && index === categories.length - 1)
@@ -149,8 +167,22 @@ export default function AdminCategoriesPage() {
 
     // Swap orders
     [itemToMove.order, itemToSwap.order] = [itemToSwap.order, itemToMove.order];
+    
+    try {
+        const batch = writeBatch(db);
+        const doc1Ref = doc(db, "categories", itemToMove.id);
+        batch.update(doc1Ref, { order: itemToMove.order });
+        const doc2Ref = doc(db, "categories", itemToSwap.id);
+        batch.update(doc2Ref, { order: itemToSwap.order });
+        await batch.commit();
 
-    setCategories(newCategories.sort((a, b) => a.order - b.order));
+        setCategories(newCategories.sort((a, b) => a.order - b.order));
+        toast({ title: "Order updated" });
+    } catch(error) {
+        toast({ title: "Error", description: "Could not update category order.", variant: "destructive" });
+        // Revert UI change on failure
+        fetchCategories();
+    }
   };
 
   return (
@@ -185,6 +217,11 @@ export default function AdminCategoriesPage() {
           <CardDescription>View, edit, and delete your service categories. Use the arrows to reorder them.</CardDescription>
         </CardHeader>
         <CardContent>
+          {isLoading ? (
+             <div className="flex justify-center items-center h-64">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -252,6 +289,7 @@ export default function AdminCategoriesPage() {
               ))}
             </TableBody>
           </Table>
+          )}
         </CardContent>
       </Card>
     </div>

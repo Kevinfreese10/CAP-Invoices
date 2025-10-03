@@ -17,8 +17,17 @@ import { Separator } from '../ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import MediaLibrary from './MediaLibrary';
 import Image from 'next/image';
+import { getFirestore, collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
 
+
+const db = getFirestore(firebaseApp);
 const departments = ['Accounting and Tax', 'Administration', 'CAP'] as const;
+
+type Category = { 
+    id: string; 
+    name: string; 
+};
 
 const formSchema = z.object({
   id: z.string().optional(),
@@ -48,22 +57,28 @@ type ServiceFormProps = {
   onSubmit: (data: any) => void;
 };
 
-const serviceCategories = [
-    "SARS Services",
-    "Entity Registrations",
-    "CIPC Services",
-    "COIDA Services",
-    "NCR Registrations",
-    "Accounting Services",
-    "CIDB Services",
-];
 
 export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
   const { toast } = useToast();
   const [isAiUpdating, setIsAiUpdating] = useState(false);
   const [isMediaLibraryOpen, setIsMediaLibraryOpen] = useState(false);
   const [mediaLibraryTarget, setMediaLibraryTarget] = useState<'image' | 'attachment'>('image');
+  const [serviceCategories, setServiceCategories] = useState<Category[]>([]);
 
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+        try {
+            const q = query(collection(db, "categories"), orderBy("order"));
+            const querySnapshot = await getDocs(q);
+            const fetchedCategories = querySnapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name } as Category));
+            setServiceCategories(fetchedCategories);
+        } catch (error) {
+            toast({ title: "Error", description: "Could not fetch service categories.", variant: "destructive"});
+        }
+    };
+    fetchCategories();
+  }, []);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -225,7 +240,7 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
                         <SelectTrigger><SelectValue placeholder="Select a category" /></SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                        {serviceCategories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
+                        {serviceCategories.map(cat => <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>)}
                     </SelectContent>
                 </Select>
                 <FormMessage />
