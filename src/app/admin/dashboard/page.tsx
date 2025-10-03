@@ -663,9 +663,10 @@ export default function AdminDashboardPage() {
     const departmentTasks = useMemo(() => {
         if (!user?.department) return [];
         const deptIdentifier = `dept:${user.department.toLowerCase().replace(/ & /g, '-and-').replace(/ /g, '-')}`;
+        
         const deptTasks = tasks.filter(task => {
-            if (task.status === 'Done') return false;
-            
+            if (task.status === 'Done' || !task.clientId) return false;
+
             const isAssignedToDept = task.assignedTo.includes(deptIdentifier);
             const isAssignedToMemberOfDept = task.assignedTo.some(assigneeId => 
                 allStaff.find(s => s.uid === assigneeId && s.department === user.department)
@@ -1041,6 +1042,7 @@ export default function AdminDashboardPage() {
     
 
     
+
 
 
 
