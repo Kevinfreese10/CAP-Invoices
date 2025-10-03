@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import BlogForm from '@/components/admin/BlogForm';
@@ -17,7 +17,7 @@ import Link from 'next/link';
 import { useBlog } from '@/contexts/BlogContext';
 
 export default function AdminBlogPage() {
-  const { blogPosts, addPost, updatePost, deletePost } = useBlog();
+  const { blogPosts, addPost, updatePost, deletePost, isLoading } = useBlog();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedPost, setSelectedPost] = useState<BlogPost | null>(null);
   const { toast } = useToast();
@@ -32,33 +32,47 @@ export default function AdminBlogPage() {
     setIsFormOpen(true);
   };
   
-  const handleDeletePost = (postId: string) => {
-    deletePost(postId);
-    toast({
-        title: 'Blog Post Deleted',
-        description: 'The post has been successfully removed.',
-        variant: 'destructive',
-    })
+  const handleDeletePost = async (postId: string) => {
+    try {
+        await deletePost(postId);
+        toast({
+            title: 'Blog Post Deleted',
+            description: 'The post has been successfully removed.',
+            variant: 'destructive',
+        })
+    } catch(e) {
+        toast({
+            title: 'Error',
+            description: 'Could not delete the blog post.',
+            variant: 'destructive',
+        })
+    }
   };
 
-  const handleFormSubmit = (postData: BlogPost) => {
-    if (selectedPost) {
-      // Update existing post
-      updatePost(postData);
-       toast({
-        title: 'Post Updated',
-        description: 'The blog post has been saved.',
-      });
-    } else {
-      // Add new post
-      addPost(postData);
-       toast({
-        title: 'Post Created',
-        description: 'The new blog post has been added successfully.',
-      });
+  const handleFormSubmit = async (postData: BlogPost) => {
+    try {
+        if (selectedPost) {
+            await updatePost(postData);
+            toast({
+                title: 'Post Updated',
+                description: 'The blog post has been saved.',
+            });
+        } else {
+            await addPost(postData);
+            toast({
+                title: 'Post Created',
+                description: 'The new blog post has been added successfully.',
+            });
+        }
+        setIsFormOpen(false);
+        setSelectedPost(null);
+    } catch(e) {
+         toast({
+            title: 'Error',
+            description: 'Could not save the blog post.',
+            variant: 'destructive',
+        });
     }
-    setIsFormOpen(false);
-    setSelectedPost(null);
   };
 
 
@@ -93,6 +107,11 @@ export default function AdminBlogPage() {
           <CardDescription>View, edit, and delete your blog posts.</CardDescription>
         </CardHeader>
         <CardContent>
+          {isLoading ? (
+             <div className="flex justify-center items-center h-64">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -160,6 +179,7 @@ export default function AdminBlogPage() {
               ))}
             </TableBody>
           </Table>
+          )}
         </CardContent>
       </Card>
     </div>

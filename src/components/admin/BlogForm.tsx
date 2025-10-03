@@ -8,12 +8,15 @@ import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Trash, Sparkles, Loader2 } from 'lucide-react';
+import { Trash, Sparkles, Loader2, Images } from 'lucide-react';
 import { generateBlogPostSeo } from '@/ai/flows/generate-blog-post-seo';
 import { generateBlogPost } from '@/ai/flows/generate-blog-post';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
 import { Separator } from '../ui/separator';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
+import MediaLibrary from './MediaLibrary';
+import Image from 'next/image';
 
 const formSchema = z.object({
   id: z.string().optional(),
@@ -37,6 +40,7 @@ export default function BlogForm({ post, onSubmit }: BlogFormProps) {
   const { toast } = useToast();
   const [isAiContentUpdating, setIsAiContentUpdating] = useState(false);
   const [isAiSeoUpdating, setIsAiSeoUpdating] = useState(false);
+  const [isMediaLibraryOpen, setIsMediaLibraryOpen] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -142,9 +146,23 @@ export default function BlogForm({ post, onSubmit }: BlogFormProps) {
     }
     onSubmit(postData);
   };
+  
+  const currentImageUrl = form.watch('imageUrl');
 
   return (
     <Form {...form}>
+      <Dialog open={isMediaLibraryOpen} onOpenChange={setIsMediaLibraryOpen}>
+            <DialogContent className="max-w-4xl">
+                <DialogHeader>
+                    <DialogTitle>Media Library</DialogTitle>
+                    <DialogDescription>Select an image for this blog post.</DialogDescription>
+                </DialogHeader>
+                <MediaLibrary onSelectImage={(url) => {
+                    form.setValue('imageUrl', url);
+                    setIsMediaLibraryOpen(false);
+                }} />
+            </DialogContent>
+        </Dialog>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 max-h-[70vh] overflow-y-auto p-1 pr-4">
         <FormField
           control={form.control}
@@ -190,7 +208,28 @@ export default function BlogForm({ post, onSubmit }: BlogFormProps) {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField control={form.control} name="author" render={({ field }) => ( <FormItem><FormLabel>Author</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-            <FormField control={form.control} name="imageUrl" render={({ field }) => ( <FormItem><FormLabel>Image URL</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+            <FormField
+                control={form.control}
+                name="imageUrl"
+                render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Image URL</FormLabel>
+                         <div className="flex items-center gap-4">
+                             <div className="relative h-24 w-24 flex-shrink-0 border rounded-md overflow-hidden">
+                                {currentImageUrl && <Image src={currentImageUrl} alt="Current blog post image" fill className="object-cover"/>}
+                            </div>
+                            <div className="flex-grow space-y-2">
+                                <FormControl><Input {...field} placeholder="https://example.com/image.jpg" /></FormControl>
+                                <Button type="button" variant="outline" size="sm" onClick={() => setIsMediaLibraryOpen(true)}>
+                                    <Images className="mr-2 h-4 w-4"/>
+                                    Select from Media Library
+                                </Button>
+                            </div>
+                        </div>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
         </div>
         <FormField control={form.control} name="imageHint" render={({ field }) => ( <FormItem><FormLabel>Image AI Hint</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
 

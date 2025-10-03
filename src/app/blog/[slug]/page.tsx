@@ -1,14 +1,36 @@
 
-'use client';
 import Image from 'next/image';
-import { notFound, useParams } from 'next/navigation';
-import { blogPosts } from '@/lib/data';
+import { notFound } from 'next/navigation';
+import { BlogPost } from '@/lib/types';
+import { getFirestore, collection, getDocs, query, where } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
+import { format } from 'date-fns';
 
-export default function BlogPostPage() {
-  const params = useParams();
-  const slug = params.slug;
+const db = getFirestore(firebaseApp);
 
-  const post = blogPosts.find(p => p.slug === slug);
+async function getPost(slug: string): Promise<BlogPost | null> {
+    const q = query(collection(db, "blogPosts"), where("slug", "==", slug));
+    const querySnapshot = await getDocs(q);
+    if (querySnapshot.empty) {
+        return null;
+    }
+    const docData = querySnapshot.docs[0].data();
+    return {
+        ...docData,
+        id: querySnapshot.docs[0].id,
+        date: docData.date.toDate().toISOString(),
+    } as BlogPost;
+}
+
+export async function generateStaticParams() {
+    const snapshot = await getDocs(collection(db, 'blogPosts'));
+    return snapshot.docs.map(doc => ({
+        slug: doc.data().slug,
+    }));
+}
+
+export default async function BlogPostPage({ params }: { params: { slug: string } }) {
+  const post = await getPost(params.slug);
 
   if (!post) {
     notFound();
@@ -22,7 +44,7 @@ export default function BlogPostPage() {
           <div>
             <p className="font-semibold">{post.author}</p>
             <p className="text-sm text-muted-foreground">
-              Published on {new Date(post.date).toLocaleDateString('en-ZA', { year: 'numeric', month: 'long', day: 'numeric' })}
+              Published on {format(new Date(post.date), 'dd MMMM yyyy')}
             </p>
           </div>
         </div>
