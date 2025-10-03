@@ -29,7 +29,6 @@ const formSchema = z.object({
   resellerPrice: z.preprocess(val => Number(val), z.number().min(0, 'Reseller price must be a positive number.').optional()),
   imageUrl: z.string().url('Must be a valid URL.'),
   imageHint: z.string().min(1, 'Image hint is required.'),
-  seoImageUrl: z.string().url('Must be a valid URL.').optional(),
   category: z.string().min(1, 'Category is required.'),
   department: z.enum(departments),
   turnaroundTime: z.string().min(1, 'Turnaround time is required.'),
@@ -74,7 +73,6 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
       resellerPrice: service?.resellerPrice || 0,
       imageUrl: service?.imageUrl || 'https://picsum.photos/seed/new/600/400',
       imageHint: service?.imageHint || 'abstract',
-      seoImageUrl: service?.seoImageUrl || '',
       category: service?.category || '',
       department: service?.department || 'Administration',
       turnaroundTime: service?.turnaroundTime || '',
@@ -153,6 +151,7 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
   const handleSubmit = (values: z.infer<typeof formSchema>) => {
     const serviceData = {
         ...values,
+        seoImageUrl: values.imageUrl,
         whatsIncluded: values.whatsIncluded.map(v => v.value),
         clientRequirements: values.clientRequirements.map(v => v.value),
         informationToProvide: values.informationToProvide,
@@ -338,7 +337,7 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
         <Separator />
 
         <div className="space-y-4 rounded-lg border p-4">
-            <h3 className="text-lg font-medium">SEO &amp; Content</h3>
+            <h3 className="text-lg font-medium">SEO & Content</h3>
              <FormField
                 control={form.control}
                 name="imageUrl"
@@ -381,17 +380,6 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
                 render={({ field }) => (
                     <FormItem>
                     <FormLabel>Display Image AI Hint</FormLabel>
-                    <FormControl><Input {...field} /></FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-            />
-             <FormField
-                control={form.control}
-                name="seoImageUrl"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>SEO Image URL (Optional)</FormLabel>
                     <FormControl><Input {...field} /></FormControl>
                     <FormMessage />
                     </FormItem>
@@ -444,3 +432,5 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
     </Form>
   );
 }
+
+    
