@@ -1,3 +1,4 @@
+
 'use client';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -8,11 +9,14 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash, Sparkles, Loader2, Plus, Info } from 'lucide-react';
+import { Trash, Sparkles, Loader2, Plus, Info, Images } from 'lucide-react';
 import { generateServiceDetails } from '@/ai/flows/generate-service-details';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
 import { Separator } from '../ui/separator';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
+import MediaLibrary from './MediaLibrary';
+import Image from 'next/image';
 
 const departments = ['Accounting and Tax', 'Administration', 'CAP'] as const;
 
@@ -57,6 +61,7 @@ const serviceCategories = [
 export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
   const { toast } = useToast();
   const [isAiUpdating, setIsAiUpdating] = useState(false);
+  const [isMediaLibraryOpen, setIsMediaLibraryOpen] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -155,6 +160,8 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
     } as Service
     onSubmit(serviceData);
   };
+
+  const currentImageUrl = form.watch('imageUrl');
 
   return (
     <Form {...form}>
@@ -337,9 +344,34 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
                 name="imageUrl"
                 render={({ field }) => (
                     <FormItem>
-                    <FormLabel>Display Image URL</FormLabel>
-                    <FormControl><Input {...field} /></FormControl>
-                    <FormMessage />
+                        <FormLabel>Display Image</FormLabel>
+                        <div className="flex items-center gap-4">
+                             <div className="relative h-24 w-24 flex-shrink-0 border rounded-md overflow-hidden">
+                                {currentImageUrl && <Image src={currentImageUrl} alt="Current service image" fill className="object-cover"/>}
+                            </div>
+                            <div className="flex-grow space-y-2">
+                                <FormControl><Input {...field} placeholder="https://example.com/image.jpg" /></FormControl>
+                                 <Dialog open={isMediaLibraryOpen} onOpenChange={setIsMediaLibraryOpen}>
+                                    <DialogTrigger asChild>
+                                        <Button type="button" variant="outline" size="sm">
+                                            <Images className="mr-2 h-4 w-4"/>
+                                            Select from Media Library
+                                        </Button>
+                                    </DialogTrigger>
+                                    <DialogContent className="max-w-4xl">
+                                        <DialogHeader>
+                                            <DialogTitle>Media Library</DialogTitle>
+                                            <DialogDescription>Select an image to use for this service.</DialogDescription>
+                                        </DialogHeader>
+                                        <MediaLibrary onSelectImage={(url) => {
+                                            form.setValue('imageUrl', url);
+                                            setIsMediaLibraryOpen(false);
+                                        }} />
+                                    </DialogContent>
+                                </Dialog>
+                            </div>
+                        </div>
+                        <FormMessage />
                     </FormItem>
                 )}
             />
