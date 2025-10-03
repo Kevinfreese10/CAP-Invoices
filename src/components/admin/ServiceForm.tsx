@@ -10,7 +10,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash, Sparkles, Loader2, Plus, Info, Images } from 'lucide-react';
+import { Trash, Sparkles, Loader2, Plus, Info, Images, Paperclip } from 'lucide-react';
 import { generateServiceDetails } from '@/ai/flows/generate-service-details';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
@@ -63,6 +63,8 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
   const { toast } = useToast();
   const [isAiUpdating, setIsAiUpdating] = useState(false);
   const [isMediaLibraryOpen, setIsMediaLibraryOpen] = useState(false);
+  const [mediaLibraryTarget, setMediaLibraryTarget] = useState<'image' | 'attachment'>('image');
+
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -164,6 +166,9 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
   };
 
   const currentImageUrl = form.watch('imageUrl');
+  const currentAttachmentUrl = form.watch('attachmentUrl');
+  const attachmentFilename = currentAttachmentUrl ? currentAttachmentUrl.split('/').pop()?.split('?')[0] : '';
+
 
   return (
     <Form {...form}>
@@ -340,6 +345,24 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
         <Separator />
 
         <div className="space-y-4 rounded-lg border p-4">
+            <Dialog open={isMediaLibraryOpen} onOpenChange={setIsMediaLibraryOpen}>
+                <DialogContent className="max-w-4xl">
+                    <DialogHeader>
+                        <DialogTitle>Media Library</DialogTitle>
+                        <DialogDescription>
+                            {mediaLibraryTarget === 'image' ? 'Select an image for this service.' : 'Select a file to attach to the email.'}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <MediaLibrary onSelectImage={(url) => {
+                        if (mediaLibraryTarget === 'image') {
+                           form.setValue('imageUrl', url);
+                        } else {
+                           form.setValue('attachmentUrl', url);
+                        }
+                        setIsMediaLibraryOpen(false);
+                    }} />
+                </DialogContent>
+            </Dialog>
             <h3 className="text-lg font-medium">SEO & Content</h3>
              <FormField
                 control={form.control}
@@ -353,24 +376,10 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
                             </div>
                             <div className="flex-grow space-y-2">
                                 <FormControl><Input {...field} placeholder="https://example.com/image.jpg" /></FormControl>
-                                 <Dialog open={isMediaLibraryOpen} onOpenChange={setIsMediaLibraryOpen}>
-                                    <DialogTrigger asChild>
-                                        <Button type="button" variant="outline" size="sm">
-                                            <Images className="mr-2 h-4 w-4"/>
-                                            Select from Media Library
-                                        </Button>
-                                    </DialogTrigger>
-                                    <DialogContent className="max-w-4xl">
-                                        <DialogHeader>
-                                            <DialogTitle>Media Library</DialogTitle>
-                                            <DialogDescription>Select an image to use for this service.</DialogDescription>
-                                        </DialogHeader>
-                                        <MediaLibrary onSelectImage={(url) => {
-                                            form.setValue('imageUrl', url);
-                                            setIsMediaLibraryOpen(false);
-                                        }} />
-                                    </DialogContent>
-                                </Dialog>
+                                <Button type="button" variant="outline" size="sm" onClick={() => { setMediaLibraryTarget('image'); setIsMediaLibraryOpen(true); }}>
+                                    <Images className="mr-2 h-4 w-4"/>
+                                    Select from Media Library
+                                </Button>
                             </div>
                         </div>
                         <FormMessage />
@@ -393,9 +402,22 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
                 name="attachmentUrl"
                 render={({ field }) => (
                     <FormItem>
-                    <FormLabel>Attachment URL (Optional)</FormLabel>
-                    <FormControl><Input {...field} placeholder="e.g., https://storage.googleapis.com/..." /></FormControl>
-                    <FormMessage />
+                        <FormLabel>Attachment (Optional)</FormLabel>
+                        <FormControl>
+                             <div className="flex gap-2 items-center">
+                                {attachmentFilename && <p className="text-sm text-muted-foreground truncate">{attachmentFilename}</p>}
+                                <Button type="button" variant="outline" size="sm" onClick={() => { setMediaLibraryTarget('attachment'); setIsMediaLibraryOpen(true); }}>
+                                    <Paperclip className="mr-2 h-4 w-4"/>
+                                    {attachmentFilename ? 'Change' : 'Select'} Attachment
+                                </Button>
+                                {attachmentFilename && (
+                                    <Button type="button" variant="destructive" size="sm" onClick={() => field.onChange('')}>
+                                        Remove
+                                    </Button>
+                                )}
+                            </div>
+                        </FormControl>
+                        <FormMessage />
                     </FormItem>
                 )}
             />
