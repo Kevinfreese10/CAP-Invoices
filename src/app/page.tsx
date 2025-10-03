@@ -1,6 +1,7 @@
 
 
 import Link from 'next/link';
+import Script from 'next/script';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -85,6 +86,13 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <Script
+        id="trustindex-sdk"
+        src="https://cdn.trustindex.io/loader.js?ba9c9164025b8697c4168930da4"
+        defer
+        async
+      />
 
       <section id="ai-assistant" className="container mx-auto px-4 scroll-m-20">
         <WebsiteAIWidget />
