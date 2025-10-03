@@ -16,13 +16,15 @@ type EmailPayload = {
 
 export async function sendEmail({ to, subject, html, from, bcc, resellerId }: EmailPayload) {
   
-  // Logic to decide which email service to use
-  const reseller = users.find(u => u.id === resellerId && u.role === 'reseller');
+  // Task notifications should always come from My Accountant, not the reseller.
+  const isTaskNotification = subject.includes('New Task Assigned');
+  const effectiveResellerId = isTaskNotification ? undefined : resellerId;
+
+  const reseller = users.find(u => u.id === effectiveResellerId && u.role === 'reseller');
   const admin = users.find(u => u.role === 'admin');
 
   const smtpConfig = reseller?.smtpDetails || admin?.smtpDetails;
   
-  // Construct the 'from' address with a name
   let fromAddress: string;
   if (from) {
     fromAddress = from;
@@ -33,11 +35,10 @@ export async function sendEmail({ to, subject, html, from, bcc, resellerId }: Em
   }
   
   if (smtpConfig && smtpConfig.host && smtpConfig.pass) {
-    // Use Nodemailer with SMTP
     const transporter = nodemailer.createTransport({
       host: smtpConfig.host,
       port: parseInt(smtpConfig.port, 10),
-      secure: parseInt(smtpConfig.port, 10) === 465, // true for 465, false for other ports
+      secure: parseInt(smtpConfig.port, 10) === 465,
       auth: {
         user: smtpConfig.user,
         pass: smtpConfig.pass,
@@ -59,7 +60,6 @@ export async function sendEmail({ to, subject, html, from, bcc, resellerId }: Em
         throw new Error('Failed to send email via SMTP.');
     }
   } else {
-    // Fallback to Resend - might fail if no API key
     if (!process.env.RESEND_API_KEY) {
         console.warn('RESEND_API_KEY is not set. Email sending will likely fail.');
         throw new Error('Email provider is not configured. Missing RESEND_API_KEY and no SMTP settings found.');
