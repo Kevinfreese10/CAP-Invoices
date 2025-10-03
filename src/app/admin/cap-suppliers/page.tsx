@@ -19,6 +19,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
+import Image from 'next/image';
 
 const auth = getAuth(firebaseApp);
 
@@ -27,7 +28,7 @@ const formSchema = z.object({
 });
 
 const SESSION_STORAGE_KEY_PREVIEWS = 'cap-invoice-previews';
-const SESSION_STORAGE_KEY_NAMES = 'cap-invoice-filenames';
+const SESSION_STORAGE_KEY_FILENAMES = 'cap-invoice-filenames';
 
 
 export default function CAPSuppliersPage() {
@@ -45,7 +46,7 @@ export default function CAPSuppliersPage() {
   useEffect(() => {
     // On component mount, check for invoices in session storage
     const savedPreviews = sessionStorage.getItem(SESSION_STORAGE_KEY_PREVIEWS);
-    const savedFileNames = sessionStorage.getItem(SESSION_STORAGE_KEY_NAMES);
+    const savedFileNames = sessionStorage.getItem(SESSION_STORAGE_KEY_FILENAMES);
     if (savedPreviews) {
       setPreviews(JSON.parse(savedPreviews));
     }
@@ -68,7 +69,7 @@ export default function CAPSuppliersPage() {
             setPreviews(newPreviews);
             setFileNames(newFileNames);
             sessionStorage.setItem(SESSION_STORAGE_KEY_PREVIEWS, JSON.stringify(newPreviews));
-            sessionStorage.setItem(SESSION_STORAGE_KEY_NAMES, JSON.stringify(newFileNames));
+            sessionStorage.setItem(SESSION_STORAGE_KEY_FILENAMES, JSON.stringify(newFileNames));
           }
         };
         reader.readAsDataURL(file);
@@ -77,7 +78,7 @@ export default function CAPSuppliersPage() {
       setPreviews([]);
       setFileNames([]);
       sessionStorage.removeItem(SESSION_STORAGE_KEY_PREVIEWS);
-      sessionStorage.removeItem(SESSION_STORAGE_KEY_NAMES);
+      sessionStorage.removeItem(SESSION_STORAGE_KEY_FILENAMES);
     }
   };
 
@@ -139,7 +140,7 @@ export default function CAPSuppliersPage() {
     if (successCount > 0) {
         toast({ title: 'Batch Complete!', description: `${successCount} out of ${previews.length} invoices successfully extracted.` });
         sessionStorage.removeItem(SESSION_STORAGE_KEY_PREVIEWS);
-        sessionStorage.removeItem(SESSION_STORAGE_KEY_NAMES);
+        sessionStorage.removeItem(SESSION_STORAGE_KEY_FILENAMES);
         router.push('/admin/cap-suppliers/review');
     } else {
         toast({ title: 'Batch Failed', description: 'No invoices could be processed.', variant: 'destructive' });
@@ -187,17 +188,24 @@ export default function CAPSuppliersPage() {
                   <div className="space-y-4">
                     <h3 className="text-sm font-medium">Selected Files:</h3>
                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto pr-2">
-                        {previews.map((previewUrl, index) => (
-                           <div key={index} className="relative mt-4 aspect-video w-full overflow-hidden rounded-md border">
+                        {previews.map((previewUrl, index) => {
+                          const isPdf = previewUrl.startsWith('data:application/pdf');
+                          return (
+                            <div key={index} className="relative mt-4 aspect-video w-full overflow-hidden rounded-md border">
+                              {isPdf ? (
                                 <object data={previewUrl} type="application/pdf" width="100%" height="100%">
                                   <div className="p-4 text-xs text-center text-muted-foreground">
                                     <p>{fileNames[index]}</p>
                                     <p>No preview available for this file type.</p>
                                   </div>
                                 </object>
-                                <div className="absolute top-1 right-1 bg-background/50 backdrop-blur-sm rounded-md p-1 text-xs">{fileNames[index]}</div>
+                              ) : (
+                                <Image src={previewUrl} alt={`Preview of ${fileNames[index]}`} layout="fill" objectFit="contain" />
+                              )}
+                              <div className="absolute top-1 right-1 bg-background/50 backdrop-blur-sm rounded-md p-1 text-xs">{fileNames[index]}</div>
                             </div>
-                        ))}
+                          )
+                        })}
                     </div>
                   </div>
                 )}
