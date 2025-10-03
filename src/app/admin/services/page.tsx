@@ -72,12 +72,22 @@ export default function AdminServicesPage() {
 
   const handleFormSubmit = async (serviceData: Omit<Service, 'id'> & { id?: string }) => {
     const { id, ...data } = serviceData;
+    
+    // Ensure resellerPrice is 10% less than public price
+    const publicPrice = data.price || 0;
+    const calculatedResellerPrice = publicPrice * 0.9;
+    
+    const finalData = {
+        ...data,
+        resellerPrice: calculatedResellerPrice,
+    };
+    
     try {
         if (id) {
-            await setDoc(doc(db, "services", id), data, { merge: true });
+            await setDoc(doc(db, "services", id), finalData, { merge: true });
             toast({ title: 'Service Updated', description: 'The service details have been saved.' });
         } else {
-            await addDoc(collection(db, "services"), { ...data, createdAt: serverTimestamp() });
+            await addDoc(collection(db, "services"), { ...finalData, createdAt: serverTimestamp() });
             toast({ title: 'Service Created', description: 'The new service has been added successfully.' });
         }
         fetchServices();

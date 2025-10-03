@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Trash, Sparkles, Loader2, Plus, Info, Images, Paperclip } from 'lucide-react';
 import { generateServiceDetails } from '@/ai/flows/generate-service-details';
 import { useToast } from '@/hooks/use-toast';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Separator } from '../ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import MediaLibrary from './MediaLibrary';
@@ -88,6 +88,13 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
       metaKeywords: service?.metaKeywords?.map(v => ({value: v})) || [{ value: '' }],
     },
   });
+  
+  const price = form.watch('price');
+
+  useEffect(() => {
+    const newResellerPrice = price * 0.9;
+    form.setValue('resellerPrice', newResellerPrice);
+  }, [price, form]);
 
   const { fields: includedFields, append: appendIncluded, remove: removeIncluded } = useFieldArray({
     control: form.control,
@@ -209,7 +216,7 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
             render={({ field }) => (
                 <FormItem>
                 <FormLabel>Reseller Price (R)</FormLabel>
-                <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                <FormControl><Input type="number" step="0.01" {...field} readOnly className="bg-muted" /></FormControl>
                 <FormMessage />
                 </FormItem>
             )}
