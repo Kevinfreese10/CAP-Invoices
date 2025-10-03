@@ -598,32 +598,6 @@ export default function AdminClientsPage() {
         if (task.assignedTo.length > 0) {
             const taskRef = doc(collection(db, 'tasks'));
             batch.set(taskRef, task);
-            
-            // Send email notifications
-            for (const assigneeId of task.assignedTo) {
-                if (assigneeId !== creatorId) { // Don't email the user who created the task
-                    const assignee = allStaff.find(s => s.uid === assigneeId);
-                    if (assignee?.email) {
-                        try {
-                            const emailHtml = render(<NewTaskEmail 
-                                assigneeName={assignee.name.split(' ')[0]}
-                                taskTitle={task.title}
-                                taskDescription={task.description}
-                                dueDate={format(task.dueDate.toDate(), 'dd MMMM yyyy')}
-                                assignedBy={currentUser?.name || 'System'}
-                                taskUrl={`${window.location.origin}/admin/dashboard`}
-                            />);
-                            await sendEmail({
-                                to: assignee.email,
-                                subject: `New Task Assigned: ${task.title}`,
-                                html: emailHtml,
-                            });
-                        } catch (emailError) {
-                            console.error(`Failed to send task notification email to ${assignee.email}:`, emailError);
-                        }
-                    }
-                }
-            }
         }
     }
     
