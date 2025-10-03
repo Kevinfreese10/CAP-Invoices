@@ -31,78 +31,66 @@ const WebsiteQAndAOutputSchema = z.object({
 });
 export type WebsiteQAndAOutput = z.infer<typeof WebsiteQAndAOutputSchema>;
 
-// Serialize the website content to pass to the prompt
-const websiteContent = `
-  SERVICES:
-  ${services.map(s => `Title: ${s.title}, URL: /services/${s.id}, Description: ${s.longDescription}, Price: ZAR ${s.price}`).join('\n\n')}
-
-  BLOG POSTS:
-  ${blogPosts.map(p => `Title: ${p.title}, Excerpt: ${p.excerpt}`).join('\n\n')}
-
-  FREQUENTLY ASKED QUESTIONS:
-  ${faqs.map(f => `Question: ${f.question}, Answer: ${f.answer}`).join('\n\n')}
-
-  KNOWLEDGE BASE:
-  ${knowledgeBaseItems.map(item => `Question: ${item.question}, Answer: ${item.answer}`).join('\n\n')}
-`;
-
-
 export async function websiteQAndA(
   input: WebsiteQAndAInput
 ): Promise<WebsiteQAndAOutput> {
-  return websiteQAndAFlow(input);
-}
+  // Serialize the website content to pass to the prompt
+  const websiteContent = `
+    SERVICES:
+    ${services.map(s => `Title: ${s.title}, URL: /services/${s.id}, Description: ${s.longDescription}, Price: ZAR ${s.price}`).join('\n\n')}
 
-const prompt = ai.definePrompt({
-  name: 'websiteQAndAPrompt',
-  input: {schema: WebsiteQAndAInputSchema},
-  output: {schema: WebsiteQAndAOutputSchema},
-  prompt: `You are an expert AI assistant for a company called "My Accountant". Your name is 'Khai'.
-  
-  Your personality is friendly, professional, and very helpful. Start your responses with a warm, welcoming tone.
-  
-  Your task is to answer user questions based *only* on the information provided in the context below. The Knowledge Base section is the highest source of truth.
+    BLOG POSTS:
+    ${blogPosts.map(p => `Title: ${p.title}, Excerpt: ${p.excerpt}`).join('\n\n')}
 
-  If the user's question is about a specific service mentioned in the context, you must provide the 'serviceUrl' for that service in your response.
-  
-  If the answer is not found in the context, you MUST state that you do not have that information and suggest they contact support. For example, say "That's an excellent question! I don't have that specific information right now, but our expert team would be happy to help. You can reach them through our support page."
-  
-  Do not make up answers.
+    FREQUENTLY ASKED QUESTIONS:
+    ${faqs.map(f => `Question: ${f.question}, Answer: ${f.answer}`).join('\n\n')}
 
-  After providing the answer, you must also provide a confidence score (from 0 to 100) based on how directly the information was found in the context.
-  - If the answer is explicitly stated, confidence should be 90-100.
-  - If the answer is inferred from multiple pieces of information, confidence should be 60-80.
-  - If you cannot answer the question at all, confidence should be 0-10.
+    KNOWLEDGE BASE:
+    ${knowledgeBaseItems.map(item => `Question: ${item.question}, Answer: ${item.answer}`).join('\n\n')}
+  `;
 
-  CONTEXT:
-  ---
-  ${websiteContent}
-  ---
-
-  User Question: {{{question}}}
-  `,
-});
-
-const websiteQAndAFlow = ai.defineFlow(
-  {
-    name: 'websiteQAndAFlow',
-    inputSchema: WebsiteQAndAInputSchema,
-    outputSchema: WebsiteQAndAOutputSchema,
-  },
-  async input => {
-    const {output} = await prompt(input);
+  const prompt = ai.definePrompt({
+    name: 'websiteQAndAPrompt',
+    input: {schema: WebsiteQAndAInputSchema},
+    output: {schema: WebsiteQAndAOutputSchema},
+    prompt: `You are an expert AI assistant for a company called "My Accountant". Your name is 'Khai'.
     
-    if (output && output.confidence < 15) {
-        try {
-            await addDoc(collection(db, 'unansweredQuestions'), {
-                question: input.question,
-                timestamp: Timestamp.now(),
-            });
-        } catch (error) {
-            console.error("Error logging unanswered question:", error);
-        }
-    }
+    Your personality is friendly, professional, and very helpful. Start your responses with a warm, welcoming tone.
     
-    return output!;
+    Your task is to answer user questions based *only* on the information provided in the context below. The Knowledge Base section is the highest source of truth.
+
+    If the user's question is about a specific service mentioned in the context, you must provide the 'serviceUrl' for that service in your response.
+    
+    If the answer is not found in the context, you MUST state that you do not have that information and suggest they contact support. For example, say "That's an excellent question! I don't have that specific information right now, but our expert team would be happy to help. You can reach them through our support page."
+    
+    Do not make up answers.
+
+    After providing the answer, you must also provide a confidence score (from 0 to 100) based on how directly the information was found in the context.
+    - If the answer is explicitly stated, confidence should be 90-100.
+    - If the answer is inferred from multiple pieces of information, confidence should be 60-80.
+    - If you cannot answer the question at all, confidence should be 0-10.
+
+    CONTEXT:
+    ---
+    ${websiteContent}
+    ---
+
+    User Question: {{{question}}}
+    `,
+  });
+
+  const {output} = await prompt(input);
+      
+  if (output && output.confidence < 15) {
+      try {
+          await addDoc(collection(db, 'unansweredQuestions'), {
+              question: input.question,
+              timestamp: Timestamp.now(),
+          });
+      } catch (error) {
+          console.error("Error logging unanswered question:", error);
+      }
   }
-);
+  
+  return output!;
+}
