@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, User as UserIcon, Mail, Phone, Send, FileText, Star, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Loader2, User as UserIcon, Mail, Phone, Send, FileText, Star, MessageSquare, Percent } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -540,17 +540,21 @@ export default function AdminOrderDetailsPage() {
                         <CardDescription>Send pre-made emails to the client.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-2">
-                        <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickActionEmail('docs')}>
-                            <FileText className="mr-2 h-4 w-4" /> Request Documents
-                        </Button>
                         <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickActionEmail('payment')}>
                             <Phone className="mr-2 h-4 w-4" /> Follow Up On Payment
                         </Button>
-                        <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickActionEmail('review')}>
-                            <Star className="mr-2 h-4 w-4" /> Request a Review
+                        <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickActionEmail('docs')}>
+                            <FileText className="mr-2 h-4 w-4" /> Request Documents
                         </Button>
                         <Separator className="my-2" />
                         <EmailClientDialog order={order} user={customer} allStaff={allStaff} onEmailSent={addEmailToHistory} />
+                        <Separator className="my-2" />
+                        <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickActionEmail('review')}>
+                            <Star className="mr-2 h-4 w-4" /> Request a Review
+                        </Button>
+                        <Button variant="outline" className="w-full justify-start">
+                            <Percent className="mr-2 h-4 w-4" /> Generate 10% discount
+                        </Button>
                     </CardContent>
                  </Card>
             </div>
