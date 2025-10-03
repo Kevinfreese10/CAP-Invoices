@@ -1,3 +1,4 @@
+
 import { notFound } from 'next/navigation';
 import { services } from '@/lib/data';
 import { Badge } from '@/components/ui/badge';
@@ -62,16 +63,6 @@ export default function ServiceDetailPage({ params }: { params: { id: string } }
       <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
         <div className="space-y-8 md:col-span-2">
             
-          <div className="relative h-64 md:h-80 w-full rounded-lg overflow-hidden mb-8">
-            <Image
-              src={service.imageUrl}
-              alt={service.imageHint || service.title}
-              fill
-              className="object-cover"
-              data-ai-hint={service.imageHint}
-            />
-          </div>
-
           <div className="space-y-3">
             <Badge variant="secondary" className="w-fit">{service.category}</Badge>
             <h1 className="text-3xl md:text-4xl font-bold tracking-tight">{service.title}</h1>
