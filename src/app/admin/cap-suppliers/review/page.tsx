@@ -34,6 +34,7 @@ type ExtractedInvoice = {
   invoiceTotal: number;
   status: 'pending_review' | 'approved';
   fileName: string;
+  fileUrl: string;
   createdAt: any;
 };
 
@@ -228,7 +229,11 @@ export default function ReviewPage() {
                                 <TableCell>{invoice.invoiceNumber}</TableCell>
                                 <TableCell>{invoice.commissionNumber}</TableCell>
                                 <TableCell>{invoice.date}</TableCell>
-                                <TableCell>{invoice.fileName}</TableCell>
+                                <TableCell>
+                                    <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                                        {invoice.fileName}
+                                    </a>
+                                </TableCell>
                                 <TableCell className="text-right font-mono">R {invoice.invoiceTotal.toFixed(2)}</TableCell>
                                 <TableCell className="text-right">
                                      <DropdownMenu>

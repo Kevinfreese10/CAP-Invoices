@@ -14,6 +14,7 @@ import { Loader2, Upload, Sparkles, FileText, X } from 'lucide-react';
 import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
 import { getAuth } from 'firebase/auth';
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, firebaseApp } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
@@ -22,6 +23,7 @@ import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/e
 import Image from 'next/image';
 
 const auth = getAuth(firebaseApp);
+const storage = getStorage(firebaseApp);
 
 const formSchema = z.object({
   invoices: z.custom<FileList>().refine((files) => files && files.length > 0, 'At least one invoice file is required.'),
@@ -34,6 +36,7 @@ const SESSION_STORAGE_KEY_FILENAMES = 'cap-invoice-filenames';
 export default function CAPSuppliersPage() {
   const [isExtracting, setIsExtracting] = useState(false);
   const [previews, setPreviews] = useState<string[]>([]);
+  const [files, setFiles] = useState<File[]>([]);
   const [fileNames, setFileNames] = useState<string[]>([]);
   const { toast } = useToast();
   const { user } = useAuth();
@@ -56,16 +59,19 @@ export default function CAPSuppliersPage() {
   }, []);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (files && files.length > 0) {
+    const selectedFiles = event.target.files;
+    if (selectedFiles && selectedFiles.length > 0) {
       const newPreviews: string[] = [];
       const newFileNames: string[] = [];
-      Array.from(files).forEach(file => {
+      const newFiles: File[] = Array.from(selectedFiles);
+      setFiles(newFiles);
+
+      newFiles.forEach(file => {
         const reader = new FileReader();
         reader.onloadend = () => {
           newPreviews.push(reader.result as string);
           newFileNames.push(file.name);
-          if (newPreviews.length === files.length) {
+          if (newPreviews.length === newFiles.length) {
             setPreviews(newPreviews);
             setFileNames(newFileNames);
             sessionStorage.setItem(SESSION_STORAGE_KEY_PREVIEWS, JSON.stringify(newPreviews));
@@ -77,6 +83,7 @@ export default function CAPSuppliersPage() {
     } else {
       setPreviews([]);
       setFileNames([]);
+      setFiles([]);
       sessionStorage.removeItem(SESSION_STORAGE_KEY_PREVIEWS);
       sessionStorage.removeItem(SESSION_STORAGE_KEY_FILENAMES);
     }
@@ -85,33 +92,41 @@ export default function CAPSuppliersPage() {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const currentUser = auth.currentUser;
 
-    if (previews.length === 0 || !currentUser?.uid) {
+    if (files.length === 0 || !currentUser?.uid) {
       toast({ title: 'Error', description: 'No files selected or you are not logged in.', variant: 'destructive' });
       return;
     }
 
     setIsExtracting(true);
-    toast({ title: 'Batch Extraction Started...', description: `Processing ${previews.length} invoice(s). You will be redirected when complete.` });
+    toast({ title: 'Batch Extraction Started...', description: `Processing ${files.length} invoice(s). You will be redirected when complete.` });
     
     let successCount = 0;
 
-    for (let i = 0; i < previews.length; i++) {
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
         const preview = previews[i];
-        const fileName = fileNames[i];
         
-        toast({ title: `Processing Invoice ${i + 1} of ${previews.length}`, description: `${fileName}` });
+        toast({ title: `Processing Invoice ${i + 1} of ${files.length}`, description: `${file.name}` });
 
         try {
+            // 1. Upload the file to Firebase Storage
+            const storageRef = ref(storage, `invoices/${currentUser.uid}/${Date.now()}-${file.name}`);
+            const uploadResult = await uploadBytes(storageRef, file);
+            const downloadURL = await getDownloadURL(uploadResult.ref);
+
+            // 2. Extract data using AI
             const result = await extractInvoiceData({ invoiceImage: preview });
 
             if (!result || !result.supplier) {
-                 toast({ title: `Extraction Failed for ${fileName}`, description: 'AI could not extract valid data. Skipping this file.', variant: 'destructive' });
+                 toast({ title: `Extraction Failed for ${file.name}`, description: 'AI could not extract valid data. Skipping this file.', variant: 'destructive' });
                 continue;
             }
             
+            // 3. Save to Firestore with the download URL
             const invoiceData = {
                 ...result,
-                fileName: fileName || 'N/A',
+                fileName: file.name || 'N/A',
+                fileUrl: downloadURL, // Add the download URL
                 status: 'pending_review' as const,
                 uploadedBy: currentUser.uid,
                 createdAt: serverTimestamp(),
@@ -130,17 +145,20 @@ export default function CAPSuppliersPage() {
             successCount++;
 
         } catch (error) {
-            console.error(`Invoice extraction error for ${fileName}:`, error);
-            toast({ title: `Extraction Failed for ${fileName}`, description: 'Could not extract data from this invoice. Skipping.', variant: 'destructive' });
+            console.error(`Invoice extraction error for ${file.name}:`, error);
+            toast({ title: `Extraction Failed for ${file.name}`, description: 'Could not extract data from this invoice. Skipping.', variant: 'destructive' });
         }
     }
     
     setIsExtracting(false);
     
     if (successCount > 0) {
-        toast({ title: 'Batch Complete!', description: `${successCount} out of ${previews.length} invoices successfully extracted.` });
+        toast({ title: 'Batch Complete!', description: `${successCount} out of ${files.length} invoices successfully extracted.` });
         sessionStorage.removeItem(SESSION_STORAGE_KEY_PREVIEWS);
         sessionStorage.removeItem(SESSION_STORAGE_KEY_FILENAMES);
+        setFiles([]);
+        setPreviews([]);
+        setFileNames([]);
         router.push('/admin/cap-suppliers/review');
     } else {
         toast({ title: 'Batch Failed', description: 'No invoices could be processed.', variant: 'destructive' });
@@ -200,7 +218,7 @@ export default function CAPSuppliersPage() {
                                   </div>
                                 </object>
                               ) : (
-                                <Image src={previewUrl} alt={`Preview of ${fileNames[index]}`} layout="fill" objectFit="contain" />
+                                <Image src={previewUrl} alt={`Preview of ${fileNames[index]}`} fill objectFit="contain" />
                               )}
                               <div className="absolute top-1 right-1 bg-background/50 backdrop-blur-sm rounded-md p-1 text-xs">{fileNames[index]}</div>
                             </div>
