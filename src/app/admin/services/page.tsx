@@ -73,13 +73,9 @@ export default function AdminServicesPage() {
   const handleFormSubmit = async (serviceData: Omit<Service, 'id'> & { id?: string }) => {
     const { id, ...data } = serviceData;
     
-    // Ensure resellerPrice is 10% less than public price
-    const publicPrice = data.price || 0;
-    const calculatedResellerPrice = publicPrice * 0.9;
-    
     const finalData = {
         ...data,
-        resellerPrice: calculatedResellerPrice,
+        resellerPrice: data.resellerPrice,
     };
     
     try {
