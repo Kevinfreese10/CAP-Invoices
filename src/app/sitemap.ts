@@ -7,7 +7,7 @@ import { Service, BlogPost } from '@/lib/types';
 const db = getFirestore(firebaseApp);
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://my-accountant-app.com';
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://studio--studio-2604127518-57889.us-central1.hosted.app';
 
   // Fetch dynamic pages
   const servicesSnapshot = await getDocs(collection(db, 'services'));
