@@ -5,6 +5,7 @@ import { BlogPost } from '@/lib/types';
 import { getFirestore, collection, getDocs, query, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { format } from 'date-fns';
+import type { Metadata } from 'next';
 
 const db = getFirestore(firebaseApp);
 
@@ -28,6 +29,43 @@ export async function generateStaticParams() {
         slug: doc.data().slug,
     }));
 }
+
+export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+  const post = await getPost(params.slug);
+
+  if (!post) {
+    return {
+      title: 'Post Not Found',
+    };
+  }
+
+  const title = post.metaTitle || post.title;
+  const description = post.metaDescription || post.excerpt;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: 'article',
+      publishedTime: post.date,
+      authors: [post.author],
+      images: [
+        {
+          url: post.imageUrl,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [post.imageUrl],
+    },
+  };
+}
+
 
 export default async function BlogPostPage({ params }: { params: { slug: string } }) {
   const post = await getPost(params.slug);
