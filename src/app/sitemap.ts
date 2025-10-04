@@ -23,14 +23,23 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const blogPostPages = blogPosts.map(post => {
     let lastModifiedDate;
-    if (typeof post.date === 'string') {
-      lastModifiedDate = new Date(post.date);
-    } else if (post.date && typeof post.date.toDate === 'function') {
-      // Handle Firestore Timestamp
-      lastModifiedDate = post.date.toDate();
-    } else {
-      // Fallback for any other case
-      lastModifiedDate = new Date();
+    try {
+        if (typeof post.date === 'string') {
+            lastModifiedDate = new Date(post.date);
+        } else if (post.date && typeof post.date.toDate === 'function') {
+            // Handle Firestore Timestamp
+            lastModifiedDate = post.date.toDate();
+        } else {
+            // Fallback for any other case
+            lastModifiedDate = new Date();
+        }
+        
+        if (isNaN(lastModifiedDate.getTime())) {
+            // If date is still invalid, use current date as a fallback
+            lastModifiedDate = new Date();
+        }
+    } catch (e) {
+        lastModifiedDate = new Date();
     }
     
     return {
