@@ -52,13 +52,16 @@ export default function AdminBlogPage() {
   const handleFormSubmit = async (postData: BlogPost) => {
     try {
         if (selectedPost) {
+            // For updates, we pass the whole object, including the id
             await updatePost(postData);
             toast({
                 title: 'Post Updated',
                 description: 'The blog post has been saved.',
             });
         } else {
-            await addPost(postData);
+            // For additions, we omit id, slug, and date as they are auto-generated
+            const { id, slug, date, ...newPostData } = postData;
+            await addPost(newPostData);
             toast({
                 title: 'Post Created',
                 description: 'The new blog post has been added successfully.',
