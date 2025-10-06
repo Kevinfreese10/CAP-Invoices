@@ -245,13 +245,15 @@ export type ExtractedInvoice = {
   supplier: string;
   invoiceNumber: string;
   date: string;
-  lineItems: { description: string; exclusiveAmount: number; vatAmount: number; }[];
+  lineItems: { description: string; exclusiveAmount: number; vatAmount: number; accountId?: string; }[];
   invoiceTotal: number;
-  status: 'pending_review' | 'approved';
+  status: 'pending_review' | 'approved' | 'approved_for_payment';
   fileName: string;
   fileUrl: string;
   createdAt: any;
   uploadedBy: string;
+  expenseType?: 'CAP' | 'S38';
+  commissionNumber?: string;
 };
 
     

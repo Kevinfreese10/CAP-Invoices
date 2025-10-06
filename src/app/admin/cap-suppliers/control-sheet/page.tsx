@@ -19,9 +19,18 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-
+import { s38ChartOfAccounts, capChartOfAccounts } from '@/lib/cap-chart-of-accounts';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 const db = getFirestore(firebaseApp);
+
+type LineItem = {
+    description: string;
+    exclusiveAmount: number;
+    vatAmount: number;
+    accountId?: string;
+}
 
 type ExtractedInvoice = {
   id: string;
@@ -29,17 +38,19 @@ type ExtractedInvoice = {
   invoiceNumber: string;
   commissionNumber?: string;
   date: string;
-  lineItems: { description: string; exclusiveAmount: number; vatAmount: number; }[];
+  lineItems: LineItem[];
   invoiceTotal: number;
   status: 'pending_review' | 'approved' | 'approved_for_payment';
   fileName: string;
   createdAt: any;
+  expenseType?: 'CAP' | 'S38';
 };
 
 const lineItemSchema = z.object({
   description: z.string().min(1, "Description is required"),
   exclusiveAmount: z.preprocess((val) => Number(val), z.number()),
   vatAmount: z.preprocess((val) => Number(val), z.number()),
+  accountId: z.string().optional(),
 });
 
 const formSchema = z.object({
@@ -49,6 +60,7 @@ const formSchema = z.object({
   date: z.string().min(1, "Date is required"),
   lineItems: z.array(lineItemSchema),
   invoiceTotal: z.preprocess((val) => Number(val), z.number()),
+  expenseType: z.enum(['CAP', 'S38']).optional(),
 });
 
 
@@ -62,6 +74,7 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
             date: invoice?.date || '',
             lineItems: invoice?.lineItems || [],
             invoiceTotal: invoice?.invoiceTotal || 0,
+            expenseType: invoice?.expenseType || 'CAP',
         }
     });
 
@@ -74,6 +87,14 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
         control: form.control,
         name: "lineItems",
     });
+    
+    const expenseType = useWatch({
+        control: form.control,
+        name: 'expenseType',
+    });
+
+    const chartOfAccounts = expenseType === 'S38' ? s38ChartOfAccounts : capChartOfAccounts;
+
 
     const onSubmit = (data: z.infer<typeof formSchema>) => {
         if (invoice) {
@@ -84,6 +105,32 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto pr-4">
+                 <FormField
+                    control={form.control}
+                    name="expenseType"
+                    render={({ field }) => (
+                        <FormItem className="space-y-3">
+                        <FormLabel>Expense Type</FormLabel>
+                        <FormControl>
+                            <RadioGroup
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                            className="flex items-center space-x-4"
+                            >
+                            <FormItem className="flex items-center space-x-2 space-y-0">
+                                <FormControl><RadioGroupItem value="CAP" /></FormControl>
+                                <FormLabel className="font-normal">CAP Expense</FormLabel>
+                            </FormItem>
+                            <FormItem className="flex items-center space-x-2 space-y-0">
+                                <FormControl><RadioGroupItem value="S38" /></FormControl>
+                                <FormLabel className="font-normal">S38 Expense</FormLabel>
+                            </FormItem>
+                            </RadioGroup>
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
                 <div className="grid grid-cols-2 gap-4">
                     <FormField control={form.control} name="supplier" render={({ field }) => ( <FormItem><FormLabel>Supplier</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                     <FormField control={form.control} name="invoiceNumber" render={({ field }) => ( <FormItem><FormLabel>Invoice Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
@@ -98,15 +145,18 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
                         const vat = watchedLineItems?.[index]?.vatAmount || 0;
                         const inclusive = exclusive + vat;
                         return (
-                        <div key={field.id} className="grid grid-cols-12 gap-2 items-end">
-                            <FormField control={form.control} name={`lineItems.${index}.description`} render={({ field }) => (<FormItem className="col-span-5"><FormLabel className={index > 0 ? "hidden": ""}>Description</FormLabel><FormControl><Textarea {...field} rows={1} /></FormControl></FormItem>)} />
-                            <FormField control={form.control} name={`lineItems.${index}.exclusiveAmount`} render={({ field }) => (<FormItem className="col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>Exclusive</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
-                            <FormField control={form.control} name={`lineItems.${index}.vatAmount`} render={({ field }) => (<FormItem className="col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>VAT</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
-                            <FormItem className="col-span-2">
+                        <div key={field.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end border p-2 rounded-md">
+                            <FormField control={form.control} name={`lineItems.${index}.description`} render={({ field }) => (<FormItem className="md:col-span-12"><FormLabel className={index > 0 ? "hidden": ""}>Description</FormLabel><FormControl><Textarea {...field} rows={1} /></FormControl></FormItem>)} />
+                            <FormField control={form.control} name={`lineItems.${index}.exclusiveAmount`} render={({ field }) => (<FormItem className="md:col-span-3"><FormLabel className={index > 0 ? "hidden": ""}>Exclusive</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
+                            <FormField control={form.control} name={`lineItems.${index}.vatAmount`} render={({ field }) => (<FormItem className="md:col-span-3"><FormLabel className={index > 0 ? "hidden": ""}>VAT</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
+                            <FormItem className="md:col-span-3">
                                 <FormLabel className={index > 0 ? "hidden": ""}>Inclusive</FormLabel>
                                 <Input type="number" value={inclusive.toFixed(2)} readOnly className="bg-muted" />
                             </FormItem>
-                            <div className="col-span-1"><Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button></div>
+                             <div className="md:col-span-3 flex justify-end">
+                                <Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>
+                             </div>
+                            <FormField control={form.control} name={`lineItems.${index}.accountId`} render={({ field }) => (<FormItem className="md:col-span-12"><FormLabel className={index > 0 ? "hidden": ""}>Account</FormLabel> <Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl><SelectContent>{chartOfAccounts.map((account) => (<SelectItem key={account.accountNumber} value={account.accountNumber}>{account.accountNumber} - {account.description}</SelectItem>))}</SelectContent></Select> <FormMessage /></FormItem>)} />
                         </div>
                         )
                     })}
