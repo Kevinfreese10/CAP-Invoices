@@ -1,23 +1,22 @@
 
 'use client';
 import { useState, useEffect } from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { Form } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { useBlog } from '@/contexts/BlogContext';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Sparkles, Loader2, Trash } from 'lucide-react';
+import { Sparkles, Loader2 } from 'lucide-react';
 import { generateServiceDetails } from '@/ai/flows/generate-service-details';
 import { generateBlogPostSeo } from '@/ai/flows/generate-blog-post-seo';
 import { getFirestore, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Service } from '@/lib/types';
+import SeoPageForm from '@/components/admin/SeoPageForm';
 
 const db = getFirestore(firebaseApp);
 
@@ -51,10 +50,7 @@ export default function SeoManagementPage() {
     mode: 'onChange',
   });
 
-  const { fields, update, replace } = useFieldArray({
-    control: form.control,
-    name: 'pages',
-  });
+  const { control, setValue } = form;
 
   useEffect(() => {
     const fetchServices = async () => {
@@ -96,8 +92,8 @@ export default function SeoManagementPage() {
             keywords: p.metaKeywords?.map(k => ({ value: k })) || [],
         })),
     ];
-    replace(initialSeoData);
-  }, [services, blogPosts, replace]);
+    setValue('pages', initialSeoData);
+  }, [services, blogPosts, setValue]);
 
 
   const onSubmit = (data: SeoFormValues) => {
@@ -109,10 +105,12 @@ export default function SeoManagementPage() {
     // Here you would typically send the data to your backend
   };
 
+  const pages = form.watch('pages');
+
   const pageGroups = {
-    'Static Pages': fields.filter(f => !f.path.startsWith('/services/') && !f.path.startsWith('/blog/')),
-    'Service Pages': fields.filter(f => f.path.startsWith('/services/')),
-    'Blog Posts': fields.filter(f => f.path.startsWith('/blog/')),
+    'Static Pages': pages.filter(f => !f.path.startsWith('/services/') && !f.path.startsWith('/blog/')),
+    'Service Pages': pages.filter(f => f.path.startsWith('/services/')),
+    'Blog Posts': pages.filter(f => f.path.startsWith('/blog/')),
   };
 
   const handleAiUpdate = async (groupName: string) => {
@@ -123,53 +121,35 @@ export default function SeoManagementPage() {
     });
 
     try {
-        if (groupName === 'Service Pages') {
-            for (const page of pageGroups['Service Pages']) {
+        const pagesToUpdate = pageGroups[groupName as keyof typeof pageGroups];
+
+        for (const [index, page] of pagesToUpdate.entries()) {
+            const originalIndex = pages.findIndex(p => p.id === page.id);
+            if (originalIndex === -1) continue;
+
+            let result;
+            if (groupName === 'Service Pages') {
                 const originalService = services.find(s => `service-${s.id}` === page.id);
                 if (originalService) {
-                    const result = await generateServiceDetails({ title: originalService.title });
-                    const index = fields.findIndex(f => f.id === page.id);
-                    if (index !== -1) {
-                         update(index, {
-                             ...fields[index],
-                             title: result.metaTitle,
-                             description: result.metaDescription,
-                             keywords: result.metaKeywords.map(k => ({ value: k })),
-                         });
-                    }
+                    result = await generateServiceDetails({ title: originalService.title });
                 }
-            }
-        } else if (groupName === 'Blog Posts') {
-             for (const page of pageGroups['Blog Posts']) {
+            } else if (groupName === 'Blog Posts') {
                 const originalPost = blogPosts.find(p => `blog-${p.id}` === page.id);
                 if (originalPost) {
-                    const result = await generateBlogPostSeo({ title: originalPost.title });
-                    const index = fields.findIndex(f => f.id === page.id);
-                    if (index !== -1) {
-                         update(index, {
-                             ...fields[index],
-                             title: result.metaTitle,
-                             description: result.metaDescription,
-                             keywords: result.metaKeywords.map(k => ({ value: k })),
-                         });
-                    }
+                    result = await generateBlogPostSeo({ title: originalPost.title });
                 }
-            }
-        } else if (groupName === 'Static Pages') {
-            for (const page of pageGroups['Static Pages']) {
+            } else { // Static Pages
                 const pageTitle = page.title.split('|')[0].trim();
-                const result = await generateBlogPostSeo({ title: pageTitle });
-                const index = fields.findIndex(f => f.id === page.id);
-                 if (index !== -1) {
-                    update(index, {
-                        ...fields[index],
-                        title: result.metaTitle,
-                        description: result.metaDescription,
-                        keywords: result.metaKeywords.map(k => ({ value: k })),
-                    });
-                }
+                result = await generateBlogPostSeo({ title: pageTitle });
+            }
+
+            if (result) {
+                form.setValue(`pages.${originalIndex}.title`, result.metaTitle);
+                form.setValue(`pages.${originalIndex}.description`, result.metaDescription);
+                form.setValue(`pages.${originalIndex}.keywords`, result.metaKeywords.map(k => ({ value: k })));
             }
         }
+        
         toast({
             title: 'Optimization Complete!',
             description: `${groupName} have been updated with AI-generated SEO content.`,
@@ -209,10 +189,10 @@ export default function SeoManagementPage() {
           <Form {...form}>
             <form className="space-y-8">
                <Accordion type="multiple" defaultValue={['Static Pages']} className="w-full">
-                {Object.entries(pageGroups).map(([groupName, pages]) => (
+                {Object.entries(pageGroups).map(([groupName, groupPages]) => (
                   <AccordionItem key={groupName} value={groupName}>
                     <div className="flex items-center">
-                      <AccordionTrigger className="text-xl font-semibold flex-grow">{groupName} ({pages.length})</AccordionTrigger>
+                      <AccordionTrigger className="text-xl font-semibold flex-grow">{groupName} ({groupPages.length})</AccordionTrigger>
                       {(groupName !== 'Static Pages') && (
                         <Button type="button" onClick={() => handleAiUpdate(groupName)} size="sm" variant="ghost" disabled={!!isAiUpdating}>
                             {isAiUpdating === groupName ? <Loader2 className="animate-spin mr-2"/> : <Sparkles className="mr-2" />}
@@ -221,69 +201,16 @@ export default function SeoManagementPage() {
                       )}
                     </div>
                     <AccordionContent className="space-y-6 pt-4">
-                       {pages.map((field) => {
-                         const originalIndex = fields.findIndex(f => f.id === field.id);
-                         const {fields: keywordFields, append: appendKeyword, remove: removeKeyword} = useFieldArray({
-                           control: form.control,
-                           name: `pages.${originalIndex}.keywords`,
-                         });
-                         const titleLength = form.watch(`pages.${originalIndex}.title`).length;
-                         const descLength = form.watch(`pages.${originalIndex}.description`).length;
+                       {groupPages.map((page) => {
+                         const originalIndex = pages.findIndex(p => p.id === page.id);
+                         if (originalIndex === -1) return null;
                          return (
-                            <div key={field.id} className="p-4 border rounded-lg space-y-4">
-                                <h3 className="font-semibold text-lg">{field.path}</h3>
-                                <FormField
-                                    control={form.control}
-                                    name={`pages.${originalIndex}.title`}
-                                    render={({ field }) => (
-                                    <FormItem>
-                                        <div className="flex justify-between items-center">
-                                          <FormLabel>Meta Title</FormLabel>
-                                          <span className={`text-xs ${titleLength > 60 ? 'text-destructive' : 'text-muted-foreground'}`}>{titleLength}/60</span>
-                                        </div>
-                                        <FormControl>
-                                            <Input {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name={`pages.${originalIndex}.description`}
-                                    render={({ field }) => (
-                                    <FormItem>
-                                        <div className="flex justify-between items-center">
-                                          <FormLabel>Meta Description</FormLabel>
-                                          <span className={`text-xs ${descLength > 160 ? 'text-destructive' : 'text-muted-foreground'}`}>{descLength}/160</span>
-                                        </div>
-                                        <FormControl>
-                                            <Textarea {...field} rows={3} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                    )}
-                                />
-                                <div>
-                                  <FormLabel>Meta Keywords</FormLabel>
-                                  <div className="space-y-2 mt-2">
-                                     {keywordFields.map((kwField, kwIndex) => (
-                                        <FormField
-                                            key={kwField.id}
-                                            control={form.control}
-                                            name={`pages.${originalIndex}.keywords.${kwIndex}.value`}
-                                            render={({ field }) => (
-                                                <FormItem className="flex items-center gap-2">
-                                                    <FormControl><Input {...field} /></FormControl>
-                                                    <Button type="button" variant="destructive" size="icon" onClick={() => removeKeyword(kwIndex)}><Trash className="h-4 w-4"/></Button>
-                                                </FormItem>
-                                            )}
-                                        />
-                                     ))}
-                                  </div>
-                                   <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => appendKeyword({ value: '' })}>Add Keyword</Button>
-                                </div>
-                            </div>
+                            <SeoPageForm
+                                key={page.id}
+                                control={control}
+                                index={originalIndex}
+                                page={page}
+                            />
                         )})}
                     </AccordionContent>
                   </AccordionItem>
