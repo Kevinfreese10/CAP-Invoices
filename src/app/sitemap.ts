@@ -6,7 +6,7 @@ import { MetadataRoute } from 'next';
 
 const db = getFirestore(firebaseApp);
 
-const BASE_URL = 'https://my-accountant-app-961d6.web.app';
+const BASE_URL = 'https://studio--studio-2604127518-57889.us-central1.hosted.app';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
