@@ -170,13 +170,15 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
 
 
   const handleSubmit = (values: z.infer<typeof formSchema>) => {
+    const slug = values.title.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '');
     const serviceData = {
         ...values,
+        slug,
         seoImageUrl: values.imageUrl,
-        whatsIncluded: values.whatsIncluded.map(v => v.value),
-        clientRequirements: values.clientRequirements.map(v => v.value),
-        informationToProvide: values.informationToProvide,
-        metaKeywords: values.metaKeywords?.map(v => v.value),
+        whatsIncluded: values.whatsIncluded.map(v => v.value).filter(Boolean),
+        clientRequirements: values.clientRequirements.map(v => v.value).filter(Boolean),
+        informationToProvide: values.informationToProvide.filter(v => v.label),
+        metaKeywords: values.metaKeywords?.map(v => v.value).filter(Boolean),
     }
     onSubmit(serviceData);
   };

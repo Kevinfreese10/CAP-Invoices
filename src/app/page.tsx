@@ -195,7 +195,7 @@ export default function Home() {
                       </CardContent>
                       <CardFooter>
                           <Button asChild className="w-full">
-                          <Link href={`/services/${service.id}`}>Learn More</Link>
+                          <Link href={`/services/${service.slug}`}>Learn More</Link>
                           </Button>
                       </CardFooter>
                       </Card>

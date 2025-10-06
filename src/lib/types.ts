@@ -30,6 +30,7 @@ export type AllocationRule = {
 
 export type Service = {
   id: string;
+  slug: string;
   title: string;
   description: string;
   longDescription: string;

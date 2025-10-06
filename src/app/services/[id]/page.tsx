@@ -7,7 +7,7 @@ import { Service } from '@/lib/types';
 import ClientServiceCheckoutForm from '@/components/checkout/ClientServiceCheckoutForm';
 import { Separator } from '@/components/ui/separator';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
-import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
+import { getFirestore, collection, query, where, onSnapshot, getDocs, DocumentData } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useEffect, useState } from 'react';
 
@@ -24,15 +24,17 @@ const formatPrice = (price: number) => {
 
 export default function ServiceDetailPage() {
   const params = useParams();
-  const id = params.id as string;
+  const slug = params.slug as string;
   const [service, setService] = useState<Service | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!id) return;
-    const docRef = doc(db, 'services', id);
-    const unsubscribe = onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
+    if (!slug) return;
+    const q = query(collection(db, 'services'), where('slug', '==', slug));
+    
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      if (!querySnapshot.empty) {
+        const docSnap = querySnapshot.docs[0];
         setService({ id: docSnap.id, ...docSnap.data() } as Service);
       } else {
         setService(null);
@@ -41,7 +43,7 @@ export default function ServiceDetailPage() {
     });
 
     return () => unsubscribe();
-  }, [id]);
+  }, [slug]);
 
   if (isLoading) {
     return <div className="flex justify-center items-center h-screen"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;

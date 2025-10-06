@@ -17,7 +17,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const blogPosts = blogPostsSnapshot.docs.map(doc => ({ ...doc.data(), date: doc.data().date.toDate() } as BlogPost));
 
   const servicePages = services.map(service => ({
-    url: `${siteUrl}/services/${service.id}`,
+    url: `${siteUrl}/services/${service.slug}`,
     lastModified: new Date(),
   }));
 
