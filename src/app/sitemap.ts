@@ -4,10 +4,14 @@ import { getFirestore, collection, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Service, BlogPost } from '@/lib/types';
 
+// By exporting 'revalidate', we are opting into dynamic rendering.
+// Setting it to 0 means this route will be re-evaluated on every request.
+export const revalidate = 0;
+
 const db = getFirestore(firebaseApp);
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://studio-2604127518-57889.us-central1.hosted.app';
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://my-accountant-app.com';
 
   // Fetch dynamic pages
   const servicesSnapshot = await getDocs(collection(db, 'services'));
