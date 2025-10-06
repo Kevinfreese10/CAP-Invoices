@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { format, isPast } from 'date-fns';
+import { format, isPast, addDays, isWithinInterval } from 'date-fns';
 import { Task, User, TaskComment } from '@/lib/types';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -642,6 +642,16 @@ export default function AdminDashboardPage() {
         ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
     }, [tasks, user]);
 
+    const upcomingAutomatedTasks = useMemo(() => {
+        const now = new Date();
+        const sevenDaysFromNow = addDays(now, 7);
+        return tasks.filter(task => 
+            task.recurrence && task.recurrence !== 'None' &&
+            task.status !== 'Done' &&
+            isWithinInterval(task.dueDate.toDate(), { start: now, end: sevenDaysFromNow })
+        ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : b.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
+    }, [tasks]);
+
     const delegatedTasks = useMemo(() => {
         if (!user) return [];
         return tasks.filter(task => 
@@ -948,6 +958,17 @@ export default function AdminDashboardPage() {
                         />
 
                         <TaskTable 
+                            tasks={upcomingAutomatedTasks} 
+                            title="Upcoming Automated Tasks" 
+                            description="Automated tasks that are due within the next 7 days."
+                            onEdit={handleEdit}
+                            onUpdateStatus={handleUpdateStatus}
+                            onDelete={handleDelete}
+                            allStaff={allStaff}
+                            currentUser={user}
+                        />
+
+                        <TaskTable 
                             tasks={delegatedTasks} 
                             title="Delegated Tasks" 
                             description="Tasks you have created and assigned to other team members."
@@ -1045,6 +1066,7 @@ export default function AdminDashboardPage() {
     
 
     
+
 
 
 
