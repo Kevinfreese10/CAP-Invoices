@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { z } from 'zod';
@@ -41,12 +40,14 @@ const complianceFormSchema = z.object({
 export default function CompliancePage() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [isStaffLoading, setIsStaffLoading] = useState(true);
   const [isComplete, setIsComplete] = useState(false);
   const [allStaff, setAllStaff] = useState<User[]>([]);
   const { user } = useAuth(); // Can be null on a public page
 
   useEffect(() => {
     const fetchStaff = async () => {
+        setIsStaffLoading(true);
         try {
             const staffQuery = query(collection(db, "users"), where("role", "in", ["staff", "admin"]));
             const staffSnapshot = await getDocs(staffQuery);
@@ -54,6 +55,8 @@ export default function CompliancePage() {
             setAllStaff(fetchedStaff);
         } catch(e) {
             console.error("Could not fetch staff for task assignment", e);
+        } finally {
+            setIsStaffLoading(false);
         }
     };
     fetchStaff();
@@ -106,8 +109,9 @@ export default function CompliancePage() {
       if (assignedStaff) {
           const dueDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000); // 2 days from now
           
-          // Ensure createdBy is always valid. If no one is logged in, assign creator to be the assignee.
-          const creatorId = user?.uid || assignedStaff.uid;
+          if (!assignedStaff.uid) {
+            throw new Error("Assigned staff member has no UID.");
+          }
 
           const taskData: Omit<Task, 'id'> = {
               title: `Follow up on Compliance Assessment for ${values.companyName}`,
@@ -116,7 +120,7 @@ export default function CompliancePage() {
               status: 'To-Do',
               priority: 'Medium',
               dueDate: Timestamp.fromDate(dueDate),
-              createdBy: creatorId, 
+              createdBy: assignedStaff.uid, 
               createdAt: Timestamp.now(),
               comments: [],
           };
@@ -281,8 +285,8 @@ export default function CompliancePage() {
                     </FormItem>
                   )}
                 />
-                <Button type="submit" disabled={isLoading} className="w-full">
-                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <Button type="submit" disabled={isLoading || isStaffLoading} className="w-full">
+                  {(isLoading || isStaffLoading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {isLoading ? 'Submitting...' : 'Sign up, get my free compliance assessment and 5% discount'}
                 </Button>
               </form>
