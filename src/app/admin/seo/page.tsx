@@ -207,6 +207,7 @@ export default function SeoManagementPage() {
                          return (
                             <SeoPageForm
                                 key={page.id}
+                                form={form}
                                 control={control}
                                 index={originalIndex}
                                 page={page}
