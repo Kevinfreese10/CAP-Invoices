@@ -21,8 +21,9 @@ type EmailPayload = {
     replyTo?: string;
 }
 
-async function getSmtpConfig(resellerId?: string) {
-    // Always use the default system email settings, regardless of resellerId.
+async function getSmtpConfig() {
+    // Always use the default system email settings for 'no_reply@myacc.co.za'
+    // The credentials are tied to the kev@thinkestry.co.za user object.
     const adminUserQuery = (await import('@/lib/data')).users.find(u => u.email === 'kev@thinkestry.co.za');
     return adminUserQuery?.smtpDetails;
 }
@@ -30,18 +31,10 @@ async function getSmtpConfig(resellerId?: string) {
 
 export async function sendEmail({ to, subject, html, from, bcc, resellerId, attachments, replyTo }: EmailPayload) {
   
-  const smtpConfig = await getSmtpConfig(resellerId);
+  const smtpConfig = await getSmtpConfig();
   
-  let fromAddress: string;
-  const defaultFromName = resellerId 
-    ? (await getDoc(doc(db, 'users', resellerId))).data()?.companyName || 'My Accountant' 
-    : 'My Accountant';
-  
-  if (from) {
-    fromAddress = from;
-  } else {
-    fromAddress = `"${defaultFromName}" <${smtpConfig?.user || 'onboarding@resend.dev'}>`;
-  }
+  // Hardcode the from address to match the SMTP user to prevent rejection.
+  const fromAddress = 'no_reply@myacc.co.za';
   
   if (smtpConfig && smtpConfig.host && smtpConfig.pass) {
     const transporter = nodemailer.createTransport({
