@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, MoreHorizontal, Edit, Trash2, CheckCircle2, FileCheck2 } from 'lucide-react';
+import { Loader2, MoreHorizontal, Edit, Trash2, CheckCircle2, FileCheck2, XCircle } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +22,12 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { s38ChartOfAccounts, capChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { useAuth } from '@/contexts/AuthContext';
+import { sendEmail } from '@/lib/email';
+import { render } from '@react-email/components';
+import InvoiceRejectionEmail from '@/components/emails/InvoiceRejectionEmail';
+import { ExtractedInvoice } from '@/lib/types';
+
 
 const db = getFirestore(firebaseApp);
 
@@ -31,20 +37,6 @@ type LineItem = {
     vatAmount: number;
     accountId?: string;
 }
-
-type ExtractedInvoice = {
-  id: string;
-  supplier: string;
-  invoiceNumber: string;
-  commissionNumber?: string;
-  date: string;
-  lineItems: LineItem[];
-  invoiceTotal: number;
-  status: 'pending_review' | 'approved' | 'approved_for_payment';
-  fileName: string;
-  createdAt: any;
-  expenseType?: 'CAP' | 'S38';
-};
 
 const lineItemSchema = z.object({
   description: z.string().min(1, "Description is required"),
@@ -61,6 +53,10 @@ const formSchema = z.object({
   lineItems: z.array(lineItemSchema),
   invoiceTotal: z.preprocess((val) => Number(val), z.number()),
   expenseType: z.enum(['CAP', 'S38']).optional(),
+});
+
+const rejectionFormSchema = z.object({
+  rejectionReason: z.string().min(10, 'Please provide a detailed reason for rejection.'),
 });
 
 
@@ -178,7 +174,14 @@ export default function SecondReviewPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
+    const [rejectingInvoice, setRejectingInvoice] = useState<ExtractedInvoice | null>(null);
+    const { user } = useAuth();
     const { toast } = useToast();
+
+     const rejectionForm = useForm<z.infer<typeof rejectionFormSchema>>({
+        resolver: zodResolver(rejectionFormSchema),
+        defaultValues: { rejectionReason: '' },
+    });
 
     const fetchInvoices = async () => {
         setIsLoading(true);
@@ -223,6 +226,31 @@ export default function SecondReviewPage() {
         }
     };
 
+     const handleReject = async (values: z.infer<typeof rejectionFormSchema>) => {
+        if (!rejectingInvoice || !user) return;
+        try {
+            const docRef = doc(db, 'extractedInvoices', rejectingInvoice.id);
+            await updateDoc(docRef, { 
+                status: 'rejected',
+                rejectionReason: values.rejectionReason 
+            });
+            
+            const emailHtml = render(<InvoiceRejectionEmail invoice={rejectingInvoice} reason={values.rejectionReason} rejectedBy={user.name} />);
+
+            await sendEmail({
+                to: user.email,
+                subject: `Invoice Rejected: ${rejectingInvoice.supplier} - #${rejectingInvoice.invoiceNumber}`,
+                html: emailHtml,
+            });
+
+            toast({ title: 'Invoice Rejected', description: 'The invoice has been marked as rejected and an email sent.' });
+            setRejectingInvoice(null);
+            fetchInvoices();
+        } catch (error) {
+            toast({ title: 'Error', description: 'Could not reject the invoice.', variant: 'destructive'});
+        }
+    };
+
     const handleDelete = async (id: string) => {
          try {
             await deleteDoc(doc(db, 'extractedInvoices', id));
@@ -247,6 +275,13 @@ export default function SecondReviewPage() {
                     <Badge variant={'payment'}>
                         <FileCheck2 className="mr-1 h-3 w-3" />
                         Approved for Payment
+                    </Badge>
+                );
+             case 'rejected':
+                return (
+                    <Badge variant={'destructive'}>
+                        <XCircle className="mr-1 h-3 w-3" />
+                        Rejected
                     </Badge>
                 );
             default:
@@ -309,6 +344,9 @@ export default function SecondReviewPage() {
                                             <DropdownMenuItem onSelect={() => setEditingInvoice(invoice)}>
                                                 <Edit className="mr-2 h-4 w-4" /> Edit
                                             </DropdownMenuItem>
+                                            <DropdownMenuItem onSelect={() => setRejectingInvoice(invoice)} className="text-destructive">
+                                                <XCircle className="mr-2 h-4 w-4" /> Reject
+                                            </DropdownMenuItem>
                                             <AlertDialog>
                                                 <AlertDialogTrigger asChild>
                                                     <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
@@ -347,7 +385,37 @@ export default function SecondReviewPage() {
             />
         </DialogContent>
       </Dialog>
+      
+      <Dialog open={!!rejectingInvoice} onOpenChange={(isOpen) => !isOpen && setRejectingInvoice(null)}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Reject Invoice</DialogTitle>
+                <DialogDescription>Provide a reason for rejecting this invoice from {rejectingInvoice?.supplier}. An email will be sent.</DialogDescription>
+            </DialogHeader>
+            <Form {...rejectionForm}>
+                <form onSubmit={rejectionForm.handleSubmit(handleReject)} className="space-y-4">
+                    <FormField
+                        control={rejectionForm.control}
+                        name="rejectionReason"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Reason for Rejection</FormLabel>
+                                <FormControl><Textarea {...field} rows={4} /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <DialogFooter>
+                        <Button type="button" variant="ghost" onClick={() => setRejectingInvoice(null)}>Cancel</Button>
+                        <Button type="submit" variant="destructive">Reject Invoice</Button>
+                    </DialogFooter>
+                </form>
+            </Form>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
+
 

@@ -247,13 +247,14 @@ export type ExtractedInvoice = {
   date: string;
   lineItems: { description: string; exclusiveAmount: number; vatAmount: number; accountId?: string; }[];
   invoiceTotal: number;
-  status: 'pending_review' | 'approved' | 'approved_for_payment';
+  status: 'pending_review' | 'approved' | 'approved_for_payment' | 'rejected';
   fileName: string;
   fileUrl: string;
   createdAt: any;
   uploadedBy: string;
   expenseType?: 'CAP' | 'S38';
   commissionNumber?: string;
+  rejectionReason?: string;
 };
 
     
