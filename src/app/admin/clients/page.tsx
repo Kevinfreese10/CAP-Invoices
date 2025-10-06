@@ -306,16 +306,30 @@ export default function AdminClientsPage() {
   
   const handleDelete = async (clientId: string) => {
     try {
-        await deleteDoc(doc(db, "clients", clientId));
+        const batch = writeBatch(db);
+
+        // Delete the client
+        const clientRef = doc(db, "clients", clientId);
+        batch.delete(clientRef);
+        
+        // Find and delete associated tasks
+        const tasksQuery = query(collection(db, 'tasks'), where('clientId', '==', clientId));
+        const tasksSnapshot = await getDocs(tasksQuery);
+        tasksSnapshot.docs.forEach(taskDoc => {
+            batch.delete(taskDoc.ref);
+        });
+
+        await batch.commit();
+        
         fetchClientsAndStaff();
         toast({
             title: 'Client Deleted',
-            description: 'The client has been removed.',
+            description: `The client and their ${tasksSnapshot.size} associated tasks have been removed.`,
             variant: 'destructive',
         });
     } catch (error) {
         console.error("Error deleting client:", error);
-        toast({ title: 'Error', description: 'Could not delete client.', variant: 'destructive' });
+        toast({ title: 'Error', description: 'Could not delete client and their tasks.', variant: 'destructive' });
     }
   };
 
@@ -805,7 +819,7 @@ export default function AdminClientsPage() {
                                 <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                 <AlertDialogDescription>
                                 This action cannot be undone. This will permanently delete the client account for:
-                                <span className="font-semibold"> {client.name}</span>.
+                                <span className="font-semibold"> {client.name}</span>. All associated tasks will also be deleted.
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
@@ -827,6 +841,7 @@ export default function AdminClientsPage() {
     </div>
   );
 }
+
 
 
 
