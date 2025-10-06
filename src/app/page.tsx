@@ -102,9 +102,6 @@ export default function Home() {
               <Button asChild size="lg">
                 <Link href="#services">Explore Services</Link>
               </Button>
-              <Button asChild size="lg" variant="outline">
-                <Link href="/contact">Get Support</Link>
-              </Button>
             </div>
           </div>
         </div>
