@@ -7,7 +7,7 @@ import { Service } from '@/lib/types';
 import ClientServiceCheckoutForm from '@/components/checkout/ClientServiceCheckoutForm';
 import { Separator } from '@/components/ui/separator';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
-import { getFirestore, collection, query, where, onSnapshot, getDocs, DocumentData } from 'firebase/firestore';
+import { getFirestore, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useEffect, useState } from 'react';
 
@@ -29,7 +29,11 @@ export default function ServiceDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!slug) return;
+    if (!slug) {
+        setIsLoading(false);
+        return;
+    };
+    
     const q = query(collection(db, 'services'), where('slug', '==', slug));
     
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -40,6 +44,10 @@ export default function ServiceDetailPage() {
         setService(null);
       }
       setIsLoading(false);
+    }, (error) => {
+        console.error("Error fetching service:", error);
+        setIsLoading(false);
+        setService(null);
     });
 
     return () => unsubscribe();
