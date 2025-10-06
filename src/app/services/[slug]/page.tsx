@@ -1,17 +1,61 @@
-
-'use client';
-import { notFound, useParams } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
-import { BadgeCheck, Clock, ClipboardCheck, Loader2 } from 'lucide-react';
+import { BadgeCheck, Clock, ClipboardCheck } from 'lucide-react';
 import { Service } from '@/lib/types';
 import ClientServiceCheckoutForm from '@/components/checkout/ClientServiceCheckoutForm';
 import { Separator } from '@/components/ui/separator';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
-import { getFirestore, collection, query, where, onSnapshot } from 'firebase/firestore';
+import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { useEffect, useState } from 'react';
+import type { Metadata } from 'next';
 
 const db = getFirestore(firebaseApp);
+
+async function getService(slug: string): Promise<Service | null> {
+  const q = query(collection(db, 'services'), where('slug', '==', slug));
+  const querySnapshot = await getDocs(q);
+
+  if (querySnapshot.empty) {
+    return null;
+  }
+
+  const doc = querySnapshot.docs[0];
+  return { id: doc.id, ...doc.data() } as Service;
+}
+
+export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+  const service = await getService(params.slug);
+
+  if (!service) {
+    return {
+      title: 'Service Not Found',
+    };
+  }
+
+  const title = service.metaTitle || `${service.title} | My Accountant`;
+  const description = service.metaDescription || service.description;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      images: [
+        {
+          url: service.imageUrl,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [service.imageUrl],
+    },
+  };
+}
+
 
 const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -22,41 +66,9 @@ const formatPrice = (price: number) => {
     }).format(price);
 };
 
-export default function ServiceDetailPage() {
-  const params = useParams();
-  const slug = params.slug as string;
-  const [service, setService] = useState<Service | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+export default async function ServiceDetailPage({ params }: { params: { slug: string } }) {
+  const service = await getService(params.slug);
 
-  useEffect(() => {
-    if (!slug) {
-        setIsLoading(false);
-        return;
-    };
-    
-    const q = query(collection(db, 'services'), where('slug', '==', slug));
-    
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      if (!querySnapshot.empty) {
-        const docSnap = querySnapshot.docs[0];
-        setService({ id: docSnap.id, ...docSnap.data() } as Service);
-      } else {
-        setService(null);
-      }
-      setIsLoading(false);
-    }, (error) => {
-        console.error("Error fetching service:", error);
-        setIsLoading(false);
-        setService(null);
-    });
-
-    return () => unsubscribe();
-  }, [slug]);
-
-  if (isLoading) {
-    return <div className="flex justify-center items-center h-screen"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
-  }
-  
   if (!service) {
     notFound();
   }

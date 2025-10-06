@@ -9,6 +9,9 @@ import type { Metadata } from 'next';
 
 const db = getFirestore(firebaseApp);
 
+// This line is crucial to ensure the page is always rendered dynamically.
+export const dynamic = 'force-dynamic';
+
 async function getPost(slug: string): Promise<BlogPost | null> {
     const q = query(collection(db, "blogPosts"), where("slug", "==", slug));
     const querySnapshot = await getDocs(q);
@@ -16,21 +19,15 @@ async function getPost(slug: string): Promise<BlogPost | null> {
         return null;
     }
     const docData = querySnapshot.docs[0].data();
+    
     // Ensure date is a string. Firestore Timestamps need to be converted.
-    const date = docData.date?.toDate ? docData.date.toDate().toISOString() : new Date().toISOString();
+    const date = docData.date?.toDate ? docData.date.toDate().toISOString() : docData.date;
     
     return {
         ...docData,
         id: querySnapshot.docs[0].id,
         date: date,
     } as BlogPost;
-}
-
-export async function generateStaticParams() {
-    const snapshot = await getDocs(collection(db, 'blogPosts'));
-    return snapshot.docs.map(doc => ({
-        slug: doc.data().slug,
-    }));
 }
 
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
@@ -52,7 +49,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
       title,
       description,
       type: 'article',
-      publishedTime: post.date,
+      publishedTime: new Date(post.date).toISOString(),
       authors: [post.author],
       images: [
         {
