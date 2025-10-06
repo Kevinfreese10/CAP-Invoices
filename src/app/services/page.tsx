@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Clock, Loader2 } from 'lucide-react';
-import { collection, getDocs, getFirestore, orderBy, query, onSnapshot } from 'firebase/firestore';
+import { collection, getFirestore, orderBy, query, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Service } from '@/lib/types';
 import { useEffect, useState, useMemo } from 'react';
