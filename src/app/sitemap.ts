@@ -7,14 +7,14 @@ import { Service, BlogPost } from '@/lib/types';
 const db = getFirestore(firebaseApp);
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://studio--studio-2604127518-57889.us-central1.hosted.app';
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://studio-2604127518-57889.us-central1.hosted.app';
 
   // Fetch dynamic pages
   const servicesSnapshot = await getDocs(collection(db, 'services'));
   const services = servicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
   
   const blogPostsSnapshot = await getDocs(collection(db, 'blogPosts'));
-  const blogPosts = blogPostsSnapshot.docs.map(doc => ({ ...doc.data(), date: doc.data().date.toDate() } as BlogPost));
+  const blogPosts = blogPostsSnapshot.docs.map(doc => ({ ...doc.data(), date: new Date(doc.data().date.toDate()) } as BlogPost));
 
   const servicePages = services.map(service => ({
     url: `${siteUrl}/services/${service.slug}`,
