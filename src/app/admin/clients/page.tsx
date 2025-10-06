@@ -346,8 +346,9 @@ export default function AdminClientsPage() {
 
     // Provisional Tax
     if (client.submitsProvisionalTaxes) {
-        let firstProvDueDate = lastDayOfMonth(addMonths(new Date(getYear(now), yearEndMonthIndex, 1), 6));
-        if(isPast(firstProvDueDate)) {
+        const firstProvBaseDate = set(now, { month: yearEndMonthIndex + 6 });
+        let firstProvDueDate = lastDayOfMonth(firstProvBaseDate);
+        if (isPast(firstProvDueDate)) {
             firstProvDueDate = addYears(firstProvDueDate, 1);
         }
         tasksToCreate.push({
@@ -364,8 +365,9 @@ export default function AdminClientsPage() {
             comments: [],
         });
         
-        let secondProvDueDate = lastDayOfMonth(new Date(getYear(now), yearEndMonthIndex, 1));
-        if(isPast(secondProvDueDate)) {
+        const secondProvBaseDate = set(now, { month: yearEndMonthIndex });
+        let secondProvDueDate = lastDayOfMonth(secondProvBaseDate);
+        if (isPast(secondProvDueDate)) {
             secondProvDueDate = addYears(secondProvDueDate, 1);
         }
          tasksToCreate.push({
@@ -385,8 +387,9 @@ export default function AdminClientsPage() {
 
     // Corporate Income Tax (ITR14)
     if (client.submitsIncomeTaxReturn) {
-         let itr14DueDate = addMonths(lastDayOfMonth(new Date(getYear(now), yearEndMonthIndex, 1)), 12);
-         if(isPast(itr14DueDate)) {
+         const itr14BaseDate = set(now, { month: yearEndMonthIndex + 12 });
+         let itr14DueDate = lastDayOfMonth(itr14BaseDate);
+         if (isPast(itr14DueDate)) {
             itr14DueDate = addYears(itr14DueDate, 1);
         }
          tasksToCreate.push({
@@ -405,8 +408,9 @@ export default function AdminClientsPage() {
     }
 
     // CIPC Annual Return
-    let cipcDueDate = addMonths(new Date(getYear(now), yearEndMonthIndex, 1), 1);
-     if(isPast(cipcDueDate)) {
+    const cipcBaseDate = set(now, { month: yearEndMonthIndex + 1 });
+     let cipcDueDate = cipcBaseDate;
+     if (isPast(cipcDueDate)) {
         cipcDueDate = addYears(cipcDueDate, 1);
     }
     tasksToCreate.push({
@@ -448,14 +452,21 @@ export default function AdminClientsPage() {
     if (client.requiresManagementAccounts && client.managementAccountsDueDate && client.managementAccountsFrequency) {
         let recurrence: Task['recurrence'] = 'None';
         let mgmtDueDate = client.managementAccountsDueDate.toDate ? client.managementAccountsDueDate.toDate() : new Date(client.managementAccountsDueDate);
-        if (client.managementAccountsFrequency === 'Monthly') {
-            recurrence = 'Monthly';
-            while(isPast(mgmtDueDate)) mgmtDueDate = addMonths(mgmtDueDate, 1);
+        
+        while (isPast(mgmtDueDate)) {
+            if (client.managementAccountsFrequency === 'Monthly') {
+                mgmtDueDate = addMonths(mgmtDueDate, 1);
+            } else if (client.managementAccountsFrequency === 'Quarterly') {
+                mgmtDueDate = addMonths(mgmtDueDate, 3);
+            } else if (client.managementAccountsFrequency === 'Bi-Annually') {
+                mgmtDueDate = addMonths(mgmtDueDate, 6);
+            } else if (client.managementAccountsFrequency === 'Annually') {
+                mgmtDueDate = addYears(mgmtDueDate, 1);
+            }
         }
-        else if (client.managementAccountsFrequency === 'Annually') {
-            recurrence = 'Annually';
-            if(isPast(mgmtDueDate)) mgmtDueDate = addYears(mgmtDueDate, 1);
-        }
+        if (client.managementAccountsFrequency === 'Monthly') recurrence = 'Monthly';
+        if (client.managementAccountsFrequency === 'Annually') recurrence = 'Annually';
+
 
         tasksToCreate.push({
             title: `Management Accounts for ${client.name}`,
@@ -475,13 +486,16 @@ export default function AdminClientsPage() {
     // VAT Returns
     if (client.isVatRegistered && client.vatCategory) {
         let firstDueDate: Date;
+        let recurrence: Task['recurrence'];
 
         if (client.vatCategory === 'C') { // Monthly
+            recurrence = 'Monthly';
             firstDueDate = set(now, { date: 25 });
              while (isPast(firstDueDate)) {
                 firstDueDate = addMonths(firstDueDate, 1);
             }
         } else { // Bi-monthly
+            recurrence = 'Bi-Monthly';
             const currentMonth = getMonth(now); // 0-11
             let targetMonth: number;
             
@@ -505,7 +519,7 @@ export default function AdminClientsPage() {
             assignedTo: accountingAndTaxStaff,
             dueDate: Timestamp.fromDate(firstDueDate),
             createdAt: Timestamp.now(),
-            recurrence: client.vatCategory === 'C' ? 'Monthly' : 'Bi-Monthly',
+            recurrence: recurrence,
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
@@ -535,8 +549,13 @@ export default function AdminClientsPage() {
     
     // EMP201
     if (client.submitsEmp201) {
-        let emp201Date = set(now, { date: 7, month: getMonth(now) + 1 });
-        if (isPast(emp201Date)) emp201Date = addMonths(emp201Date, 1);
+        let emp201Date = set(now, { date: 7 });
+        if(isPast(emp201Date)) emp201Date = addMonths(emp201Date, 1);
+        
+        while (isPast(emp201Date)) {
+             emp201Date = addMonths(emp201Date, 1);
+        }
+
         tasksToCreate.push({
             title: `EMP201 Submission for ${client.name}`,
             description: 'Submit monthly EMP201 declaration.',
@@ -554,7 +573,7 @@ export default function AdminClientsPage() {
 
     // EMP501
     if (client.submitsEmp501) {
-        let interimEmp501Date = new Date(getYear(now), 9, 31); // October 31
+        let interimEmp501Date = set(now, { month: 9, date: 31 }); // October 31
         if (isPast(interimEmp501Date)) interimEmp501Date = addYears(interimEmp501Date, 1);
 
         tasksToCreate.push({
@@ -571,7 +590,9 @@ export default function AdminClientsPage() {
             comments: [],
         });
         
-        let finalEmp501Date = new Date(getYear(now) + (getMonth(now) > 4 ? 1 : 0), 4, 31); // May 31
+        let finalEmp501Date = set(now, { month: 4, date: 31 }); // May 31
+        if(isPast(finalEmp501Date)) finalEmp501Date = addYears(finalEmp501Date, 1);
+
         tasksToCreate.push({
             title: `Final EMP501 for ${client.name}`,
             description: 'Submit final EMP501 reconciliation for the period 1 March - 28/29 February.',
@@ -828,5 +849,6 @@ export default function AdminClientsPage() {
     </div>
   );
 }
+
 
 
