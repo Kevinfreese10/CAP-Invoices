@@ -11,6 +11,8 @@ import type { Metadata } from 'next';
 
 const db = getFirestore(firebaseApp);
 
+export const dynamic = 'force-dynamic';
+
 async function getService(slug: string): Promise<Service | null> {
   const q = query(collection(db, 'services'), where('slug', '==', slug));
   const querySnapshot = await getDocs(q);
