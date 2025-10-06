@@ -93,7 +93,7 @@ export default function Home() {
         <div className="container mx-auto grid grid-cols-1 items-center gap-12 px-4 py-16 lg:py-24">
           <div className="space-y-6 text-center">
             <h1 className="text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl">
-              South Africa’s premier online provider of tax & accounting services
+              South Africa’s leading online accounting store
             </h1>
             <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
               Your trusted partner for professional financial services in South Africa. We simplify your finances so you can focus on what matters.
