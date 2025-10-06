@@ -345,7 +345,7 @@ const getUserColor = (userId: string) => {
 };
 
 
-const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete, allStaff, currentUser }: { tasks: Task[], title: string, description: string, onEdit: (task: Task) => void, onUpdateStatus: (taskId: string, status: Task['status']) => void, onDelete: (taskId: string) => void, allStaff: User[], currentUser: User | null }) => {
+const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete, allStaff, currentUser, onFilter, taskTypes }: { tasks: Task[], title: string, description: string, onEdit: (task: Task) => void, onUpdateStatus: (taskId: string, status: Task['status']) => void, onDelete: (taskId: string) => void, allStaff: User[], currentUser: User | null, onFilter?: (filter: string) => void, taskTypes?: string[] }) => {
     const getAssignee = (userId?: string): User | undefined => {
         if (!userId) return undefined;
         return allStaff.find(u => u.uid === userId);
@@ -361,27 +361,36 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
         }
     };
 
-    if (tasks.length === 0) {
-        return (
-             <Card>
-                <CardHeader>
-                    <CardTitle>{title}</CardTitle>
-                    <CardDescription>{description}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-sm text-muted-foreground">No tasks to display.</p>
-                </CardContent>
-            </Card>
-        )
-    }
-
     return (
         <Card>
             <CardHeader>
-                <CardTitle>{title}</CardTitle>
-                <CardDescription>{description}</CardDescription>
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                    <div>
+                        <CardTitle>{title}</CardTitle>
+                        <CardDescription>{description}</CardDescription>
+                    </div>
+                    {onFilter && taskTypes && (
+                        <div className="w-full sm:w-auto">
+                            <Select onValueChange={onFilter} defaultValue="all">
+                                <SelectTrigger className="w-full sm:w-[240px]">
+                                    <SelectValue placeholder="Filter by task type..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {taskTypes.map(type => (
+                                        <SelectItem key={type} value={type === 'All Tasks' ? 'all' : type}>
+                                            {type}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+                </div>
             </CardHeader>
             <CardContent>
+                 {tasks.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">No tasks to display.</p>
+                ) : (
                 <Table>
                     <TableHeader>
                     <TableRow>
@@ -557,6 +566,7 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                     )})}
                     </TableBody>
                 </Table>
+                )}
             </CardContent>
         </Card>
     )
@@ -572,6 +582,7 @@ export default function AdminDashboardPage() {
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
     const [automatedTaskFilter, setAutomatedTaskFilter] = useState('all');
+    const [upcomingAutomatedTaskFilter, setUpcomingAutomatedTaskFilter] = useState('all');
     const { toast } = useToast();
 
     const fetchDashboardData = async () => {
@@ -645,12 +656,20 @@ export default function AdminDashboardPage() {
     const upcomingAutomatedTasks = useMemo(() => {
         const now = new Date();
         const sevenDaysFromNow = addDays(now, 7);
-        return tasks.filter(task => 
+        const filtered = tasks.filter(task => 
             task.recurrence && task.recurrence !== 'None' &&
             task.status !== 'Done' &&
             isWithinInterval(task.dueDate.toDate(), { start: now, end: sevenDaysFromNow })
-        ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : b.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
-    }, [tasks]);
+        );
+        
+        if (upcomingAutomatedTaskFilter === 'all' || upcomingAutomatedTaskFilter === 'All Tasks') {
+            return filtered.sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : b.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
+        }
+        
+        return filtered.filter(task => task.title.startsWith(upcomingAutomatedTaskFilter))
+            .sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : b.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
+
+    }, [tasks, upcomingAutomatedTaskFilter]);
 
     const delegatedTasks = useMemo(() => {
         if (!user) return [];
@@ -966,6 +985,8 @@ export default function AdminDashboardPage() {
                             onDelete={handleDelete}
                             allStaff={allStaff}
                             currentUser={user}
+                            onFilter={setUpcomingAutomatedTaskFilter}
+                            taskTypes={taskTypes}
                         />
 
                         <TaskTable 
@@ -1016,42 +1037,18 @@ export default function AdminDashboardPage() {
                         )}
                         
                         {(user?.role === 'admin' && automatedTasks.length > 0) && (
-                            <Card>
-                                <CardHeader>
-                                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-                                        <div>
-                                        <CardTitle>Automated Client Tasks</CardTitle>
-                                        <CardDescription>Recurring tasks generated from the client automation system.</CardDescription>
-                                        </div>
-                                        <div className="w-full sm:w-auto">
-                                            <Select onValueChange={setAutomatedTaskFilter} defaultValue="all">
-                                                <SelectTrigger className="w-full sm:w-[240px]">
-                                                    <SelectValue placeholder="Filter by task type..." />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {taskTypes.map(type => (
-                                                        <SelectItem key={type} value={type === 'All Tasks' ? 'all' : type}>
-                                                            {type}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                    </div>
-                                </CardHeader>
-                                <CardContent>
-                                    <TaskTable 
-                                        tasks={automatedTasks.filter(task => automatedTaskFilter === 'all' || task.title.startsWith(automatedTaskFilter))} 
-                                        title="" 
-                                        description=""
-                                        onEdit={handleEdit}
-                                        onUpdateStatus={handleUpdateStatus}
-                                        onDelete={handleDelete}
-                                        allStaff={allStaff}
-                                        currentUser={user}
-                                    />
-                                </CardContent>
-                            </Card>
+                           <TaskTable
+                                tasks={automatedTasks.filter(task => automatedTaskFilter === 'all' || task.title.startsWith(automatedTaskFilter))}
+                                title="Automated Client Tasks"
+                                description="Recurring tasks generated from the client automation system."
+                                onEdit={handleEdit}
+                                onUpdateStatus={handleUpdateStatus}
+                                onDelete={handleDelete}
+                                allStaff={allStaff}
+                                currentUser={user}
+                                onFilter={setAutomatedTaskFilter}
+                                taskTypes={taskTypes}
+                            />
                         )}
                     </>
                 )}
@@ -1066,6 +1063,7 @@ export default function AdminDashboardPage() {
     
 
     
+
 
 
 
