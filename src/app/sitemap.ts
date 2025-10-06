@@ -11,7 +11,7 @@ const BASE_URL = 'https://studio--studio-2604127518-57889.us-central1.hosted.app
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const staticRoutes = [
-    '',
+    '/',
     '/about',
     '/blog',
     '/cart',
@@ -42,13 +42,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const blogPostRoutes = blogPosts.map((post) => {
     let lastModifiedDate;
     if (post.date && typeof post.date === 'object' && 'toDate' in post.date) {
-        // It's a Firestore Timestamp
         lastModifiedDate = (post.date as Timestamp).toDate();
     } else if (typeof post.date === 'string') {
-        // It's a string, try to parse it
         lastModifiedDate = new Date(post.date);
     } else {
-        // Fallback to now
         lastModifiedDate = new Date();
     }
     
