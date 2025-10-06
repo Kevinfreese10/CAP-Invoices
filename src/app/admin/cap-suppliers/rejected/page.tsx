@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, MoreHorizontal, FileX2, Eye, RotateCcw, Trash2 } from 'lucide-react';
+import { Loader2, MoreHorizontal, FileX2, Eye, RotateCcw, Trash2, Mail } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,10 @@ import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { ExtractedInvoice } from '@/lib/types';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useAuth } from '@/contexts/AuthContext';
+import { sendEmail } from '@/lib/email';
+import InvoiceRejectionEmail from '@/components/emails/InvoiceRejectionEmail';
+import { render } from '@react-email/components';
 
 const db = getFirestore(firebaseApp);
 
@@ -21,6 +25,7 @@ export default function RejectedInvoicesPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
+    const { user } = useAuth();
 
     const fetchInvoices = async () => {
         setIsLoading(true);
@@ -61,6 +66,27 @@ export default function RejectedInvoicesPage() {
             toast({ title: 'Error', description: 'Could not delete the invoice.', variant: 'destructive'});
         }
     }
+    
+    const handleResendRejectionEmail = async (invoice: ExtractedInvoice) => {
+        if (!user || !user.email) {
+            toast({ title: 'Error', description: 'Could not find user to send email to.', variant: 'destructive'});
+            return;
+        }
+
+        try {
+            const emailHtml = render(<InvoiceRejectionEmail invoice={invoice} reason={invoice.rejectionReason || 'No reason provided.'} rejectedBy={user.name} />);
+
+            await sendEmail({
+                to: user.email,
+                subject: `Invoice Rejected: ${invoice.supplier} - #${invoice.invoiceNumber}`,
+                html: emailHtml,
+            });
+
+            toast({ title: 'Rejection Email Sent', description: `An email has been sent to ${user.email}.` });
+        } catch (error) {
+            toast({ title: 'Error', description: 'Could not send the rejection email.', variant: 'destructive'});
+        }
+    };
 
   return (
     <div className="space-y-8">
@@ -120,6 +146,9 @@ export default function RejectedInvoicesPage() {
                                                 <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent>
+                                                <DropdownMenuItem onSelect={() => handleResendRejectionEmail(invoice)}>
+                                                    <Mail className="mr-2 h-4 w-4" /> Resend Rejection Email
+                                                </DropdownMenuItem>
                                                 <DropdownMenuItem onSelect={() => handleMoveToReview(invoice.id)}>
                                                     <RotateCcw className="mr-2 h-4 w-4" /> Move to Review
                                                 </DropdownMenuItem>
@@ -149,3 +178,4 @@ export default function RejectedInvoicesPage() {
     </div>
   );
 }
+
