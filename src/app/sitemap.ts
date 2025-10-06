@@ -1,5 +1,5 @@
 
-import { getFirestore, collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query, orderBy, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { BlogPost, Service } from '@/lib/types';
 import { MetadataRoute } from 'next';
@@ -38,10 +38,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const blogPostsSnapshot = await getDocs(query(collection(db, "blogPosts"), orderBy("date", "desc")));
   const blogPosts = blogPostsSnapshot.docs.map(doc => doc.data() as BlogPost);
-  const blogPostRoutes = blogPosts.map((post) => ({
-    url: `${BASE_URL}/blog/${post.slug}`,
-    lastModified: new Date(post.date),
-  }));
+  
+  const blogPostRoutes = blogPosts.map((post) => {
+    let lastModifiedDate;
+    if (post.date && typeof post.date === 'object' && 'toDate' in post.date) {
+        // It's a Firestore Timestamp
+        lastModifiedDate = (post.date as Timestamp).toDate();
+    } else if (typeof post.date === 'string') {
+        // It's a string, try to parse it
+        lastModifiedDate = new Date(post.date);
+    } else {
+        // Fallback to now
+        lastModifiedDate = new Date();
+    }
+    
+    return {
+        url: `${BASE_URL}/blog/${post.slug}`,
+        lastModified: lastModifiedDate,
+    }
+  });
 
   return [
     ...staticRoutes,
