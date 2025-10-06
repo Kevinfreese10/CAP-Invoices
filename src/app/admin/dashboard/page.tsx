@@ -345,7 +345,7 @@ const getUserColor = (userId: string) => {
 };
 
 
-const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete, allStaff }: { tasks: Task[], title: string, description: string, onEdit: (task: Task) => void, onUpdateStatus: (taskId: string, status: Task['status']) => void, onDelete: (taskId: string) => void, allStaff: User[] }) => {
+const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete, allStaff, currentUser }: { tasks: Task[], title: string, description: string, onEdit: (task: Task) => void, onUpdateStatus: (taskId: string, status: Task['status']) => void, onDelete: (taskId: string) => void, allStaff: User[], currentUser: User | null }) => {
     const getAssignee = (userId?: string): User | undefined => {
         if (!userId) return undefined;
         return allStaff.find(u => u.uid === userId);
@@ -400,6 +400,7 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                         const commentAuthor = lastComment ? getAssignee(lastComment.authorId) : null;
                         const assignees = Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo];
                         const tags = Array.isArray(task.tags) ? task.tags : [];
+                        const canDelete = currentUser?.uid === task.createdBy;
                         
                         return (
                         <TableRow key={task.id}>
@@ -529,7 +530,7 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                                     </DropdownMenuSub>
                                     <DropdownMenuSeparator />
                                     <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem className="text-destructive">
+                                        <DropdownMenuItem className="text-destructive" disabled={!canDelete}>
                                             Delete
                                         </DropdownMenuItem>
                                     </AlertDialogTrigger>
@@ -942,6 +943,7 @@ export default function AdminDashboardPage() {
                             onUpdateStatus={handleUpdateStatus}
                             onDelete={handleDelete}
                             allStaff={allStaff}
+                            currentUser={user}
                         />
 
                         <TaskTable 
@@ -952,6 +954,7 @@ export default function AdminDashboardPage() {
                             onUpdateStatus={handleUpdateStatus}
                             onDelete={handleDelete}
                             allStaff={allStaff}
+                            currentUser={user}
                         />
 
                         <TaskTable 
@@ -962,6 +965,7 @@ export default function AdminDashboardPage() {
                             onUpdateStatus={handleUpdateStatus}
                             onDelete={handleDelete}
                             allStaff={allStaff}
+                            currentUser={user}
                         />
                         
                         <TaskTable 
@@ -972,6 +976,7 @@ export default function AdminDashboardPage() {
                             onUpdateStatus={handleUpdateStatus}
                             onDelete={handleDelete}
                             allStaff={allStaff}
+                            currentUser={user}
                         />
 
 
@@ -984,6 +989,7 @@ export default function AdminDashboardPage() {
                                 onUpdateStatus={handleUpdateStatus}
                                 onDelete={handleDelete}
                                 allStaff={allStaff}
+                                currentUser={user}
                             />
                         )}
                         
@@ -1020,6 +1026,7 @@ export default function AdminDashboardPage() {
                                         onUpdateStatus={handleUpdateStatus}
                                         onDelete={handleDelete}
                                         allStaff={allStaff}
+                                        currentUser={user}
                                     />
                                 </CardContent>
                             </Card>
@@ -1037,6 +1044,7 @@ export default function AdminDashboardPage() {
     
 
     
+
 
 
 

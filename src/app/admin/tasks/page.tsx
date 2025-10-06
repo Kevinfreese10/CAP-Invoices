@@ -651,6 +651,7 @@ export default function AdminTasksPage() {
                     const commentAuthor = lastComment ? getAssignee(lastComment.authorId) : null;
                     const assignees = Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo];
                     const tags = Array.isArray(task.tags) ? task.tags : [];
+                    const canDelete = user?.uid === task.createdBy;
                     return (
                     <TableRow key={task.id}>
                     <TableCell className="font-medium max-w-xs align-top">
@@ -763,7 +764,7 @@ export default function AdminTasksPage() {
                                 </DropdownMenuSub>
                                 <DropdownMenuSeparator />
                                 <AlertDialogTrigger asChild>
-                                    <DropdownMenuItem className="text-destructive">
+                                    <DropdownMenuItem className="text-destructive" disabled={!canDelete}>
                                         Delete
                                     </DropdownMenuItem>
                                 </AlertDialogTrigger>
@@ -803,5 +804,6 @@ export default function AdminTasksPage() {
 
 
     
+
 
 
