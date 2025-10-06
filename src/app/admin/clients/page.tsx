@@ -319,7 +319,11 @@ export default function AdminClientsPage() {
     }
   };
 
-   const createRecurringTasks = async (client: Client, creatorId: string) => {
+   const createRecurringTasks = async (client: Client, creatorId: string, creatorName: string) => {
+    if (!creatorId || !creatorName) {
+        console.error("Task creation failed: creatorId or creatorName is missing.");
+        return 0;
+    }
     if (client.status === 'Inactive' || !client.yearEnd || !client.id) {
         if (client.status === 'Inactive') {
             toast({
@@ -625,7 +629,7 @@ export default function AdminClientsPage() {
                                 taskTitle={task.title}
                                 taskDescription={task.description}
                                 dueDate={format(task.dueDate.toDate(), 'dd MMMM yyyy')}
-                                assignedBy={currentUser?.name || 'System'}
+                                assignedBy={creatorName}
                                 taskUrl={`${window.location.origin}/admin/dashboard`}
                             />);
                             await sendEmail({
@@ -676,7 +680,7 @@ export default function AdminClientsPage() {
             });
             // Regenerate tasks for the updated client
             await deleteRecurringTasks(selectedClient.id);
-            const numTasks = await createRecurringTasks({ ...clientData, id: selectedClient.id } as Client, currentUser.id);
+            const numTasks = await createRecurringTasks({ ...clientData, id: selectedClient.id } as Client, currentUser.id, currentUser.name);
              if (numTasks > 0) {
                 toast({
                     title: 'Recurring Tasks Updated',
@@ -690,7 +694,7 @@ export default function AdminClientsPage() {
                 description: 'The new client has been added to the database.',
             });
             const newClient = { ...clientData, id: newDocRef.id } as Client;
-            const numTasks = await createRecurringTasks(newClient, currentUser.id);
+            const numTasks = await createRecurringTasks(newClient, currentUser.id, currentUser.name);
             if (numTasks > 0) {
                 toast({
                     title: 'Recurring Tasks Created',
@@ -849,6 +853,7 @@ export default function AdminClientsPage() {
     </div>
   );
 }
+
 
 
 
