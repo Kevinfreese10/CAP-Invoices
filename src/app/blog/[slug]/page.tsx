@@ -16,10 +16,13 @@ async function getPost(slug: string): Promise<BlogPost | null> {
         return null;
     }
     const docData = querySnapshot.docs[0].data();
+    // Ensure date is a string. Firestore Timestamps need to be converted.
+    const date = docData.date?.toDate ? docData.date.toDate().toISOString() : new Date().toISOString();
+    
     return {
         ...docData,
         id: querySnapshot.docs[0].id,
-        date: docData.date.toDate().toISOString(),
+        date: date,
     } as BlogPost;
 }
 
