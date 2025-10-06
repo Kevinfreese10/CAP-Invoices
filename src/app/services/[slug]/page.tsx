@@ -1,63 +1,19 @@
-import { notFound } from 'next/navigation';
+
+'use client';
+
+import { useState, useEffect } from 'react';
+import { notFound, useParams } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
-import { BadgeCheck, Clock, ClipboardCheck } from 'lucide-react';
+import { BadgeCheck, Clock, ClipboardCheck, Loader2 } from 'lucide-react';
 import { Service } from '@/lib/types';
 import ClientServiceCheckoutForm from '@/components/checkout/ClientServiceCheckoutForm';
 import { Separator } from '@/components/ui/separator';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
 import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import type { Metadata } from 'next';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const db = getFirestore(firebaseApp);
-
-export const dynamic = 'force-dynamic';
-
-async function getService(slug: string): Promise<Service | null> {
-  const q = query(collection(db, 'services'), where('slug', '==', slug));
-  const querySnapshot = await getDocs(q);
-
-  if (querySnapshot.empty) {
-    return null;
-  }
-
-  const doc = querySnapshot.docs[0];
-  return { id: doc.id, ...doc.data() } as Service;
-}
-
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
-  const service = await getService(params.slug);
-
-  if (!service) {
-    return {
-      title: 'Service Not Found',
-    };
-  }
-
-  const title = service.metaTitle || `${service.title} | My Accountant`;
-  const description = service.metaDescription || service.description;
-
-  return {
-    title,
-    description,
-    openGraph: {
-      title,
-      description,
-      images: [
-        {
-          url: service.imageUrl,
-        },
-      ],
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title,
-      description,
-      images: [service.imageUrl],
-    },
-  };
-}
-
 
 const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -68,11 +24,65 @@ const formatPrice = (price: number) => {
     }).format(price);
 };
 
-export default async function ServiceDetailPage({ params }: { params: { slug: string } }) {
-  const service = await getService(params.slug);
+export default function ServiceDetailPage() {
+  const params = useParams();
+  const slug = params.slug as string;
+  const [service, setService] = useState<Service | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!slug) return;
+
+    const fetchService = async () => {
+      setIsLoading(true);
+      try {
+        const q = query(collection(db, 'services'), where('slug', '==', slug));
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+          setService(null);
+        } else {
+          const doc = querySnapshot.docs[0];
+          setService({ id: doc.id, ...doc.data() } as Service);
+        }
+      } catch (error) {
+        console.error("Error fetching service:", error);
+        setService(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchService();
+  }, [slug]);
+  
+  if (isLoading) {
+    return (
+        <div className="container mx-auto px-4 py-12">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+                <div className="md:col-span-2 space-y-8">
+                    <Skeleton className="h-8 w-1/4" />
+                    <Skeleton className="h-12 w-3/4" />
+                    <Skeleton className="h-10 w-1/3" />
+                    <div className="space-y-4">
+                        <Skeleton className="h-8 w-1/2" />
+                        <Skeleton className="h-24 w-full" />
+                    </div>
+                     <div className="space-y-4">
+                        <Skeleton className="h-8 w-1/2" />
+                        <Skeleton className="h-24 w-full" />
+                    </div>
+                </div>
+                <div className="md:col-span-1">
+                    <Skeleton className="h-[500px] w-full" />
+                </div>
+            </div>
+        </div>
+    );
+  }
 
   if (!service) {
-    notFound();
+    return notFound();
   }
 
   return (

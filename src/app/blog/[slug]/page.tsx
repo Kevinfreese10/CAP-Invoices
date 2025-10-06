@@ -5,11 +5,9 @@ import { BlogPost } from '@/lib/types';
 import { getFirestore, collection, getDocs, query, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { format } from 'date-fns';
-import type { Metadata } from 'next';
 
 const db = getFirestore(firebaseApp);
 
-// This line is crucial to ensure the page is always rendered dynamically.
 export const dynamic = 'force-dynamic';
 
 async function getPost(slug: string): Promise<BlogPost | null> {
@@ -20,7 +18,6 @@ async function getPost(slug: string): Promise<BlogPost | null> {
     }
     const docData = querySnapshot.docs[0].data();
     
-    // Ensure date is a string. Firestore Timestamps need to be converted.
     const date = docData.date?.toDate ? docData.date.toDate().toISOString() : docData.date;
     
     return {
@@ -29,43 +26,6 @@ async function getPost(slug: string): Promise<BlogPost | null> {
         date: date,
     } as BlogPost;
 }
-
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
-  const post = await getPost(params.slug);
-
-  if (!post) {
-    return {
-      title: 'Post Not Found',
-    };
-  }
-
-  const title = post.metaTitle || post.title;
-  const description = post.metaDescription || post.excerpt;
-
-  return {
-    title,
-    description,
-    openGraph: {
-      title,
-      description,
-      type: 'article',
-      publishedTime: new Date(post.date).toISOString(),
-      authors: [post.author],
-      images: [
-        {
-          url: post.imageUrl,
-        },
-      ],
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title,
-      description,
-      images: [post.imageUrl],
-    },
-  };
-}
-
 
 export default async function BlogPostPage({ params }: { params: { slug: string } }) {
   const post = await getPost(params.slug);
