@@ -6,6 +6,7 @@ import nodemailer from 'nodemailer';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User } from '@/lib/types';
+import { users } from '@/lib/data';
 
 const db = getFirestore(firebaseApp);
 
