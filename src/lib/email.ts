@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { Resend } from 'resend';
@@ -24,9 +23,8 @@ type EmailPayload = {
 
 async function getSmtpConfig(resellerId?: string) {
     if (!resellerId) {
-        // Fallback for non-reseller emails: try finding a default admin
-        // In a real app, you might have a dedicated system email config
-        const adminUserQuery = (await import('@/lib/data')).users.find(u => u.role === 'admin');
+        // Fallback for non-reseller emails: specifically find the user with the default system email.
+        const adminUserQuery = (await import('@/lib/data')).users.find(u => u.email === 'kev@thinkestry.co.za');
         return adminUserQuery?.smtpDetails;
     }
 
@@ -47,6 +45,10 @@ export async function sendEmail({ to, subject, html, from, bcc, resellerId, atta
   let fromAddress: string;
   if (from) {
     fromAddress = from;
+  } else if (resellerId && smtpConfig?.user) {
+    const resellerDoc = await getDoc(doc(db, 'users', resellerId));
+    const resellerName = resellerDoc.exists() ? (resellerDoc.data() as User).companyName || 'My Accountant' : 'My Accountant';
+    fromAddress = `"${resellerName}" <${smtpConfig.user}>`;
   } else {
     fromAddress = `"My Accountant" <${smtpConfig?.user || 'onboarding@resend.dev'}>`;
   }
