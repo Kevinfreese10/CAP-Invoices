@@ -34,17 +34,21 @@ export async function sendEmail({ to, subject, html, from, bcc, resellerId, atta
   const smtpConfig = await getSmtpConfig();
   
   // Hardcode the from address to match the SMTP user to prevent rejection.
-  const fromAddress = 'no_reply@myacc.co.za';
+  const fromAddress = smtpConfig?.user || 'no_reply@myacc.co.za';
   
   if (smtpConfig && smtpConfig.host && smtpConfig.pass) {
     const transporter = nodemailer.createTransport({
       host: smtpConfig.host,
       port: parseInt(smtpConfig.port, 10),
-      secure: parseInt(smtpConfig.port, 10) === 465,
+      secure: true, // Enforce SSL/TLS, crucial for port 465
       auth: {
         user: smtpConfig.user,
         pass: smtpConfig.pass,
       },
+       tls: {
+        // do not fail on invalid certs
+        rejectUnauthorized: false
+       },
     });
 
     try {
@@ -60,6 +64,7 @@ export async function sendEmail({ to, subject, html, from, bcc, resellerId, atta
         console.log('Email sent successfully via SMTP:', info.messageId);
         return info;
     } catch (error) {
+        // Log the detailed error from nodemailer
         console.error('Nodemailer Error:', error);
         throw new Error('Failed to send email via SMTP.');
     }
@@ -92,3 +97,4 @@ export async function sendEmail({ to, subject, html, from, bcc, resellerId, atta
     }
   }
 }
+
