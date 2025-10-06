@@ -9,7 +9,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Separator } from '../ui/separator';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { sendEmail } from '@/lib/email';
 import { users } from '@/lib/data'; // Import static user data
@@ -90,6 +90,16 @@ export default function EmailSettingsForm() {
                  <FormField control={form.control} name="smtpDetails.port" render={({ field }) => ( <FormItem><FormLabel>SMTP Port</FormLabel><FormControl><Input {...field} readOnly disabled /></FormControl><FormMessage /></FormItem>)} />
                  <FormField control={form.control} name="smtpDetails.user" render={({ field }) => ( <FormItem><FormLabel>Username</FormLabel><FormControl><Input {...field} readOnly disabled /></FormControl><FormMessage /></FormItem>)} />
                  <FormField control={form.control} name="smtpDetails.pass" render={({ field }) => ( <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" {...field} readOnly disabled /></FormControl><FormMessage /></FormItem>)} />
+            </div>
+        </div>
+
+        <div className="space-y-4">
+            <h3 className="text-lg font-medium">Secure SSL/TLS Settings (Recommended)</h3>
+            <div className="flex items-center space-x-2 rounded-md border border-green-500 bg-green-50 p-4">
+                <ShieldCheck className="h-5 w-5 text-green-600" />
+                <p className="text-sm font-medium text-green-800">
+                    A secure SSL/TLS connection is enabled and enforced for all outgoing emails.
+                </p>
             </div>
         </div>
         
