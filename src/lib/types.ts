@@ -163,7 +163,6 @@ export type User = {
   managementAccountsDueDate?: any;
   isVatRegistered?: boolean;
   vatCategory?: 'A' | 'B' | 'C';
-  vatRegistrationDate?: any;
   submitsProvisionalTaxes?: boolean;
   submitsIncomeTaxReturn?: boolean;
   preparesPayroll?: boolean;

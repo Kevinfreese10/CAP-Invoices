@@ -76,7 +76,6 @@ const formSchema = z.object({
   managementAccountsDueDate: z.date().optional(),
   isVatRegistered: z.boolean().default(false),
   vatCategory: z.enum(vatCategories).optional(),
-  vatRegistrationDate: z.date().optional(),
   preparesPayroll: z.boolean().default(false),
   payrollDueDate: z.date().optional(),
   submitsEmp201: z.boolean().default(false),
@@ -110,7 +109,6 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
             managementAccountsDueDate: toDate(client?.managementAccountsDueDate),
             isVatRegistered: client?.isVatRegistered || false,
             vatCategory: client?.vatCategory || undefined,
-            vatRegistrationDate: toDate(client?.vatRegistrationDate),
             preparesPayroll: client?.preparesPayroll || false,
             payrollDueDate: toDate(client?.payrollDueDate),
             submitsEmp201: client?.submitsEmp201 || false,
@@ -195,7 +193,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                     )} />
 
                     {watchIsVatRegistered && (
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 gap-4">
                             <FormField
                             control={form.control}
                             name="vatCategory"
@@ -223,44 +221,6 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                                 </FormItem>
                             )}
                             />
-                            <FormField
-                            control={form.control}
-                            name="vatRegistrationDate"
-                            render={({ field }) => (
-                                <FormItem className="flex flex-col">
-                                <FormLabel>VAT Registration Date</FormLabel>
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                    <FormControl>
-                                        <Button
-                                        variant={'outline'}
-                                        className={cn(
-                                            'pl-3 text-left font-normal',
-                                            !field.value && 'text-muted-foreground'
-                                        )}
-                                        >
-                                        {field.value ? (
-                                            format(field.value, 'dd MMM yyyy')
-                                        ) : (
-                                            <span>Pick a date</span>
-                                        )}
-                                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                        </Button>
-                                    </FormControl>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0" align="start">
-                                    <Calendar
-                                        mode="single"
-                                        selected={field.value}
-                                        onSelect={field.onChange}
-                                        initialFocus
-                                    />
-                                    </PopoverContent>
-                                </Popover>
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                        />
                         </div>
                     )}
 
@@ -868,4 +828,5 @@ export default function AdminClientsPage() {
     </div>
   );
 }
+
 
