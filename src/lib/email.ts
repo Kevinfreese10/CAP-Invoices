@@ -22,19 +22,9 @@ type EmailPayload = {
 }
 
 async function getSmtpConfig(resellerId?: string) {
-    if (!resellerId) {
-        // Fallback for non-reseller emails: specifically find the user with the default system email.
-        const adminUserQuery = (await import('@/lib/data')).users.find(u => u.email === 'kev@thinkestry.co.za');
-        return adminUserQuery?.smtpDetails;
-    }
-
-    const resellerRef = doc(db, 'users', resellerId);
-    const resellerSnap = await getDoc(resellerRef);
-    if (resellerSnap.exists()) {
-        const resellerData = resellerSnap.data() as User;
-        return resellerData.smtpDetails;
-    }
-    return undefined;
+    // Always use the default system email settings, regardless of resellerId.
+    const adminUserQuery = (await import('@/lib/data')).users.find(u => u.email === 'kev@thinkestry.co.za');
+    return adminUserQuery?.smtpDetails;
 }
 
 
@@ -43,14 +33,14 @@ export async function sendEmail({ to, subject, html, from, bcc, resellerId, atta
   const smtpConfig = await getSmtpConfig(resellerId);
   
   let fromAddress: string;
+  const defaultFromName = resellerId 
+    ? (await getDoc(doc(db, 'users', resellerId))).data()?.companyName || 'My Accountant' 
+    : 'My Accountant';
+  
   if (from) {
     fromAddress = from;
-  } else if (resellerId && smtpConfig?.user) {
-    const resellerDoc = await getDoc(doc(db, 'users', resellerId));
-    const resellerName = resellerDoc.exists() ? (resellerDoc.data() as User).companyName || 'My Accountant' : 'My Accountant';
-    fromAddress = `"${resellerName}" <${smtpConfig.user}>`;
   } else {
-    fromAddress = `"My Accountant" <${smtpConfig?.user || 'onboarding@resend.dev'}>`;
+    fromAddress = `"${defaultFromName}" <${smtpConfig?.user || 'onboarding@resend.dev'}>`;
   }
   
   if (smtpConfig && smtpConfig.host && smtpConfig.pass) {

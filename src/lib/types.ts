@@ -1,5 +1,4 @@
 
-
 export type VatType =
   // Output Tax
   | 'standard_rated_sales'
@@ -148,12 +147,6 @@ export type User = {
     user: string;
     pass: string;
   },
-  imapDetails?: {
-    host: string;
-    port: string;
-    user: string;
-    pass: string;
-  },
   // Client specific fields for task automation & Numera
   yearEnd?: any;
   preparesFinancials?: boolean;
@@ -256,5 +249,3 @@ export type ExtractedInvoice = {
   commissionNumber?: string;
   rejectionReason?: string;
 };
-
-    

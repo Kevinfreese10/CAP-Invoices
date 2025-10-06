@@ -143,7 +143,7 @@ export default function CreateResellerOrderForm() {
         customerName: values.customerName,
         customerEmail: values.customerEmail,
         items: values.items.map(item => ({ 
-            id: item.serviceId || item.description.toLowerCase().replace(/\s/g, '-'),
+            id: item.serviceId || item.description.toLowerCase().replace(/\\s/g, '-'),
             title: item.description, 
             price: item.resellerPrice, // The price the reseller pays
             clientPrice: item.clientPrice, // The price the client pays
@@ -159,25 +159,22 @@ export default function CreateResellerOrderForm() {
 
       await setDoc(doc(db, 'orders', orderId), orderData);
 
-      if (reseller.smtpDetails?.host) {
-        try {
-          const emailHtml = render(<OrderConfirmationEmail order={orderData} reseller={reseller} />);
-          await sendEmail({
-            to: values.customerEmail,
-            from: `${reseller.companyName || reseller.name} <${reseller.smtpDetails.user}>`,
-            bcc: 'kev@thinkestry.co.za',
-            subject: `Your Order Confirmation: #${orderId}`,
-            html: emailHtml,
-            resellerId: reseller.id,
-          });
-        } catch (emailError) {
-          console.error("Failed to send reseller email:", emailError);
-          toast({
-            title: 'Order Created, But Email Failed',
-            description: 'The order was saved, but the confirmation email could not be sent. Check your SMTP settings.',
-            variant: 'destructive',
-          });
-        }
+      try {
+        const emailHtml = render(<OrderConfirmationEmail order={orderData} reseller={reseller} />);
+        await sendEmail({
+          to: values.customerEmail,
+          bcc: 'kev@thinkestry.co.za',
+          subject: `Your Order Confirmation: #${orderId}`,
+          html: emailHtml,
+          resellerId: reseller.id,
+        });
+      } catch (emailError) {
+        console.error("Failed to send reseller email:", emailError);
+        toast({
+          title: 'Order Created, But Email Failed',
+          description: 'The order was saved, but the confirmation email could not be sent.',
+          variant: 'destructive',
+        });
       }
       
       toast({

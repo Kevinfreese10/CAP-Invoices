@@ -1,5 +1,4 @@
 
-import EmailSettingsForm from "@/components/reseller/EmailSettingsForm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function ResellerSettingsPage() {
@@ -9,10 +8,10 @@ export default function ResellerSettingsPage() {
         <Card>
             <CardHeader>
                 <CardTitle>Email Settings</CardTitle>
-                <CardDescription>Manage your outgoing (SMTP) and incoming (IMAP) mail server settings. This allows the application to send emails on your behalf and process replies from your clients.</CardDescription>
+                <CardDescription>All emails sent to your clients will now originate from the My Accountant system email address (no_reply@myacc.co.za) to ensure deliverability. The "From" name will still be your company name.</CardDescription>
             </CardHeader>
             <CardContent>
-                <EmailSettingsForm />
+                <p className="text-sm text-muted-foreground">Individual SMTP settings for resellers have been disabled to improve email reliability.</p>
             </CardContent>
         </Card>
     </div>

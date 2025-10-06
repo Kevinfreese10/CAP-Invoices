@@ -30,12 +30,6 @@ const formSchema = z.object({
       accountNumber: z.string().min(5, 'A valid account number is required.'),
       branchCode: z.string().min(6, 'A valid branch code is required.'),
   }),
-  smtpDetails: z.object({
-      host: z.string().min(3, 'SMTP host is required.'),
-      port: z.string().min(2, 'SMTP port is required.'),
-      user: z.string().min(1, 'SMTP username is required.'),
-      pass: z.string().min(1, 'SMTP password is required.'),
-  }),
   agreeTerms: z.boolean().refine(val => val === true, {
     message: 'You must accept the terms and conditions.',
   }),
@@ -54,7 +48,6 @@ export default function ResellerSignupForm() {
       contactNumber: '',
       address: { street: '', city: '', province: '', zip: ''},
       bankingDetails: { bankName: '', accountHolder: '', accountNumber: '', branchCode: ''},
-      smtpDetails: { host: '', port: '587', user: '', pass: ''},
       agreeTerms: false,
     },
   });
@@ -102,18 +95,6 @@ export default function ResellerSignupForm() {
                  <FormField control={form.control} name="bankingDetails.accountHolder" render={({ field }) => ( <FormItem><FormLabel>Account Holder</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                  <FormField control={form.control} name="bankingDetails.accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                  <FormField control={form.control} name="bankingDetails.branchCode" render={({ field }) => ( <FormItem><FormLabel>Branch Code</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-            </div>
-        </div>
-
-        <Separator />
-
-        <div className="space-y-4">
-            <h3 className="text-lg font-medium">SMTP Details (for sending emails)</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 <FormField control={form.control} name="smtpDetails.host" render={({ field }) => ( <FormItem><FormLabel>SMTP Host</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                 <FormField control={form.control} name="smtpDetails.port" render={({ field }) => ( <FormItem><FormLabel>SMTP Port</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                 <FormField control={form.control} name="smtpDetails.user" render={({ field }) => ( <FormItem><FormLabel>Username</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                 <FormField control={form.control} name="smtpDetails.pass" render={({ field }) => ( <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
             </div>
         </div>
         
