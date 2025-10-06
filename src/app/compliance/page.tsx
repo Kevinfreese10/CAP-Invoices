@@ -43,15 +43,15 @@ export default function CompliancePage() {
   const [isStaffLoading, setIsStaffLoading] = useState(true);
   const [isComplete, setIsComplete] = useState(false);
   const [allStaff, setAllStaff] = useState<User[]>([]);
-  const { user } = useAuth(); // Can be null on a public page
-
+  const [staffCounters, setStaffCounters] = useState<{ [key: string]: number }>({});
+  
   useEffect(() => {
     const fetchStaff = async () => {
         setIsStaffLoading(true);
         try {
             const staffQuery = query(collection(db, "users"), where("role", "in", ["staff", "admin"]));
             const staffSnapshot = await getDocs(staffQuery);
-            const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
+            const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
             setAllStaff(fetchedStaff);
         } catch(e) {
             console.error("Could not fetch staff for task assignment", e);
@@ -65,8 +65,15 @@ export default function CompliancePage() {
   const getNextAdminStaff = (): User | undefined => {
       const adminStaff = allStaff.filter(u => u.department === 'Administration' && (u.role === 'staff' || u.role === 'admin'));
       if (adminStaff.length === 0) return undefined;
-      // Simple round-robin for this example. In a real app, you might use a more sophisticated method.
-      const nextStaff = adminStaff[Math.floor(Math.random() * adminStaff.length)];
+
+      const currentIndex = staffCounters['Administration'] || 0;
+      const nextStaff = adminStaff[currentIndex];
+      
+      setStaffCounters(prev => ({
+          ...prev,
+          ['Administration']: (currentIndex + 1) % adminStaff.length
+      }));
+      
       return nextStaff;
   }
 
@@ -82,6 +89,54 @@ export default function CompliancePage() {
       yourPhone: '',
     },
   });
+
+  const createTask = async (request: z.infer<typeof complianceFormSchema>) => {
+    const assignedStaff = getNextAdminStaff();
+    if (!assignedStaff || !assignedStaff.id) {
+        console.error("No staff in Administration department to assign task or staff has no ID.");
+        toast({
+            title: 'Task Assignment Failed',
+            description: 'Could not find an available staff member to handle your request. Please try again later.',
+            variant: 'destructive',
+        });
+        throw new Error("Could not assign task: No valid staff member found.");
+    }
+    const dueDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000); // 2 days from now
+
+    const taskData: Omit<Task, 'id'> = {
+        title: `Follow up on Compliance Assessment for ${request.companyName}`,
+        description: `A new compliance assessment request has been submitted by ${request.yourName} (${request.yourEmail}). Please review and follow up.`,
+        assignedTo: [assignedStaff.id],
+        status: 'To-Do',
+        priority: 'Medium',
+        dueDate: Timestamp.fromDate(dueDate),
+        createdBy: assignedStaff.id,
+        createdAt: Timestamp.now(),
+        comments: [],
+    };
+    await addDoc(collection(db, 'tasks'), taskData);
+
+    if (assignedStaff.email) {
+        const emailHtml = render(<NewTaskEmail 
+            assigneeName={assignedStaff.name.split(' ')[0]}
+            taskTitle={taskData.title}
+            taskDescription={taskData.description}
+            dueDate={format(dueDate, 'dd MMMM yyyy')}
+            assignedBy={"System"}
+            taskUrl={`${window.location.origin}/admin/dashboard`}
+        />);
+        await sendEmail({
+            to: assignedStaff.email,
+            subject: `New Task Assigned: ${taskData.title}`,
+            html: emailHtml,
+        });
+    }
+
+    toast({
+        title: 'Task Created',
+        description: `A follow-up task has been assigned to ${assignedStaff.name}.`
+    });
+  }
 
   async function handleSubmit(values: z.infer<typeof complianceFormSchema>) {
     setIsLoading(true);
@@ -105,54 +160,7 @@ export default function CompliancePage() {
       await setDoc(doc(db, 'discounts', discountCode), discountData);
 
       // 3. Create a task for an admin
-      const assignedStaff = getNextAdminStaff();
-      if (assignedStaff) {
-          const dueDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000); // 2 days from now
-          
-          if (!assignedStaff.uid) {
-            throw new Error("Assigned staff member has no UID.");
-          }
-
-          const taskData: Omit<Task, 'id'> = {
-              title: `Follow up on Compliance Assessment for ${values.companyName}`,
-              description: `A new compliance assessment request has been submitted by ${values.yourName} (${values.yourEmail}). Please review and follow up.`,
-              assignedTo: [assignedStaff.uid],
-              status: 'To-Do',
-              priority: 'Medium',
-              dueDate: Timestamp.fromDate(dueDate),
-              createdBy: assignedStaff.uid, 
-              createdAt: Timestamp.now(),
-              comments: [],
-          };
-          await addDoc(collection(db, 'tasks'), taskData);
-
-          if (assignedStaff.email) {
-              const emailHtml = render(<NewTaskEmail 
-                assigneeName={assignedStaff.name.split(' ')[0]}
-                taskTitle={taskData.title}
-                taskDescription={taskData.description}
-                dueDate={format(dueDate, 'dd MMMM yyyy')}
-                assignedBy={"System"}
-                taskUrl={`${window.location.origin}/admin/dashboard`}
-              />);
-              await sendEmail({
-                  to: assignedStaff.email,
-                  subject: `New Task Assigned: ${taskData.title}`,
-                  html: emailHtml,
-              });
-          }
-
-          toast({
-              title: 'Task Created',
-              description: `A follow-up task has been assigned to ${assignedStaff.name}.`
-          });
-      } else {
-          toast({
-              title: 'Warning',
-              description: 'No admin staff available to assign a follow-up task.',
-              variant: 'destructive',
-          });
-      }
+      await createTask(values);
 
       // 4. Send the welcome email with the discount
       const emailHtml = render(<WelcomeDiscountEmail name={values.yourName} discountCode={discountCode} />);
