@@ -4,7 +4,12 @@
 
 import { Resend } from 'resend';
 import nodemailer from 'nodemailer';
-import { users } from '@/lib/data';
+import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
+import { User } from '@/lib/types';
+
+const db = getFirestore(firebaseApp);
+
 
 type EmailPayload = {
     to: string | string[];
@@ -17,10 +22,27 @@ type EmailPayload = {
     replyTo?: string;
 }
 
+async function getSmtpConfig(resellerId?: string) {
+    if (!resellerId) {
+        // Fallback for non-reseller emails: try finding a default admin
+        // In a real app, you might have a dedicated system email config
+        const adminUserQuery = (await import('@/lib/data')).users.find(u => u.role === 'admin');
+        return adminUserQuery?.smtpDetails;
+    }
+
+    const resellerRef = doc(db, 'users', resellerId);
+    const resellerSnap = await getDoc(resellerRef);
+    if (resellerSnap.exists()) {
+        const resellerData = resellerSnap.data() as User;
+        return resellerData.smtpDetails;
+    }
+    return undefined;
+}
+
+
 export async function sendEmail({ to, subject, html, from, bcc, resellerId, attachments, replyTo }: EmailPayload) {
   
-  const admin = users.find(u => u.role === 'admin');
-  const smtpConfig = admin?.smtpDetails;
+  const smtpConfig = await getSmtpConfig(resellerId);
   
   let fromAddress: string;
   if (from) {
