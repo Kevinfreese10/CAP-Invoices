@@ -1,35 +1,17 @@
 
-import { notFound } from 'next/navigation';
+'use client';
+import { notFound, useParams } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
-import { BadgeCheck, Clock, ClipboardCheck } from 'lucide-react';
+import { BadgeCheck, Clock, ClipboardCheck, Loader2 } from 'lucide-react';
 import { Service } from '@/lib/types';
 import ClientServiceCheckoutForm from '@/components/checkout/ClientServiceCheckoutForm';
 import { Separator } from '@/components/ui/separator';
-import type { Metadata } from 'next';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
-import { getFirestore, doc, getDoc, collection, getDocs } from 'firebase/firestore';
+import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
+import { useEffect, useState } from 'react';
 
 const db = getFirestore(firebaseApp);
-
-async function getService(id: string): Promise<Service | null> {
-    const docRef = doc(db, 'services', id);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-        return { id: docSnap.id, ...docSnap.data() } as Service;
-    }
-    return null;
-}
-
-export async function generateStaticParams() {
-  const servicesCollection = collection(db, 'services');
-  const servicesSnapshot = await getDocs(servicesCollection);
-  const services = servicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
-
-  return services.map((service) => ({
-    id: service.id,
-  }))
-}
 
 const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -40,42 +22,31 @@ const formatPrice = (price: number) => {
     }).format(price);
 };
 
-export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
-  const service = await getService(params.id);
+export default function ServiceDetailPage() {
+  const params = useParams();
+  const id = params.id as string;
+  const [service, setService] = useState<Service | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  if (!service) {
-    return {
-      title: 'Service Not Found',
-    };
+  useEffect(() => {
+    if (!id) return;
+    const docRef = doc(db, 'services', id);
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setService({ id: docSnap.id, ...docSnap.data() } as Service);
+      } else {
+        setService(null);
+      }
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [id]);
+
+  if (isLoading) {
+    return <div className="flex justify-center items-center h-screen"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   }
-
-  const title = service.metaTitle || `${service.title} | Fast & Affordable - My Accountant`;
-  const description = service.metaDescription || service.description;
-
-  return {
-    title: title,
-    description: description,
-    openGraph: {
-      title: title,
-      description: description,
-      images: [
-        {
-          url: service.seoImageUrl || service.imageUrl,
-        },
-      ],
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title: title,
-      description: description,
-      images: [service.seoImageUrl || service.imageUrl],
-    },
-  };
-}
-
-export default async function ServiceDetailPage({ params }: { params: { id: string } }) {
-  const service = await getService(params.id);
-
+  
   if (!service) {
     notFound();
   }

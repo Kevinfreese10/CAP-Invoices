@@ -14,39 +14,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const services = servicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
   
   const blogPostsSnapshot = await getDocs(collection(db, 'blogPosts'));
-  const blogPosts = blogPostsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BlogPost));
+  const blogPosts = blogPostsSnapshot.docs.map(doc => ({ ...doc.data(), date: doc.data().date.toDate() } as BlogPost));
 
   const servicePages = services.map(service => ({
     url: `${siteUrl}/services/${service.id}`,
     lastModified: new Date(),
   }));
 
-  const blogPostPages = blogPosts.map(post => {
-    let lastModifiedDate;
-    try {
-        if (typeof post.date === 'string') {
-            lastModifiedDate = new Date(post.date);
-        } else if (post.date && typeof post.date.toDate === 'function') {
-            // Handle Firestore Timestamp
-            lastModifiedDate = post.date.toDate();
-        } else {
-            // Fallback for any other case
-            lastModifiedDate = new Date();
-        }
-        
-        if (isNaN(lastModifiedDate.getTime())) {
-            // If date is still invalid, use current date as a fallback
-            lastModifiedDate = new Date();
-        }
-    } catch (e) {
-        lastModifiedDate = new Date();
-    }
-    
-    return {
-      url: `${siteUrl}/blog/${post.slug}`,
-      lastModified: lastModifiedDate,
-    };
-  });
+  const blogPostPages = blogPosts.map(post => ({
+    url: `${siteUrl}/blog/${post.slug}`,
+    lastModified: new Date(post.date),
+  }));
 
   const staticPages = [
     { url: `${siteUrl}/`, lastModified: new Date() },

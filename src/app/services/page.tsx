@@ -1,4 +1,5 @@
 
+'use client';
 import Link from 'next/link';
 import {
   Card,
@@ -9,10 +10,11 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Clock } from 'lucide-react';
-import { collection, getDocs, getFirestore, orderBy, query } from 'firebase/firestore';
+import { Clock, Loader2 } from 'lucide-react';
+import { collection, getDocs, getFirestore, orderBy, query, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Service } from '@/lib/types';
+import { useEffect, useState, useMemo } from 'react';
 
 const db = getFirestore(firebaseApp);
 
@@ -23,20 +25,6 @@ type Category = {
     order: number; 
 };
 
-async function getData(): Promise<{ services: Service[], categories: Category[] }> {
-    const servicesCollection = collection(db, 'services');
-    const servicesQuery = query(servicesCollection, orderBy('title'));
-    const servicesSnapshot = await getDocs(servicesQuery);
-    const services = servicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
-
-    const categoriesCollection = collection(db, 'categories');
-    const categoriesQuery = query(categoriesCollection, orderBy('order'));
-    const categoriesSnapshot = await getDocs(categoriesQuery);
-    const categories = categoriesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category));
-
-    return { services, categories };
-}
-
 const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
@@ -46,13 +34,37 @@ const formatPrice = (price: number) => {
     }).format(price);
 };
 
-export default async function ServicesPage() {
-  const { services, categories: serviceCategories } = await getData();
+export default function ServicesPage() {
+  const [services, setServices] = useState<Service[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const servicesUnsubscribe = onSnapshot(query(collection(db, 'services'), orderBy('title')), (snapshot) => {
+        const fetchedServices = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
+        setServices(fetchedServices);
+        setIsLoading(false);
+    });
+
+    const categoriesUnsubscribe = onSnapshot(query(collection(db, 'categories'), orderBy('order')), (snapshot) => {
+        const fetchedCategories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category));
+        setCategories(fetchedCategories);
+    });
+
+    return () => {
+        servicesUnsubscribe();
+        categoriesUnsubscribe();
+    }
+  }, []);
   
-  const categorizedServices = serviceCategories.map(category => ({
-    ...category,
-    data: services.filter(s => s.category === category.name)
-  })).filter(c => c.data.length > 0);
+  const categorizedServices = useMemo(() => {
+    return categories
+      .map(category => ({
+        ...category,
+        data: services.filter(s => s.category === category.name)
+      }))
+      .filter(c => c.data.length > 0);
+  }, [categories, services]);
 
 
   return (
@@ -65,36 +77,42 @@ export default async function ServicesPage() {
       </div>
 
       <div className="space-y-12">
-        {categorizedServices.map(category => (
-          <section key={category.name}>
-            <h2 className="text-2xl font-bold mb-6">{category.name}</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {category.data.map(service => (
-                <Card
-                  key={service.id}
-                  className="flex flex-col overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
-                >
-                  <CardHeader>
-                    <CardTitle>{service.title}</CardTitle>
-                     <p className="text-2xl font-bold text-primary pt-2">{formatPrice(service.price)}</p>
-                     <div className="flex items-center text-muted-foreground pt-1">
-                        <Clock className="h-4 w-4 mr-1.5" />
-                        <span className="text-xs font-medium">{service.turnaroundTime}</span>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="flex-grow">
-                    <CardDescription>{service.description}</CardDescription>
-                  </CardContent>
-                  <CardFooter>
-                    <Button asChild className="w-full">
-                      <Link href={`/services/${service.id}`}>Learn More</Link>
-                    </Button>
-                  </CardFooter>
-                </Card>
-              ))}
+        {isLoading ? (
+            <div className="flex justify-center items-center h-40">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
             </div>
-          </section>
-        ))}
+        ) : (
+            categorizedServices.map(category => (
+            <section key={category.name}>
+                <h2 className="text-2xl font-bold mb-6">{category.name}</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {category.data.map(service => (
+                    <Card
+                    key={service.id}
+                    className="flex flex-col overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
+                    >
+                    <CardHeader>
+                        <CardTitle>{service.title}</CardTitle>
+                        <p className="text-2xl font-bold text-primary pt-2">{formatPrice(service.price)}</p>
+                        <div className="flex items-center text-muted-foreground pt-1">
+                            <Clock className="h-4 w-4 mr-1.5" />
+                            <span className="text-xs font-medium">{service.turnaroundTime}</span>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="flex-grow">
+                        <CardDescription>{service.description}</CardDescription>
+                    </CardContent>
+                    <CardFooter>
+                        <Button asChild className="w-full">
+                        <Link href={`/services/${service.id}`}>Learn More</Link>
+                        </Button>
+                    </CardFooter>
+                    </Card>
+                ))}
+                </div>
+            </section>
+            ))
+        )}
       </div>
     </div>
   );
