@@ -10,34 +10,23 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Loader2, ShieldCheck } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { getFirestore, addDoc, doc, setDoc, serverTimestamp, collection, Timestamp } from 'firebase/firestore';
+import { getFirestore, addDoc, doc, setDoc, serverTimestamp, collection, Timestamp, getDocs, query, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { customAlphabet } from 'nanoid';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import WelcomeDiscountEmail from '@/components/emails/WelcomeDiscountEmail';
 import { DiscountCode, Task, User } from '@/lib/types';
-import { users } from '@/lib/data';
+import NewTaskEmail from '@/components/emails/NewTaskEmail';
+import { format } from 'date-fns';
+import { useAuth } from '@/contexts/AuthContext';
 
 
 const db = getFirestore(firebaseApp);
 const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 8);
-
-// This is a simplified in-memory counter for round-robin.
-// In a real multi-server environment, this state should be managed in a shared store like Firestore.
-let adminStaffCounter = 0;
-
-const getNextAdminStaff = (): User | undefined => {
-    const adminStaff = users.filter(u => u.department === 'Administration' && u.role === 'staff');
-    if (adminStaff.length === 0) return undefined;
-
-    const nextStaff = adminStaff[adminStaffCounter % adminStaff.length];
-    adminStaffCounter = (adminStaffCounter + 1) % adminStaff.length;
-    return nextStaff;
-}
 
 const complianceFormSchema = z.object({
   companyName: z.string().min(2, 'Company name is required.'),
@@ -53,6 +42,26 @@ export default function CompliancePage() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
+  const [allStaff, setAllStaff] = useState<User[]>([]);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    const fetchStaff = async () => {
+        const staffQuery = query(collection(db, "users"), where("role", "in", ["staff", "admin"]));
+        const staffSnapshot = await getDocs(staffQuery);
+        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
+        setAllStaff(fetchedStaff);
+    };
+    fetchStaff();
+  }, []);
+
+  const getNextAdminStaff = (): User | undefined => {
+      const adminStaff = allStaff.filter(u => u.department === 'Administration' && (u.role === 'staff' || u.role === 'admin'));
+      if (adminStaff.length === 0) return undefined;
+      // Simple round-robin for this example. In a real app, you might use a more sophisticated method.
+      const nextStaff = adminStaff[Math.floor(Math.random() * adminStaff.length)];
+      return nextStaff;
+  }
 
   const form = useForm<z.infer<typeof complianceFormSchema>>({
     resolver: zodResolver(complianceFormSchema),
@@ -91,17 +100,36 @@ export default function CompliancePage() {
       // 3. Create a task for an admin
       const assignedStaff = getNextAdminStaff();
       if (assignedStaff) {
+          const dueDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000); // 2 days from now
           const taskData: Omit<Task, 'id'> = {
               title: `Follow up on Compliance Assessment for ${values.companyName}`,
               description: `A new compliance assessment request has been submitted by ${values.yourName} (${values.yourEmail}). Please review and follow up.`,
-              assignedTo: [assignedStaff.id],
+              assignedTo: [assignedStaff.uid],
               status: 'To-Do',
               priority: 'Medium',
-              dueDate: Timestamp.fromDate(new Date(Date.now() + 2 * 24 * 60 * 60 * 1000)), // 2 days from now
-              createdBy: 'system',
+              dueDate: Timestamp.fromDate(dueDate),
+              createdBy: assignedStaff.uid, // Assign creator as the assignee for system-generated tasks
+              createdAt: Timestamp.now(),
               comments: [],
           };
           await addDoc(collection(db, 'tasks'), taskData);
+
+          if (assignedStaff.email) {
+              const emailHtml = render(<NewTaskEmail 
+                assigneeName={assignedStaff.name.split(' ')[0]}
+                taskTitle={taskData.title}
+                taskDescription={taskData.description}
+                dueDate={format(dueDate, 'dd MMMM yyyy')}
+                assignedBy={"System"}
+                taskUrl={`${window.location.origin}/admin/dashboard`}
+              />);
+              await sendEmail({
+                  to: assignedStaff.email,
+                  subject: `New Task Assigned: ${taskData.title}`,
+                  html: emailHtml,
+              });
+          }
+
           toast({
               title: 'Task Created',
               description: `A follow-up task has been assigned to ${assignedStaff.name}.`
