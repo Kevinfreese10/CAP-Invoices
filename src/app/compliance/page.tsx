@@ -43,14 +43,18 @@ export default function CompliancePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [allStaff, setAllStaff] = useState<User[]>([]);
-  const { user } = useAuth();
+  const { user } = useAuth(); // Can be null on a public page
 
   useEffect(() => {
     const fetchStaff = async () => {
-        const staffQuery = query(collection(db, "users"), where("role", "in", ["staff", "admin"]));
-        const staffSnapshot = await getDocs(staffQuery);
-        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
-        setAllStaff(fetchedStaff);
+        try {
+            const staffQuery = query(collection(db, "users"), where("role", "in", ["staff", "admin"]));
+            const staffSnapshot = await getDocs(staffQuery);
+            const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
+            setAllStaff(fetchedStaff);
+        } catch(e) {
+            console.error("Could not fetch staff for task assignment", e);
+        }
     };
     fetchStaff();
   }, []);
@@ -101,6 +105,10 @@ export default function CompliancePage() {
       const assignedStaff = getNextAdminStaff();
       if (assignedStaff) {
           const dueDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000); // 2 days from now
+          
+          // Ensure createdBy is always valid. If no one is logged in, assign creator to be the assignee.
+          const creatorId = user?.uid || assignedStaff.uid;
+
           const taskData: Omit<Task, 'id'> = {
               title: `Follow up on Compliance Assessment for ${values.companyName}`,
               description: `A new compliance assessment request has been submitted by ${values.yourName} (${values.yourEmail}). Please review and follow up.`,
@@ -108,7 +116,7 @@ export default function CompliancePage() {
               status: 'To-Do',
               priority: 'Medium',
               dueDate: Timestamp.fromDate(dueDate),
-              createdBy: assignedStaff.uid, // Assign creator as the assignee for system-generated tasks
+              createdBy: creatorId, 
               createdAt: Timestamp.now(),
               comments: [],
           };
