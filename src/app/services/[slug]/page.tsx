@@ -6,7 +6,7 @@ import { Service } from '@/lib/types';
 import ClientServiceCheckoutForm from '@/components/checkout/ClientServiceCheckoutForm';
 import { Separator } from '@/components/ui/separator';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
-import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
+import { getFirestore, collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Metadata, ResolvingMetadata } from 'next';
 
@@ -22,7 +22,19 @@ async function getService(slug: string): Promise<Service | null> {
         return null;
     }
     const doc = querySnapshot.docs[0];
-    return { id: doc.id, ...doc.data() } as Service;
+    const data = doc.data();
+
+    // Convert Firestore Timestamp to a serializable format (ISO string)
+    const serviceData = {
+        id: doc.id,
+        ...data,
+    } as any;
+
+    if (data.createdAt && data.createdAt instanceof Timestamp) {
+        serviceData.createdAt = data.createdAt.toDate().toISOString();
+    }
+    
+    return serviceData as Service;
 }
 
 type Props = {
