@@ -1,3 +1,4 @@
+
 import { getFirestore, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { BlogPost, Service } from '@/lib/types';
