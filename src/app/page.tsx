@@ -92,7 +92,7 @@ export default function Home() {
       <section>
         <div className="container mx-auto grid grid-cols-1 items-center gap-12 px-4 py-16 lg:py-24">
           <div className="space-y-6 text-center">
-            <h1 className="text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl">
+            <h1 className="text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl text-gradient">
               South Africa’s leading online accounting store
             </h1>
             <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
