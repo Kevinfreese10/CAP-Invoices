@@ -46,14 +46,39 @@ import { useRouter } from 'next/navigation';
 
 const db = getFirestore(firebaseApp);
 
+type TrialBalanceReportData = {
+    clientName: string;
+    fromDate: string;
+    toDate: string;
+    data: {
+        accountNumber: string;
+        description: string;
+        debit: number;
+        credit: number;
+    }[];
+};
+
+type GeneralLedgerReportData = {
+    'Date': string;
+    'Account Number': string;
+    'Account Description': string;
+    'Transaction Description': string;
+    'Debit': number;
+    'Credit': number;
+    'VAT Type': VatType;
+}[];
+
 export default function NumeraWorkspacePage() {
     const [activeClient, setActiveClient] = useState<User | null>(null);
     const router = useRouter();
     const [allocatedTransactions, setAllocatedTransactions] = useState<AllocatedTransaction[]>([]);
     const [chartOfAccounts, setChartOfAccounts] = useState<ChartOfAccount[]>([]);
-     const [fromDate, setFromDate] = useState<Date | undefined>(startOfMonth(new Date()));
+    const [fromDate, setFromDate] = useState<Date | undefined>(startOfMonth(new Date()));
     const [toDate, setToDate] = useState<Date | undefined>(endOfMonth(new Date()));
-
+    const [trialBalanceData, setTrialBalanceData] = useState<TrialBalanceReportData | null>(null);
+    const [generalLedgerData, setGeneralLedgerData] = useState<GeneralLedgerReportData | null>(null);
+    const [isTrialBalanceOpen, setIsTrialBalanceOpen] = useState(false);
+    const [isGeneralLedgerOpen, setIsGeneralLedgerOpen] = useState(false);
 
     useEffect(() => {
         const clientData = sessionStorage.getItem('numera-active-client');
@@ -125,8 +150,8 @@ export default function NumeraWorkspacePage() {
             })).sort((a, b) => a.accountNumber.localeCompare(b.accountNumber)),
         };
 
-        sessionStorage.setItem('trialBalanceReportData', JSON.stringify(reportData));
-        window.open('/admin/numera/trial-balance-report', '_blank');
+        setTrialBalanceData(reportData);
+        setIsTrialBalanceOpen(true);
     };
     
     const handleGenerateGeneralLedger = () => {
@@ -140,7 +165,7 @@ export default function NumeraWorkspacePage() {
             return transactionDate >= fromDate && transactionDate <= toDate;
         });
 
-        const generalLedgerData = filteredTransactions.map(t => {
+        const ledgerData = filteredTransactions.map(t => {
             const account = chartOfAccounts.find(a => a.accountNumber === t.allocatedTo.value);
             const debit = t.amount < 0 ? Math.abs(t.amount) : 0;
             const credit = t.amount > 0 ? t.amount : 0;
@@ -156,12 +181,21 @@ export default function NumeraWorkspacePage() {
             };
         });
         
+        setGeneralLedgerData(ledgerData);
+        setIsGeneralLedgerOpen(true);
+    };
+    
+    const handleDownloadGeneralLedger = () => {
+        if (!generalLedgerData) return;
         const worksheet = XLSX.utils.json_to_sheet(generalLedgerData);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, 'General Ledger');
         XLSX.writeFile(workbook, `General_Ledger_${activeClient?.name}_${format(new Date(), 'yyyyMMdd')}.xlsx`);
     };
 
+    const formatCurrency = (value: number) => {
+        return value.toLocaleString('en-ZA', { style: 'currency', currency: 'ZAR' });
+    }
 
     if (!activeClient) {
         return (
@@ -265,7 +299,7 @@ export default function NumeraWorkspacePage() {
                                     </Button>
                                     <Button onClick={handleGenerateGeneralLedger} variant="secondary">
                                          <Download className="mr-2 h-4 w-4" />
-                                        Export General Ledger (CSV)
+                                        Generate General Ledger
                                     </Button>
                                 </div>
                             </div>
@@ -273,6 +307,109 @@ export default function NumeraWorkspacePage() {
                     </Card>
                  </TabsContent>
             </Tabs>
+            
+            <Dialog open={isTrialBalanceOpen} onOpenChange={setIsTrialBalanceOpen}>
+                <DialogContent className="max-w-4xl">
+                    <DialogHeader>
+                        <DialogTitle>Trial Balance: {trialBalanceData?.clientName}</DialogTitle>
+                        <DialogDescription>
+                            For the period: {trialBalanceData?.fromDate} to {trialBalanceData?.toDate}
+                        </DialogDescription>
+                    </DialogHeader>
+                     {trialBalanceData && (
+                        <div className="max-h-[60vh] overflow-y-auto">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Account</TableHead>
+                                        <TableHead>Description</TableHead>
+                                        <TableHead className="text-right">Debit</TableHead>
+                                        <TableHead className="text-right">Credit</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {trialBalanceData.data.map(item => (
+                                        <TableRow key={item.accountNumber}>
+                                            <TableCell className="font-mono">{item.accountNumber}</TableCell>
+                                            <TableCell>{item.description}</TableCell>
+                                            <TableCell className="text-right font-mono">{item.debit > 0 ? formatCurrency(item.debit) : '-'}</TableCell>
+                                            <TableCell className="text-right font-mono">{item.credit > 0 ? formatCurrency(item.credit) : '-'}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                                <TableFooter>
+                                    <TableRow>
+                                        <TableCell colSpan={2} className="font-bold text-base">Totals</TableCell>
+                                        <TableCell className="text-right font-bold font-mono text-base">{formatCurrency(trialBalanceData.data.reduce((acc, item) => acc + item.debit, 0))}</TableCell>
+                                        <TableCell className="text-right font-bold font-mono text-base">{formatCurrency(trialBalanceData.data.reduce((acc, item) => acc + item.credit, 0))}</TableCell>
+                                    </TableRow>
+                                </TableFooter>
+                            </Table>
+                        </div>
+                     )}
+                     <DialogFooter>
+                        <Button variant="outline" onClick={() => window.print()}>
+                            <Printer className="mr-2 h-4 w-4" /> Print
+                        </Button>
+                     </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isGeneralLedgerOpen} onOpenChange={setIsGeneralLedgerOpen}>
+                <DialogContent className="max-w-6xl">
+                    <DialogHeader>
+                        <DialogTitle>General Ledger</DialogTitle>
+                        <DialogDescription>
+                             For the period: {fromDate ? format(fromDate, 'dd MMM yyyy') : ''} to {toDate ? format(toDate, 'dd MMM yyyy') : ''}
+                        </DialogDescription>
+                    </DialogHeader>
+                     {generalLedgerData && (
+                        <div className="max-h-[60vh] overflow-y-auto">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Account</TableHead>
+                                        <TableHead>Description</TableHead>
+                                        <TableHead className="text-right">Debit</TableHead>
+                                        <TableHead className="text-right">Credit</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {generalLedgerData.map((item, index) => (
+                                        <TableRow key={index}>
+                                            <TableCell>{item['Date']}</TableCell>
+                                            <TableCell className="font-mono">{item['Account Number']}</TableCell>
+                                            <TableCell>{item['Transaction Description']}</TableCell>
+                                            <TableCell className="text-right font-mono">{item.Debit > 0 ? formatCurrency(item.Debit) : '-'}</TableCell>
+                                            <TableCell className="text-right font-mono">{item.Credit > 0 ? formatCurrency(item.Credit) : '-'}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                     )}
+                     <DialogFooter>
+                        <Button onClick={handleDownloadGeneralLedger}>
+                            <Download className="mr-2 h-4 w-4" /> Download as Excel
+                        </Button>
+                     </DialogFooter>
+                </DialogContent>
+            </Dialog>
+            <style jsx global>{`
+                @media print {
+                  body > *:not(.print-container *) {
+                    display: none;
+                  }
+                  .print-container {
+                    display: block;
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                  }
+                }
+            `}</style>
         </div>
     )
 }
