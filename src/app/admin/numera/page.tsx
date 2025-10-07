@@ -51,8 +51,6 @@ const months = [ "January", "February", "March", "April", "May", "June", "July",
 const clientFormSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(2, 'Name is required.'),
-  contactPerson: z.string().optional(),
-  email: z.string().email('A valid email is required.'),
   yearEnd: z.string().min(1, 'Financial year end is required.'),
 });
 
@@ -62,8 +60,6 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
         defaultValues: {
             id: client?.id || '',
             name: client?.name || '',
-            contactPerson: client?.contactPerson || '',
-            email: client?.email || '',
             yearEnd: client?.yearEnd || 'December',
         },
     });
@@ -76,8 +72,6 @@ function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSub
         <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
                 <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Client / Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="contactPerson" render={({ field }) => ( <FormItem><FormLabel>Contact Person</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
 
                 <DialogFooter>
@@ -158,16 +152,22 @@ export default function NumeraPage() {
                 toast({ title: 'Client Updated', description: 'The client details have been saved.' });
             } else { // Creating new client
                  const masterRulesSnapshot = await getDocs(collection(db, "allocationRules"));
-                 const masterRules = masterRulesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AllocationRule));
+                 const masterRules = masterRulesSnapshot.docs.map(doc => {
+                     const { id, ...rest } = doc.data();
+                     return rest; // Return the rule data without its Firestore ID
+                 });
 
-                const newClientRef = doc(collection(db, 'clients'));
-                await setDoc(newClientRef, {
+                const newClientData = {
                     ...clientData,
-                    id: newClientRef.id,
+                    role: 'client', // Assign a default role
                     source: 'Numera',
                     chartOfAccounts: initialChartOfAccounts,
                     allocationRules: masterRules,
-                });
+                };
+                
+                const newClientRef = doc(collection(db, 'clients'));
+                await setDoc(newClientRef, { ...newClientData, id: newClientRef.id });
+
                 toast({ title: 'Client Created', description: 'The new client has been added to Numera.' });
             }
             fetchClients();
@@ -255,8 +255,6 @@ export default function NumeraPage() {
                     <TableHeader>
                     <TableRow>
                         <TableHead>Client</TableHead>
-                        <TableHead>Contact Person</TableHead>
-                        <TableHead>Email</TableHead>
                         <TableHead>Financial Year End</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -273,8 +271,6 @@ export default function NumeraPage() {
                                 <span>{client.name}</span>
                             </div>
                         </TableCell>
-                        <TableCell>{client.contactPerson}</TableCell>
-                        <TableCell>{client.email}</TableCell>
                         <TableCell>{formatYearEnd(client.yearEnd)}</TableCell>
                         <TableCell className="text-right">
                              <AlertDialog>
