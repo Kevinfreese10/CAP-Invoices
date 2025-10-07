@@ -317,7 +317,7 @@ function AllocationRulesTab({ client, onUpdate }: { client: User, onUpdate: (upd
     const handleImportMaster = async () => {
         try {
             const masterRulesSnapshot = await getDocs(collection(db, "allocationRules"));
-            const masterRules = masterRulesSnapshot.docs.map(doc => doc.data() as AllocationRule);
+            const masterRules = masterRulesSnapshot.docs.map(doc => ({...doc.data(), id: doc.id } as AllocationRule));
             await onUpdate({ allocationRules: masterRules });
             setRules(masterRules);
             toast({ title: 'Master Rules Imported', description: 'The client\'s allocation rules have been reset to the master list.' });
@@ -369,8 +369,8 @@ function AllocationRulesTab({ client, onUpdate }: { client: User, onUpdate: (upd
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {rules.map(rule => (
-                            <TableRow key={rule.id}>
+                        {rules.map((rule, index) => (
+                            <TableRow key={rule.id || index}>
                                 <TableCell className="font-semibold max-w-xs">
                                     <div className="flex items-center gap-2">
                                         {rule.type === 'hard' ? <HardHat className="h-4 w-4 text-muted-foreground" /> : <Feather className="h-4 w-4 text-muted-foreground" />}
@@ -757,19 +757,21 @@ export default function NumeraWorkspacePage() {
                 </Dialog>
                 <style jsx global>{`
                     @media print {
-                    body > *:not(.print-container *) {
-                        display: none;
-                    }
-                    .print-container {
-                        display: block;
-                        position: absolute;
-                        top: 0;
-                        left: 0;
-                        width: 100%;
-                    }
+                        body > *:not(.print-container *) {
+                            display: none;
+                        }
+                        .print-container {
+                            display: block;
+                            position: absolute;
+                            top: 0;
+                            left: 0;
+                            width: 100%;
+                        }
                     }
                 `}</style>
             </div>
         </>
     )
 }
+
+    
