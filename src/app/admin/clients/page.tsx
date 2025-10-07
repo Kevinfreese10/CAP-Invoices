@@ -654,6 +654,9 @@ export default function AdminClientsPage() {
     
     const clientData: Omit<Client, 'id'> = {
         ...data,
+        financialsDueDate: data.financialsDueDate || null,
+        managementAccountsDueDate: data.managementAccountsDueDate || null,
+        payrollDueDate: data.payrollDueDate || null,
         role: 'client',
         source: 'Client Management',
     };
@@ -670,10 +673,7 @@ export default function AdminClientsPage() {
             await deleteRecurringTasks(selectedClient.id);
             const numTasks = await createRecurringTasks({ ...clientData, id: selectedClient.id } as Client, currentUser.uid, currentUser.name);
              if (numTasks > 0) {
-                toast({
-                    title: 'Recurring Tasks Updated',
-                    description: `${numTasks} automated tasks have been updated for ${clientData.name}.`,
-                });
+                // Task creation emails are disabled
             }
         } else {
             const newDocRef = await addDoc(collection(db, "clients"), clientData);
@@ -684,10 +684,7 @@ export default function AdminClientsPage() {
             const newClient = { ...clientData, id: newDocRef.id } as Client;
             const numTasks = await createRecurringTasks(newClient, currentUser.uid, currentUser.name);
             if (numTasks > 0) {
-                toast({
-                    title: 'Recurring Tasks Created',
-                    description: `${numTasks} automated tasks have been generated for ${newClient.name}.`,
-                });
+                // Task creation emails are disabled
             }
         }
         fetchClientsAndStaff();
@@ -841,6 +838,7 @@ export default function AdminClientsPage() {
     </div>
   );
 }
+
 
 
 
