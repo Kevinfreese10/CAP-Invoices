@@ -655,11 +655,11 @@ export default function AdminDashboardPage() {
 
     const upcomingAutomatedTasks = useMemo(() => {
         const now = startOfToday();
-        const sevenDaysFromNow = addDays(now, 7);
+        const thirtyDaysFromNow = addDays(now, 30);
         const filtered = tasks.filter(task => 
             task.recurrence && task.recurrence !== 'None' &&
             task.status !== 'Done' &&
-            isWithinInterval(task.dueDate.toDate(), { start: now, end: sevenDaysFromNow })
+            isWithinInterval(task.dueDate.toDate(), { start: now, end: thirtyDaysFromNow })
         );
         
         if (upcomingAutomatedTaskFilter === 'all' || upcomingAutomatedTaskFilter === 'All Tasks') {
@@ -1017,7 +1017,7 @@ export default function AdminDashboardPage() {
                         <TaskTable 
                             tasks={upcomingAutomatedTasks} 
                             title="Upcoming Automated Tasks" 
-                            description="Automated tasks that are due within the next 7 days."
+                            description="Automated tasks that are due within the next 30 days."
                             onEdit={handleEdit}
                             onUpdateStatus={handleUpdateStatus}
                             onDelete={handleDelete}
@@ -1101,6 +1101,7 @@ export default function AdminDashboardPage() {
     
 
     
+
 
 
 
