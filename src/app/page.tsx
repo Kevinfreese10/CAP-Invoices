@@ -92,8 +92,8 @@ export default function Home() {
       <section>
         <div className="container mx-auto grid grid-cols-1 items-center gap-12 px-4 py-16 lg:py-24">
           <div className="space-y-6 text-center">
-            <h1 className="text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl text-gradient">
-              South Africa’s leading online accounting store
+            <h1 className="text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl text-foreground">
+              South Africa’s leading online <span className="text-gradient">#accounting</span> and <span className="text-gradient">#tax</span> store
             </h1>
             <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
               Your trusted partner for professional financial services in South Africa. We simplify your finances so you can focus on what matters.
