@@ -103,26 +103,26 @@ export default function AdminCompliancePage() {
     };
     await addDoc(collection(db, 'tasks'), taskData);
 
-     // Send email notification
-    if (assignedStaff.uid !== user.uid && assignedStaff.email) {
-      try {
-        const emailHtml = render(<NewTaskEmail 
-            assigneeName={assignedStaff.name.split(' ')[0]}
-            taskTitle={taskData.title}
-            taskDescription={taskData.description}
-            dueDate={format(dueDate, 'dd MMMM yyyy')}
-            assignedBy={user.name}
-            taskUrl={`${window.location.origin}/admin/dashboard`}
-        />);
-        await sendEmail({
-            to: assignedStaff.email,
-            subject: `New Task Assigned: ${taskData.title}`,
-            html: emailHtml,
-        });
-      } catch (emailError) {
-        console.error(`Failed to send task notification email to ${assignedStaff.email}:`, emailError);
-      }
-    }
+    //  // Send email notification - DISABLED
+    // if (assignedStaff.uid !== user.uid && assignedStaff.email) {
+    //   try {
+    //     const emailHtml = render(<NewTaskEmail 
+    //         assigneeName={assignedStaff.name.split(' ')[0]}
+    //         taskTitle={taskData.title}
+    //         taskDescription={taskData.description}
+    //         dueDate={format(dueDate, 'dd MMMM yyyy')}
+    //         assignedBy={user.name}
+    //         taskUrl={`${window.location.origin}/admin/dashboard`}
+    //     />);
+    //     await sendEmail({
+    //         to: assignedStaff.email,
+    //         subject: `New Task Assigned: ${taskData.title}`,
+    //         html: emailHtml,
+    //     });
+    //   } catch (emailError) {
+    //     console.error(`Failed to send task notification email to ${assignedStaff.email}:`, emailError);
+    //   }
+    // }
   };
 
 
