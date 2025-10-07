@@ -647,7 +647,7 @@ export default function AdminClientsPage() {
     return querySnapshot.size;
   }
 
-  const handleFormSubmit = async (data: Omit<User, 'id' | 'role'>) => {
+  const handleFormSubmit = async (data: z.infer<typeof formSchema>) => {
     if (!currentUser) return;
     
     const clientData: Partial<Client> = {
@@ -655,6 +655,7 @@ export default function AdminClientsPage() {
         financialsDueDate: data.financialsDueDate || null,
         managementAccountsDueDate: data.managementAccountsDueDate || null,
         managementAccountsFrequency: data.managementAccountsFrequency || null,
+        vatCategory: data.isVatRegistered ? data.vatCategory : null,
         payrollDueDate: data.payrollDueDate || null,
         role: 'client',
         source: 'Client Management',
@@ -849,3 +850,4 @@ export default function AdminClientsPage() {
 
 
     
+
