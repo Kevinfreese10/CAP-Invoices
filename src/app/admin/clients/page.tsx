@@ -72,7 +72,6 @@ const formSchema = z.object({
   preparesFinancials: z.boolean().default(false),
   financialsDueDate: z.date().optional(),
   requiresManagementAccounts: z.boolean().default(false),
-  managementAccountsFrequency: z.enum(mgmtAccountFrequencies).optional(),
   managementAccountsDueDate: z.date().optional(),
   isVatRegistered: z.boolean().default(false),
   vatCategory: z.enum(vatCategories).optional(),
@@ -105,7 +104,6 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
             preparesFinancials: client?.preparesFinancials || false,
             financialsDueDate: toDate(client?.financialsDueDate),
             requiresManagementAccounts: client?.requiresManagementAccounts || false,
-            managementAccountsFrequency: client?.managementAccountsFrequency || 'Monthly',
             managementAccountsDueDate: toDate(client?.managementAccountsDueDate),
             isVatRegistered: client?.isVatRegistered || false,
             vatCategory: client?.vatCategory || undefined,
@@ -179,9 +177,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                     )} />
 
                      {watchRequiresMgmt && (
-                        <div className="grid grid-cols-1 gap-4 items-start">
-                            <FormField control={form.control} name="managementAccountsDueDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Next Due Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd MMM yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)} />
-                        </div>
+                        <FormField control={form.control} name="managementAccountsDueDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Due Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd MMM yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)} />
                     )}
                     
                     <FormField control={form.control} name="isVatRegistered" render={({ field }) => (
@@ -641,7 +637,6 @@ export default function AdminClientsPage() {
         ...data,
         financialsDueDate: data.financialsDueDate || null,
         managementAccountsDueDate: data.requiresManagementAccounts ? data.managementAccountsDueDate : null,
-        managementAccountsFrequency: data.requiresManagementAccounts ? 'Monthly' : undefined,
         vatCategory: data.isVatRegistered ? data.vatCategory : null,
         payrollDueDate: data.payrollDueDate || null,
         role: 'client',
