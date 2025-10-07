@@ -1,4 +1,3 @@
-
 'use client';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
@@ -128,6 +127,25 @@ export default function NumeraPage() {
     const handleEditClient = (client: User) => {
         setSelectedClient(client);
         setIsClientFormOpen(true);
+    };
+
+     const handleDeleteClient = async (clientId: string) => {
+        try {
+            await deleteDoc(doc(db, "clients", clientId));
+            toast({
+                title: "Client Deleted",
+                description: "The client has been removed from Numera.",
+                variant: 'destructive'
+            });
+            fetchClients();
+        } catch (error) {
+            console.error("Error deleting client:", error);
+            toast({
+                title: "Error",
+                description: "Could not delete the client.",
+                variant: "destructive",
+            });
+        }
     };
     
     const handleClientFormSubmit = async (data: z.infer<typeof clientFormSchema>) => {
@@ -259,10 +277,37 @@ export default function NumeraPage() {
                         <TableCell>{client.email}</TableCell>
                         <TableCell>{formatYearEnd(client.yearEnd)}</TableCell>
                         <TableCell className="text-right">
-                            <div className="flex gap-2 justify-end">
-                                <Button size="sm" variant="secondary" onClick={() => handleEditClient(client)}>Edit</Button>
-                                <Button size="sm" onClick={() => handleSelectClient(client)}>Select</Button>
-                            </div>
+                             <AlertDialog>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent>
+                                        <DropdownMenuItem onSelect={() => handleSelectClient(client)}>
+                                            Select Client
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onSelect={() => handleEditClient(client)}>
+                                            Edit
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <AlertDialogTrigger asChild>
+                                            <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
+                                        </AlertDialogTrigger>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This action cannot be undone. This will permanently delete the client and all their data in Numera.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleDeleteClient(client.id)}>Delete</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
                         </TableCell>
                         </TableRow>
                     ))}
