@@ -14,7 +14,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { User, ChartOfAccount, VatType, Supplier, ImportedTransaction, AllocationRule } from '@/lib/types';
+import { User, ChartOfAccount, VatType, Supplier, ImportedTransaction, AllocationRule, AllocatedTransaction } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, query, where, writeBatch, Timestamp, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -153,20 +153,22 @@ export default function NumeraPage() {
             } else { // Creating new client
                  const masterRulesSnapshot = await getDocs(collection(db, "allocationRules"));
                  const masterRules = masterRulesSnapshot.docs.map(doc => {
-                     const { id, ...rest } = doc.data();
-                     return rest; // Return the rule data without its Firestore ID
+                     const { id, ...rest } = doc.data(); // Exclude the ID of the master rule
+                     return rest;
                  });
 
-                const newClientData = {
+                 const newClientRef = doc(collection(db, 'clients')); // Generate a new ID first
+
+                 const newClientData = {
                     ...clientData,
-                    role: 'client', // Assign a default role
+                    id: newClientRef.id, // Include the new ID in the document data
+                    role: 'client',
                     source: 'Numera',
                     chartOfAccounts: initialChartOfAccounts,
                     allocationRules: masterRules,
                 };
                 
-                const newClientRef = doc(collection(db, 'clients'));
-                await setDoc(newClientRef, { ...newClientData, id: newClientRef.id });
+                await setDoc(newClientRef, newClientData); // Save the complete document with the ID
 
                 toast({ title: 'Client Created', description: 'The new client has been added to Numera.' });
             }
