@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { format, isPast, addDays, isWithinInterval } from 'date-fns';
+import { format, isPast, addDays, isWithinInterval, startOfToday } from 'date-fns';
 import { Task, User, TaskComment } from '@/lib/types';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -654,7 +654,7 @@ export default function AdminDashboardPage() {
     }, [tasks, user]);
 
     const upcomingAutomatedTasks = useMemo(() => {
-        const now = new Date();
+        const now = startOfToday();
         const sevenDaysFromNow = addDays(now, 7);
         const filtered = tasks.filter(task => 
             task.recurrence && task.recurrence !== 'None' &&
@@ -800,26 +800,26 @@ export default function AdminDashboardPage() {
                 for (const assigneeId of data.assignedTo) {
                     if (assigneeId !== user.uid) { // Don't email the user who created the task
                         const assignee = allStaff.find(s => s.uid === assigneeId);
-                        if (assignee?.email) {
-                            try {
-                                const emailHtml = render(<NewTaskEmail 
-                                    assigneeName={assignee.name.split(' ')[0]}
-                                    taskTitle={data.title}
-                                    taskDescription={data.description}
-                                    dueDate={format(data.dueDate, 'dd MMMM yyyy')}
-                                    assignedBy={user.name}
-                                    taskUrl={`${window.location.origin}/admin/dashboard`}
-                                />);
-                                await sendEmail({
-                                    to: assignee.email,
-                                    subject: `New Task Assigned: ${data.title}`,
-                                    html: emailHtml,
-                                });
-                            } catch (emailError) {
-                                console.error(`Failed to send email to ${assignee.email}:`, emailError);
-                                // Non-blocking, so we just log the error
-                            }
-                        }
+                        // if (assignee?.email) {
+                        //     try {
+                        //         const emailHtml = render(<NewTaskEmail 
+                        //             assigneeName={assignee.name.split(' ')[0]}
+                        //             taskTitle={data.title}
+                        //             taskDescription={data.description}
+                        //             dueDate={format(data.dueDate, 'dd MMMM yyyy')}
+                        //             assignedBy={user.name}
+                        //             taskUrl={`${window.location.origin}/admin/dashboard`}
+                        //         />);
+                        //         await sendEmail({
+                        //             to: assignee.email,
+                        //             subject: `New Task Assigned: ${data.title}`,
+                        //             html: emailHtml,
+                        //         });
+                        //     } catch (emailError) {
+                        //         console.error(`Failed to send email to ${assignee.email}:`, emailError);
+                        //         // Non-blocking, so we just log the error
+                        //     }
+                        // }
                     }
                 }
             }
@@ -1063,6 +1063,7 @@ export default function AdminDashboardPage() {
     
 
     
+
 
 
 
