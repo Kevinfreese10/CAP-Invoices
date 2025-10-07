@@ -66,7 +66,7 @@ const formSchema = z.object({
   cellNumber: z.string().optional(),
   status: z.enum(clientStatuses),
   // Automation fields
-  yearEnd: z.string().min(1, 'Financial year end is required.'),
+  yearEnd: z.string().optional(),
   submitsProvisionalTaxes: z.boolean().default(false),
   submitsIncomeTaxReturn: z.boolean().default(false),
   preparesFinancials: z.boolean().default(false),
@@ -99,7 +99,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
             email: client?.email || '',
             cellNumber: client?.cellNumber || '',
             status: client?.status || 'Active',
-            yearEnd: client?.yearEnd || 'February',
+            yearEnd: client?.yearEnd || undefined,
             submitsProvisionalTaxes: client?.submitsProvisionalTaxes || false,
             submitsIncomeTaxReturn: client?.submitsIncomeTaxReturn || false,
             preparesFinancials: client?.preparesFinancials || false,
@@ -339,10 +339,10 @@ export default function AdminClientsPage() {
         return 0;
     }
     if (client.status === 'Inactive' || !client.yearEnd || !client.id) {
-        if (client.status === 'Inactive') {
-            toast({
+        if (client.status === 'Inactive' || !client.yearEnd) {
+             toast({
                 title: 'Task Creation Skipped',
-                description: 'No tasks created for an inactive client.',
+                description: 'No tasks created for an inactive client or a client without a year-end.',
                 variant: 'default'
             });
         }
