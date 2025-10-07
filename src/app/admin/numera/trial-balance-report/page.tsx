@@ -55,7 +55,7 @@ export default function TrialBalanceReportPage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="flex justify-end mb-4">
+                    <div className="flex justify-end mb-4 no-print">
                         <Button variant="outline" onClick={() => window.print()}>
                             <Printer className="mr-2 h-4 w-4" />
                             Print

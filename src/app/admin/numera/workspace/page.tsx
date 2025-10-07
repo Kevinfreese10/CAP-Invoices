@@ -49,16 +49,120 @@ const db = getFirestore(firebaseApp);
 export default function NumeraWorkspacePage() {
     const [activeClient, setActiveClient] = useState<User | null>(null);
     const router = useRouter();
+    const [allocatedTransactions, setAllocatedTransactions] = useState<AllocatedTransaction[]>([]);
+    const [chartOfAccounts, setChartOfAccounts] = useState<ChartOfAccount[]>([]);
+     const [fromDate, setFromDate] = useState<Date | undefined>(startOfMonth(new Date()));
+    const [toDate, setToDate] = useState<Date | undefined>(endOfMonth(new Date()));
+
 
     useEffect(() => {
         const clientData = sessionStorage.getItem('numera-active-client');
         if (clientData) {
-            setActiveClient(JSON.parse(clientData));
+            const client = JSON.parse(clientData);
+            setActiveClient(client);
+            if (client.chartOfAccounts) {
+                setChartOfAccounts(client.chartOfAccounts);
+            }
         } else {
             router.push('/admin/numera');
         }
     }, [router]);
     
+    useEffect(() => {
+        const fetchAllocatedTransactions = async () => {
+            if (activeClient) {
+                const q = query(collection(db, `clients/${activeClient.id}/allocatedTransactions`), orderBy('date'));
+                const querySnapshot = await getDocs(q);
+                const transactions = querySnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data(),
+                    date: (doc.data().date.toDate ? doc.data().date.toDate() : new Date(doc.data().date)).toISOString(),
+                } as AllocatedTransaction));
+                setAllocatedTransactions(transactions);
+            }
+        };
+
+        fetchAllocatedTransactions();
+    }, [activeClient]);
+
+    const handleGenerateTrialBalance = () => {
+        if (!fromDate || !toDate) {
+            alert('Please select a valid date range.');
+            return;
+        }
+
+        const filteredTransactions = allocatedTransactions.filter(t => {
+            const transactionDate = new Date(t.date);
+            return transactionDate >= fromDate && transactionDate <= toDate;
+        });
+
+        const accountBalances: { [key: string]: { debit: number, credit: number, description: string } } = {};
+
+        filteredTransactions.forEach(t => {
+            const account = chartOfAccounts.find(a => a.accountNumber === t.allocatedTo.value);
+            if (!account) return;
+
+            if (!accountBalances[account.accountNumber]) {
+                accountBalances[account.accountNumber] = { debit: 0, credit: 0, description: account.description };
+            }
+
+            if (t.amount > 0) { // Assume income/credit
+                 accountBalances[account.accountNumber].credit += t.amount;
+            } else { // Assume expense/debit
+                 accountBalances[account.accountNumber].debit += Math.abs(t.amount);
+            }
+        });
+        
+        const reportData = {
+            clientName: activeClient?.name || 'N/A',
+            fromDate: format(fromDate, 'dd MMM yyyy'),
+            toDate: format(toDate, 'dd MMM yyyy'),
+            data: Object.entries(accountBalances).map(([accountNumber, { debit, credit, description }]) => ({
+                accountNumber,
+                description,
+                debit,
+                credit,
+            })).sort((a, b) => a.accountNumber.localeCompare(b.accountNumber)),
+        };
+
+        sessionStorage.setItem('trialBalanceReportData', JSON.stringify(reportData));
+        window.open('/admin/numera/trial-balance-report', '_blank');
+    };
+    
+    const handleGenerateGeneralLedger = () => {
+        if (!fromDate || !toDate) {
+            alert('Please select a valid date range.');
+            return;
+        }
+
+        const filteredTransactions = allocatedTransactions.filter(t => {
+            const transactionDate = new Date(t.date);
+            return transactionDate >= fromDate && transactionDate <= toDate;
+        });
+
+        const generalLedgerData = filteredTransactions.map(t => {
+            const account = chartOfAccounts.find(a => a.accountNumber === t.allocatedTo.value);
+            const debit = t.amount < 0 ? Math.abs(t.amount) : 0;
+            const credit = t.amount > 0 ? t.amount : 0;
+            
+            return {
+                'Date': format(new Date(t.date), 'yyyy-MM-dd'),
+                'Account Number': account?.accountNumber || 'N/A',
+                'Account Description': account?.description || 'N/A',
+                'Transaction Description': t.description,
+                'Debit': debit,
+                'Credit': credit,
+                'VAT Type': t.vatType,
+            };
+        });
+        
+        const worksheet = XLSX.utils.json_to_sheet(generalLedgerData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'General Ledger');
+        XLSX.writeFile(workbook, `General_Ledger_${activeClient?.name}_${format(new Date(), 'yyyyMMdd')}.xlsx`);
+    };
+
+
     if (!activeClient) {
         return (
             <div className="flex justify-center items-center h-screen">
@@ -126,7 +230,45 @@ export default function NumeraWorkspacePage() {
                             <CardDescription>Generate financial reports for this client.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                           <p className="text-muted-foreground">Reporting is under construction.</p>
+                           <div className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                                    <div className="space-y-2">
+                                        <Label>From Date</Label>
+                                         <Popover>
+                                            <PopoverTrigger asChild>
+                                                <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !fromDate && "text-muted-foreground")}>
+                                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                                    {fromDate ? format(fromDate, "dd MMMM yyyy") : <span>Pick a date</span>}
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={fromDate} onSelect={setFromDate} initialFocus /></PopoverContent>
+                                        </Popover>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>To Date</Label>
+                                         <Popover>
+                                            <PopoverTrigger asChild>
+                                                <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !toDate && "text-muted-foreground")}>
+                                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                                    {toDate ? format(toDate, "dd MMMM yyyy") : <span>Pick a date</span>}
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={toDate} onSelect={setToDate} initialFocus /></PopoverContent>
+                                        </Popover>
+                                    </div>
+                                </div>
+                                <Separator />
+                                <div className="flex gap-4">
+                                    <Button onClick={handleGenerateTrialBalance}>
+                                        <Printer className="mr-2 h-4 w-4" />
+                                        Generate Trial Balance
+                                    </Button>
+                                    <Button onClick={handleGenerateGeneralLedger} variant="secondary">
+                                         <Download className="mr-2 h-4 w-4" />
+                                        Export General Ledger (CSV)
+                                    </Button>
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
                  </TabsContent>
