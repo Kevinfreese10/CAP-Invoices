@@ -465,7 +465,7 @@ export default function AdminClientsPage() {
     if (client.requiresManagementAccounts && client.managementAccountsDueDate) {
         let mgmtDueDate = client.managementAccountsDueDate.toDate ? client.managementAccountsDueDate.toDate() : new Date(client.managementAccountsDueDate);
         
-        while (isPast(mgmtDueDate)) {
+        while (isPast(mgmtDueDate) && !isToday(mgmtDueDate)) {
             mgmtDueDate = addMonths(mgmtDueDate, 1);
         }
 
@@ -492,7 +492,7 @@ export default function AdminClientsPage() {
         if (client.vatCategory === 'C') { // Monthly
             recurrence = 'Monthly';
             firstDueDate = set(now, { date: 25 });
-             while (isPast(firstDueDate)) {
+             while (isPast(firstDueDate) && !isToday(firstDueDate)) {
                 firstDueDate = addMonths(firstDueDate, 1);
             }
         } else { // Bi-monthly
@@ -509,7 +509,7 @@ export default function AdminClientsPage() {
              if (targetMonth > 11) {
                 firstDueDate = set(firstDueDate, { year: getYear(now) + 1, month: targetMonth % 12 });
             }
-             while (isPast(firstDueDate)) {
+             while (isPast(firstDueDate) && !isToday(firstDueDate)) {
                 firstDueDate = addMonths(firstDueDate, 2);
             }
         }
@@ -532,7 +532,7 @@ export default function AdminClientsPage() {
     // Payroll
     if (client.preparesPayroll && client.payrollDueDate) {
         let payrollDate = client.payrollDueDate.toDate ? client.payrollDueDate.toDate() : new Date(client.payrollDueDate);
-        while(isPast(payrollDate)) payrollDate = addMonths(payrollDate, 1);
+        while(isPast(payrollDate) && !isToday(payrollDate)) payrollDate = addMonths(payrollDate, 1);
         tasksToCreate.push({
             title: `Prepare Payroll for ${client.name}`,
             description: 'Process monthly payroll.',
