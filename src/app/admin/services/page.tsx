@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, Loader2 } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, Clock } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import ServiceForm from '@/components/admin/ServiceForm';
@@ -16,6 +16,7 @@ import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc, serv
 import { firebaseApp } from '@/lib/firebase';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import Image from 'next/image';
 
 const db = getFirestore(firebaseApp);
 
@@ -192,9 +193,10 @@ export default function AdminServicesPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-16">Image</TableHead>
                 <TableHead>Title</TableHead>
                 <TableHead>Category</TableHead>
-                <TableHead>Department</TableHead>
+                <TableHead>Turnaround</TableHead>
                 <TableHead className="text-right">Price</TableHead>
                 <TableHead className="text-right">Reseller Price</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -203,9 +205,17 @@ export default function AdminServicesPage() {
             <TableBody>
               {filteredServices.map(service => (
                 <TableRow key={service.id}>
+                   <TableCell>
+                      <Image src={service.imageUrl} alt={service.title} width={40} height={40} className="rounded-md object-cover" />
+                  </TableCell>
                   <TableCell className="font-medium">{service.title}</TableCell>
                   <TableCell>{service.category}</TableCell>
-                  <TableCell>{service.department || 'N/A'}</TableCell>
+                   <TableCell>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Clock className="h-3 w-3" />
+                        <span>{service.turnaroundTime}</span>
+                      </div>
+                  </TableCell>
                   <TableCell className="text-right">R {service.price.toFixed(2)}</TableCell>
                   <TableCell className="text-right">
                     {service.resellerPrice ? `R ${service.resellerPrice.toFixed(2)}` : 'N/A'}

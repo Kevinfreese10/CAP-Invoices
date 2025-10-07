@@ -28,6 +28,11 @@ import {
 } from 'lucide-react';
 
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   SidebarHeader,
   SidebarMenu,
   SidebarMenuItem,
@@ -38,11 +43,14 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import type { User as UserType } from '@/lib/types';
 import { Button } from '../ui/button';
+import { useState } from 'react';
+import { cn } from '@/lib/utils';
 
 export default function DashboardNav({ user }: { user: UserType }) {
   const pathname = usePathname();
   const router = useRouter();
   const { logout } = useAuth();
+  const [isSettingsOpen, setIsSettingsOpen] = useState(pathname.startsWith('/admin/settings'));
 
   const handleLogout = () => {
     logout();
@@ -53,11 +61,9 @@ export default function DashboardNav({ user }: { user: UserType }) {
   ];
 
   const adminNavItems = [
-     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'staff'] },
-    { href: '/admin/profile', label: 'My Profile', icon: User, roles: ['admin', 'staff']},
+    { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'staff'] },
     { href: '/admin/orders', label: 'Manage Orders', icon: ShieldCheck, roles: ['admin', 'staff'] },
     { href: '/admin/compliance', label: 'Compliance', icon: ShieldCheck, roles: ['admin'] },
-    { href: '/admin/tasks', label: 'Manage Tasks', icon: ClipboardCheck, roles: ['admin', 'staff'] },
     { href: '/admin/clients', label: 'Manage Clients', icon: BookUser, roles: ['admin'] },
     { href: '/admin/numera', label: 'Numera', icon: FileSpreadsheet, roles: ['admin', 'staff'], department: 'Accounting and Tax' },
     { href: '/admin/numera/chart-of-accounts', label: 'Chart of Accounts', icon: Book, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
@@ -69,14 +75,18 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/cap-suppliers/chart-of-accounts', label: 'Chart of Accounts', icon: Book, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
     { href: '/admin/cap-suppliers/inbox', label: 'Inbox', icon: Inbox, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
     { href: '/admin/services', label: 'Manage Services', icon: Briefcase, roles: ['admin'] },
+  ];
+  
+  const settingsNavItems = [
+    { href: '/admin/profile', label: 'My Profile', icon: User, roles: ['admin', 'staff']},
+    { href: '/admin/tasks', label: 'Manage Tasks', icon: ClipboardCheck, roles: ['admin', 'staff'] },
     { href: '/admin/categories', label: 'Manage Categories', icon: Shapes, roles: ['admin'] },
     { href: '/admin/blog', label: 'Manage Blog', icon: BookMarked, roles: ['admin'] },
     { href: '/admin/staff', label: 'Manage Staff', icon: Users, roles: ['admin'] },
     { href: '/admin/discounts', label: 'Manage Discounts', icon: Percent, roles: ['admin'] },
-    { href: '/admin/knowledge-base', label: 'Knowledge Base & Training', icon: BrainCircuit, roles: ['admin'] },
+    { href: '/admin/knowledge-base', label: 'Knowledge Base', icon: BrainCircuit, roles: ['admin'] },
     { href: '/admin/media', label: 'Media', icon: Images, roles: ['admin'] },
     { href: '/admin/seo', label: 'SEO Management', icon: Search, roles: ['admin'] },
-    { href: '/admin/settings', label: 'Settings', icon: Settings, roles: ['admin'] },
   ];
 
   const resellerNavItems = [
@@ -93,6 +103,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     if (item.department && user.department !== item.department) return false;
     return true;
   });
+  const visibleSettingsNavItems = settingsNavItems.filter(item => item.roles.includes(user.role));
   const visibleResellerNavItems = resellerNavItems.filter(item => item.roles.includes(user.role));
 
   return (
@@ -134,6 +145,30 @@ export default function DashboardNav({ user }: { user: UserType }) {
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                 ))}
+                 <Collapsible open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+                    <SidebarMenuItem>
+                        <CollapsibleTrigger asChild>
+                            <SidebarMenuButton isActive={pathname.startsWith('/admin/settings')} tooltip="Settings">
+                                <Settings />
+                                <span>Settings</span>
+                            </SidebarMenuButton>
+                        </CollapsibleTrigger>
+                    </SidebarMenuItem>
+                    <CollapsibleContent asChild>
+                        <SidebarMenu className="pl-4">
+                            {visibleSettingsNavItems.map(item => (
+                                 <SidebarMenuItem key={item.href}>
+                                     <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label} className="h-8">
+                                         <Link href={item.href}>
+                                            <item.icon />
+                                            <span>{item.label}</span>
+                                         </Link>
+                                     </SidebarMenuButton>
+                                 </SidebarMenuItem>
+                            ))}
+                        </SidebarMenu>
+                    </CollapsibleContent>
+                 </Collapsible>
             </>
         )}
 
