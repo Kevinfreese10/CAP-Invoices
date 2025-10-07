@@ -15,7 +15,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { User, Task } from '@/lib/types';
+import { User, Task, ChartOfAccount } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, writeBatch, Timestamp, query, orderBy, where } from 'firebase/firestore';
@@ -31,6 +31,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import NewTaskEmail from '@/components/emails/NewTaskEmail';
+import { chartOfAccounts as initialChartOfAccounts } from '@/lib/chart-of-accounts';
 
 const db = getFirestore(firebaseApp);
 
@@ -65,6 +66,7 @@ const formSchema = z.object({
   email: z.string().email('A valid email is required.'),
   cellNumber: z.string().optional(),
   status: z.enum(clientStatuses),
+  createInNumera: z.boolean().default(false),
   // Automation fields
   yearEnd: z.string().optional(),
   submitsProvisionalTaxes: z.boolean().default(false),
@@ -98,6 +100,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
             email: client?.email || '',
             cellNumber: client?.cellNumber || '',
             status: client?.status || 'Active',
+            createInNumera: false,
             yearEnd: client?.yearEnd || undefined,
             submitsProvisionalTaxes: client?.submitsProvisionalTaxes || false,
             submitsIncomeTaxReturn: client?.submitsIncomeTaxReturn || false,
@@ -135,6 +138,20 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                     <FormField control={form.control} name="cellNumber" render={({ field }) => ( <FormItem><FormLabel>Cell Number</FormLabel><FormControl><Input placeholder="e.g. 0821234567" {...field} /></FormControl><FormMessage /></FormItem>)} />
                     <FormField control={form.control} name="status" render={({ field }) => ( <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{clientStatuses.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                  </div>
+
+                <Separator />
+
+                <div className="space-y-4">
+                     <FormField control={form.control} name="createInNumera" render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                            <div className="space-y-0.5">
+                                <FormLabel>Create Numera Profile</FormLabel>
+                                <FormDescription>Also create an accounting profile for this client in the Numera module.</FormDescription>
+                            </div>
+                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                        </FormItem>
+                    )} />
+                </div>
 
                 <Separator />
                 
@@ -633,8 +650,10 @@ export default function AdminClientsPage() {
   const handleFormSubmit = async (data: z.infer<typeof formSchema>) => {
     if (!currentUser) return;
     
+    const { createInNumera, ...clientFormData } = data;
+
     const clientData: Partial<Client> = {
-        ...data,
+        ...clientFormData,
         financialsDueDate: data.financialsDueDate || null,
         managementAccountsDueDate: data.requiresManagementAccounts ? data.managementAccountsDueDate : null,
         vatCategory: data.isVatRegistered ? data.vatCategory : null,
@@ -644,6 +663,8 @@ export default function AdminClientsPage() {
     };
 
     try {
+        let clientToProcess: Client;
+
         if (selectedClient?.id) {
             await deleteRecurringTasks(selectedClient.id);
             const clientRef = doc(db, "clients", selectedClient.id);
@@ -652,22 +673,52 @@ export default function AdminClientsPage() {
                 title: 'Client Updated',
                 description: 'The client details have been saved and tasks regenerated.',
             });
-            const numTasks = await createRecurringTasks({ ...clientData, id: selectedClient.id } as Client, currentUser.uid, currentUser.name);
-             if (numTasks > 0) {
-                // Task creation emails are disabled
-            }
+            clientToProcess = { ...clientData, id: selectedClient.id } as Client;
         } else {
             const newDocRef = await addDoc(collection(db, "clients"), clientData);
             toast({
                 title: 'Client Created',
                 description: 'The new client has been added to the database.',
             });
-            const newClient = { ...clientData, id: newDocRef.id } as Client;
-            const numTasks = await createRecurringTasks(newClient, currentUser.uid, currentUser.name);
-            if (numTasks > 0) {
-                // Task creation emails are disabled
+            clientToProcess = { ...clientData, id: newDocRef.id } as Client;
+        }
+        
+        await createRecurringTasks(clientToProcess, currentUser.uid, currentUser.name);
+
+        if (createInNumera) {
+             const existingNumeraQuery = query(collection(db, 'clients'), where('email', '==', clientData.email), where('source', '==', 'Numera'));
+             const existingNumeraSnapshot = await getDocs(existingNumeraQuery);
+             if (existingNumeraSnapshot.empty) {
+                const masterRulesSnapshot = await getDocs(collection(db, "allocationRules"));
+                const masterRules = masterRulesSnapshot.docs.map(doc => {
+                    const { id, ...rest } = doc.data();
+                    return rest;
+                });
+
+                const numeraClientData = {
+                    name: clientData.name,
+                    yearEnd: clientData.yearEnd,
+                    source: 'Numera' as const,
+                    role: 'client' as const,
+                    chartOfAccounts: initialChartOfAccounts,
+                    allocationRules: masterRules,
+                };
+
+                await addDoc(collection(db, 'clients'), numeraClientData);
+                toast({
+                    title: 'Numera Profile Created',
+                    description: `An accounting profile for ${clientData.name} has been created in Numera.`,
+                });
+            } else {
+                 toast({
+                    title: 'Numera Profile Exists',
+                    description: `A Numera profile for this client already exists.`,
+                    variant: 'default',
+                });
             }
         }
+
+
         fetchClientsAndStaff();
         setIsFormOpen(false);
         setSelectedClient(null);
@@ -819,3 +870,4 @@ export default function AdminClientsPage() {
     </div>
   );
 }
+
