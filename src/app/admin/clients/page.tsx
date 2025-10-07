@@ -105,7 +105,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
             preparesFinancials: client?.preparesFinancials || false,
             financialsDueDate: toDate(client?.financialsDueDate),
             requiresManagementAccounts: client?.requiresManagementAccounts || false,
-            managementAccountsFrequency: client?.managementAccountsFrequency || undefined,
+            managementAccountsFrequency: client?.managementAccountsFrequency || 'Monthly',
             managementAccountsDueDate: toDate(client?.managementAccountsDueDate),
             isVatRegistered: client?.isVatRegistered || false,
             vatCategory: client?.vatCategory || undefined,
@@ -142,7 +142,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                 
                 <div className="space-y-4">
                     <h3 className="text-lg font-medium">Task Automation Setup</h3>
-                    <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormDescription>This is optional if you do not use task automation.</FormDescription><FormMessage /></FormItem>)} />
                     
                     <FormField control={form.control} name="submitsProvisionalTaxes" render={({ field }) => (
                         <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
@@ -179,9 +179,8 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                     )} />
 
                      {watchRequiresMgmt && (
-                        <div className="grid grid-cols-2 gap-4 items-start">
-                            <FormField control={form.control} name="managementAccountsFrequency" render={({ field }) => ( <FormItem><FormLabel>Frequency</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger></FormControl><SelectContent>{mgmtAccountFrequencies.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
-                            <FormField control={form.control} name="managementAccountsDueDate" render={({ field }) => ( <FormItem><FormLabel>Next Due Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd MMM yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)} />
+                        <div className="grid grid-cols-1 gap-4 items-start">
+                            <FormField control={form.control} name="managementAccountsDueDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Next Due Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd MMM yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)} />
                         </div>
                     )}
                     
@@ -467,35 +466,20 @@ export default function AdminClientsPage() {
     }
 
     // Management Accounts
-    if (client.requiresManagementAccounts && client.managementAccountsDueDate && client.managementAccountsFrequency) {
-        let recurrence: Task['recurrence'] = 'None';
+    if (client.requiresManagementAccounts && client.managementAccountsDueDate) {
         let mgmtDueDate = client.managementAccountsDueDate.toDate ? client.managementAccountsDueDate.toDate() : new Date(client.managementAccountsDueDate);
         
         while (isPast(mgmtDueDate)) {
-            if (client.managementAccountsFrequency === 'Monthly') {
-                mgmtDueDate = addMonths(mgmtDueDate, 1);
-            } else if (client.managementAccountsFrequency === 'Quarterly') {
-                mgmtDueDate = addMonths(mgmtDueDate, 3);
-            } else if (client.managementAccountsFrequency === 'Bi-Annually') {
-                mgmtDueDate = addMonths(mgmtDueDate, 6);
-            } else if (client.managementAccountsFrequency === 'Annually') {
-                mgmtDueDate = addYears(mgmtDueDate, 1);
-            }
+            mgmtDueDate = addMonths(mgmtDueDate, 1);
         }
-        
-        if (client.managementAccountsFrequency === 'Monthly') recurrence = 'Monthly';
-        if (client.managementAccountsFrequency === 'Annually') recurrence = 'Annually';
-        if (client.managementAccountsFrequency === 'Quarterly') recurrence = 'Quarterly';
-        if (client.managementAccountsFrequency === 'Bi-Annually') recurrence = 'Bi-Annually';
-
 
         tasksToCreate.push({
             title: `Management Accounts for ${client.name}`,
-            description: `Prepare ${client.managementAccountsFrequency} management accounts.`,
+            description: `Prepare Monthly management accounts.`,
             assignedTo: accountingAndTaxStaff,
             dueDate: Timestamp.fromDate(mgmtDueDate),
             createdAt: Timestamp.now(),
-            recurrence: recurrence,
+            recurrence: 'Monthly',
             priority: 'Medium',
             status: 'To-Do',
             createdBy: creatorId,
@@ -656,8 +640,8 @@ export default function AdminClientsPage() {
     const clientData: Partial<Client> = {
         ...data,
         financialsDueDate: data.financialsDueDate || null,
-        managementAccountsDueDate: data.managementAccountsDueDate || null,
-        managementAccountsFrequency: data.managementAccountsFrequency || null,
+        managementAccountsDueDate: data.requiresManagementAccounts ? data.managementAccountsDueDate : null,
+        managementAccountsFrequency: data.requiresManagementAccounts ? 'Monthly' : undefined,
         vatCategory: data.isVatRegistered ? data.vatCategory : null,
         payrollDueDate: data.payrollDueDate || null,
         role: 'client',
@@ -840,18 +824,3 @@ export default function AdminClientsPage() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-    
-
-
-
