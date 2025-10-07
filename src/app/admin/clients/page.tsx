@@ -656,6 +656,7 @@ export default function AdminClientsPage() {
         ...data,
         financialsDueDate: data.financialsDueDate || null,
         managementAccountsDueDate: data.managementAccountsDueDate || null,
+        managementAccountsFrequency: data.managementAccountsFrequency || null,
         payrollDueDate: data.payrollDueDate || null,
         role: 'client',
         source: 'Client Management',
@@ -847,3 +848,6 @@ export default function AdminClientsPage() {
 
 
 
+
+
+    
