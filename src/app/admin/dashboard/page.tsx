@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { format, isPast, addDays, isWithinInterval, startOfToday } from 'date-fns';
+import { format, isPast, addDays, isWithinInterval, startOfToday, addMonths, addYears } from 'date-fns';
 import { Task, User, TaskComment } from '@/lib/types';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -46,7 +46,7 @@ type UnansweredQuestion = {
 const departments = ['Accounting and Tax', 'Administration', 'CAP'] as const;
 
 const taskStatuses: Task['status'][] = ['To-Do', 'In Progress', 'Review', 'Done'];
-const taskRecurrences: Task['recurrence'][] = ['None', 'Daily', 'Weekly', 'Monthly'];
+const taskRecurrences: Task['recurrence'][] = ['None', 'Daily', 'Weekly', 'Monthly', 'Bi-Monthly', 'Annually'];
 
 const formSchema = z.object({
   id: z.string().optional(),
@@ -650,7 +650,7 @@ export default function AdminDashboardPage() {
             task.assignedTo.includes(user.uid) &&
             task.status !== 'Done' &&
             (!task.recurrence || task.recurrence === 'None')
-        ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : a.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
+        ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : 0) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : 0));
     }, [tasks, user]);
 
     const upcomingAutomatedTasks = useMemo(() => {
@@ -663,11 +663,11 @@ export default function AdminDashboardPage() {
         );
         
         if (upcomingAutomatedTaskFilter === 'all' || upcomingAutomatedTaskFilter === 'All Tasks') {
-            return filtered.sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : b.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
+            return filtered.sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : 0) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : 0));
         }
         
         return filtered.filter(task => task.title.startsWith(upcomingAutomatedTaskFilter))
-            .sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : b.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
+            .sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : 0) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : 0));
 
     }, [tasks, upcomingAutomatedTaskFilter]);
 
@@ -678,7 +678,7 @@ export default function AdminDashboardPage() {
             !task.assignedTo.includes(user.uid) &&
              task.status !== 'Done' &&
             (!task.recurrence || task.recurrence === 'None')
-        ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : b.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
+        ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : 0) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : 0));
     }, [tasks, user]);
 
     const taggedTasks = useMemo(() => {
@@ -688,7 +688,7 @@ export default function AdminDashboardPage() {
             task.tags.includes(user.uid) &&
             task.status !== 'Done' &&
             (!task.recurrence || task.recurrence === 'None')
-        ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : b.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
+        ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : 0) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : 0));
     }, [tasks, user]);
     
     const departmentTasks = useMemo(() => {
@@ -701,7 +701,7 @@ export default function AdminDashboardPage() {
             return true;
         });
         
-        return deptTasks.sort((a, b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : b.dueDate) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : b.dueDate));
+        return deptTasks.sort((a, b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : 0) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : 0));
     }, [tasks, user]);
 
 
@@ -744,31 +744,69 @@ export default function AdminDashboardPage() {
     };
 
     const handleUpdateStatus = async (taskId: string, status: Task['status']) => {
+        const originalTask = tasks.find(t => t.id === taskId);
+        if (!originalTask) return;
+
         try {
             const taskRef = doc(db, 'tasks', taskId);
             await updateDoc(taskRef, { status });
-            
-            // This is the key fix: update the local state correctly
-            setTasks(prevTasks =>
-                prevTasks.map(t => (t.id === taskId ? { ...t, status } : t))
-            );
-            
+
             if (status === 'Done') {
-                 toast({
-                    title: 'Task Completed!',
-                    description: `The task has been marked as "${status}".`,
-                });
+                if (originalTask.recurrence && originalTask.recurrence !== 'None') {
+                    createNextRecurrence(originalTask);
+                }
+                toast({ title: 'Task Completed!', description: `The task has been marked as "${status}".` });
             } else {
-                 toast({
-                    title: 'Task Status Updated',
-                    description: `The task has been marked as "${status}".`,
-                });
+                toast({ title: 'Task Status Updated', description: `The task has been marked as "${status}".` });
             }
+            
+            // Optimistically update local state to reflect changes immediately
+            setTasks(prevTasks => prevTasks.map(t => (t.id === taskId ? { ...t, status } : t)));
+
         } catch (error) {
             console.error("Error updating status:", error);
             toast({ title: 'Error', description: 'Could not update status.', variant: 'destructive'});
         }
     };
+
+    const createNextRecurrence = async (completedTask: Task) => {
+        if (!completedTask.recurrence || completedTask.recurrence === 'None') return;
+
+        let nextDueDate: Date;
+        const currentDueDate = completedTask.dueDate.toDate();
+
+        switch (completedTask.recurrence) {
+            case 'Monthly':
+                nextDueDate = addMonths(currentDueDate, 1);
+                break;
+            case 'Bi-Monthly':
+                nextDueDate = addMonths(currentDueDate, 2);
+                break;
+            case 'Annually':
+                nextDueDate = addYears(currentDueDate, 1);
+                break;
+            default:
+                return; // No need to create for 'Daily', 'Weekly' for now
+        }
+        
+        const { id, ...restOfTask } = completedTask;
+        const newTaskData = {
+            ...restOfTask,
+            dueDate: Timestamp.fromDate(nextDueDate),
+            status: 'To-Do' as const,
+            createdAt: Timestamp.now(),
+            comments: [], // Clear comments for the new task
+        };
+        
+        try {
+            const newDocRef = await addDoc(collection(db, 'tasks'), newTaskData);
+            setTasks(prevTasks => [...prevTasks, { ...newTaskData, id: newDocRef.id }]);
+            toast({ title: 'Next Task Created', description: `Next recurring task for "${completedTask.title}" has been created.` });
+        } catch (error) {
+            console.error('Error creating next recurring task:', error);
+        }
+    };
+
 
     const handleFormSubmit = async (data: Omit<Task, 'id' | 'status' | 'createdBy' | 'comments' | 'priority' | 'createdAt'>) => {
         if (!user) return;
@@ -1063,6 +1101,7 @@ export default function AdminDashboardPage() {
     
 
     
+
 
 
 

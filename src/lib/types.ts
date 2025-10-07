@@ -1,4 +1,5 @@
 
+
 export type VatType =
   // Output Tax
   | 'standard_rated_sales'
@@ -193,7 +194,7 @@ export type Task = {
   dueDate: any;
   priority: 'High' | 'Medium' | 'Low';
   status: 'To-Do' | 'In Progress' | 'Review' | 'Done';
-  recurrence?: 'None' | 'Daily' | 'Weekly' | 'Monthly';
+  recurrence?: 'None' | 'Daily' | 'Weekly' | 'Monthly' | 'Bi-Monthly' | 'Annually';
   orderId?: string;
   clientId?: string;
   comments?: TaskComment[];
