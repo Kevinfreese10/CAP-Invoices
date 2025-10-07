@@ -77,19 +77,60 @@ export default function NumeraWorkspacePage() {
                  <Button variant="outline" onClick={() => router.push('/admin/numera')}>Change Client</Button>
             </div>
             
-            <Card>
-                <CardHeader>
-                    <CardTitle>Workspace</CardTitle>
-                    <CardDescription>
-                        This is where you'll import and allocate transactions for {activeClient.name}.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                     <div className="text-center py-10">
-                        <p className="text-muted-foreground">The transaction workspace is under construction.</p>
-                    </div>
-                </CardContent>
-            </Card>
+             <Tabs defaultValue="transactions">
+                <TabsList>
+                    <TabsTrigger value="transactions">Transactions</TabsTrigger>
+                    <TabsTrigger value="charts-of-accounts">Chart of Accounts</TabsTrigger>
+                    <TabsTrigger value="allocation-rules">Allocation Rules</TabsTrigger>
+                    <TabsTrigger value="reports">Reports</TabsTrigger>
+                </TabsList>
+                 <TabsContent value="transactions">
+                     <Card>
+                        <CardHeader>
+                            <CardTitle>Import & Allocate</CardTitle>
+                            <CardDescription>Upload a bank statement (CSV) and allocate your transactions.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                             <div className="text-center py-10">
+                                <p className="text-muted-foreground">The transaction workspace is under construction.</p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                 </TabsContent>
+                 <TabsContent value="charts-of-accounts">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Chart of Accounts</CardTitle>
+                            <CardDescription>Manage the general ledger accounts for this client.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-muted-foreground">Chart of accounts management is under construction.</p>
+                        </CardContent>
+                    </Card>
+                 </TabsContent>
+                 <TabsContent value="allocation-rules">
+                     <Card>
+                        <CardHeader>
+                            <CardTitle>Allocation Rules</CardTitle>
+                            <CardDescription>Manage transaction allocation rules for this client.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                           <p className="text-muted-foreground">Allocation rules management is under construction.</p>
+                        </CardContent>
+                    </Card>
+                 </TabsContent>
+                  <TabsContent value="reports">
+                     <Card>
+                        <CardHeader>
+                            <CardTitle>Financial Reports</CardTitle>
+                            <CardDescription>Generate financial reports for this client.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                           <p className="text-muted-foreground">Reporting is under construction.</p>
+                        </CardContent>
+                    </Card>
+                 </TabsContent>
+            </Tabs>
         </div>
     )
 }
