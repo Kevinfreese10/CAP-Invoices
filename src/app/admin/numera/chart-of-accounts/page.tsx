@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Download } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -15,7 +15,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ChartOfAccount } from '@/lib/types';
-import { chartOfAccounts } from '@/lib/chart-of-accounts';
+import { chartOfAccounts as standardChartOfAccounts } from '@/lib/chart-of-accounts';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const accountSections: ChartOfAccount['section'][] = ['Income Statement', 'Balance Sheet'];
@@ -59,7 +59,7 @@ function AccountForm({ account, onSubmit, onCancel }: { account: ChartOfAccount 
 }
 
 export default function ChartOfAccountsPage() {
-  const [accounts, setAccounts] = useState<ChartOfAccount[]>(chartOfAccounts);
+  const [accounts, setAccounts] = useState<ChartOfAccount[]>(standardChartOfAccounts);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<ChartOfAccount | null>(null);
   const { toast } = useToast();
@@ -106,31 +106,59 @@ export default function ChartOfAccountsPage() {
     setSelectedAccount(null);
   };
 
+  const handleImport = () => {
+    setAccounts(standardChartOfAccounts);
+    toast({
+      title: 'Import Successful',
+      description: 'The standard chart of accounts has been imported.',
+    });
+  };
+
   return (
     <div className="space-y-8">
         <div className="flex items-center justify-between">
             <h1 className="text-3xl font-bold tracking-tight">Chart of Accounts</h1>
-            <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-            <DialogTrigger asChild>
-                    <Button onClick={handleAdd}>
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        Add New Account
-                    </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>{selectedAccount ? 'Edit Account' : 'Create New Account'}</DialogTitle>
-                        <DialogDescription>
-                            {selectedAccount ? 'Update the details for this account.' : 'Enter the details for a new account.'}
-                        </DialogDescription>
-                    </DialogHeader>
-                    <AccountForm 
-                        account={selectedAccount} 
-                        onSubmit={handleFormSubmit}
-                        onCancel={() => setIsFormOpen(false)}
-                    />
-            </DialogContent>
-            </Dialog>
+            <div className="flex gap-2">
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                         <Button variant="outline">
+                            <Download className="mr-2 h-4 w-4" />
+                            Import Standard Chart of Accounts
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                            <AlertDialogDescription>This will replace any custom changes you've made with the standard template. This action cannot be undone.</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleImport}>Continue</AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+                <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+                    <DialogTrigger asChild>
+                            <Button onClick={handleAdd}>
+                                <PlusCircle className="mr-2 h-4 w-4" />
+                                Add New Account
+                            </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-md">
+                            <DialogHeader>
+                                <DialogTitle>{selectedAccount ? 'Edit Account' : 'Create New Account'}</DialogTitle>
+                                <DialogDescription>
+                                    {selectedAccount ? 'Update the details for this account.' : 'Enter the details for a new account.'}
+                                </DialogDescription>
+                            </DialogHeader>
+                            <AccountForm 
+                                account={selectedAccount} 
+                                onSubmit={handleFormSubmit}
+                                onCancel={() => setIsFormOpen(false)}
+                            />
+                    </DialogContent>
+                </Dialog>
+            </div>
         </div>
         
         <Card>
