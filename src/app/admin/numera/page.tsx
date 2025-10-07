@@ -151,19 +151,20 @@ export default function NumeraPage() {
                 await setDoc(clientRef, { ...clientData, source: 'Numera' }, { merge: true });
                 toast({ title: 'Client Updated', description: 'The client details have been saved.' });
             } else { // Creating new client
-                 const masterRulesSnapshot = await getDocs(collection(db, "allocationRules"));
-                 const masterRules = masterRulesSnapshot.docs.map(doc => {
-                     const { id, ...rest } = doc.data(); // Exclude the ID of the master rule
-                     return rest;
-                 });
+                const masterRulesSnapshot = await getDocs(collection(db, "allocationRules"));
+                const masterRules = masterRulesSnapshot.docs.map(doc => {
+                    const { id, ...rest } = doc.data(); // Exclude the ID of the master rule
+                    return rest;
+                });
 
-                 const newClientRef = doc(collection(db, 'clients')); // Generate a new ID first
+                const newClientRef = doc(collection(db, 'clients')); // Generate a new ID first
 
-                 const newClientData = {
+                const newClientData = {
                     ...clientData,
-                    id: newClientRef.id, // Include the new ID in the document data
-                    role: 'client',
-                    source: 'Numera',
+                    id: newClientRef.id,
+                    uid: newClientRef.id, // Set uid to match id for consistency
+                    role: 'client' as const,
+                    source: 'Numera' as const,
                     chartOfAccounts: initialChartOfAccounts,
                     allocationRules: masterRules,
                 };
