@@ -165,6 +165,26 @@ export default function NumeraPage() {
         sessionStorage.setItem('numera-active-client', JSON.stringify(client));
         router.push('/admin/numera/workspace');
     }
+    
+    const formatYearEnd = (yearEnd: any): string => {
+        if (!yearEnd) return 'N/A';
+        if (typeof yearEnd === 'string') {
+        return yearEnd;
+        }
+        if (yearEnd.toDate && typeof yearEnd.toDate === 'function') {
+        const date = yearEnd.toDate();
+        return format(date, 'MMMM');
+        }
+        try {
+            const d = new Date(yearEnd);
+            if (!isNaN(d.getTime())) {
+                return format(d, 'MMMM');
+            }
+        } catch (e) {
+            // fall through
+        }
+        return 'Invalid Date';
+    };
 
     return (
         <div className="space-y-8">
@@ -237,7 +257,7 @@ export default function NumeraPage() {
                         </TableCell>
                         <TableCell>{client.contactPerson}</TableCell>
                         <TableCell>{client.email}</TableCell>
-                        <TableCell>{client.yearEnd}</TableCell>
+                        <TableCell>{formatYearEnd(client.yearEnd)}</TableCell>
                         <TableCell className="text-right">
                             <div className="flex gap-2 justify-end">
                                 <Button size="sm" variant="secondary" onClick={() => handleEditClient(client)}>Edit</Button>
