@@ -486,7 +486,7 @@ export default function NumeraWorkspacePage() {
 
     const handleGenerateTrialBalance = () => {
         if (!fromDate || !toDate) {
-            alert('Please select a valid date range.');
+            toast({ title: "Error", description: 'Please select a valid date range.', variant: 'destructive'});
             return;
         }
 
@@ -530,7 +530,7 @@ export default function NumeraWorkspacePage() {
     
     const handleGenerateGeneralLedger = () => {
         if (!fromDate || !toDate) {
-            alert('Please select a valid date range.');
+            toast({ title: "Error", description: 'Please select a valid date range.', variant: 'destructive'});
             return;
         }
 
@@ -580,194 +580,196 @@ export default function NumeraWorkspacePage() {
     }
     
     return (
-        <div className="space-y-8">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">{activeClient.name}</h1>
-                    <p className="text-muted-foreground">Numera Workspace</p>
+        <>
+            <div className="space-y-8">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-3xl font-bold tracking-tight">{activeClient.name}</h1>
+                        <p className="text-muted-foreground">Numera Workspace</p>
+                    </div>
+                    <Button variant="outline" onClick={() => router.push('/admin/numera')}>Change Client</Button>
                 </div>
-                 <Button variant="outline" onClick={() => router.push('/admin/numera')}>Change Client</Button>
-            </div>
-            
-             <Tabs defaultValue="transactions">
-                <TabsList>
-                    <TabsTrigger value="transactions">Transactions</TabsTrigger>
-                    <TabsTrigger value="charts-of-accounts">Chart of Accounts</TabsTrigger>
-                    <TabsTrigger value="allocation-rules">Allocation Rules</TabsTrigger>
-                    <TabsTrigger value="reports">Reports</TabsTrigger>
-                </TabsList>
-                 <TabsContent value="transactions">
-                     <Card>
-                        <CardHeader>
-                            <CardTitle>Import & Allocate</CardTitle>
-                            <CardDescription>Upload a bank statement (CSV) and allocate your transactions.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                             <div className="text-center py-10">
-                                <p className="text-muted-foreground">The transaction workspace is under construction.</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-                 </TabsContent>
-                 <TabsContent value="charts-of-accounts">
-                    <ChartOfAccountsTab client={activeClient} onUpdate={updateClientData} />
-                 </TabsContent>
-                 <TabsContent value="allocation-rules">
-                    <AllocationRulesTab client={activeClient} onUpdate={updateClientData} />
-                 </TabsContent>
-                  <TabsContent value="reports">
-                     <Card>
-                        <CardHeader>
-                            <CardTitle>Financial Reports</CardTitle>
-                            <CardDescription>Generate financial reports for this client.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                           <div className="space-y-6">
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                                    <div className="space-y-2">
-                                        <Label>From Date</Label>
-                                         <Popover>
-                                            <PopoverTrigger asChild>
-                                                <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !fromDate && "text-muted-foreground")}>
-                                                    <CalendarIcon className="mr-2 h-4 w-4" />
-                                                    {fromDate ? format(fromDate, "dd MMMM yyyy") : <span>Pick a date</span>}
-                                                </Button>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={fromDate} onSelect={setFromDate} initialFocus /></PopoverContent>
-                                        </Popover>
+                
+                <Tabs defaultValue="transactions">
+                    <TabsList>
+                        <TabsTrigger value="transactions">Transactions</TabsTrigger>
+                        <TabsTrigger value="charts-of-accounts">Chart of Accounts</TabsTrigger>
+                        <TabsTrigger value="allocation-rules">Allocation Rules</TabsTrigger>
+                        <TabsTrigger value="reports">Reports</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="transactions">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Import & Allocate</CardTitle>
+                                <CardDescription>Upload a bank statement (CSV) and allocate your transactions.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-center py-10">
+                                    <p className="text-muted-foreground">The transaction workspace is under construction.</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                    <TabsContent value="charts-of-accounts">
+                        <ChartOfAccountsTab client={activeClient} onUpdate={updateClientData} />
+                    </TabsContent>
+                    <TabsContent value="allocation-rules">
+                        <AllocationRulesTab client={activeClient} onUpdate={updateClientData} />
+                    </TabsContent>
+                    <TabsContent value="reports">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Financial Reports</CardTitle>
+                                <CardDescription>Generate financial reports for this client.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                            <div className="space-y-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                                        <div className="space-y-2">
+                                            <Label>From Date</Label>
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !fromDate && "text-muted-foreground")}>
+                                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                                        {fromDate ? format(fromDate, "dd MMMM yyyy") : <span>Pick a date</span>}
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={fromDate} onSelect={setFromDate} initialFocus /></PopoverContent>
+                                            </Popover>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>To Date</Label>
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !toDate && "text-muted-foreground")}>
+                                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                                        {toDate ? format(toDate, "dd MMMM yyyy") : <span>Pick a date</span>}
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={toDate} onSelect={setToDate} initialFocus /></PopoverContent>
+                                            </Popover>
+                                        </div>
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label>To Date</Label>
-                                         <Popover>
-                                            <PopoverTrigger asChild>
-                                                <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !toDate && "text-muted-foreground")}>
-                                                    <CalendarIcon className="mr-2 h-4 w-4" />
-                                                    {toDate ? format(toDate, "dd MMMM yyyy") : <span>Pick a date</span>}
-                                                </Button>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={toDate} onSelect={setToDate} initialFocus /></PopoverContent>
-                                        </Popover>
+                                    <Separator />
+                                    <div className="flex gap-4">
+                                        <Button onClick={handleGenerateTrialBalance}>
+                                            <Printer className="mr-2 h-4 w-4" />
+                                            Generate Trial Balance
+                                        </Button>
+                                        <Button onClick={handleGenerateGeneralLedger} variant="secondary">
+                                            <Download className="mr-2 h-4 w-4" />
+                                            Generate General Ledger
+                                        </Button>
                                     </div>
                                 </div>
-                                <Separator />
-                                <div className="flex gap-4">
-                                    <Button onClick={handleGenerateTrialBalance}>
-                                        <Printer className="mr-2 h-4 w-4" />
-                                        Generate Trial Balance
-                                    </Button>
-                                    <Button onClick={handleGenerateGeneralLedger} variant="secondary">
-                                         <Download className="mr-2 h-4 w-4" />
-                                        Generate General Ledger
-                                    </Button>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                 </TabsContent>
-            </Tabs>
-            
-            <Dialog open={isTrialBalanceOpen} onOpenChange={setIsTrialBalanceOpen}>
-                <DialogContent className="max-w-4xl">
-                    <DialogHeader>
-                        <DialogTitle>Trial Balance: {trialBalanceData?.clientName}</DialogTitle>
-                        <DialogDescription>
-                            For the period: {trialBalanceData?.fromDate} to {trialBalanceData?.toDate}
-                        </DialogDescription>
-                    </DialogHeader>
-                     {trialBalanceData && (
-                        <div className="max-h-[60vh] overflow-y-auto">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Account</TableHead>
-                                        <TableHead>Description</TableHead>
-                                        <TableHead className="text-right">Debit</TableHead>
-                                        <TableHead className="text-right">Credit</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {trialBalanceData.data.map(item => (
-                                        <TableRow key={item.accountNumber}>
-                                            <TableCell className="font-mono">{item.accountNumber}</TableCell>
-                                            <TableCell>{item.description}</TableCell>
-                                            <TableCell className="text-right font-mono">{item.debit > 0 ? formatCurrency(item.debit) : '-'}</TableCell>
-                                            <TableCell className="text-right font-mono">{item.credit > 0 ? formatCurrency(item.credit) : '-'}</TableCell>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                </Tabs>
+                
+                <Dialog open={isTrialBalanceOpen} onOpenChange={setIsTrialBalanceOpen}>
+                    <DialogContent className="max-w-4xl">
+                        <DialogHeader>
+                            <DialogTitle>Trial Balance: {trialBalanceData?.clientName}</DialogTitle>
+                            <DialogDescription>
+                                For the period: {trialBalanceData?.fromDate} to {trialBalanceData?.toDate}
+                            </DialogDescription>
+                        </DialogHeader>
+                        {trialBalanceData && (
+                            <div className="max-h-[60vh] overflow-y-auto">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Account</TableHead>
+                                            <TableHead>Description</TableHead>
+                                            <TableHead className="text-right">Debit</TableHead>
+                                            <TableHead className="text-right">Credit</TableHead>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                                <TableFooter>
-                                    <TableRow>
-                                        <TableCell colSpan={2} className="font-bold text-base">Totals</TableCell>
-                                        <TableCell className="text-right font-bold font-mono text-base">{formatCurrency(trialBalanceData.data.reduce((acc, item) => acc + item.debit, 0))}</TableCell>
-                                        <TableCell className="text-right font-bold font-mono text-base">{formatCurrency(trialBalanceData.data.reduce((acc, item) => acc + item.credit, 0))}</TableCell>
-                                    </TableRow>
-                                </TableFooter>
-                            </Table>
-                        </div>
-                     )}
-                     <DialogFooter>
-                        <Button variant="outline" onClick={() => window.print()}>
-                            <Printer className="mr-2 h-4 w-4" /> Print
-                        </Button>
-                     </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {trialBalanceData.data.map(item => (
+                                            <TableRow key={item.accountNumber}>
+                                                <TableCell className="font-mono">{item.accountNumber}</TableCell>
+                                                <TableCell>{item.description}</TableCell>
+                                                <TableCell className="text-right font-mono">{item.debit > 0 ? formatCurrency(item.debit) : '-'}</TableCell>
+                                                <TableCell className="text-right font-mono">{item.credit > 0 ? formatCurrency(item.credit) : '-'}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                    <TableFooter>
+                                        <TableRow>
+                                            <TableCell colSpan={2} className="font-bold text-base">Totals</TableCell>
+                                            <TableCell className="text-right font-bold font-mono text-base">{formatCurrency(trialBalanceData.data.reduce((acc, item) => acc + item.debit, 0))}</TableCell>
+                                            <TableCell className="text-right font-bold font-mono text-base">{formatCurrency(trialBalanceData.data.reduce((acc, item) => acc + item.credit, 0))}</TableCell>
+                                        </TableRow>
+                                    </TableFooter>
+                                </Table>
+                            </div>
+                        )}
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => window.print()}>
+                                <Printer className="mr-2 h-4 w-4" /> Print
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
 
-            <Dialog open={isGeneralLedgerOpen} onOpenChange={setIsGeneralLedgerOpen}>
-                <DialogContent className="max-w-6xl">
-                    <DialogHeader>
-                        <DialogTitle>General Ledger</DialogTitle>
-                        <DialogDescription>
-                             For the period: {fromDate ? format(fromDate, 'dd MMM yyyy') : ''} to {toDate ? format(toDate, 'dd MMM yyyy') : ''}
-                        </DialogDescription>
-                    </DialogHeader>
-                     {generalLedgerData && (
-                        <div className="max-h-[60vh] overflow-y-auto">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead>Account</TableHead>
-                                        <TableHead>Description</TableHead>
-                                        <TableHead className="text-right">Debit</TableHead>
-                                        <TableHead className="text-right">Credit</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {generalLedgerData.map((item, index) => (
-                                        <TableRow key={index}>
-                                            <TableCell>{item['Date']}</TableCell>
-                                            <TableCell className="font-mono">{item['Account Number']}</TableCell>
-                                            <TableCell>{item['Transaction Description']}</TableCell>
-                                            <TableCell className="text-right font-mono">{item.Debit > 0 ? formatCurrency(item.Debit) : '-'}</TableCell>
-                                            <TableCell className="text-right font-mono">{item.Credit > 0 ? formatCurrency(item.Credit) : '-'}</TableCell>
+                <Dialog open={isGeneralLedgerOpen} onOpenChange={setIsGeneralLedgerOpen}>
+                    <DialogContent className="max-w-6xl">
+                        <DialogHeader>
+                            <DialogTitle>General Ledger</DialogTitle>
+                            <DialogDescription>
+                                For the period: {fromDate ? format(fromDate, 'dd MMM yyyy') : ''} to {toDate ? format(toDate, 'dd MMM yyyy') : ''}
+                            </DialogDescription>
+                        </DialogHeader>
+                        {generalLedgerData && (
+                            <div className="max-h-[60vh] overflow-y-auto">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Date</TableHead>
+                                            <TableHead>Account</TableHead>
+                                            <TableHead>Description</TableHead>
+                                            <TableHead className="text-right">Debit</TableHead>
+                                            <TableHead className="text-right">Credit</TableHead>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </div>
-                     )}
-                     <DialogFooter>
-                        <Button onClick={handleDownloadGeneralLedger}>
-                            <Download className="mr-2 h-4 w-4" /> Download as Excel
-                        </Button>
-                     </DialogFooter>
-                </DialogContent>
-            </Dialog>
-            <style jsx global>{\`
-                @media print {
-                  body > *:not(.print-container *) {
-                    display: none;
-                  }
-                  .print-container {
-                    display: block;
-                    position: absolute;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                  }
-                }
-            \`}</style>
-        </div>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {generalLedgerData.map((item, index) => (
+                                            <TableRow key={index}>
+                                                <TableCell>{item['Date']}</TableCell>
+                                                <TableCell className="font-mono">{item['Account Number']}</TableCell>
+                                                <TableCell>{item['Transaction Description']}</TableCell>
+                                                <TableCell className="text-right font-mono">{item.Debit > 0 ? formatCurrency(item.Debit) : '-'}</TableCell>
+                                                <TableCell className="text-right font-mono">{item.Credit > 0 ? formatCurrency(item.Credit) : '-'}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        )}
+                        <DialogFooter>
+                            <Button onClick={handleDownloadGeneralLedger}>
+                                <Download className="mr-2 h-4 w-4" /> Download as Excel
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+                <style jsx global>{\`
+                    @media print {
+                    body > *:not(.print-container *) {
+                        display: none;
+                    }
+                    .print-container {
+                        display: block;
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                    }
+                    }
+                \`}</style>
+            </div>
+        </>
     )
 }
