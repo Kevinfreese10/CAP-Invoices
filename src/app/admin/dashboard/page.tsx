@@ -36,13 +36,6 @@ import NewTaskEmail from '@/components/emails/NewTaskEmail';
 
 const db = getFirestore(firebaseApp);
 
-type UnansweredQuestion = {
-  id: string;
-  question: string;
-  timestamp: Date;
-};
-
-
 const departments = ['Accounting and Tax', 'Administration', 'CAP'] as const;
 
 const taskStatuses: Task['status'][] = ['To-Do', 'In Progress', 'Review', 'Done'];
@@ -576,7 +569,6 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
 export default function AdminDashboardPage() {
     const { user } = useAuth();
     const [tasks, setTasks] = useState<Task[]>([]);
-    const [unansweredQuestions, setUnansweredQuestions] = useState<UnansweredQuestion[]>([]);
     const [allStaff, setAllStaff] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -599,18 +591,6 @@ export default function AdminDashboardPage() {
             const staffSnapshot = await getDocs(staffQuery);
             const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
             setAllStaff(fetchedStaff);
-
-            // Fetch unanswered questions
-            if (user?.role === 'admin') {
-                const questionsQuery = query(collection(db, 'unansweredQuestions'), orderBy('timestamp', 'desc'));
-                const questionsSnapshot = await getDocs(questionsQuery);
-                const fetchedQuestions = questionsSnapshot.docs.map(doc => ({
-                    id: doc.id,
-                    question: doc.data().question,
-                    timestamp: doc.data().timestamp.toDate(),
-                }));
-                setUnansweredQuestions(fetchedQuestions);
-            }
         } catch (error) {
             console.error("Error fetching dashboard data:", error);
             toast({ title: "Error", description: "Could not fetch dashboard data.", variant: "destructive" });
@@ -952,48 +932,6 @@ export default function AdminDashboardPage() {
                 </div>
             </div>
             
-            {user?.role === 'admin' && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>AI Training</CardTitle>
-                        <CardDescription>
-                            Review questions that users have asked which the AI could not answer.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {unansweredQuestions.length > 0 ? (
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Question</TableHead>
-                                        <TableHead>Asked</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {unansweredQuestions.slice(0, 3).map((q) => (
-                                        <TableRow key={q.id}>
-                                            <TableCell className="font-medium max-w-[300px] truncate">{q.question}</TableCell>
-                                            <TableCell>{format(q.timestamp, 'dd MMM yyyy')}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        ) : (
-                            <div className="flex flex-col items-center justify-center text-center p-8 h-full">
-                                <BrainCircuit className="h-10 w-10 text-muted-foreground mb-4" />
-                                <h3 className="font-semibold">All Caught Up!</h3>
-                                <p className="text-sm text-muted-foreground">There are no unanswered questions right now.</p>
-                            </div>
-                        )}
-                        <Button asChild variant="secondary" className="w-full mt-4">
-                            <Link href="/admin/knowledge-base">
-                                Go to AI Training Center
-                            </Link>
-                        </Button>
-                    </CardContent>
-                </Card>
-            )}
-
              <Separator />
 
             <div className="space-y-8">
@@ -1101,6 +1039,7 @@ export default function AdminDashboardPage() {
     
 
     
+
 
 
 
