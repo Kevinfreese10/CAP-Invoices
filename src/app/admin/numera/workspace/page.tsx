@@ -16,7 +16,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { User, ChartOfAccount, VatType, Supplier, ImportedTransaction, AllocationRule, AllocatedTransaction } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, query, where, writeBatch, Timestamp, orderBy } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, query, where, writeBatch, Timestamp, orderBy, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -45,6 +45,176 @@ import { Switch } from '@/components/ui/switch';
 import { useRouter } from 'next/navigation';
 
 const db = getFirestore(firebaseApp);
+
+const accountSections: ChartOfAccount['section'][] = ['Income Statement', 'Balance Sheet'];
+
+const accountFormSchema = z.object({
+  id: z.string().optional(),
+  accountNumber: z.string().regex(/^\d{4}\/\d{3}$/, 'Account number must be in XXXX/XXX format.'),
+  description: z.string().min(3, 'Description is required.'),
+  section: z.enum(accountSections),
+});
+
+function AccountForm({ account, onSubmit, onCancel }: { account: ChartOfAccount | null, onSubmit: (data: any) => void, onCancel: () => void }) {
+    const form = useForm<z.infer<typeof accountFormSchema>>({
+        resolver: zodResolver(accountFormSchema),
+        defaultValues: {
+            id: account?.id || '',
+            accountNumber: account?.accountNumber || '',
+            description: account?.description || '',
+            section: account?.section || 'Income Statement',
+        },
+    });
+
+    const handleSubmit = (values: z.infer<typeof accountFormSchema>) => {
+        onSubmit(values);
+    };
+    
+    return (
+        <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+                <FormField control={form.control} name="accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input placeholder="e.g. 1000/000" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="section" render={({ field }) => ( <FormItem><FormLabel>Section</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a section" /></SelectTrigger></FormControl><SelectContent>{accountSections.map(section => <SelectItem key={section} value={section}>{section}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                
+                <div className="flex justify-end gap-2">
+                    <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
+                    <Button type="submit">Save Account</Button>
+                </div>
+            </form>
+        </Form>
+    )
+}
+
+function ChartOfAccountsTab({ client, onUpdate }: { client: User, onUpdate: (updatedData: Partial<User>) => Promise<void>}) {
+  const [accounts, setAccounts] = useState<ChartOfAccount[]>(client.chartOfAccounts || []);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState<ChartOfAccount | null>(null);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    setAccounts(client.chartOfAccounts || []);
+  }, [client.chartOfAccounts]);
+
+  const handleAdd = () => {
+    setSelectedAccount(null);
+    setIsFormOpen(true);
+  };
+
+  const handleEdit = (account: ChartOfAccount) => {
+    setSelectedAccount(account);
+    setIsFormOpen(true);
+  };
+  
+  const handleDelete = async (accountId: string) => {
+    const updatedAccounts = accounts.filter(a => a.id !== accountId);
+    try {
+        await onUpdate({ chartOfAccounts: updatedAccounts });
+        setAccounts(updatedAccounts);
+        toast({ title: 'Account Deleted', variant: 'destructive' });
+    } catch(e) {
+        toast({ title: 'Error', description: 'Could not delete the account.', variant: 'destructive' });
+    }
+  };
+
+  const handleFormSubmit = async (data: Omit<ChartOfAccount, 'id'> & {id?: string}) => {
+    let updatedAccounts;
+    if (selectedAccount) {
+      updatedAccounts = accounts.map(a => (a.id === selectedAccount.id ? { ...a, ...data, id: data.accountNumber } : a));
+    } else {
+      const newAccount = { ...data, id: data.accountNumber };
+      updatedAccounts = [...accounts, newAccount].sort((a,b) => a.accountNumber.localeCompare(b.accountNumber));
+    }
+    
+    try {
+        await onUpdate({ chartOfAccounts: updatedAccounts });
+        setAccounts(updatedAccounts);
+        toast({ title: selectedAccount ? 'Account Updated' : 'Account Created' });
+        setIsFormOpen(false);
+        setSelectedAccount(null);
+    } catch (e) {
+        toast({ title: 'Error', description: 'Could not save the account.', variant: 'destructive' });
+    }
+  };
+
+  const handleImport = async () => {
+    try {
+        await onUpdate({ chartOfAccounts: initialChartOfAccounts });
+        setAccounts(initialChartOfAccounts);
+        toast({ title: 'Import Successful', description: 'Standard chart of accounts has been imported.' });
+    } catch (e) {
+        toast({ title: 'Error', description: 'Could not import the standard chart of accounts.', variant: 'destructive' });
+    }
+  };
+
+    return (
+    <Card>
+        <CardHeader>
+            <div className="flex justify-between items-center">
+                <div>
+                    <CardTitle>Chart of Accounts</CardTitle>
+                    <CardDescription>Manage the general ledger accounts for this client.</CardDescription>
+                </div>
+                 <div className="flex gap-2">
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="outline"><Download className="mr-2 h-4 w-4" /> Import Standard</Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will replace this client's current chart of accounts with the standard template. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+                            <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleImport}>Continue</AlertDialogAction></AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                    <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+                        <DialogTrigger asChild><Button onClick={handleAdd}><PlusCircle className="mr-2 h-4 w-4" /> Add Account</Button></DialogTrigger>
+                        <DialogContent className="sm:max-w-md">
+                            <DialogHeader><DialogTitle>{selectedAccount ? 'Edit Account' : 'Create Account'}</DialogTitle></DialogHeader>
+                            <AccountForm account={selectedAccount} onSubmit={handleFormSubmit} onCancel={() => setIsFormOpen(false)} />
+                        </DialogContent>
+                    </Dialog>
+                 </div>
+            </div>
+        </CardHeader>
+        <CardContent>
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead>Account Number</TableHead>
+                        <TableHead>Description</TableHead>
+                        <TableHead>Section</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {accounts.map(account => (
+                        <TableRow key={account.id}>
+                            <TableCell className="font-mono">{account.accountNumber}</TableCell>
+                            <TableCell className="font-medium">{account.description}</TableCell>
+                            <TableCell>{account.section}</TableCell>
+                            <TableCell className="text-right">
+                                <AlertDialog>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                                        <DropdownMenuContent>
+                                            <DropdownMenuItem onClick={() => handleEdit(account)}>Edit</DropdownMenuItem>
+                                            <AlertDialogTrigger asChild><DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem></AlertDialogTrigger>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will permanently delete the account: {account.description}.</AlertDialogDescription></AlertDialogHeader>
+                                        <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDelete(account.id)}>Delete</AlertDialogAction></AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </TableCell>
+                        </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
+        </CardContent>
+    </Card>
+    );
+}
+
 
 type TrialBalanceReportData = {
     clientName: string;
@@ -79,6 +249,7 @@ export default function NumeraWorkspacePage() {
     const [generalLedgerData, setGeneralLedgerData] = useState<GeneralLedgerReportData | null>(null);
     const [isTrialBalanceOpen, setIsTrialBalanceOpen] = useState(false);
     const [isGeneralLedgerOpen, setIsGeneralLedgerOpen] = useState(false);
+    const { toast } = useToast();
 
     useEffect(() => {
         const clientData = sessionStorage.getItem('numera-active-client');
@@ -93,22 +264,32 @@ export default function NumeraWorkspacePage() {
         }
     }, [router]);
     
+    const fetchAllocatedTransactions = async () => {
+        if (activeClient) {
+            const q = query(collection(db, `clients/${activeClient.id}/allocatedTransactions`), orderBy('date'));
+            const querySnapshot = await getDocs(q);
+            const transactions = querySnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data(),
+                date: (doc.data().date.toDate ? doc.data().date.toDate() : new Date(doc.data().date)).toISOString(),
+            } as AllocatedTransaction));
+            setAllocatedTransactions(transactions);
+        }
+    };
+    
     useEffect(() => {
-        const fetchAllocatedTransactions = async () => {
-            if (activeClient) {
-                const q = query(collection(db, `clients/${activeClient.id}/allocatedTransactions`), orderBy('date'));
-                const querySnapshot = await getDocs(q);
-                const transactions = querySnapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data(),
-                    date: (doc.data().date.toDate ? doc.data().date.toDate() : new Date(doc.data().date)).toISOString(),
-                } as AllocatedTransaction));
-                setAllocatedTransactions(transactions);
-            }
-        };
-
         fetchAllocatedTransactions();
     }, [activeClient]);
+
+    const updateClientData = async (updatedData: Partial<User>) => {
+        if (!activeClient) return;
+        const clientRef = doc(db, 'clients', activeClient.id);
+        await updateDoc(clientRef, updatedData);
+        
+        const newActiveClient = { ...activeClient, ...updatedData };
+        setActiveClient(newActiveClient);
+        sessionStorage.setItem('numera-active-client', JSON.stringify(newActiveClient));
+    };
 
     const handleGenerateTrialBalance = () => {
         if (!fromDate || !toDate) {
@@ -236,15 +417,7 @@ export default function NumeraWorkspacePage() {
                     </Card>
                  </TabsContent>
                  <TabsContent value="charts-of-accounts">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Chart of Accounts</CardTitle>
-                            <CardDescription>Manage the general ledger accounts for this client.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <p className="text-muted-foreground">Chart of accounts management is under construction.</p>
-                        </CardContent>
-                    </Card>
+                    <ChartOfAccountsTab client={activeClient} onUpdate={updateClientData} />
                  </TabsContent>
                  <TabsContent value="allocation-rules">
                      <Card>
