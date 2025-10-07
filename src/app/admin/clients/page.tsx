@@ -25,7 +25,7 @@ import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CalendarIcon } from 'lucide-react';
-import { format, addMonths, set, getMonth, getYear, lastDayOfMonth, isPast, addYears, setMonth } from 'date-fns';
+import { format, addMonths, set, getMonth, getYear, lastDayOfMonth, isPast, addYears, setMonth, isToday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Calendar } from '@/components/ui/calendar';
 import { sendEmail } from '@/lib/email';
@@ -568,9 +568,7 @@ export default function AdminClientsPage() {
     // EMP201
     if (client.submitsEmp201) {
         let emp201Date = set(now, { date: 7 });
-        if(isPast(emp201Date)) emp201Date = addMonths(emp201Date, 1);
-        
-        while (isPast(emp201Date)) {
+        if (isPast(emp201Date) && !isToday(emp201Date)) {
              emp201Date = addMonths(emp201Date, 1);
         }
 
@@ -652,7 +650,7 @@ export default function AdminClientsPage() {
   const handleFormSubmit = async (data: Omit<User, 'id' | 'role'>) => {
     if (!currentUser) return;
     
-    const clientData: Omit<Client, 'id'> = {
+    const clientData: Partial<Client> = {
         ...data,
         financialsDueDate: data.financialsDueDate || null,
         managementAccountsDueDate: data.managementAccountsDueDate || null,
