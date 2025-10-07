@@ -1,3 +1,4 @@
+
 'use client';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
@@ -42,7 +43,6 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { Switch } from '@/components/ui/switch';
 import { useRouter } from 'next/navigation';
-import { allocationRules as masterAllocationRules } from '@/lib/allocation-rules';
 
 const db = getFirestore(firebaseApp);
 
