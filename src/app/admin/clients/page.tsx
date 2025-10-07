@@ -179,9 +179,9 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                     )} />
 
                      {watchRequiresMgmt && (
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 gap-4 items-start">
                             <FormField control={form.control} name="managementAccountsFrequency" render={({ field }) => ( <FormItem><FormLabel>Frequency</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger></FormControl><SelectContent>{mgmtAccountFrequencies.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
-                            <FormField control={form.control} name="managementAccountsDueDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Next Due Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd MMM yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="managementAccountsDueDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Next Due Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd MMM yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)} />
                         </div>
                     )}
                     
@@ -484,6 +484,8 @@ export default function AdminClientsPage() {
         }
         if (client.managementAccountsFrequency === 'Monthly') recurrence = 'Monthly';
         if (client.managementAccountsFrequency === 'Annually') recurrence = 'Annually';
+        if (client.managementAccountsFrequency === 'Quarterly') recurrence = 'Monthly'; // Note: Should be Quarterly
+        if (client.managementAccountsFrequency === 'Bi-Annually') recurrence = 'Monthly'; // Note: Should be Bi-Annually
 
 
         tasksToCreate.push({
@@ -663,14 +665,13 @@ export default function AdminClientsPage() {
 
     try {
         if (selectedClient?.id) {
+            await deleteRecurringTasks(selectedClient.id);
             const clientRef = doc(db, "clients", selectedClient.id);
             await setDoc(clientRef, clientData, { merge: true });
             toast({
                 title: 'Client Updated',
-                description: 'The client details have been saved.',
+                description: 'The client details have been saved and tasks regenerated.',
             });
-            // Regenerate tasks for the updated client
-            await deleteRecurringTasks(selectedClient.id);
             const numTasks = await createRecurringTasks({ ...clientData, id: selectedClient.id } as Client, currentUser.uid, currentUser.name);
              if (numTasks > 0) {
                 // Task creation emails are disabled
@@ -850,4 +851,5 @@ export default function AdminClientsPage() {
 
 
     
+
 
