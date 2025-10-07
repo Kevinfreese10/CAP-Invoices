@@ -43,8 +43,53 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { Switch } from '@/components/ui/switch';
 import { useRouter } from 'next/navigation';
+import { allocationRules as masterAllocationRules } from '@/lib/allocation-rules';
 
 const db = getFirestore(firebaseApp);
+
+const months = [ "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" ];
+
+const clientFormSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().min(2, 'Name is required.'),
+  contactPerson: z.string().optional(),
+  email: z.string().email('A valid email is required.'),
+  yearEnd: z.string().min(1, 'Financial year end is required.'),
+});
+
+function ClientForm({ client, onSubmit, onCancel }: { client: User | null, onSubmit: (data: any) => void, onCancel: () => void }) {
+    const form = useForm<z.infer<typeof clientFormSchema>>({
+        resolver: zodResolver(clientFormSchema),
+        defaultValues: {
+            id: client?.id || '',
+            name: client?.name || '',
+            contactPerson: client?.contactPerson || '',
+            email: client?.email || '',
+            yearEnd: client?.yearEnd || 'December',
+        },
+    });
+
+    const handleSubmit = (values: z.infer<typeof clientFormSchema>) => {
+        onSubmit(values);
+    };
+    
+    return (
+        <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+                <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Client / Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="contactPerson" render={({ field }) => ( <FormItem><FormLabel>Contact Person</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+
+                <DialogFooter>
+                    <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
+                    <Button type="submit">Save Client</Button>
+                </DialogFooter>
+            </form>
+        </Form>
+    )
+}
+
 
 export default function NumeraPage() {
     const [clients, setClients] = useState<User[]>([]);
@@ -84,32 +129,68 @@ export default function NumeraPage() {
         setSelectedClient(client);
         setIsClientFormOpen(true);
     };
+    
+    const handleClientFormSubmit = async (data: z.infer<typeof clientFormSchema>) => {
+        const { id, ...clientData } = data;
+        
+        try {
+            if (id) { // Editing existing client
+                const clientRef = doc(db, "clients", id);
+                await setDoc(clientRef, { ...clientData, source: 'Numera' }, { merge: true });
+                toast({ title: 'Client Updated', description: 'The client details have been saved.' });
+            } else { // Creating new client
+                 const masterRulesSnapshot = await getDocs(collection(db, "allocationRules"));
+                 const masterRules = masterRulesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AllocationRule));
+
+                const newClientRef = doc(collection(db, 'clients'));
+                await setDoc(newClientRef, {
+                    ...clientData,
+                    id: newClientRef.id,
+                    source: 'Numera',
+                    chartOfAccounts: initialChartOfAccounts,
+                    allocationRules: masterRules,
+                });
+                toast({ title: 'Client Created', description: 'The new client has been added to Numera.' });
+            }
+            fetchClients();
+            setIsClientFormOpen(false);
+            setSelectedClient(null);
+        } catch(error) {
+             console.error("Error saving client:", error);
+             toast({ title: 'Error', description: 'Could not save the client.', variant: 'destructive'});
+        }
+    }
 
     const handleSelectClient = (client: User) => {
         sessionStorage.setItem('numera-active-client', JSON.stringify(client));
         router.push('/admin/numera/workspace');
     }
 
-    const formatDate = (date: any) => {
-        if (!date) return 'N/A';
-        if (date.toDate) {
-          return format(date.toDate(), 'dd/MM/yyyy');
-        }
-        const d = new Date(date);
-        if (d instanceof Date && !isNaN(d.getTime())) {
-          return format(d, 'dd/MM/yyyy');
-        }
-        return 'Invalid Date';
-    };
-
     return (
         <div className="space-y-8">
             <div className="flex items-center justify-between">
                 <h1 className="text-3xl font-bold tracking-tight">Numera Accounting</h1>
-                <Button onClick={handleAddClient}>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Create Client
-                </Button>
+                <Dialog open={isClientFormOpen} onOpenChange={setIsClientFormOpen}>
+                    <DialogTrigger asChild>
+                        <Button onClick={handleAddClient}>
+                            <PlusCircle className="mr-2 h-4 w-4" />
+                            Create Client
+                        </Button>
+                    </DialogTrigger>
+                     <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle>{selectedClient ? 'Edit Client' : 'Create New Numera Client'}</DialogTitle>
+                            <DialogDescription>
+                                {selectedClient ? 'Update the details for this client.' : 'Create a new client to manage in Numera.'}
+                            </DialogDescription>
+                        </DialogHeader>
+                        <ClientForm 
+                            client={selectedClient} 
+                            onSubmit={handleClientFormSubmit}
+                            onCancel={() => setIsClientFormOpen(false)}
+                        />
+                    </DialogContent>
+                </Dialog>
             </div>
             
             <Card>
@@ -156,9 +237,10 @@ export default function NumeraPage() {
                         </TableCell>
                         <TableCell>{client.contactPerson}</TableCell>
                         <TableCell>{client.email}</TableCell>
-                        <TableCell>{formatDate(client.yearEnd)}</TableCell>
+                        <TableCell>{client.yearEnd}</TableCell>
                         <TableCell className="text-right">
                             <div className="flex gap-2 justify-end">
+                                <Button size="sm" variant="secondary" onClick={() => handleEditClient(client)}>Edit</Button>
                                 <Button size="sm" onClick={() => handleSelectClient(client)}>Select</Button>
                             </div>
                         </TableCell>
