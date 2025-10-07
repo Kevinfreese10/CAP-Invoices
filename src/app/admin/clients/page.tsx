@@ -134,7 +134,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                     <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Client / Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                     <FormField control={form.control} name="contactPerson" render={({ field }) => ( <FormItem><FormLabel>Contact Person Name (Optional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                     <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                    <FormField control={form.control} name="cellNumber" render={({ field }) => ( <FormItem><FormLabel>Cell Number</FormLabel><FormControl><Input {...field} placeholder="e.g. 0821234567" /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="cellNumber" render={({ field }) => ( <FormItem><FormLabel>Cell Number</FormLabel><FormControl><Input placeholder="e.g. 0821234567" {...field} /></FormControl><FormMessage /></FormItem>)} />
                     <FormField control={form.control} name="status" render={({ field }) => ( <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{clientStatuses.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                  </div>
 
@@ -181,7 +181,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                      {watchRequiresMgmt && (
                         <div className="grid grid-cols-2 gap-4 items-start">
                             <FormField control={form.control} name="managementAccountsFrequency" render={({ field }) => ( <FormItem><FormLabel>Frequency</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger></FormControl><SelectContent>{mgmtAccountFrequencies.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
-                            <FormField control={form.control} name="managementAccountsDueDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Next Due Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd MMM yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="managementAccountsDueDate" render={({ field }) => ( <FormItem><FormLabel>Next Due Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "dd MMM yyyy")) : (<span>Pick a date</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)} />
                         </div>
                     )}
                     
@@ -482,10 +482,11 @@ export default function AdminClientsPage() {
                 mgmtDueDate = addYears(mgmtDueDate, 1);
             }
         }
+        
         if (client.managementAccountsFrequency === 'Monthly') recurrence = 'Monthly';
         if (client.managementAccountsFrequency === 'Annually') recurrence = 'Annually';
-        if (client.managementAccountsFrequency === 'Quarterly') recurrence = 'Monthly'; // Note: Should be Quarterly
-        if (client.managementAccountsFrequency === 'Bi-Annually') recurrence = 'Monthly'; // Note: Should be Bi-Annually
+        if (client.managementAccountsFrequency === 'Quarterly') recurrence = 'Quarterly';
+        if (client.managementAccountsFrequency === 'Bi-Annually') recurrence = 'Bi-Annually';
 
 
         tasksToCreate.push({
@@ -851,5 +852,6 @@ export default function AdminClientsPage() {
 
 
     
+
 
 
