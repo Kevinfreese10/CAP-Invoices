@@ -755,7 +755,7 @@ export default function NumeraWorkspacePage() {
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
-                <style jsx global>{\`
+                <style jsx global>{`
                     @media print {
                     body > *:not(.print-container *) {
                         display: none;
@@ -768,7 +768,7 @@ export default function NumeraWorkspacePage() {
                         width: 100%;
                     }
                     }
-                \`}</style>
+                `}</style>
             </div>
         </>
     )
