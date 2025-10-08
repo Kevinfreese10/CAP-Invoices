@@ -2,7 +2,7 @@
 "use client"
 
 import * as React from "react"
-import { format } from "date-fns"
+import { format, startOfMonth, endOfMonth, startOfYear, endOfYear } from "date-fns"
 import { Calendar as CalendarIcon } from "lucide-react"
 import { DateRange } from "react-day-picker"
 
@@ -14,53 +14,116 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 export function DateRangePicker({
   className,
 }: React.HTMLAttributes<HTMLDivElement>) {
-  const [date, setDate] = React.useState<DateRange | undefined>({
-    from: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-    to: new Date(),
-  })
+  const [date, setDate] = React.useState<DateRange | undefined>(undefined);
+  const [preset, setPreset] = React.useState<string>("all");
+
+  const handlePresetChange = (value: string) => {
+    setPreset(value);
+    const now = new Date();
+    switch (value) {
+      case "all":
+        setDate(undefined);
+        break;
+      case "this_month":
+        setDate({ from: startOfMonth(now), to: endOfMonth(now) });
+        break;
+      case "this_year":
+        setDate({ from: startOfYear(now), to: endOfYear(now) });
+        break;
+      case "custom":
+        // Keep current date or set a default if none
+        if (!date) {
+            setDate({ from: startOfMonth(now), to: endOfMonth(now) });
+        }
+        break;
+    }
+  };
 
   return (
-    <div className={cn("grid gap-2", className)}>
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            id="date"
-            variant={"outline"}
-            className={cn(
-              "w-[300px] justify-start text-left font-normal",
-              !date && "text-muted-foreground"
-            )}
-          >
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            {date?.from ? (
-              date.to ? (
-                <>
-                  {format(date.from, "LLL dd, y")} -{" "}
-                  {format(date.to, "LLL dd, y")}
-                </>
-              ) : (
-                format(date.from, "LLL dd, y")
-              )
-            ) : (
-              <span>Pick a date</span>
-            )}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
-          <Calendar
-            initialFocus
-            mode="range"
-            defaultMonth={date?.from}
-            selected={date}
-            onSelect={setDate}
-            numberOfMonths={2}
-          />
-        </PopoverContent>
-      </Popover>
+    <div className={cn("grid grid-cols-1 md:grid-cols-2 gap-2 items-end", className)}>
+        <div className="space-y-2">
+            <p className="text-sm font-medium">Date Range</p>
+             <Select value={preset} onValueChange={handlePresetChange}>
+                <SelectTrigger>
+                    <SelectValue placeholder="Select a date range" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">All Dates</SelectItem>
+                    <SelectItem value="this_month">This Month</SelectItem>
+                    <SelectItem value="this_year">This Year</SelectItem>
+                    <SelectItem value="custom">Custom Dates</SelectItem>
+                </SelectContent>
+            </Select>
+        </div>
+        {preset === "custom" && (
+             <div className="flex items-end gap-2">
+                <div className="grid gap-1">
+                    <span className="text-sm font-medium">From:</span>
+                    <Popover>
+                        <PopoverTrigger asChild>
+                        <Button
+                            id="date-from"
+                            variant={"outline"}
+                            className={cn(
+                            "w-[150px] justify-start text-left font-normal",
+                            !date?.from && "text-muted-foreground"
+                            )}
+                        >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {date?.from ? format(date.from, "dd/MM/yyyy") : <span>Pick a date</span>}
+                        </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                            initialFocus
+                            mode="single"
+                            selected={date?.from}
+                            onSelect={(day) => setDate(prev => ({ from: day, to: prev?.to }))}
+                            numberOfMonths={1}
+                        />
+                        </PopoverContent>
+                    </Popover>
+                </div>
+                <div className="grid gap-1">
+                     <span className="text-sm font-medium">To:</span>
+                     <Popover>
+                        <PopoverTrigger asChild>
+                        <Button
+                            id="date-to"
+                            variant={"outline"}
+                            className={cn(
+                            "w-[150px] justify-start text-left font-normal",
+                            !date?.to && "text-muted-foreground"
+                            )}
+                        >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {date?.to ? format(date.to, "dd/MM/yyyy") : <span>Pick a date</span>}
+                        </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                            initialFocus
+                            mode="single"
+                            selected={date?.to}
+                            onSelect={(day) => setDate(prev => ({ from: prev?.from, to: day }))}
+                            numberOfMonths={1}
+                        />
+                        </PopoverContent>
+                    </Popover>
+                </div>
+             </div>
+        )}
     </div>
   )
 }
