@@ -198,7 +198,13 @@ export default function InboxPage() {
                                                 {email.isProcessed && <Badge variant="success" className="text-xs">Processed</Badge>}
                                             </div>
                                             <p className="text-sm truncate">{email.subject}</p>
-                                            <p className="text-xs text-muted-foreground">{format(new Date(email.date), 'dd MMM yyyy, HH:mm')}</p>
+                                            <div className="flex justify-between items-center text-xs text-muted-foreground">
+                                                <span>{format(new Date(email.date), 'dd MMM yyyy, HH:mm')}</span>
+                                                <div className="flex items-center gap-1">
+                                                    <Paperclip className="h-3 w-3" />
+                                                    <span>{email.attachments.length}</span>
+                                                </div>
+                                            </div>
                                         </button>
                                     ))}
                                 </div>
@@ -231,16 +237,13 @@ export default function InboxPage() {
                                         </>
                                     )}
                                 </div>
-                                <ScrollArea className="flex-grow">
-                                    <div
-                                        className="p-4 prose prose-sm max-w-none"
-                                        dangerouslySetInnerHTML={{ __html: selectedEmail.body }}
-                                    />
-                                </ScrollArea>
+                                <div className="p-4 text-sm text-muted-foreground">
+                                    Email body preview has been removed to simplify the interface. Select an email to see its attachments.
+                                </div>
                             </div>
                         ) : (
                             <div className="flex items-center justify-center h-full text-muted-foreground">
-                                { !isLoading && !error && <p>Select an email to read</p> }
+                                { !isLoading && !error && <p>Select an email to view attachments</p> }
                             </div>
                         )}
                     </div>
@@ -249,5 +252,3 @@ export default function InboxPage() {
         </div>
     );
 }
-
-    
