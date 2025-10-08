@@ -7,8 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { useState } from "react";
+import { DateRange } from "react-day-picker";
 
 export default function AccountTransactionsReportPage() {
+    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+
     return (
         <Card>
             <CardHeader>
@@ -21,7 +25,7 @@ export default function AccountTransactionsReportPage() {
                 <div className="space-y-6 max-w-4xl mx-auto">
                     <div className="grid grid-cols-1 md:grid-cols-[150px_1fr] items-center gap-4">
                         <Label>Date Range</Label>
-                        <DateRangePicker />
+                        <DateRangePicker onDateChange={setDateRange} />
                     </div>
                      <div className="grid grid-cols-1 md:grid-cols-[150px_1fr] items-center gap-4">
                         <Label>Account</Label>
