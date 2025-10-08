@@ -110,11 +110,6 @@ function TrialBalanceReport({ client }: { client: User }) {
 
     return (
         <div className="max-h-[70vh] overflow-y-auto">
-            <div className="text-center my-4">
-                <h3 className="font-bold text-lg">{client.companyName || client.name}</h3>
-                <p className="font-medium">Trial Balance</p>
-                <p className="text-sm text-muted-foreground">As at {reportDate}</p>
-            </div>
             <Table>
                 <TableHeader>
                     <TableRow>
@@ -199,6 +194,12 @@ export default function TrialBalancePage() {
                                 <Button>View Trial Balance</Button>
                             </DialogTrigger>
                             <DialogContent className="sm:max-w-2xl">
+                                <DialogHeader className="text-center mb-4">
+                                  <DialogTitle className="text-lg">{client.companyName || client.name}</DialogTitle>
+                                  <DialogDescription>
+                                    Trial Balance as at {format(new Date(), "dd MMMM yyyy")}
+                                  </DialogDescription>
+                                </DialogHeader>
                                 <TrialBalanceReport client={client} />
                             </DialogContent>
                         </Dialog>
