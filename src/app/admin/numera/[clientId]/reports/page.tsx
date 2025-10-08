@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
+import React from "react";
 
 export default function ReportsPage({ params }: { params: { clientId: string }}) {
   const reports = [
@@ -28,14 +28,15 @@ export default function ReportsPage({ params }: { params: { clientId: string }})
             <Card key={report.title}>
               <CardHeader>
                 <CardTitle className="text-lg">{report.title}</CardTitle>
+                <CardDescription>{report.description}</CardDescription>
               </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">{report.description}</p>
+              <CardContent className="space-y-4">
+                  <DateRangePicker />
               </CardContent>
               <CardContent>
                 <Dialog>
                     <DialogTrigger asChild>
-                        <Button variant="outline">
+                        <Button>
                             View Report <ArrowRight className="ml-2 h-4 w-4" />
                         </Button>
                     </DialogTrigger>
@@ -43,17 +44,11 @@ export default function ReportsPage({ params }: { params: { clientId: string }})
                         <DialogHeader>
                             <DialogTitle>{report.title}</DialogTitle>
                             <DialogDescription>
-                                Select a date range to generate the report.
+                                Report generated for the selected date range.
                             </DialogDescription>
                         </DialogHeader>
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-4">
-                                <DateRangePicker />
-                                <Button>Generate Report</Button>
-                            </div>
-                            <div className="border rounded-lg p-4 min-h-[300px]">
-                                {report.component}
-                            </div>
+                        <div className="border rounded-lg p-4 min-h-[300px]">
+                            {report.component}
                         </div>
                     </DialogContent>
                 </Dialog>
