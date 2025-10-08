@@ -10,6 +10,8 @@ import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2 } from "lucide-react";
 import { useParams } from 'next/navigation';
+import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { DateRange } from "react-day-picker";
 
 const db = getFirestore(firebaseApp);
 
@@ -19,6 +21,7 @@ export default function GeneralLedgerPage() {
     const [client, setClient] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [accounts, setAccounts] = useState<ChartOfAccount[]>([]);
+    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
     useEffect(() => {
         const fetchClientData = async () => {
@@ -54,17 +57,7 @@ export default function GeneralLedgerPage() {
                      <div className="space-y-6 max-w-4xl">
                         <div className="grid grid-cols-1 md:grid-cols-[150px_1fr] items-center gap-4">
                             <Label>Date Range</Label>
-                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <Select>
-                                    <SelectTrigger><SelectValue placeholder="Monthly" /></SelectTrigger>
-                                    <SelectContent><SelectItem value="monthly">Monthly</SelectItem></SelectContent>
-                                </Select>
-                                <Select>
-                                    <SelectTrigger><SelectValue placeholder="Current Month" /></SelectTrigger>
-                                    <SelectContent><SelectItem value="current_month">Current Month</SelectItem></SelectContent>
-                                </Select>
-                                <p className="text-sm text-muted-foreground sm:col-span-2">01/10/2025 to 31/10/2025</p>
-                            </div>
+                            <DateRangePicker onDateChange={setDateRange} />
                         </div>
                          <div className="grid grid-cols-1 md:grid-cols-[150px_1fr] items-center gap-4">
                             <Label>Account</Label>
