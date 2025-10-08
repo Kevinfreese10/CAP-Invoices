@@ -5,10 +5,12 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, orderBy, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Banknote } from 'lucide-react';
+import { Loader2, Banknote, ChevronDown } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ExtractedInvoice } from '@/lib/types';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 const db = getFirestore(firebaseApp);
 
@@ -67,42 +69,47 @@ function PaymentBatchTable({ title, invoices, totalAmount }: { title: string, in
                     </TableHeader>
                     <TableBody>
                         {groupedBySupplier.map((group) => (
-                           <Accordion type="single" collapsible key={group.supplier}>
-                               <AccordionItem value={group.supplier} className="border-b-0">
-                                   <TableRow className="border-b hover:bg-transparent">
+                           <Collapsible asChild key={group.supplier} >
+                                <React.Fragment>
+                                    <TableRow>
                                         <TableCell className="font-medium">
-                                            <AccordionTrigger className="p-0 hover:no-underline">{group.supplier}</AccordionTrigger>
+                                            <CollapsibleTrigger asChild>
+                                                 <Button variant="ghost" className="p-0 hover:bg-transparent -ml-2">
+                                                    <ChevronDown className="h-4 w-4 mr-2 transition-transform duration-200 [&[data-state=open]]:-rotate-90" />
+                                                    {group.supplier}
+                                                </Button>
+                                            </CollapsibleTrigger>
                                         </TableCell>
                                         <TableCell className="text-right font-mono font-semibold">{formatPrice(group.totalAmount)}</TableCell>
-                                   </TableRow>
-                                   <AccordionContent asChild>
-                                      <tr>
-                                        <td colSpan={2} className="p-0">
-                                            <div className="p-4 bg-muted/50">
-                                                <Table>
-                                                    <TableHeader>
-                                                        <TableRow>
-                                                            <TableHead className="h-8">Invoice #</TableHead>
-                                                            <TableHead className="h-8">Date</TableHead>
-                                                            <TableHead className="h-8 text-right">Amount</TableHead>
-                                                        </TableRow>
-                                                    </TableHeader>
-                                                    <TableBody>
-                                                        {group.invoices.map(invoice => (
-                                                            <TableRow key={invoice.id} className="text-xs">
-                                                                <TableCell className="py-1">{invoice.invoiceNumber}</TableCell>
-                                                                <TableCell className="py-1">{invoice.date}</TableCell>
-                                                                <TableCell className="py-1 text-right font-mono">{formatPrice(invoice.invoiceTotal)}</TableCell>
+                                    </TableRow>
+                                    <CollapsibleContent asChild>
+                                        <TableRow>
+                                            <TableCell colSpan={2} className="p-0">
+                                                <div className="p-4 bg-muted/50">
+                                                    <Table>
+                                                        <TableHeader>
+                                                            <TableRow>
+                                                                <TableHead className="h-8">Invoice #</TableHead>
+                                                                <TableHead className="h-8">Date</TableHead>
+                                                                <TableHead className="h-8 text-right">Amount</TableHead>
                                                             </TableRow>
-                                                        ))}
-                                                    </TableBody>
-                                                </Table>
-                                            </div>
-                                        </td>
-                                      </tr>
-                                   </AccordionContent>
-                               </AccordionItem>
-                           </Accordion>
+                                                        </TableHeader>
+                                                        <TableBody>
+                                                            {group.invoices.map(invoice => (
+                                                                <TableRow key={invoice.id} className="text-xs">
+                                                                    <TableCell className="py-1">{invoice.invoiceNumber}</TableCell>
+                                                                    <TableCell className="py-1">{invoice.date}</TableCell>
+                                                                    <TableCell className="py-1 text-right font-mono">{formatPrice(invoice.invoiceTotal)}</TableCell>
+                                                                </TableRow>
+                                                            ))}
+                                                        </TableBody>
+                                                    </Table>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    </CollapsibleContent>
+                                </React.Fragment>
+                           </Collapsible>
                         ))}
                     </TableBody>
                 </Table>
