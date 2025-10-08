@@ -9,20 +9,23 @@ import { User, ChartOfAccount } from "@/lib/types";
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2 } from "lucide-react";
+import { useParams } from 'next/navigation';
 
 const db = getFirestore(firebaseApp);
 
-export default function GeneralLedgerPage({ params }: { params: { clientId: string }}) {
+export default function GeneralLedgerPage() {
+    const params = useParams();
+    const clientId = params.clientId as string;
     const [client, setClient] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [accounts, setAccounts] = useState<ChartOfAccount[]>([]);
 
     useEffect(() => {
         const fetchClientData = async () => {
-            if (!params.clientId) return;
+            if (!clientId) return;
             setIsLoading(true);
             try {
-                const clientRef = doc(db, 'clients', params.clientId);
+                const clientRef = doc(db, 'clients', clientId);
                 const clientSnap = await getDoc(clientRef);
                 if (clientSnap.exists()) {
                     const clientData = { id: clientSnap.id, ...clientSnap.data() } as User;
@@ -36,7 +39,7 @@ export default function GeneralLedgerPage({ params }: { params: { clientId: stri
             }
         };
         fetchClientData();
-    }, [params.clientId]);
+    }, [clientId]);
     
     return (
         <div>
