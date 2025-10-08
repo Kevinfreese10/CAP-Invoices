@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview An AI agent for suggesting transaction allocations.
@@ -10,6 +11,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { allVatTypes } from '@/lib/vat-types';
+import { googleAI } from '@genkit-ai/googleai';
 
 const SuggestTransactionAllocationInputSchema = z.object({
   description: z.string().describe('The bank transaction description (e.g., "PICK N PAY RETAILERS").'),
@@ -56,7 +58,8 @@ const suggestTransactionAllocationFlow = ai.defineFlow(
     outputSchema: SuggestTransactionAllocationOutputSchema,
   },
   async (input) => {
-    const { output } = await prompt(input);
+    const { output } = await prompt(input, { model: googleAI.model('gemini-1.5-pro-latest') });
     return output!;
   }
 );
+
