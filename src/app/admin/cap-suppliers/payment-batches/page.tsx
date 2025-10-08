@@ -70,7 +70,7 @@ function PaymentBatchTable({ title, invoices, totalAmount }: { title: string, in
                     <TableBody>
                         {groupedBySupplier.map((group) => (
                            <Collapsible asChild key={group.supplier} >
-                                <React.Fragment>
+                                <>
                                     <TableRow>
                                         <TableCell className="font-medium">
                                             <CollapsibleTrigger asChild>
@@ -108,7 +108,7 @@ function PaymentBatchTable({ title, invoices, totalAmount }: { title: string, in
                                             </TableCell>
                                         </tr>
                                     </CollapsibleContent>
-                                </React.Fragment>
+                                </>
                            </Collapsible>
                         ))}
                     </TableBody>
