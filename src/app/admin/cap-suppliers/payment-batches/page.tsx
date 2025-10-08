@@ -3,13 +3,16 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { getFirestore, collection, getDocs, query, orderBy, where } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query, orderBy, where, doc, deleteDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Banknote, ChevronDown } from 'lucide-react';
+import { Loader2, Banknote, ChevronDown, Trash2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ExtractedInvoice } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+
 
 const db = getFirestore(firebaseApp);
 
@@ -19,7 +22,7 @@ type SupplierGroup = {
     invoices: ExtractedInvoice[];
 };
 
-function PaymentBatchTable({ title, invoices, totalAmount }: { title: string, invoices: ExtractedInvoice[], totalAmount: number }) {
+function PaymentBatchTable({ title, invoices, totalAmount, onDelete }: { title: string, invoices: ExtractedInvoice[], totalAmount: number, onDelete: (id: string) => void }) {
     const [openSupplier, setOpenSupplier] = useState<string | null>(null);
 
     const formatPrice = (price: number) => {
@@ -92,6 +95,7 @@ function PaymentBatchTable({ title, invoices, totalAmount }: { title: string, in
                                                                 <TableHead className="h-8">Invoice #</TableHead>
                                                                 <TableHead className="h-8">Date</TableHead>
                                                                 <TableHead className="h-8 text-right">Amount</TableHead>
+                                                                <TableHead className="h-8 text-right">Actions</TableHead>
                                                             </TableRow>
                                                         </TableHeader>
                                                         <TableBody>
@@ -100,6 +104,27 @@ function PaymentBatchTable({ title, invoices, totalAmount }: { title: string, in
                                                                     <TableCell className="py-1">{invoice.invoiceNumber}</TableCell>
                                                                     <TableCell className="py-1">{invoice.date}</TableCell>
                                                                     <TableCell className="py-1 text-right font-mono">{formatPrice(invoice.invoiceTotal)}</TableCell>
+                                                                    <TableCell className="py-1 text-right">
+                                                                        <AlertDialog>
+                                                                            <AlertDialogTrigger asChild>
+                                                                                <Button variant="ghost" size="icon" className="h-6 w-6">
+                                                                                    <Trash2 className="h-3 w-3 text-destructive" />
+                                                                                </Button>
+                                                                            </AlertDialogTrigger>
+                                                                            <AlertDialogContent>
+                                                                                <AlertDialogHeader>
+                                                                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                                                    <AlertDialogDescription>
+                                                                                        This action cannot be undone. This will permanently delete the invoice for {invoice.supplier} (#{invoice.invoiceNumber}).
+                                                                                    </AlertDialogDescription>
+                                                                                </AlertDialogHeader>
+                                                                                <AlertDialogFooter>
+                                                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                                    <AlertDialogAction onClick={() => onDelete(invoice.id)}>Delete</AlertDialogAction>
+                                                                                </AlertDialogFooter>
+                                                                            </AlertDialogContent>
+                                                                        </AlertDialog>
+                                                                    </TableCell>
                                                                 </TableRow>
                                                             ))}
                                                         </TableBody>
@@ -123,23 +148,36 @@ function PaymentBatchTable({ title, invoices, totalAmount }: { title: string, in
 export default function PaymentBatchesPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const { toast } = useToast();
+
+    const fetchInvoices = async () => {
+        setIsLoading(true);
+        try {
+            const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'batched_for_payment'), orderBy('createdAt', 'desc'));
+            const querySnapshot = await getDocs(q);
+            const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
+            setInvoices(fetchedInvoices);
+        } catch (error) {
+            console.error("Error fetching batched invoices:", error);
+            toast({ title: 'Error', description: 'Could not fetch batched invoices.', variant: 'destructive'});
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const fetchInvoices = async () => {
-            setIsLoading(true);
-            try {
-                const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'batched_for_payment'), orderBy('createdAt', 'desc'));
-                const querySnapshot = await getDocs(q);
-                const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
-                setInvoices(fetchedInvoices);
-            } catch (error) {
-                console.error("Error fetching batched invoices:", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
         fetchInvoices();
     }, []);
+
+    const handleDelete = async (id: string) => {
+         try {
+            await deleteDoc(doc(db, 'extractedInvoices', id));
+            toast({ title: 'Invoice Deleted', description: 'The invoice has been removed from the batch.', variant: 'destructive'});
+            fetchInvoices();
+        } catch (error) {
+            toast({ title: 'Error', description: 'Could not delete the invoice.', variant: 'destructive'});
+        }
+    }
 
     const thisWeekBatch = useMemo(() => invoices.filter(inv => inv.paymentBatch === 'this_week'), [invoices]);
     const monthEndBatch = useMemo(() => invoices.filter(inv => inv.paymentBatch === 'month_end'), [invoices]);
@@ -168,11 +206,13 @@ export default function PaymentBatchesPage() {
                         title="This Week's Payments"
                         invoices={thisWeekBatch}
                         totalAmount={thisWeekTotal}
+                        onDelete={handleDelete}
                     />
                     <PaymentBatchTable 
                         title="Month End Payments"
                         invoices={monthEndBatch}
                         totalAmount={monthEndTotal}
+                        onDelete={handleDelete}
                     />
                 </div>
             )}
