@@ -14,13 +14,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
-import { ImportedTransaction, ChartOfAccount, User } from '@/lib/types';
+import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { getFirestore, doc, updateDoc, arrayUnion, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Separator } from '@/components/ui/separator';
@@ -29,6 +29,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { Label } from '@/components/ui/label';
+import { allVatTypes } from '@/lib/vat-types';
 
 const db = getFirestore(firebaseApp);
 
@@ -92,17 +93,14 @@ function ImportDialog({
         }
 
         const mappedTransactions = transactions.map((row: any, index: number) => {
-            // Flexible date parsing
             const dateStr = row.Date || row.date || row.TransactionDate;
             const descriptionStr = row.Description || row.description;
             const amountStr = row.Amount || row.amount || row.Debit || row.Credit;
 
             if (!dateStr || !descriptionStr || amountStr === undefined) return null;
 
-            // Attempt to parse different date formats
             let date;
             if (typeof dateStr === 'number') {
-                // Excel date serial number
                 date = new Date(Math.round((dateStr - 25569) * 864e5));
             } else {
                 date = new Date(dateStr);
@@ -112,14 +110,13 @@ function ImportDialog({
                 return null;
             }
 
-            // Handle separate Debit/Credit columns
             let amount;
             if (row.Debit && !row.Credit) {
-                amount = -Math.abs(parseFloat(row.Debit));
+                amount = -Math.abs(parseFloat(String(row.Debit).replace(/,/g, '')));
             } else if (row.Credit && !row.Debit) {
-                amount = parseFloat(row.Credit);
+                amount = parseFloat(String(row.Credit).replace(/,/g, ''));
             } else {
-                amount = parseFloat(amountStr);
+                amount = parseFloat(String(amountStr).replace(/,/g, ''));
             }
 
             return {
@@ -244,6 +241,171 @@ function ImportDialog({
   );
 }
 
+function ReviewedTransactionsTab({ client, fetchClient }: { client: User | null; fetchClient: () => void }) {
+    const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
+    const { toast } = useToast();
+
+    const handleBulkDelete = async () => {
+        if (!client || selectedTransactions.length === 0) return;
+
+        const remainingTransactions = client.allocatedTransactions?.filter(
+            (tx) => !selectedTransactions.includes(tx.id)
+        ) || [];
+
+        try {
+            const clientRef = doc(db, 'clients', client.id);
+            await updateDoc(clientRef, {
+                allocatedTransactions: remainingTransactions
+            });
+            toast({ title: 'Transactions Deleted', description: `${selectedTransactions.length} transactions have been removed.` });
+            setSelectedTransactions([]);
+            await fetchClient();
+        } catch (error) {
+            toast({ title: 'Deletion Failed', description: 'Could not delete the transactions.', variant: 'destructive' });
+            console.error(error);
+        }
+    };
+
+    const handleBulkMarkAsNew = async () => {
+        if (!client || selectedTransactions.length === 0) return;
+        
+        const transactionsToMove = client.allocatedTransactions?.filter(tx => selectedTransactions.includes(tx.id)) || [];
+        const importedToMove = transactionsToMove.map(({ allocatedTo, allocatedAt, vatType, vatAmount, ...rest}) => ({
+            ...rest,
+            id: `import-${Date.now()}-${Math.random()}`
+        }));
+
+        const remainingAllocated = client.allocatedTransactions?.filter(tx => !selectedTransactions.includes(tx.id)) || [];
+        
+        try {
+            const clientRef = doc(db, 'clients', client.id);
+            await updateDoc(clientRef, {
+                allocatedTransactions: remainingAllocated,
+                importedTransactions: arrayUnion(...importedToMove),
+            });
+            toast({ title: 'Transactions Moved', description: `${selectedTransactions.length} transactions have been moved back to New Transactions.` });
+            setSelectedTransactions([]);
+            await fetchClient();
+        } catch (error) {
+            toast({ title: 'Move Failed', description: 'Could not move the transactions.', variant: 'destructive' });
+            console.error(error);
+        }
+    }
+
+
+    const allocatedTransactions = client?.allocatedTransactions || [];
+
+    return (
+        <Card>
+            <CardHeader className="p-4 border-b">
+                <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="sm" disabled={selectedTransactions.length === 0}>
+                                    Actions <MoreHorizontal className="ml-2 h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                                <DropdownMenuItem onSelect={handleBulkMarkAsNew}>Mark as New</DropdownMenuItem>
+                                <DropdownMenuSub>
+                                    <DropdownMenuSubTrigger>Move To</DropdownMenuSubTrigger>
+                                    <DropdownMenuSubContent>
+                                         <DropdownMenuItem>Other Account</DropdownMenuItem>
+                                    </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                                <Separator />
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <DropdownMenuItem className="text-destructive" onSelect={(e) => e.preventDefault()}>Delete</DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                            <AlertDialogDescription>This action cannot be undone. This will permanently delete {selectedTransactions.length} transaction(s).</AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleBulkDelete}>Delete</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="relative">
+                            <Input placeholder="Search..." className="h-8 w-40 pr-8" />
+                            <Search className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        </div>
+                    </div>
+                </div>
+            </CardHeader>
+            <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead className="w-12 p-2">
+                                    <Checkbox 
+                                        checked={selectedTransactions.length === allocatedTransactions.length && allocatedTransactions.length > 0}
+                                        onCheckedChange={(checked) => {
+                                            if (checked) {
+                                                setSelectedTransactions(allocatedTransactions.map(t => t.id));
+                                            } else {
+                                                setSelectedTransactions([]);
+                                            }
+                                        }}
+                                    />
+                                </TableHead>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Description</TableHead>
+                                <TableHead>Allocated To</TableHead>
+                                <TableHead>VAT Type</TableHead>
+                                <TableHead className="text-right">Amount</TableHead>
+                                <TableHead className="text-right">VAT Amount</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {allocatedTransactions.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={7} className="text-center h-24 text-muted-foreground">
+                                        No reviewed transactions yet.
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                allocatedTransactions.map(tx => {
+                                    const allocatedAccount = client?.chartOfAccounts?.find(a => a.id === tx.allocatedTo.value);
+                                    return (
+                                        <TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && "selected"}>
+                                             <TableCell className="p-2">
+                                                <Checkbox 
+                                                    checked={selectedTransactions.includes(tx.id)}
+                                                    onCheckedChange={(checked) => {
+                                                        setSelectedTransactions(prev => 
+                                                            checked ? [...prev, tx.id] : prev.filter(id => id !== tx.id)
+                                                        );
+                                                    }}
+                                                />
+                                            </TableCell>
+                                            <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
+                                            <TableCell>{tx.description}</TableCell>
+                                            <TableCell>{allocatedAccount ? `${allocatedAccount.accountNumber} - ${allocatedAccount.description}` : tx.allocatedTo.value}</TableCell>
+                                            <TableCell>{allVatTypes.find(v => v.name === tx.vatType)?.label || tx.vatType}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatPrice(tx.vatAmount)}</TableCell>
+                                        </TableRow>
+                                    )
+                                })
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+            </CardContent>
+        </Card>
+    )
+}
+
 
 export default function BankTransactionsPage() {
   const [client, setClient] = useState<User | null>(null);
@@ -256,6 +418,9 @@ export default function BankTransactionsPage() {
   const { toast } = useToast();
   const [activeSubTab, setActiveSubTab] = useState('all');
   const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
+  const [allocationAccountId, setAllocationAccountId] = useState<string>('');
+  const [allocationVatType, setAllocationVatType] = useState<VatType>('no_vat');
+
 
   const fetchClient = async () => {
     if (!clientId) return;
@@ -299,16 +464,6 @@ export default function BankTransactionsPage() {
         console.error(error);
     }
   };
-  
-  const handleBulkAllocate = async (accountId: string) => {
-    if (!client || selectedTransactions.length === 0) return;
-    // This is a placeholder for the actual allocation logic
-    toast({
-        title: `Allocating ${selectedTransactions.length} transactions`,
-        description: `to account ${accountId}`
-    });
-    setSelectedTransactions([]);
-  }
 
   const transactions = useMemo(() => {
     if (!client || !selectedAccountId) return [];
@@ -337,6 +492,56 @@ export default function BankTransactionsPage() {
     });
     return new Date(latestTransaction.date).toLocaleDateString('en-GB');
   }, [transactions]);
+
+  const handleBulkAllocate = async (accountId: string) => {
+    if (!client || selectedTransactions.length === 0 || !accountId) return;
+
+    const transactionsToAllocate = client.importedTransactions?.filter(tx => selectedTransactions.includes(tx.id)) || [];
+    const remainingImported = client.importedTransactions?.filter(tx => !selectedTransactions.includes(tx.id)) || [];
+    
+    const allocatedTransactions = transactionsToAllocate.map(tx => ({
+      ...tx,
+      allocatedTo: { value: accountId, type: 'account' as const },
+      vatType: 'no_vat' as VatType,
+      vatAmount: 0, // Placeholder
+      allocatedAt: new Date(),
+    }));
+
+    try {
+      const clientRef = doc(db, 'clients', client.id);
+      await updateDoc(clientRef, {
+        importedTransactions: remainingImported,
+        allocatedTransactions: arrayUnion(...allocatedTransactions),
+      });
+      toast({ title: 'Transactions Allocated', description: `${selectedTransactions.length} transactions have been allocated and moved to Reviewed.`});
+      setSelectedTransactions([]);
+      await fetchClient(); // Re-fetch to show new data
+    } catch (error) {
+      toast({ title: 'Allocation Failed', description: 'Could not allocate the transactions.', variant: 'destructive' });
+      console.error(error);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!client || selectedTransactions.length === 0) return;
+
+    const remainingTransactions = client.importedTransactions?.filter(
+      (tx) => !selectedTransactions.includes(tx.id)
+    ) || [];
+
+    try {
+      const clientRef = doc(db, 'clients', client.id);
+      await updateDoc(clientRef, {
+        importedTransactions: remainingTransactions
+      });
+      toast({ title: 'Transactions Deleted', description: `${selectedTransactions.length} transactions have been removed.` });
+      setSelectedTransactions([]);
+      await fetchClient(); // Re-fetch to show new data
+    } catch (error) {
+      toast({ title: 'Deletion Failed', description: 'Could not delete the transactions.', variant: 'destructive' });
+      console.error(error);
+    }
+  };
 
 
   return (
@@ -396,17 +601,44 @@ export default function BankTransactionsPage() {
                             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                                 <div className="flex items-center gap-2 flex-wrap">
                                     <DropdownMenu>
-                                        <DropdownMenuTrigger asChild><Button variant="outline" size="sm" disabled={selectedTransactions.length === 0}>Actions</Button></DropdownMenuTrigger>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="outline" size="sm" disabled={selectedTransactions.length === 0}>
+                                                Actions <MoreHorizontal className="ml-2 h-4 w-4" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
                                         <DropdownMenuContent>
+                                            <DropdownMenuSub>
+                                                <DropdownMenuSubTrigger>Allocate Selected</DropdownMenuSubTrigger>
+                                                <DropdownMenuSubContent className="max-h-[300px] overflow-y-auto">
+                                                    {client?.chartOfAccounts?.map(acc => (
+                                                        <DropdownMenuItem key={acc.id} onSelect={() => handleBulkAllocate(acc.id)}>
+                                                            {acc.accountNumber} - {acc.description}
+                                                        </DropdownMenuItem>
+                                                    ))}
+                                                </DropdownMenuSubContent>
+                                            </DropdownMenuSub>
                                             <DropdownMenuItem>Mark as Reviewed</DropdownMenuItem>
-                                            <DropdownMenuItem onSelect={() => handleBulkAllocate('some_account_id')}>Allocate Selected</DropdownMenuItem>
-                                            <DropdownMenuItem>Delete</DropdownMenuItem>
+                                            <Separator />
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <DropdownMenuItem className="text-destructive" onSelect={(e) => e.preventDefault()}>Delete</DropdownMenuItem>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                        <AlertDialogDescription>This action cannot be undone. This will permanently delete {selectedTransactions.length} transaction(s).</AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={handleBulkDelete}>Delete</AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
                                     <Button variant="default" size="sm" onClick={() => setIsImportDialogOpen(true)}>Import Bank Statements</Button>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <Link href="#" className="text-sm text-primary hover:underline">Shortcut Keys</Link>
                                     <div className="relative">
                                         <Input placeholder="Search..." className="h-8 w-40 pr-8" />
                                         <Search className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -423,7 +655,7 @@ export default function BankTransactionsPage() {
                                 <TableRow>
                                     <TableHead className="w-12 p-2">
                                         <Checkbox 
-                                            checked={selectedTransactions.length === filteredTransactions.length && filteredTransactions.length > 0}
+                                            checked={filteredTransactions.length > 0 && selectedTransactions.length === filteredTransactions.length}
                                             onCheckedChange={(checked) => {
                                                 if (checked) {
                                                     setSelectedTransactions(filteredTransactions.map(t => t.id));
@@ -435,10 +667,9 @@ export default function BankTransactionsPage() {
                                     </TableHead>
                                     <TableHead>Date</TableHead>
                                     <TableHead>Description</TableHead>
-                                    <TableHead>Type</TableHead>
-                                    <TableHead>Selection</TableHead>
+                                    <TableHead>Allocate To</TableHead>
+                                    <TableHead>VAT Type</TableHead>
                                     <TableHead>Reference</TableHead>
-                                    <TableHead>VAT</TableHead>
                                     <TableHead>Spent</TableHead>
                                     <TableHead>Received</TableHead>
                                     <TableHead>Actions</TableHead>
@@ -446,10 +677,10 @@ export default function BankTransactionsPage() {
                             </TableHeader>
                             <TableBody>
                                 {isLoading ? (
-                                    <TableRow><TableCell colSpan={10} className="text-center h-24"><Loader2 className="animate-spin" /></TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={9} className="text-center h-24"><Loader2 className="animate-spin" /></TableCell></TableRow>
                                 ) : filteredTransactions.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={10} className="text-center text-muted-foreground py-4">
+                                        <TableCell colSpan={9} className="text-center text-muted-foreground py-4">
                                             You have no new Bank Statement transactions to review. Import your Bank Statements or manually enter banking transactions below.
                                         </TableCell>
                                     </TableRow>
@@ -468,10 +699,9 @@ export default function BankTransactionsPage() {
                                             </TableCell>
                                             <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                             <TableCell>{tx.description}</TableCell>
-                                            <TableCell></TableCell>
                                             <TableCell>
-                                                <Select onValueChange={(value) => handleBulkAllocate(value)}>
-                                                    <SelectTrigger className="h-8">
+                                                <Select onValueChange={(value) => setAllocationAccountId(value)}>
+                                                    <SelectTrigger className="h-8 w-[200px]">
                                                         <SelectValue placeholder="Select account" />
                                                     </SelectTrigger>
                                                     <SelectContent>
@@ -483,7 +713,20 @@ export default function BankTransactionsPage() {
                                                     </SelectContent>
                                                 </Select>
                                             </TableCell>
-                                            <TableCell></TableCell>
+                                             <TableCell>
+                                                <Select onValueChange={(value) => setAllocationVatType(value as VatType)}>
+                                                    <SelectTrigger className="h-8 w-[180px]">
+                                                        <SelectValue placeholder="Select VAT type" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {allVatTypes.map(vt => (
+                                                            <SelectItem key={vt.name} value={vt.name}>
+                                                                {vt.label}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </TableCell>
                                             <TableCell></TableCell>
                                             <TableCell className="text-right">{tx.amount < 0 ? formatPrice(Math.abs(tx.amount)) : ''}</TableCell>
                                             <TableCell className="text-right">{tx.amount >= 0 ? formatPrice(tx.amount) : ''}</TableCell>
@@ -498,29 +741,25 @@ export default function BankTransactionsPage() {
                                 )}
                                  <TableRow>
                                     <TableCell className="p-2"></TableCell>
-                                    <TableCell><Input className="h-8" /></TableCell>
-                                    <TableCell><Input className="h-8" /></TableCell>
-                                    <TableCell><Input className="h-8" /></TableCell>
+                                    <TableCell><Input className="h-8" placeholder="Date" /></TableCell>
+                                    <TableCell><Input className="h-8" placeholder="Description" /></TableCell>
                                     <TableCell>
                                         <Select>
-                                            <SelectTrigger className="h-8">
-                                                <SelectValue placeholder="Select account" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {client?.chartOfAccounts?.map(acc => (
-                                                    <SelectItem key={acc.id} value={acc.id}>
-                                                        {acc.accountNumber} - {acc.description}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
+                                            <SelectTrigger className="h-8 w-[200px]"><SelectValue placeholder="Select account" /></SelectTrigger>
+                                            <SelectContent>{client?.chartOfAccounts?.map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.accountNumber} - {acc.description}</SelectItem>))}</SelectContent>
                                         </Select>
                                     </TableCell>
-                                    <TableCell><Input className="h-8" /></TableCell>
-                                    <TableCell><Input className="h-8" /></TableCell>
+                                    <TableCell>
+                                        <Select>
+                                            <SelectTrigger className="h-8 w-[180px]"><SelectValue placeholder="Select VAT type" /></SelectTrigger>
+                                            <SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent>
+                                        </Select>
+                                    </TableCell>
+                                    <TableCell><Input className="h-8" placeholder="Reference" /></TableCell>
                                     <TableCell><Input className="h-8" placeholder="R" /></TableCell>
                                     <TableCell><Input className="h-8" placeholder="R" /></TableCell>
                                      <TableCell>
-                                        <Button variant="ghost" size="sm" className="h-8">
+                                        <Button variant="ghost" size="sm" className="h-8" disabled>
                                             <Cog className="mr-2 h-4 w-4"/>
                                             Create Allocation Rule
                                         </Button>
@@ -530,19 +769,10 @@ export default function BankTransactionsPage() {
                         </Table>
                         </div>
                     </CardContent>
-                    <CardFooter className="p-4 border-t flex-wrap gap-2">
-                        <Button>Save Changes</Button>
-                        <Button variant="outline">Mark Selected as Reviewed</Button>
-                        <Button variant="outline">Mark All as Reviewed</Button>
-                    </CardFooter>
                 </Card>
             </TabsContent>
             <TabsContent value="reviewed">
-                <Card>
-                    <CardContent className="p-6">
-                        <p className="text-center text-muted-foreground">Reviewed transactions will appear here.</p>
-                    </CardContent>
-                </Card>
+                <ReviewedTransactionsTab client={client} fetchClient={fetchClient} />
             </TabsContent>
         </Tabs>
         
