@@ -498,8 +498,9 @@ function ManageRulesDialog({
     globalRules: AllocationRule[];
     fetchClientAndRules: () => void;
 }) {
-    const [editingRule, setEditingRule] = useState<Partial<AllocationRule> | null>(null);
+    const [editingRule, setEditingRule] = useState<Partial<AllocationRule> & { scope?: 'client' | 'global' } | null>(null);
     const { toast } = useToast();
+    const isCreatingNew = editingRule && !editingRule.id;
 
     const handleSaveRule = async (values: z.infer<typeof ruleFormSchema>) => {
         if (!client) return;
@@ -569,31 +570,29 @@ function ManageRulesDialog({
                 </DialogHeader>
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-h-[70vh]">
                      <div className="space-y-4">
-                        <h3 className="font-semibold">Rule Editor</h3>
-                         <Card>
+                        <h3 className="font-semibold">{isCreatingNew ? 'Create New Rule' : 'Edit Rule'}</h3>
+                        <Card>
                             <CardContent className="pt-6">
-                               <CreateRuleDialog
-                                   isOpen={!!editingRule}
-                                   onClose={() => setEditingRule(null)}
-                                   onSave={(ruleData, scope) => {
-                                        const values = {
-                                            ...ruleData,
-                                            id: editingRule?.id,
-                                            keywords: ruleData.keywords.join(', '),
-                                            scope: scope,
-                                        }
-                                        handleSaveRule(values)
-                                    }}
-                                   transaction={null}
-                                   client={client}
-                                />
+                               {editingRule ? (
+                                    <RuleForm
+                                      key={editingRule.id || 'new'}
+                                      initialData={editingRule}
+                                      onSave={handleSaveRule}
+                                      onCancel={() => setEditingRule(null)}
+                                      client={client}
+                                    />
+                                ) : (
+                                    <div className="text-center text-muted-foreground p-8">
+                                        <p>Select a rule to edit, or create a new one.</p>
+                                    </div>
+                                )}
                             </CardContent>
                          </Card>
                      </div>
                       <div className="space-y-4">
                         <div className="flex justify-between items-center">
                             <h3 className="font-semibold">Existing Rules</h3>
-                            <Button variant="outline" size="sm" onClick={() => setEditingRule({})}>
+                            <Button variant="outline" size="sm" onClick={() => setEditingRule({ scope: 'client' })}>
                                 <PlusCircle className="mr-2 h-4 w-4" /> Create New
                             </Button>
                         </div>
@@ -616,14 +615,14 @@ function ManageRulesDialog({
     )
 }
 
-function RuleList({ rules, scope, onEdit, onDelete }: { rules: AllocationRule[], scope: 'client' | 'global', onEdit: (rule: Partial<AllocationRule>) => void, onDelete: (id: string, scope: 'client' | 'global') => void }) {
+function RuleList({ rules, scope, onEdit, onDelete }: { rules: AllocationRule[], scope: 'client' | 'global', onEdit: (rule: Partial<AllocationRule> & {scope: 'client' | 'global'}) => void, onDelete: (id: string, scope: 'client' | 'global') => void }) {
     if (rules.length === 0) {
         return <p className="text-sm text-center text-muted-foreground p-8">No {scope} rules found.</p>
     }
     return (
         <div className="space-y-2">
-            {rules.map(rule => (
-                <Card key={rule.id}>
+            {rules.map((rule, index) => (
+                <Card key={rule.id || index}>
                     <CardContent className="p-3 flex justify-between items-center">
                         <div className="text-sm">
                             <p className="font-semibold">{rule.description}</p>
@@ -652,6 +651,47 @@ function RuleList({ rules, scope, onEdit, onDelete }: { rules: AllocationRule[],
     )
 }
 
+function RuleForm({ initialData, onSave, onCancel, client } : {
+    initialData: Partial<AllocationRule> & { scope?: 'client' | 'global' };
+    onSave: (values: z.infer<typeof ruleFormSchema>) => void;
+    onCancel: () => void;
+    client: User | null;
+}) {
+     const form = useForm<z.infer<typeof ruleFormSchema>>({
+        resolver: zodResolver(ruleFormSchema),
+        defaultValues: {
+            id: initialData.id || '',
+            description: initialData.description || '',
+            keywords: initialData.keywords?.join(', ') || '',
+            accountId: initialData.accountId || '',
+            vatType: initialData.vatType || 'no_vat',
+            scope: initialData.scope || 'client',
+        }
+    });
+
+    return (
+         <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSave)} className="space-y-4">
+                <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Rule Description</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )}/>
+                <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords (comma-separated)</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem> )}/>
+                <FormField control={form.control} name="accountId" render={({ field }) => ( <FormItem><FormLabel>Allocate To Account</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl><SelectContent>{client?.chartOfAccounts?.map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.accountNumber} - {acc.description}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="vatType" render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="scope" render={({ field }) => (
+                    <FormItem className="space-y-3"><FormLabel>Rule Scope</FormLabel><FormControl>
+                        <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-col space-y-1">
+                            <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="client" /></FormControl><FormLabel className="font-normal">Client Specific</FormLabel></FormItem>
+                            <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="global" /></FormControl><FormLabel className="font-normal">Global (for all clients)</FormLabel></FormItem>
+                        </RadioGroup>
+                    </FormControl><FormMessage /></FormItem>
+                )}/>
+                <DialogFooter>
+                    <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
+                    <Button type="submit">Save Rule</Button>
+                </DialogFooter>
+            </form>
+        </Form>
+    )
+}
 
 export default function BankTransactionsPage() {
   const [client, setClient] = useState<User | null>(null);
