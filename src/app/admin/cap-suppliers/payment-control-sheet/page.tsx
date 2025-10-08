@@ -2,15 +2,19 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { getFirestore, collection, getDocs, query, orderBy, where } from 'firebase/firestore';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { getFirestore, collection, getDocs, query, orderBy, where, doc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2 } from 'lucide-react';
+import { Loader2, CheckCircle } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ExtractedInvoice } from '@/lib/types';
 import { capChartOfAccounts, s38ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+
 
 const db = getFirestore(firebaseApp);
 
@@ -20,23 +24,44 @@ export default function PaymentControlSheetPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [supplierFilter, setSupplierFilter] = useState('');
+    const { toast } = useToast();
+
+    const fetchInvoices = async () => {
+        setIsLoading(true);
+        try {
+            const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'approved_for_payment'), orderBy('createdAt', 'desc'));
+            const querySnapshot = await getDocs(q);
+            const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
+            setInvoices(fetchedInvoices);
+        } catch (error) {
+            console.error("Error fetching approved for payment invoices:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const fetchInvoices = async () => {
-            setIsLoading(true);
-            try {
-                const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'approved_for_payment'), orderBy('createdAt', 'desc'));
-                const querySnapshot = await getDocs(q);
-                const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
-                setInvoices(fetchedInvoices);
-            } catch (error) {
-                console.error("Error fetching approved for payment invoices:", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
         fetchInvoices();
     }, []);
+
+    const handleFinalApproval = async (invoiceId: string) => {
+        try {
+            const docRef = doc(db, 'extractedInvoices', invoiceId);
+            await updateDoc(docRef, { status: 'batched_for_payment' });
+            toast({
+                title: 'Invoice Batched',
+                description: 'The invoice has been moved to the payment batches.',
+            });
+            fetchInvoices(); // Re-fetch to update the list
+        } catch (error) {
+            console.error("Error batching invoice:", error);
+            toast({
+                title: 'Error',
+                description: 'Could not move the invoice to payment batches.',
+                variant: 'destructive',
+            });
+        }
+    };
     
     const formatPrice = (price: number) => {
         return new Intl.NumberFormat('en-ZA', {
@@ -133,6 +158,30 @@ export default function PaymentControlSheetPage() {
                                         </TableBody>
                                     </Table>
                                 </CardContent>
+                                <CardFooter className="bg-muted/50 p-3 justify-end">
+                                     <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button size="sm">
+                                                <CheckCircle className="mr-2 h-4 w-4"/>
+                                                Final Approval
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Confirm Final Approval</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    This will move the invoice for "{invoice.supplier}" to the final payment batches. Are you sure?
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction onClick={() => handleFinalApproval(invoice.id)}>
+                                                    Yes, Approve
+                                                </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                </CardFooter>
                             </Card>
                         ))}
                     </div>

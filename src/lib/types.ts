@@ -241,7 +241,7 @@ export type ExtractedInvoice = {
   date: string;
   lineItems: { description: string; exclusiveAmount: number; vatAmount: number; accountId?: string; }[];
   invoiceTotal: number;
-  status: 'pending_review' | 'approved' | 'approved_for_payment' | 'rejected';
+  status: 'pending_review' | 'approved' | 'approved_for_payment' | 'rejected' | 'batched_for_payment';
   fileName: string;
   fileUrl: string;
   createdAt: any;
@@ -251,3 +251,4 @@ export type ExtractedInvoice = {
   rejectionReason?: string;
   paymentBatch?: 'this_week' | 'month_end';
 };
+
