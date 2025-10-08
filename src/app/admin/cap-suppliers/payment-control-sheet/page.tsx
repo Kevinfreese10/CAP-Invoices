@@ -10,8 +10,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { ExtractedInvoice } from '@/lib/types';
 import { Separator } from '@/components/ui/separator';
+import { capChartOfAccounts, s38ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 
 const db = getFirestore(firebaseApp);
+
+const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts];
 
 export default function PaymentControlSheetPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
@@ -40,6 +43,12 @@ export default function PaymentControlSheetPage() {
           currency: 'ZAR',
         }).format(price);
     };
+
+    const getAccountDescription = (accountId?: string) => {
+        if (!accountId) return 'N/A';
+        const account = allAccounts.find(acc => acc.accountNumber === accountId);
+        return account ? account.description : accountId;
+    }
 
     return (
         <div className="space-y-8">
@@ -94,7 +103,7 @@ export default function PaymentControlSheetPage() {
                                     {invoice.lineItems.map((item, index) => (
                                         <TableRow key={index}>
                                             <TableCell className="max-w-xs truncate">{item.description}</TableCell>
-                                            <TableCell>{item.accountId}</TableCell>
+                                            <TableCell>{getAccountDescription(item.accountId)}</TableCell>
                                             <TableCell className="text-right">{formatPrice(item.exclusiveAmount)}</TableCell>
                                             <TableCell className="text-right">{formatPrice(item.vatAmount)}</TableCell>
                                         </TableRow>
