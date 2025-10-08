@@ -8,7 +8,6 @@ import { firebaseApp } from '@/lib/firebase';
 import { Loader2, Banknote, ChevronDown } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ExtractedInvoice } from '@/lib/types';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -21,6 +20,8 @@ type SupplierGroup = {
 };
 
 function PaymentBatchTable({ title, invoices, totalAmount }: { title: string, invoices: ExtractedInvoice[], totalAmount: number }) {
+    const [openSupplier, setOpenSupplier] = useState<string | null>(null);
+
     const formatPrice = (price: number) => {
         return new Intl.NumberFormat('en-ZA', {
           style: 'currency',
@@ -68,22 +69,21 @@ function PaymentBatchTable({ title, invoices, totalAmount }: { title: string, in
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {groupedBySupplier.map((group) => (
-                           <Collapsible asChild key={group.supplier} >
-                                <tbody>
+                        {groupedBySupplier.map((group) => {
+                            const isOpen = openSupplier === group.supplier;
+                            return (
+                                <React.Fragment key={group.supplier}>
                                     <TableRow>
                                         <TableCell className="font-medium">
-                                            <CollapsibleTrigger asChild>
-                                                 <Button variant="ghost" className="p-0 hover:bg-transparent -ml-2">
-                                                    <ChevronDown className="h-4 w-4 mr-2 transition-transform duration-200 [&[data-state=open]]:-rotate-90" />
-                                                    {group.supplier}
-                                                </Button>
-                                            </CollapsibleTrigger>
+                                            <Button variant="ghost" className="p-0 hover:bg-transparent -ml-2" onClick={() => setOpenSupplier(isOpen ? null : group.supplier)}>
+                                                <ChevronDown className={cn("h-4 w-4 mr-2 transition-transform duration-200", isOpen && "-rotate-90")} />
+                                                {group.supplier}
+                                            </Button>
                                         </TableCell>
                                         <TableCell className="text-right font-mono font-semibold">{formatPrice(group.totalAmount)}</TableCell>
                                     </TableRow>
-                                    <CollapsibleContent asChild>
-                                        <tr className="border-b-0">
+                                    {isOpen && (
+                                        <TableRow>
                                             <TableCell colSpan={2} className="p-0">
                                                 <div className="p-4 bg-muted/50">
                                                     <Table>
@@ -106,11 +106,11 @@ function PaymentBatchTable({ title, invoices, totalAmount }: { title: string, in
                                                     </Table>
                                                 </div>
                                             </TableCell>
-                                        </tr>
-                                    </CollapsibleContent>
-                                </tbody>
-                           </Collapsible>
-                        ))}
+                                        </TableRow>
+                                    )}
+                                </React.Fragment>
+                            )
+                        })}
                     </TableBody>
                 </Table>
                 )}
