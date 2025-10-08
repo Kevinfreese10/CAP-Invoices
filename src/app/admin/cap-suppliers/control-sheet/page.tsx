@@ -216,7 +216,7 @@ export default function SecondReviewPage() {
     const fetchInvoices = async () => {
         setIsLoading(true);
         try {
-            const q = query(collection(db, 'extractedInvoices'), where('status', 'in', ['approved', 'approved_for_payment']), orderBy('createdAt', 'desc'));
+            const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'approved'), orderBy('createdAt', 'desc'));
             const querySnapshot = await getDocs(q);
             const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
             setInvoices(fetchedInvoices);
@@ -249,7 +249,7 @@ export default function SecondReviewPage() {
         try {
             const docRef = doc(db, 'extractedInvoices', id);
             await updateDoc(docRef, { status: 'approved_for_payment' });
-            toast({ title: 'Invoice Approved for Payment', description: 'The invoice has been marked for payment.' });
+            toast({ title: 'Invoice Approved for Payment', description: 'The invoice has been moved to the payment control sheet.' });
             fetchInvoices();
         } catch (error) {
             toast({ title: 'Error', description: 'Could not approve for payment.', variant: 'destructive'});

@@ -68,6 +68,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/cap-suppliers', label: 'CAP Suppliers', icon: FileText, roles: ['admin', 'staff'], department: 'Accounting and Tax' },
     { href: '/admin/cap-suppliers/review', label: 'Review', icon: ClipboardCheck, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
     { href: '/admin/cap-suppliers/control-sheet', label: '2nd Review', icon: FileText, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
+    { href: '/admin/cap-suppliers/payment-control-sheet', label: 'Payment Control Sheet', icon: FileSpreadsheet, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
     { href: '/admin/cap-suppliers/rejected', label: 'Rejected', icon: FileX2, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
     { href: '/admin/cap-suppliers/chart-of-accounts', label: 'Chart of Accounts', icon: Book, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
     { href: '/admin/cap-suppliers/inbox', label: 'Inbox', icon: Inbox, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
