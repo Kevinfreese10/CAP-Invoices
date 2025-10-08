@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { ImportedTransaction, ChartOfAccount, User } from '@/lib/types';
@@ -158,6 +158,23 @@ function ImportDialog({
     onClose();
   };
 
+  const handleDownloadExample = () => {
+    const exampleData = [
+      { Date: '2024-07-01', Description: 'Payment from Client X', Amount: 5000.00 },
+      { Date: '2024-07-02', Description: 'Office Supplies', Amount: -250.50 },
+      { Date: '2024-07-03', Description: 'Bank Charges', Amount: -45.00 },
+    ];
+    const csv = Papa.unparse(exampleData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'import_example.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
         <DialogContent className="sm:max-w-4xl">
@@ -173,7 +190,13 @@ function ImportDialog({
                         name="file"
                         render={({ field }) => (
                             <FormItem>
-                            <FormLabel>Statement File</FormLabel>
+                            <div className="flex items-center justify-between">
+                              <FormLabel>Statement File</FormLabel>
+                              <Button type="button" variant="outline" size="sm" onClick={handleDownloadExample}>
+                                <Download className="mr-2 h-4 w-4" />
+                                Download Example
+                              </Button>
+                            </div>
                             <FormControl>
                                 <Input type="file" accept=".csv, .xlsx, .xls" onChange={(e) => {
                                 field.onChange(e.target.files);
