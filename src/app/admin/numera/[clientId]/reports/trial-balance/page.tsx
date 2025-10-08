@@ -76,7 +76,10 @@ function TrialBalanceReport({ client }: { client: User }) {
             unallocatedTotal += tx.amount;
         });
 
-        balances.set(unallocatedSuspenseAccountId, (balances.get(unallocatedSuspenseAccountId) || 0) + unallocatedTotal);
+        const suspenseAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === unallocatedSuspenseAccountId);
+        if (suspenseAccount) {
+            balances.set(suspenseAccount.id, (balances.get(suspenseAccount.id) || 0) + unallocatedTotal);
+        }
 
         return balances;
     }, [client]);
@@ -101,7 +104,7 @@ function TrialBalanceReport({ client }: { client: User }) {
                 credit += item.balance;
             }
         });
-        // For credit balances that are negative (like income)
+        // For credit balance accounts, income is usually negative. We show it as positive in credit column.
         return { debit: debit, credit: -credit };
     }, [trialBalanceData]);
 
@@ -151,7 +154,9 @@ function TrialBalanceReport({ client }: { client: User }) {
     );
 }
 
-export default function TrialBalancePage({ params }: { params: { clientId: string }}) {
+export default function TrialBalancePage() {
+    const params = useParams();
+    const clientId = params.clientId as string;
     const [client, setClient] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     
@@ -159,7 +164,7 @@ export default function TrialBalancePage({ params }: { params: { clientId: strin
         const fetchClient = async () => {
             setIsLoading(true);
             try {
-                const docRef = doc(db, 'clients', params.clientId);
+                const docRef = doc(db, 'clients', clientId);
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
                     setClient({ id: docSnap.id, ...docSnap.data() } as User);
@@ -171,10 +176,10 @@ export default function TrialBalancePage({ params }: { params: { clientId: strin
             }
         };
 
-        if (params.clientId) {
+        if (clientId) {
             fetchClient();
         }
-    }, [params.clientId]);
+    }, [clientId]);
 
     return (
         <div>
