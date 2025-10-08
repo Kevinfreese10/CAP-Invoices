@@ -1618,3 +1618,4 @@ export default function BankTransactionsPage() {
     </div>
   );
 }
+
