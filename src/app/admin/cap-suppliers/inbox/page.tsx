@@ -13,6 +13,7 @@ import { getFirestore, collection, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { sendEmail } from '@/lib/email';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const db = getFirestore(firebaseApp);
 
@@ -40,6 +41,7 @@ export default function InboxPage() {
     const [isTesting, setIsTesting] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [selectedUids, setSelectedUids] = useState<Set<number>>(new Set());
     const { toast } = useToast();
     
     const handleProcessAttachments = useCallback(async (email: Email) => {
@@ -47,8 +49,6 @@ export default function InboxPage() {
         if (pdfAttachments.length === 0) {
             return;
         }
-
-        setIsProcessing(true);
 
         try {
             await fetch('/api/emails/process-attachments', {
@@ -62,79 +62,99 @@ export default function InboxPage() {
                 description: err.message,
                 variant: "destructive",
             });
-        } finally {
-            setIsProcessing(false);
         }
     }, [toast]);
-
-    const fetchEmailsAndProcess = useCallback(async () => {
+    
+    const fetchEmails = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
-            // Fetch processed email UIDs from Firestore
             const processedSnapshot = await getDocs(collection(db, 'processedEmails'));
             const processedUids = new Set(processedSnapshot.docs.map(doc => doc.data().uid));
-
-            // Fetch emails from the API
             const response = await fetch('/api/emails/inbox');
             if (!response.ok) {
                 const errorData = await response.json();
                 throw new Error(errorData.error || 'Failed to fetch emails');
             }
             const data: Email[] = await response.json();
-            
-            const unprocessedEmails = data.filter(email => !processedUids.has(email.uid) && email.attachments.some(att => att.contentType === 'application/pdf'));
-
-            if (unprocessedEmails.length > 0) {
-                toast({ title: `Found ${unprocessedEmails.length} new email(s) with attachments.`, description: 'Processing them now...' });
-                for (const email of unprocessedEmails) {
-                    await handleProcessAttachments(email);
-                }
-                 toast({ title: "Processing Complete!", description: "New invoices have been sent to the review page." });
-
-                 try {
-                     await sendEmail({
-                        to: 'kev@thinkestry.co.za',
-                        subject: 'New Invoices Ready for Review',
-                        html: `
-                            <p>Hi Kevin,</p>
-                            <p>${unprocessedEmails.length} new email(s) have been processed, and the invoices are now ready for your review.</p>
-                            <p><a href="${window.location.origin}/admin/cap-suppliers/review">Click here to review them</a>.</p>
-                            <p>Thanks,<br/>The My Accountant Automated System</p>
-                        `
-                     });
-                 } catch (emailError) {
-                    console.error("Failed to send review notification email:", emailError);
-                    toast({
-                        title: "Email Notification Failed",
-                        description: "Could not send the 'ready for review' email notification.",
-                        variant: 'destructive',
-                    });
-                 }
-
-                 // Re-fetch everything after processing to get the latest status
-                 await fetchEmailsAndProcess();
-                 return; // Exit to avoid setting state with stale data
-            }
-            
-            // Merge emails with their processed status
             const emailsWithStatus = data.map(email => ({
                 ...email,
                 isProcessed: processedUids.has(email.uid),
             }));
-
             setEmails(emailsWithStatus);
             if (emailsWithStatus.length > 0 && !selectedEmail) {
                 setSelectedEmail(emailsWithStatus[0]);
             }
-
         } catch (err: any) {
-            console.error("Error fetching or processing emails:", err);
+            console.error("Error fetching emails:", err);
             setError(err.message);
         } finally {
             setIsLoading(false);
         }
-    }, [handleProcessAttachments, toast, selectedEmail]);
+    }, [selectedEmail]);
+
+    const handleProcessSelected = async () => {
+        const emailsToProcess = emails.filter(email => selectedUids.has(email.uid));
+        if (emailsToProcess.length === 0) {
+            toast({ title: 'No Emails Selected', description: 'Please select at least one email to process.' });
+            return;
+        }
+
+        setIsProcessing(true);
+        toast({ title: `Processing ${emailsToProcess.length} email(s)...`, description: 'This may take a moment.' });
+        
+        for (const email of emailsToProcess) {
+            await handleProcessAttachments(email);
+        }
+
+        setIsProcessing(false);
+        toast({ title: 'Processing Complete', description: `${emailsToProcess.length} email(s) have been processed.` });
+
+        try {
+            await sendEmail({
+               to: 'kev@thinkestry.co.za',
+               subject: 'New Invoices Ready for Review',
+               html: `
+                   <p>Hi Kevin,</p>
+                   <p>${emailsToProcess.length} new email(s) have been processed, and the invoices are now ready for your review.</p>
+                   <p><a href="${window.location.origin}/admin/cap-suppliers/review">Click here to review them</a>.</p>
+                   <p>Thanks,<br/>The My Accountant Automated System</p>
+               `
+            });
+        } catch (emailError) {
+           console.error("Failed to send review notification email:", emailError);
+           toast({
+               title: "Email Notification Failed",
+               description: "Could not send the 'ready for review' email notification.",
+               variant: 'destructive',
+           });
+        }
+        
+        // Refresh the list to show updated "processed" status
+        fetchEmails();
+        setSelectedUids(new Set()); // Clear selection
+    };
+
+    const handleSelectAll = (checked: boolean) => {
+        if (checked) {
+            const allUids = new Set(emails.filter(e => !e.isProcessed && e.attachments.some(a => a.contentType === 'application/pdf')).map(e => e.uid));
+            setSelectedUids(allUids);
+        } else {
+            setSelectedUids(new Set());
+        }
+    };
+
+    const handleSelectOne = (uid: number, checked: boolean) => {
+        setSelectedUids(prev => {
+            const newSelection = new Set(prev);
+            if (checked) {
+                newSelection.add(uid);
+            } else {
+                newSelection.delete(uid);
+            }
+            return newSelection;
+        });
+    };
 
     const handleTestConnection = async () => {
         setIsTesting(true);
@@ -163,15 +183,10 @@ export default function InboxPage() {
     }
 
     useEffect(() => {
-        fetchEmailsAndProcess(); // Initial fetch
-        
-        const intervalId = setInterval(() => {
-            toast({ title: "Auto-refreshing inbox...", description: "Fetching latest emails." });
-            fetchEmailsAndProcess();
-        }, 3600000); // 1 hour in milliseconds
+        fetchEmails();
+    }, []);
 
-        return () => clearInterval(intervalId); // Cleanup on component unmount
-    }, [fetchEmailsAndProcess, toast]);
+    const selectableEmails = emails.filter(e => !e.isProcessed && e.attachments.some(a => a.contentType === 'application/pdf'));
 
 
     return (
@@ -179,13 +194,17 @@ export default function InboxPage() {
             <div className="flex items-center justify-between">
                 <h1 className="text-3xl font-bold tracking-tight">Email Inbox</h1>
                 <div className="flex gap-2">
+                     <Button onClick={handleProcessSelected} disabled={isProcessing || selectedUids.size === 0}>
+                        {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
+                        Process {selectedUids.size > 0 ? selectedUids.size : ''} Selected
+                    </Button>
                      <Button onClick={handleTestConnection} variant="outline" disabled={isTesting}>
                         <Plug className={`mr-2 h-4 w-4 ${isTesting ? 'animate-pulse' : ''}`} />
                         Test Connection
                     </Button>
-                    <Button onClick={fetchEmailsAndProcess} variant="outline" disabled={isLoading || isProcessing}>
+                    <Button onClick={fetchEmails} variant="outline" disabled={isLoading || isProcessing}>
                         <RefreshCw className={`mr-2 h-4 w-4 ${isLoading || isProcessing ? 'animate-spin' : ''}`} />
-                        {isProcessing ? 'Processing...' : 'Refresh'}
+                        Refresh
                     </Button>
                 </div>
             </div>
@@ -193,10 +212,22 @@ export default function InboxPage() {
                 <div className="grid grid-cols-1 md:grid-cols-3 h-full">
                     <div className="md:col-span-1 border-r">
                         <CardHeader>
-                            <CardTitle>invoices2@myacc.co.za</CardTitle>
-                            <CardDescription>
-                                {isLoading ? 'Loading messages...' : `Showing ${emails.length} messages.`}
-                            </CardDescription>
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <CardTitle>invoices2@myacc.co.za</CardTitle>
+                                    <CardDescription>
+                                        {isLoading ? 'Loading messages...' : `Showing ${emails.length} messages.`}
+                                    </CardDescription>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <Checkbox 
+                                      id="select-all" 
+                                      onCheckedChange={handleSelectAll}
+                                      checked={selectableEmails.length > 0 && selectedUids.size === selectableEmails.length}
+                                    />
+                                    <label htmlFor="select-all" className="text-sm font-medium">Select All</label>
+                                </div>
+                            </div>
                         </CardHeader>
                         <ScrollArea className="h-[calc(100vh-18rem)]">
                             {isLoading ? (
@@ -216,26 +247,45 @@ export default function InboxPage() {
                                 </div>
                             ) : (
                                 <div className="flex flex-col">
-                                    {emails.map((email) => (
-                                        <button
+                                    {emails.map((email) => {
+                                      const hasPdf = email.attachments.some(a => a.contentType === 'application/pdf');
+                                      const canSelect = hasPdf && !email.isProcessed;
+                                      return (
+                                        <div
                                             key={email.uid}
                                             onClick={() => setSelectedEmail(email)}
-                                            className={`p-4 text-left border-b hover:bg-muted/50 ${selectedEmail?.uid === email.uid ? 'bg-muted' : ''}`}
+                                            className={`flex items-start gap-4 p-4 text-left border-b hover:bg-muted/50 cursor-pointer ${selectedEmail?.uid === email.uid ? 'bg-muted' : ''}`}
                                         >
-                                            <div className="flex justify-between items-start">
-                                                <p className="font-semibold truncate">{email.from}</p>
-                                                {email.isProcessed && <Badge variant="success" className="text-xs">Processed</Badge>}
-                                            </div>
-                                            <p className="text-sm truncate">{email.subject}</p>
-                                            <div className="flex justify-between items-center text-xs text-muted-foreground">
-                                                <span>{format(new Date(email.date), 'dd MMM yyyy, HH:mm')}</span>
-                                                <div className="flex items-center gap-1">
-                                                    <Paperclip className="h-3 w-3" />
-                                                    <span>{email.attachments.length}</span>
+                                            {canSelect ? (
+                                                <Checkbox 
+                                                  id={`select-${email.uid}`} 
+                                                  onCheckedChange={(checked) => handleSelectOne(email.uid, !!checked)}
+                                                  checked={selectedUids.has(email.uid)}
+                                                  onClick={(e) => e.stopPropagation()}
+                                                  className="mt-1"
+                                                />
+                                            ) : (
+                                              <div className="w-4 h-4 mt-1 flex-shrink-0" />
+                                            )}
+                                            <div className="flex-grow">
+                                                <div className="flex justify-between items-start">
+                                                    <p className="font-semibold truncate">{email.from}</p>
+                                                    {email.isProcessed && <Badge variant="success" className="text-xs">Processed</Badge>}
+                                                </div>
+                                                <p className="text-sm truncate">{email.subject}</p>
+                                                <div className="flex justify-between items-center text-xs text-muted-foreground">
+                                                    <span>{format(new Date(email.date), 'dd MMM yyyy, HH:mm')}</span>
+                                                    {hasPdf && (
+                                                      <div className="flex items-center gap-1 text-primary">
+                                                          <Paperclip className="h-3 w-3" />
+                                                          <span>{email.attachments.filter(a => a.contentType === 'application/pdf').length} PDF(s)</span>
+                                                      </div>
+                                                    )}
                                                 </div>
                                             </div>
-                                        </button>
-                                    ))}
+                                        </div>
+                                      );
+                                    })}
                                 </div>
                             )}
                         </ScrollArea>
