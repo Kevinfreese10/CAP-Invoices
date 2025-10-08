@@ -1,4 +1,3 @@
-
 'use client';
 
 import { ReactNode, useState, useEffect } from 'react';
@@ -9,8 +8,17 @@ import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Banknote, FileText, LayoutDashboard, ChevronLeft } from 'lucide-react';
+import { ChevronLeft, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  Menubar,
+  MenubarContent,
+  MenubarItem,
+  MenubarMenu,
+  MenubarSeparator,
+  MenubarTrigger,
+} from "@/components/ui/menubar";
+
 
 const db = getFirestore(firebaseApp);
 
@@ -35,18 +43,13 @@ export default function NumeraClientLayout({ children }: { children: ReactNode }
         }
     }, [clientId]);
 
-    const navItems = [
-        { href: `/admin/numera/${clientId}/dashboard`, label: 'Dashboard', icon: LayoutDashboard },
-        { href: `/admin/numera/${clientId}/bank`, label: 'Bank', icon: Banknote },
-        { href: `/admin/numera/${clientId}/reports`, label: 'Reports', icon: FileText },
-    ];
-    
+
     if (isLoading) {
         return (
             <div className="space-y-8">
                 <Skeleton className="h-10 w-48" />
-                <div className="grid md:grid-cols-[200px_1fr] gap-8">
-                    <Skeleton className="h-64 w-full" />
+                <div className="space-y-4">
+                    <Skeleton className="h-10 w-full" />
                     <Skeleton className="h-96 w-full" />
                 </div>
             </div>
@@ -54,39 +57,57 @@ export default function NumeraClientLayout({ children }: { children: ReactNode }
     }
 
     return (
-        <div className="space-y-8">
-            <div>
+        <div className="space-y-4">
+             <div>
                  <Button variant="outline" size="sm" asChild className="mb-4">
                     <Link href="/admin/numera">
                         <ChevronLeft className="mr-2 h-4 w-4" />
                         Back to All Clients
                     </Link>
                 </Button>
-                <h1 className="text-3xl font-bold tracking-tight">{client?.companyName || client?.name}</h1>
+                <h1 className="text-2xl font-bold tracking-tight">{client?.companyName || client?.name}</h1>
                 <p className="text-muted-foreground">Numera Accounting Module</p>
             </div>
-            <div className="grid md:grid-cols-[200px_1fr] gap-8">
-                <aside>
-                    <nav className="flex flex-col gap-2">
-                        {navItems.map(item => (
-                            <Link 
-                                key={item.href}
-                                href={item.href}
-                                className={cn(
-                                    "flex items-center gap-3 text-sm font-medium p-2 rounded-md hover:bg-muted",
-                                    pathname === item.href ? 'bg-muted text-primary' : 'text-muted-foreground'
-                                )}
-                            >
-                                <item.icon className="h-4 w-4" />
-                                {item.label}
-                            </Link>
-                        ))}
-                    </nav>
-                </aside>
-                <main>
-                    {children}
-                </main>
-            </div>
+
+            <Menubar className="w-full bg-card">
+                <MenubarMenu>
+                    <MenubarTrigger>Home</MenubarTrigger>
+                    <MenubarContent>
+                        <MenubarItem asChild><Link href={`/admin/numera/${clientId}/dashboard`}>Dashboard</Link></MenubarItem>
+                    </MenubarContent>
+                </MenubarMenu>
+                 <MenubarMenu>
+                    <MenubarTrigger>Quick View <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
+                    <MenubarContent>
+                        <MenubarItem>Customers</MenubarItem>
+                        <MenubarItem>Suppliers</MenubarItem>
+                        <MenubarItem>Items</MenubarItem>
+                        <MenubarItem asChild><Link href={`/admin/numera/${clientId}/bank`}>Bank Accounts</Link></MenubarItem>
+                        <MenubarItem>Accounts</MenubarItem>
+                    </MenubarContent>
+                </MenubarMenu>
+                <MenubarMenu><MenubarTrigger>Customers</MenubarTrigger></MenubarMenu>
+                <MenubarMenu><MenubarTrigger>Suppliers</MenubarTrigger></MenubarMenu>
+                <MenubarMenu><MenubarTrigger>Items</MenubarTrigger></MenubarMenu>
+                <MenubarMenu>
+                     <MenubarTrigger>Banking <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
+                     <MenubarContent>
+                        <MenubarItem asChild><Link href={`/admin/numera/${clientId}/bank`}>Bank Accounts</Link></MenubarItem>
+                     </MenubarContent>
+                </MenubarMenu>
+                <MenubarMenu>
+                    <MenubarTrigger>Reports <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
+                     <MenubarContent>
+                        <MenubarItem asChild><Link href={`/admin/numera/${clientId}/reports/trial-balance`}>Trial Balance</Link></MenubarItem>
+                        <MenubarItem asChild><Link href={`/admin/numera/${clientId}/reports/general-ledger`}>General Ledger</Link></MenubarItem>
+                        <MenubarItem asChild><Link href={`/admin/numera/${clientId}/reports/account-transactions`}>Account Transactions</Link></MenubarItem>
+                     </MenubarContent>
+                </MenubarMenu>
+            </Menubar>
+            
+            <main>
+                {children}
+            </main>
         </div>
     );
 }
