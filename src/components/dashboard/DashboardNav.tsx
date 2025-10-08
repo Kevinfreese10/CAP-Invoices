@@ -66,6 +66,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/orders', label: 'Manage Orders', icon: ShieldCheck, roles: ['admin', 'staff'] },
     { href: '/admin/compliance', label: 'Compliance', icon: ShieldCheck, roles: ['admin'] },
     { href: '/admin/clients', label: 'Manage Clients', icon: BookUser, roles: ['admin'] },
+    { href: '/admin/numera', label: 'Numera', icon: Book, roles: ['admin'] },
     { href: '/admin/pdf-converter', label: 'PDF Converter', icon: FileSpreadsheet, roles: ['admin'] },
     { href: '/admin/cap-suppliers', label: 'CAP Suppliers', icon: FileText, roles: ['admin', 'staff'], department: 'Accounting and Tax' },
     { href: '/admin/cap-suppliers/review', label: 'Review', icon: ClipboardCheck, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
