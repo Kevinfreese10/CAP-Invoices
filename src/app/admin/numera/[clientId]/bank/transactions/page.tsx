@@ -34,7 +34,6 @@ import { allVatTypes } from '@/lib/vat-types';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
-import { googleAI } from '@genkit-ai/googleai';
 
 const db = getFirestore(firebaseApp);
 
@@ -1109,20 +1108,32 @@ export default function BankTransactionsPage() {
   const handleUpdateAllocation = async (txId: string, updates: Partial<AllocatedTransaction>) => {
     if (!client) return;
 
-    const updatedAllocatedTransactions = client.allocatedTransactions?.map(tx => {
-        if (tx.id === txId) {
-            return { ...tx, ...updates };
-        }
-        return tx;
-    }) || [];
+    setClient(prevClient => {
+        if (!prevClient) return null;
+        const updatedAllocatedTransactions = prevClient.allocatedTransactions?.map(tx => {
+            if (tx.id === txId) {
+                return { ...tx, ...updates };
+            }
+            return tx;
+        }) || [];
+        return { ...prevClient, allocatedTransactions: updatedAllocatedTransactions };
+    });
 
     try {
       const clientRef = doc(db, 'clients', client.id);
+      const currentClientSnap = await getDoc(clientRef);
+      const currentClientData = currentClientSnap.data() as User;
+      
+      const updatedAllocatedTransactions = currentClientData.allocatedTransactions?.map(tx => 
+          tx.id === txId ? { ...tx, ...updates } : tx
+      ) || [];
+
       await updateDoc(clientRef, { allocatedTransactions: updatedAllocatedTransactions });
       toast({ title: 'Transaction Updated', description: 'The allocation has been changed.' });
-      await fetchClientAndRules(); // Re-fetch to ensure local state is up-to-date
+      
     } catch (error) {
       toast({ title: 'Update Failed', description: 'Could not update the transaction.', variant: 'destructive' });
+      fetchClientAndRules(); // Re-fetch on error to revert optimistic update
       console.error(error);
     }
   };
