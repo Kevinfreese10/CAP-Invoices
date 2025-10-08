@@ -16,7 +16,7 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove, addDoc, collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove, addDoc, collection, getDocs, query, orderBy, where, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -417,7 +417,6 @@ const ruleFormSchema = z.object({
   scope: z.enum(['client', 'global']).default('client'),
 });
 
-
 function CreateRuleDialog({ isOpen, onClose, onSave, transaction, client }: { 
     isOpen: boolean; 
     onClose: () => void;
@@ -525,11 +524,12 @@ function ManageRulesDialog({
                 }
                 toast({ title: 'Rule Updated' });
             } else { // Creating new rule
+                const newRule = { ...ruleData, id: `rule-${Date.now()}` };
                 if (values.scope === 'client') {
                     const clientRef = doc(db, 'clients', client.id);
-                    await updateDoc(clientRef, { allocationRules: arrayUnion({ ...ruleData, id: `rule-${Date.now()}`}) });
+                    await updateDoc(clientRef, { allocationRules: arrayUnion(newRule) });
                 } else {
-                    await addDoc(collection(db, 'allocationRules'), ruleData);
+                    await addDoc(collection(db, 'allocationRules'), newRule);
                 }
                 toast({ title: 'Rule Created' });
             }
@@ -576,7 +576,7 @@ function ManageRulesDialog({
                         <PlusCircle className="mr-2 h-4 w-4" /> Create New Rule
                     </Button>
                     
-                    {editingRule && (
+                    {editingRule ? (
                         <Card>
                             <CardContent className="pt-6">
                                 <RuleForm
@@ -588,6 +588,29 @@ function ManageRulesDialog({
                                 />
                             </CardContent>
                         </Card>
+                    ) : (
+                         <Tabs defaultValue="client" className="w-full">
+                            <TabsList>
+                                <TabsTrigger value="client">Client Specific ({client?.allocationRules?.length || 0})</TabsTrigger>
+                                <TabsTrigger value="global">Global ({globalRules.length})</TabsTrigger>
+                            </TabsList>
+                            <TabsContent value="client">
+                                <RuleList 
+                                    rules={client?.allocationRules || []} 
+                                    scope="client" 
+                                    onEdit={setEditingRule}
+                                    onDelete={handleDeleteRule}
+                                />
+                            </TabsContent>
+                            <TabsContent value="global">
+                                <RuleList 
+                                    rules={globalRules} 
+                                    scope="global" 
+                                    onEdit={setEditingRule}
+                                    onDelete={handleDeleteRule}
+                                />
+                            </TabsContent>
+                        </Tabs>
                     )}
                  </div>
             </DialogContent>
@@ -905,7 +928,23 @@ export default function BankTransactionsPage() {
                 allocationRules: arrayUnion(newRule)
             });
         } else { // global
-            await addDoc(collection(db, 'allocationRules'), newRule);
+            // Add to global collection
+            const newGlobalRuleRef = await addDoc(collection(db, 'allocationRules'), newRule);
+            const newGlobalRuleWithId = { ...newRule, id: newGlobalRuleRef.id };
+            
+            // Fetch all Numera clients
+            const clientsQuery = query(collection(db, 'clients'), where('hasNumeraProfile', '==', true));
+            const clientsSnapshot = await getDocs(clientsQuery);
+            
+            // Batch update all Numera clients
+            const batch = writeBatch(db);
+            clientsSnapshot.forEach(clientDoc => {
+                const clientRef = doc(db, 'clients', clientDoc.id);
+                batch.update(clientRef, {
+                    allocationRules: arrayUnion(newGlobalRuleWithId)
+                });
+            });
+            await batch.commit();
         }
 
         toast({ title: 'Allocation Rule Created', description: `New rule for "${ruleData.description}" has been saved.`});
@@ -1241,5 +1280,3 @@ export default function BankTransactionsPage() {
     </div>
   );
 }
-
-    
