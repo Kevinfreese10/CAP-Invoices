@@ -245,7 +245,7 @@ function ImportDialog({
   );
 }
 
-function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransaction }: { client: User | null; fetchClient: () => void; openRuleDialogForTransaction: (tx: AllocatedTransaction) => void; }) {
+function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransaction, onUpdateAllocation }: { client: User | null; fetchClient: () => void; openRuleDialogForTransaction: (tx: AllocatedTransaction) => void; onUpdateAllocation: (txId: string, updates: Partial<AllocatedTransaction>) => void; }) {
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     const { toast } = useToast();
 
@@ -380,7 +380,6 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                                 </TableRow>
                             ) : (
                                 allocatedTransactions.map(tx => {
-                                    const allocatedAccount = client?.chartOfAccounts?.find(a => a.id === tx.allocatedTo.value);
                                     return (
                                         <TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && "selected"}>
                                              <TableCell className="p-2">
@@ -395,8 +394,40 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                                             </TableCell>
                                             <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                             <TableCell>{tx.description}</TableCell>
-                                            <TableCell>{allocatedAccount ? `${allocatedAccount.accountNumber} - ${allocatedAccount.description}` : tx.allocatedTo.value}</TableCell>
-                                            <TableCell>{allVatTypes.find(v => v.name === tx.vatType)?.label || tx.vatType}</TableCell>
+                                            <TableCell className="w-[250px]">
+                                                <Select
+                                                    value={tx.allocatedTo.value}
+                                                    onValueChange={(newValue) => onUpdateAllocation(tx.id, { allocatedTo: { value: newValue, type: 'account' }})}
+                                                >
+                                                    <SelectTrigger className="h-8">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {client?.chartOfAccounts?.map(acc => (
+                                                            <SelectItem key={acc.id} value={acc.id}>
+                                                                {acc.accountNumber} - {acc.description}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </TableCell>
+                                            <TableCell className="w-[200px]">
+                                                <Select
+                                                    value={tx.vatType}
+                                                    onValueChange={(newValue: VatType) => onUpdateAllocation(tx.id, { vatType: newValue })}
+                                                >
+                                                    <SelectTrigger className="h-8">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {allVatTypes.map(vt => (
+                                                            <SelectItem key={vt.name} value={vt.name}>
+                                                                {vt.label}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </TableCell>
                                             <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
                                             <TableCell className="text-right font-mono">{formatPrice(tx.vatAmount)}</TableCell>
                                             <TableCell className="text-right">
@@ -997,6 +1028,27 @@ export default function BankTransactionsPage() {
     }
   };
 
+  const handleUpdateAllocation = async (txId: string, updates: Partial<AllocatedTransaction>) => {
+    if (!client) return;
+
+    const updatedAllocatedTransactions = client.allocatedTransactions?.map(tx => {
+        if (tx.id === txId) {
+            return { ...tx, ...updates };
+        }
+        return tx;
+    }) || [];
+
+    try {
+      const clientRef = doc(db, 'clients', client.id);
+      await updateDoc(clientRef, { allocatedTransactions: updatedAllocatedTransactions });
+      toast({ title: 'Transaction Updated', description: 'The allocation has been changed.' });
+      await fetchClientAndRules(); // Re-fetch to ensure local state is up-to-date
+    } catch (error) {
+      toast({ title: 'Update Failed', description: 'Could not update the transaction.', variant: 'destructive' });
+      console.error(error);
+    }
+  };
+
 
   const openRuleDialog = (transaction: ImportedTransaction) => {
     setRuleTransaction(transaction);
@@ -1344,7 +1396,12 @@ export default function BankTransactionsPage() {
                 </Card>
             </TabsContent>
             <TabsContent value="reviewed">
-                <ReviewedTransactionsTab client={client} fetchClient={fetchClientAndRules} openRuleDialogForTransaction={openRuleDialogForTransaction} />
+                <ReviewedTransactionsTab 
+                    client={client} 
+                    fetchClient={fetchClientAndRules} 
+                    openRuleDialogForTransaction={openRuleDialogForTransaction}
+                    onUpdateAllocation={handleUpdateAllocation}
+                />
             </TabsContent>
         </Tabs>
         
@@ -1380,3 +1437,4 @@ export default function BankTransactionsPage() {
     </div>
   );
 }
+
