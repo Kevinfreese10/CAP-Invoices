@@ -44,7 +44,7 @@ const formatPrice = (price: number) => {
 // Function to determine if an account typically has a Debit or Credit balance
 const getAccountType = (accountNumber: string): 'debit' | 'credit' => {
   const num = parseInt(accountNumber.split('/')[0]);
-  // Expenses (3000-4999), Assets (6000-8999) are typically Debit
+  // Expenses (3000-4999), Assets (6000-8999, including bank accounts 8400) are typically Debit
   if ((num >= 3000 && num < 5000) || (num >= 6000 && num < 9000)) {
     return 'debit';
   }
@@ -62,24 +62,27 @@ function TrialBalanceReport({ client }: { client: User }) {
         client.chartOfAccounts?.forEach(acc => {
             balances.set(acc.id, 0);
         });
-        
+
+        // Get the suspense account ID
+        const suspenseAccountId = client.chartOfAccounts?.find(acc => acc.accountNumber === '9950/000')?.id;
+
         // Process allocated transactions
         client.allocatedTransactions?.forEach(tx => {
-            const accountId = tx.allocatedTo.value;
-            balances.set(accountId, (balances.get(accountId) || 0) + tx.amount);
+            // Entry for the bank account
+            balances.set(tx.bankAccountId, (balances.get(tx.bankAccountId) || 0) + tx.amount);
+            // Double entry for the allocated expense/income account
+            balances.set(tx.allocatedTo.value, (balances.get(tx.allocatedTo.value) || 0) - tx.amount);
         });
 
         // Process unallocated (imported) transactions
-        const unallocatedSuspenseAccountId = '9950/000';
-        let unallocatedTotal = 0;
         client.importedTransactions?.forEach(tx => {
-            unallocatedTotal += tx.amount;
+             // Entry for the bank account
+            balances.set(tx.bankAccountId, (balances.get(tx.bankAccountId) || 0) + tx.amount);
+            // Double entry to the suspense account
+            if (suspenseAccountId) {
+                balances.set(suspenseAccountId, (balances.get(suspenseAccountId) || 0) - tx.amount);
+            }
         });
-
-        const suspenseAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === unallocatedSuspenseAccountId);
-        if (suspenseAccount) {
-            balances.set(suspenseAccount.id, (balances.get(suspenseAccount.id) || 0) + unallocatedTotal);
-        }
 
         return balances;
     }, [client]);
@@ -98,14 +101,13 @@ function TrialBalanceReport({ client }: { client: User }) {
         let debit = 0;
         let credit = 0;
         trialBalanceData?.forEach(item => {
-            if (getAccountType(item.accountNumber) === 'debit') {
-                debit += item.balance;
+            if (item.balance > 0) {
+              debit += item.balance;
             } else {
-                credit += item.balance;
+              credit += -item.balance;
             }
         });
-        // For credit balance accounts, income is usually negative. We show it as positive in credit column.
-        return { debit: debit, credit: -credit };
+        return { debit, credit };
     }, [trialBalanceData]);
 
     return (
@@ -120,18 +122,17 @@ function TrialBalanceReport({ client }: { client: User }) {
                 </TableHeader>
                 <TableBody>
                     {trialBalanceData?.map(item => {
-                        const type = getAccountType(item.accountNumber);
-                        // For credit balance accounts, income is usually negative. We show it as positive in credit column.
-                        const displayBalance = type === 'credit' ? -item.balance : item.balance;
-
+                        const debitAmount = item.balance > 0 ? item.balance : 0;
+                        const creditAmount = item.balance < 0 ? -item.balance : 0;
+                        
                         return (
                             <TableRow key={item.id}>
                                 <TableCell>{item.accountNumber} - {item.description}</TableCell>
                                 <TableCell className="text-right font-mono">
-                                    {type === 'debit' ? formatPrice(displayBalance) : ''}
+                                    {formatPrice(debitAmount)}
                                 </TableCell>
                                 <TableCell className="text-right font-mono">
-                                    {type === 'credit' ? formatPrice(displayBalance) : ''}
+                                    {formatPrice(creditAmount)}
                                 </TableCell>
                             </TableRow>
                         )
@@ -193,12 +194,12 @@ export default function TrialBalancePage() {
                             <DialogTrigger asChild>
                                 <Button>View Trial Balance</Button>
                             </DialogTrigger>
-                            <DialogContent className="sm:max-w-2xl">
-                                <DialogHeader className="text-center mb-4">
-                                  <DialogTitle className="text-lg">{client.companyName || client.name}</DialogTitle>
-                                  <DialogDescription>
-                                    Trial Balance as at {format(new Date(), "dd MMMM yyyy")}
-                                  </DialogDescription>
+                             <DialogContent className="sm:max-w-2xl">
+                                <DialogHeader className="text-center">
+                                    <DialogTitle className="text-lg">{client.companyName || client.name}</DialogTitle>
+                                    <DialogDescription>
+                                        Trial Balance as at {format(new Date(), "dd MMMM yyyy")}
+                                    </DialogDescription>
                                 </DialogHeader>
                                 <TrialBalanceReport client={client} />
                             </DialogContent>
