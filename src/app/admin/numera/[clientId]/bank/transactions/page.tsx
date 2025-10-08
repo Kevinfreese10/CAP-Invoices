@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule } from '@/lib/types';
@@ -257,6 +257,7 @@ function ImportDialog({
 function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransaction, onUpdateAllocation }: { client: User | null; fetchClient: () => void; openRuleDialogForTransaction: (tx: AllocatedTransaction) => void; onUpdateAllocation: (txId: string, updates: Partial<AllocatedTransaction>) => void; }) {
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
+    const [sortConfig, setSortConfig] = useState<{ key: keyof AllocatedTransaction; direction: 'ascending' | 'descending' } | null>({ key: 'date', direction: 'descending' });
     const { toast } = useToast();
 
     const handleBulkDelete = async () => {
@@ -307,26 +308,73 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
     }
 
 
-    const allocatedTransactions = useMemo(() => {
-        const allTransactions = client?.allocatedTransactions || [];
-        if (!searchTerm) {
-            return allTransactions;
+    const sortedAndFilteredTransactions = useMemo(() => {
+        let transactions = [...(client?.allocatedTransactions || [])];
+        
+        // Filtering
+        if (searchTerm) {
+            const lowercasedFilter = searchTerm.toLowerCase();
+            transactions = transactions.filter(tx => {
+                const account = client?.chartOfAccounts?.find(acc => acc.id === tx.allocatedTo.value);
+                const accountDescription = account ? `${account.accountNumber} - ${account.description}` : '';
+
+                return (
+                    tx.description.toLowerCase().includes(lowercasedFilter) ||
+                    accountDescription.toLowerCase().includes(lowercasedFilter) ||
+                    tx.vatType.toLowerCase().replace(/_/g, ' ').includes(lowercasedFilter) ||
+                    tx.amount.toString().includes(lowercasedFilter)
+                );
+            });
         }
-        const lowercasedFilter = searchTerm.toLowerCase();
+        
+        // Sorting
+        if (sortConfig !== null) {
+            transactions.sort((a, b) => {
+                const aValue = a[sortConfig.key];
+                const bValue = b[sortConfig.key];
 
-        return allTransactions.filter(tx => {
-            const account = client?.chartOfAccounts?.find(acc => acc.id === tx.allocatedTo.value);
-            const accountDescription = account ? `${account.accountNumber} - ${account.description}` : '';
+                if (sortConfig.key === 'date') {
+                    const dateA = new Date(aValue).getTime();
+                    const dateB = new Date(bValue).getTime();
+                    if (dateA < dateB) return sortConfig.direction === 'ascending' ? -1 : 1;
+                    if (dateA > dateB) return sortConfig.direction === 'ascending' ? 1 : -1;
+                    return 0;
+                }
+                
+                if (typeof aValue === 'number' && typeof bValue === 'number') {
+                     if (aValue < bValue) return sortConfig.direction === 'ascending' ? -1 : 1;
+                    if (aValue > bValue) return sortConfig.direction === 'ascending' ? 1 : -1;
+                    return 0;
+                }
+                
+                const stringA = String(aValue).toLowerCase();
+                const stringB = String(bValue).toLowerCase();
 
-            return (
-                tx.description.toLowerCase().includes(lowercasedFilter) ||
-                accountDescription.toLowerCase().includes(lowercasedFilter) ||
-                tx.vatType.toLowerCase().replace(/_/g, ' ').includes(lowercasedFilter) ||
-                tx.amount.toString().includes(lowercasedFilter)
-            );
-        });
+                if (stringA < stringB) return sortConfig.direction === 'ascending' ? -1 : 1;
+                if (stringA > stringB) return sortConfig.direction === 'ascending' ? 1 : -1;
+                return 0;
+            });
+        }
+        
+        return transactions;
+    }, [client, searchTerm, sortConfig]);
 
-    }, [client, searchTerm]);
+    const requestSort = (key: keyof AllocatedTransaction) => {
+        let direction: 'ascending' | 'descending' = 'ascending';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
+            direction = 'descending';
+        }
+        setSortConfig({ key, direction });
+    };
+    
+    const SortableHeader = ({ sortKey, children }: { sortKey: keyof AllocatedTransaction; children: React.ReactNode }) => (
+        <TableHead onClick={() => requestSort(sortKey)} className="cursor-pointer">
+            <div className="flex items-center">
+                {children}
+                {sortConfig?.key === sortKey && <ArrowUpDown className="ml-2 h-4 w-4" />}
+            </div>
+        </TableHead>
+    );
 
 
     return (
@@ -387,34 +435,34 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                             <TableRow>
                                 <TableHead className="w-12 p-2">
                                     <Checkbox 
-                                        checked={selectedTransactions.length === allocatedTransactions.length && allocatedTransactions.length > 0}
+                                        checked={selectedTransactions.length === sortedAndFilteredTransactions.length && sortedAndFilteredTransactions.length > 0}
                                         onCheckedChange={(checked) => {
                                             if (checked) {
-                                                setSelectedTransactions(allocatedTransactions.map(t => t.id));
+                                                setSelectedTransactions(sortedAndFilteredTransactions.map(t => t.id));
                                             } else {
                                                 setSelectedTransactions([]);
                                             }
                                         }}
                                     />
                                 </TableHead>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Description</TableHead>
-                                <TableHead>Allocated To</TableHead>
-                                <TableHead>VAT Type</TableHead>
-                                <TableHead className="text-right">Amount</TableHead>
-                                <TableHead className="text-right">VAT Amount</TableHead>
+                                <SortableHeader sortKey="date">Date</SortableHeader>
+                                <SortableHeader sortKey="description">Description</SortableHeader>
+                                <SortableHeader sortKey="allocatedTo">Allocated To</SortableHeader>
+                                <SortableHeader sortKey="vatType">VAT Type</SortableHeader>
+                                <SortableHeader sortKey="amount">Amount</SortableHeader>
+                                <SortableHeader sortKey="vatAmount">VAT Amount</SortableHeader>
                                 <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {allocatedTransactions.length === 0 ? (
+                            {sortedAndFilteredTransactions.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={8} className="text-center h-24 text-muted-foreground">
                                         No reviewed transactions match your search.
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                allocatedTransactions.map(tx => {
+                                sortedAndFilteredTransactions.map(tx => {
                                     return (
                                         <TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && "selected"}>
                                              <TableCell className="p-2">
@@ -868,6 +916,7 @@ export default function BankTransactionsPage() {
   const [isManageRulesOpen, setIsManageRulesOpen] = useState(false);
   const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
   const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
+  const [sortConfig, setSortConfig] = useState<{ key: keyof ImportedTransaction; direction: 'ascending' | 'descending' } | null>({ key: 'date', direction: 'descending' });
 
 
   const fetchClientAndRules = async () => {
@@ -971,16 +1020,62 @@ export default function BankTransactionsPage() {
   const expenseTransactions = useMemo(() => {
     return transactions.filter(t => t.amount < 0);
   }, [transactions]);
+  
+  const requestSort = (key: keyof ImportedTransaction) => {
+    let direction: 'ascending' | 'descending' = 'ascending';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
+        direction = 'descending';
+    }
+    setSortConfig({ key, direction });
+  };
+  
+  const SortableHeader = ({ sortKey, children }: { sortKey: keyof ImportedTransaction; children: React.ReactNode }) => (
+    <TableHead onClick={() => requestSort(sortKey)} className="cursor-pointer">
+        <div className="flex items-center">
+            {children}
+            {sortConfig?.key === sortKey && <ArrowUpDown className="ml-2 h-4 w-4" />}
+        </div>
+    </TableHead>
+  );
 
-  const filteredTransactions = useMemo(() => {
+  const filteredAndSortedTransactions = useMemo(() => {
+    let transactionsToSort = transactions;
     if (activeSubTab === 'income') {
-      return transactions.filter(t => t.amount >= 0);
+      transactionsToSort = transactions.filter(t => t.amount >= 0);
+    } else if (activeSubTab === 'expenses') {
+      transactionsToSort = expenseTransactions;
     }
-    if (activeSubTab === 'expenses') {
-      return expenseTransactions;
+    
+    if (sortConfig !== null) {
+      transactionsToSort.sort((a, b) => {
+        const aValue = a[sortConfig.key];
+        const bValue = b[sortConfig.key];
+
+        if (sortConfig.key === 'date') {
+            const dateA = new Date(aValue).getTime();
+            const dateB = new Date(bValue).getTime();
+            if (dateA < dateB) return sortConfig.direction === 'ascending' ? -1 : 1;
+            if (dateA > dateB) return sortConfig.direction === 'ascending' ? 1 : -1;
+            return 0;
+        }
+
+        if (typeof aValue === 'number' && typeof bValue === 'number') {
+            if (aValue < bValue) return sortConfig.direction === 'ascending' ? -1 : 1;
+            if (aValue > bValue) return sortConfig.direction === 'ascending' ? 1 : -1;
+            return 0;
+        }
+
+        const stringA = String(aValue).toLowerCase();
+        const stringB = String(bValue).toLowerCase();
+
+        if (stringA < stringB) return sortConfig.direction === 'ascending' ? -1 : 1;
+        if (stringA > stringB) return sortConfig.direction === 'ascending' ? 1 : -1;
+        return 0;
+      });
     }
-    return transactions;
-  }, [transactions, activeSubTab, expenseTransactions]);
+
+    return transactionsToSort;
+  }, [transactions, activeSubTab, expenseTransactions, sortConfig]);
 
   const bankBalance = useMemo(() => {
     if (!client || !selectedAccountId) return 0;
@@ -1368,37 +1463,37 @@ export default function BankTransactionsPage() {
                                 <TableRow>
                                     <TableHead className="w-12 p-2">
                                         <Checkbox 
-                                            checked={filteredTransactions.length > 0 && selectedTransactions.length === filteredTransactions.length}
+                                            checked={filteredAndSortedTransactions.length > 0 && selectedTransactions.length === filteredAndSortedTransactions.length}
                                             onCheckedChange={(checked) => {
                                                 if (checked) {
-                                                    setSelectedTransactions(filteredTransactions.map(t => t.id));
+                                                    setSelectedTransactions(filteredAndSortedTransactions.map(t => t.id));
                                                 } else {
                                                     setSelectedTransactions([]);
                                                 }
                                             }}
                                         />
                                     </TableHead>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead>Description</TableHead>
+                                    <SortableHeader sortKey="date">Date</SortableHeader>
+                                    <SortableHeader sortKey="description">Description</SortableHeader>
                                     <TableHead>Reference</TableHead>
                                     <TableHead>Allocate To</TableHead>
                                     <TableHead>VAT Type</TableHead>
-                                    <TableHead>Spent</TableHead>
-                                    <TableHead>Received</TableHead>
+                                    <SortableHeader sortKey="amount">Spent</SortableHeader>
+                                    <SortableHeader sortKey="amount">Received</SortableHeader>
                                     <TableHead>Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {isLoading ? (
                                     <TableRow><TableCell colSpan={9} className="text-center h-24"><Loader2 className="animate-spin" /></TableCell></TableRow>
-                                ) : filteredTransactions.length === 0 ? (
+                                ) : filteredAndSortedTransactions.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={9} className="text-center text-muted-foreground py-4">
                                             You have no new Bank Statement transactions to review. Import your Bank Statements or manually enter banking transactions below.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    filteredTransactions.map(tx => (
+                                    filteredAndSortedTransactions.map(tx => (
                                         <TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && "selected"}>
                                             <TableCell className="p-2">
                                                 <Checkbox 
