@@ -1,13 +1,21 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Inbox, RefreshCw, FileWarning, Plug } from 'lucide-react';
+import { Loader2, Inbox, RefreshCw, FileWarning, Plug, Paperclip } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
+
+interface Attachment {
+    filename: string;
+    contentType: string;
+    dataUrl: string;
+    size: number;
+}
 
 interface Email {
     uid: number;
@@ -15,6 +23,7 @@ interface Email {
     subject: string;
     date: string;
     body: string;
+    attachments: Attachment[];
 }
 
 export default function InboxPage() {
@@ -141,6 +150,21 @@ export default function InboxPage() {
                                     <h2 className="font-semibold text-lg">{selectedEmail.subject}</h2>
                                     <p className="text-sm"><strong>From:</strong> {selectedEmail.from}</p>
                                     <p className="text-sm text-muted-foreground"><strong>Date:</strong> {format(new Date(selectedEmail.date), 'dd MMMM yyyy, HH:mm')}</p>
+                                    {selectedEmail.attachments && selectedEmail.attachments.length > 0 && (
+                                        <>
+                                            <Separator className="my-2" />
+                                            <div className="flex flex-wrap gap-2">
+                                                {selectedEmail.attachments.map((att, index) => (
+                                                    <Button key={index} asChild variant="outline" size="sm">
+                                                        <a href={att.dataUrl} download={att.filename}>
+                                                            <Paperclip className="mr-2 h-4 w-4" />
+                                                            {att.filename}
+                                                        </a>
+                                                    </Button>
+                                                ))}
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                                 <ScrollArea className="flex-grow">
                                     <div

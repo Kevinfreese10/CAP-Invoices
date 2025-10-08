@@ -36,12 +36,20 @@ export async function GET() {
         const idHeader = 'Imap-Id: ' + id + '\r\n';
         const mail = await simpleParser(idHeader + all?.body);
         
+        const attachments = mail.attachments.map(att => ({
+            filename: att.filename,
+            contentType: att.contentType,
+            dataUrl: `data:${att.contentType};base64,${att.content.toString('base64')}`,
+            size: att.size,
+        }));
+
         return {
           uid: id,
           from: mail.from?.text || 'No Sender',
           subject: mail.subject || 'No Subject',
           date: mail.date?.toISOString() || new Date().toISOString(),
           body: mail.html || mail.textAsHtml || 'No content',
+          attachments: attachments,
         };
       })
     );
