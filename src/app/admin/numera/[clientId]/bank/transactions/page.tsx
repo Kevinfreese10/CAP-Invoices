@@ -14,7 +14,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
-import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction } from '@/lib/types';
+import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -30,6 +30,7 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { Label } from '@/components/ui/label';
 import { allVatTypes } from '@/lib/vat-types';
+import { Textarea } from '@/components/ui/textarea';
 
 const db = getFirestore(firebaseApp);
 
@@ -406,6 +407,93 @@ function ReviewedTransactionsTab({ client, fetchClient }: { client: User | null;
     )
 }
 
+const ruleFormSchema = z.object({
+  description: z.string().min(3, "Description is required"),
+  keywords: z.string().min(3, "At least one keyword is required"),
+  accountId: z.string().min(1, "Please select an account to allocate to."),
+  vatType: z.enum(allVatTypes.map(v => v.name) as [VatType, ...VatType[]]),
+});
+
+
+function CreateRuleDialog({
+    isOpen,
+    onClose,
+    onSave,
+    transaction,
+    client,
+}: {
+    isOpen: boolean;
+    onClose: () => void;
+    onSave: (rule: Omit<AllocationRule, 'id' | 'type'>) => void;
+    transaction: ImportedTransaction | null;
+    client: User | null;
+}) {
+    const form = useForm<z.infer<typeof ruleFormSchema>>({
+        resolver: zodResolver(ruleFormSchema),
+    });
+
+    useEffect(() => {
+        if (transaction) {
+            form.reset({
+                description: `Rule for: ${transaction.description}`,
+                keywords: transaction.description.split(' ').join(','),
+                accountId: '',
+                vatType: 'no_vat',
+            });
+        }
+    }, [transaction, form]);
+
+    const handleSave = (values: z.infer<typeof ruleFormSchema>) => {
+        onSave({
+            description: values.description,
+            keywords: values.keywords.split(',').map(k => k.trim().toLowerCase()),
+            accountId: values.accountId,
+            vatType: values.vatType,
+        });
+        onClose();
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Create New Allocation Rule</DialogTitle>
+                    <DialogDescription>Create a rule to automatically handle similar transactions in the future.</DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleSave)} className="space-y-4">
+                        <FormField control={form.control} name="description" render={({ field }) => (
+                            <FormItem><FormLabel>Rule Description</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                        )}/>
+                        <FormField control={form.control} name="keywords" render={({ field }) => (
+                            <FormItem><FormLabel>Keywords (comma-separated)</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>
+                        )}/>
+                        <FormField control={form.control} name="accountId" render={({ field }) => (
+                            <FormItem><FormLabel>Allocate To Account</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl>
+                                    <SelectContent>{client?.chartOfAccounts?.map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.accountNumber} - {acc.description}</SelectItem>))}</SelectContent>
+                                </Select>
+                            <FormMessage /></FormItem>
+                        )}/>
+                         <FormField control={form.control} name="vatType" render={({ field }) => (
+                            <FormItem><FormLabel>VAT Type</FormLabel>
+                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl>
+                                    <SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent>
+                                </Select>
+                            <FormMessage /></FormItem>
+                        )}/>
+                        <DialogFooter>
+                            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+                            <Button type="submit">Create Rule</Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
+            </DialogContent>
+        </Dialog>
+    )
+}
 
 export default function BankTransactionsPage() {
   const [client, setClient] = useState<User | null>(null);
@@ -418,8 +506,8 @@ export default function BankTransactionsPage() {
   const { toast } = useToast();
   const [activeSubTab, setActiveSubTab] = useState('all');
   const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
-  const [allocationAccountId, setAllocationAccountId] = useState<string>('');
-  const [allocationVatType, setAllocationVatType] = useState<VatType>('no_vat');
+  const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
+  const [ruleTransaction, setRuleTransaction] = useState<ImportedTransaction | null>(null);
 
 
   const fetchClient = async () => {
@@ -482,8 +570,10 @@ export default function BankTransactionsPage() {
 
   const bankBalance = useMemo(() => {
     if (!client || !selectedAccountId) return 0;
-    return transactions.reduce((sum, tx) => sum + tx.amount, 0);
-  }, [transactions]);
+    const importedBalance = client.importedTransactions?.filter(t => t.bankAccountId === selectedAccountId).reduce((sum, tx) => sum + tx.amount, 0) || 0;
+    const allocatedBalance = client.allocatedTransactions?.filter(t => t.bankAccountId === selectedAccountId).reduce((sum, tx) => sum + tx.amount, 0) || 0;
+    return importedBalance + allocatedBalance;
+  }, [client, selectedAccountId]);
   
   const lastImportDate = useMemo(() => {
     if (!transactions || transactions.length === 0) return null;
@@ -540,6 +630,33 @@ export default function BankTransactionsPage() {
     } catch (error) {
       toast({ title: 'Deletion Failed', description: 'Could not delete the transactions.', variant: 'destructive' });
       console.error(error);
+    }
+  };
+
+  const openRuleDialog = (transaction: ImportedTransaction) => {
+    setRuleTransaction(transaction);
+    setIsRuleDialogOpen(true);
+  };
+  
+  const handleSaveRule = async (ruleData: Omit<AllocationRule, 'id' | 'type'>) => {
+    if (!client) return;
+
+    const newRule: AllocationRule = {
+        id: `rule-${Date.now()}`,
+        type: 'hard', // For now, all created rules are hard
+        ...ruleData,
+    };
+    
+    try {
+        const clientRef = doc(db, 'clients', client.id);
+        await updateDoc(clientRef, {
+            allocationRules: arrayUnion(newRule)
+        });
+        toast({ title: 'Allocation Rule Created', description: `New rule for "${ruleData.description}" has been saved.`});
+        await fetchClient();
+    } catch (error) {
+        toast({ title: 'Rule Creation Failed', description: 'Could not save the new rule.', variant: 'destructive'});
+        console.error(error);
     }
   };
 
@@ -701,7 +818,7 @@ export default function BankTransactionsPage() {
                                             <TableCell>{tx.description}</TableCell>
                                             <TableCell></TableCell>
                                             <TableCell>
-                                                <Select onValueChange={(value) => setAllocationAccountId(value)}>
+                                                <Select>
                                                     <SelectTrigger className="h-8 w-[200px]">
                                                         <SelectValue placeholder="Select account" />
                                                     </SelectTrigger>
@@ -715,7 +832,7 @@ export default function BankTransactionsPage() {
                                                 </Select>
                                             </TableCell>
                                              <TableCell>
-                                                <Select onValueChange={(value) => setAllocationVatType(value as VatType)}>
+                                                <Select>
                                                     <SelectTrigger className="h-8 w-[180px]">
                                                         <SelectValue placeholder="Select VAT type" />
                                                     </SelectTrigger>
@@ -731,7 +848,7 @@ export default function BankTransactionsPage() {
                                             <TableCell className="text-right">{tx.amount < 0 ? formatPrice(Math.abs(tx.amount)) : ''}</TableCell>
                                             <TableCell className="text-right">{tx.amount >= 0 ? formatPrice(tx.amount) : ''}</TableCell>
                                             <TableCell>
-                                                <Button variant="ghost" size="sm" className="h-8">
+                                                <Button variant="ghost" size="sm" className="h-8" onClick={() => openRuleDialog(tx)}>
                                                     <Cog className="mr-2 h-4 w-4"/>
                                                     Create Allocation Rule
                                                 </Button>
@@ -781,6 +898,14 @@ export default function BankTransactionsPage() {
             onClose={() => setIsImportDialogOpen(false)}
             onSave={handleSaveTransactions}
             currentBalance={bankBalance}
+        />
+        
+        <CreateRuleDialog
+            isOpen={isRuleDialogOpen}
+            onClose={() => setIsRuleDialogOpen(false)}
+            onSave={handleSaveRule}
+            transaction={ruleTransaction}
+            client={client}
         />
     </div>
   );
