@@ -177,7 +177,20 @@ export default function BankTransactionsPage() {
                                             <TableCell></TableCell>
                                             <TableCell>{tx.description}</TableCell>
                                             <TableCell></TableCell>
-                                            <TableCell></TableCell>
+                                            <TableCell>
+                                                <Select>
+                                                    <SelectTrigger className="h-8">
+                                                        <SelectValue placeholder="Select account" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {client?.chartOfAccounts?.map(acc => (
+                                                            <SelectItem key={acc.id} value={acc.id}>
+                                                                {acc.accountNumber} - {acc.description}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </TableCell>
                                             <TableCell></TableCell>
                                             <TableCell></TableCell>
                                             <TableCell className="text-right">{tx.amount < 0 ? formatPrice(Math.abs(tx.amount)) : ''}</TableCell>
@@ -202,7 +215,20 @@ export default function BankTransactionsPage() {
                                     <TableCell><Input className="h-8" /></TableCell>
                                     <TableCell><Input className="h-8" /></TableCell>
                                     <TableCell><Input className="h-8" /></TableCell>
-                                    <TableCell>(None)</TableCell>
+                                    <TableCell>
+                                        <Select>
+                                            <SelectTrigger className="h-8">
+                                                <SelectValue placeholder="Select account" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {client?.chartOfAccounts?.map(acc => (
+                                                    <SelectItem key={acc.id} value={acc.id}>
+                                                        {acc.accountNumber} - {acc.description}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </TableCell>
                                     <TableCell><Input className="h-8" /></TableCell>
                                     <TableCell><Input className="h-8" /></TableCell>
                                     <TableCell><Input className="h-8" placeholder="R" /></TableCell>
@@ -241,3 +267,4 @@ export default function BankTransactionsPage() {
     </div>
   );
 }
+
