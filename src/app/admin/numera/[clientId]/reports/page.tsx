@@ -11,6 +11,7 @@ import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User, ChartOfAccount } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useParams } from "next/navigation";
 
 const db = getFirestore(firebaseApp);
 
@@ -40,15 +41,17 @@ function TrialBalance({ chartOfAccounts }: { chartOfAccounts: ChartOfAccount[] }
     )
 }
 
-export default function ReportsPage({ params }: { params: { clientId: string }}) {
+export default function ReportsPage() {
+    const params = useParams();
+    const clientId = params.clientId as string;
     const [client, setClient] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        if (params.clientId) {
+        if (clientId) {
             const fetchClient = async () => {
                 setIsLoading(true);
-                const docRef = doc(db, 'clients', params.clientId);
+                const docRef = doc(db, 'clients', clientId);
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
                     setClient({ id: docSnap.id, ...docSnap.data() } as User);
@@ -57,7 +60,7 @@ export default function ReportsPage({ params }: { params: { clientId: string }})
             };
             fetchClient();
         }
-    }, [params.clientId]);
+    }, [clientId]);
 
   const reports = [
     { title: 'Trial Balance', description: 'View the trial balance for a selected period.', component: client ? <TrialBalance chartOfAccounts={client.chartOfAccounts || []} /> : <p>Loading client data...</p> },
@@ -100,7 +103,7 @@ export default function ReportsPage({ params }: { params: { clientId: string }})
                             </DialogDescription>
                         </DialogHeader>
                         <div className="border rounded-lg overflow-y-auto flex-grow">
-                            {isLoading ? <Loader2 className="h-8 w-8 animate-spin text-primary m-auto"/> : report.component}
+                            {isLoading ? <div className="flex justify-center items-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div> : report.component}
                         </div>
                     </DialogContent>
                 </Dialog>
