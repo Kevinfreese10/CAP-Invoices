@@ -22,7 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-
+import { Separator } from '@/components/ui/separator';
 
 const db = getFirestore(firebaseApp);
 
@@ -34,13 +34,16 @@ const fileImportSchema = z.object({
   file: z.custom<FileList>().refine((files) => files && files.length > 0, 'A file is required.'),
 });
 
-function ImportDialog({ account, onImport }: { account: ChartOfAccount; onImport: (transactions: any[], accountId: string) => void }) {
+function ImportDialog({ account, currentBalance, onImport }: { account: ChartOfAccount; currentBalance: number, onImport: (transactions: any[], accountId: string) => void }) {
     const [isImporting, setIsImporting] = useState(false);
     const [importedTransactions, setImportedTransactions] = useState<any[]>([]);
+    const [importTotal, setImportTotal] = useState(0);
     const form = useForm<z.infer<typeof fileImportSchema>>({ resolver: zodResolver(fileImportSchema) });
 
     const handleFileImport = async (values: z.infer<typeof fileImportSchema>) => {
         setIsImporting(true);
+        setImportedTransactions([]);
+        setImportTotal(0);
         const file = values.file[0];
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -48,23 +51,34 @@ function ImportDialog({ account, onImport }: { account: ChartOfAccount; onImport
             let transactions: any[] = [];
 
             if (file.name.endsWith('.csv')) {
-                const result = Papa.parse(data as string, { header: true });
-                transactions = result.data;
+                const result = Papa.parse(data as string, { header: true, skipEmptyLines: true });
+                transactions = result.data as any[];
             } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
                 const workbook = XLSX.read(data, { type: 'binary' });
                 const sheetName = workbook.SheetNames[0];
                 const sheet = workbook.Sheets[sheetName];
                 transactions = XLSX.utils.sheet_to_json(sheet);
             }
+            
+            const total = transactions.reduce((sum, row) => {
+                const amount = parseFloat(row.Amount || row.amount || '0');
+                return sum + (isNaN(amount) ? 0 : amount);
+            }, 0);
+
+            setImportTotal(total);
             setImportedTransactions(transactions);
             setIsImporting(false);
         };
         if (file.name.endsWith('.csv')) reader.readAsText(file);
         else reader.readAsBinaryString(file);
     };
+    
+    const formatPrice = (price: number) => {
+        return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(price);
+    };
 
     return (
-        <DialogContent>
+        <DialogContent className="sm:max-w-3xl">
             <DialogHeader>
                 <DialogTitle>Import Transactions for {account.description}</DialogTitle>
                 <DialogDescription>Import bank statements from CSV or Excel files.</DialogDescription>
@@ -77,8 +91,25 @@ function ImportDialog({ account, onImport }: { account: ChartOfAccount; onImport
             </Form>
 
              {importedTransactions.length > 0 && (
-                <div className="mt-6">
-                    <div className="flex items-center gap-2 mb-2">
+                <div className="mt-6 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <Card>
+                            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Current Balance</CardTitle></CardHeader>
+                            <CardContent><p className="text-2xl font-bold">{formatPrice(currentBalance)}</p></CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Import Amount</CardTitle></CardHeader>
+                            <CardContent><p className="text-2xl font-bold">{formatPrice(importTotal)}</p></CardContent>
+                        </Card>
+                         <Card className="bg-muted">
+                            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">New Potential Balance</CardTitle></CardHeader>
+                            <CardContent><p className="text-2xl font-bold">{formatPrice(currentBalance + importTotal)}</p></CardContent>
+                        </Card>
+                    </div>
+
+                    <Separator />
+
+                    <div className="flex items-center gap-2">
                         <TableIcon className="h-5 w-5 text-muted-foreground" />
                         <h3 className="font-semibold">Imported Data Preview ({importedTransactions.length} rows)</h3>
                     </div>
@@ -196,6 +227,13 @@ export default function BankPage() {
         toast({ title: 'Error', description: 'Failed to save imported transactions.', variant: 'destructive' });
     }
   }
+  
+  const getAccountBalance = (accountId: string) => {
+    if (!client) return 0;
+    const importedTotal = client.importedTransactions?.filter(t => t.bankAccountId === accountId).reduce((sum, t) => sum + t.amount, 0) || 0;
+    // When allocated transactions are implemented, their effect would be calculated here too.
+    return importedTotal;
+  };
 
   return (
     <div className="space-y-8">
@@ -243,7 +281,7 @@ export default function BankPage() {
                               <DialogTrigger asChild><Button variant="outline"><FileUp className="mr-2 h-4 w-4" /> Import Transactions</Button></DialogTrigger>
                           </CardFooter>
                         </Card>
-                        <ImportDialog account={acc} onImport={handleSaveTransactions} />
+                        <ImportDialog account={acc} currentBalance={getAccountBalance(acc.id)} onImport={handleSaveTransactions} />
                       </Dialog>
                     ))}
                 </div>
