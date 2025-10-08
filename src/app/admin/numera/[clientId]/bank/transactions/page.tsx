@@ -379,22 +379,13 @@ export default function BankTransactionsPage() {
                        <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="w-full">
                             <TabsList className="grid w-full grid-cols-3 rounded-t-lg rounded-b-none h-auto">
                                 <TabsTrigger value="all" className="rounded-tl-md">
-                                    <div className="text-center p-2">
-                                        <p className="text-lg font-bold">{formatPrice(totalReceived + totalSpent)}</p>
-                                        <p className="text-xs text-muted-foreground">Net Movement</p>
-                                    </div>
+                                    All ({transactions.length})
                                 </TabsTrigger>
                                 <TabsTrigger value="income">
-                                    <div className="text-center p-2">
-                                        <p className="text-lg font-bold">{formatPrice(totalReceived)}</p>
-                                        <p className="text-xs text-muted-foreground">Total Received</p>
-                                    </div>
+                                    Income ({transactions.filter(t => t.amount >= 0).length})
                                 </TabsTrigger>
                                 <TabsTrigger value="expenses" className="rounded-tr-md">
-                                     <div className="text-center p-2">
-                                        <p className="text-lg font-bold">{formatPrice(totalSpent)}</p>
-                                        <p className="text-xs text-muted-foreground">Total Spent</p>
-                                    </div>
+                                     Expenses ({transactions.filter(t => t.amount < 0).length})
                                 </TabsTrigger>
                             </TabsList>
                         </Tabs>
