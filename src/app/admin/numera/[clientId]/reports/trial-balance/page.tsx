@@ -1,6 +1,7 @@
 
 'use client';
 
+import * as React from "react"
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -71,7 +72,6 @@ function TrialBalanceReport({ client, dateRange }: { client: User, dateRange?: D
             balances.set(acc.id, 0);
         });
 
-        // Get the suspense account ID
         const suspenseAccountId = client.chartOfAccounts?.find(acc => acc.accountNumber === '9950/000')?.id;
 
         const filteredAllocated = filterByDate(client.allocatedTransactions || []) as AllocatedTransaction[];
@@ -79,17 +79,13 @@ function TrialBalanceReport({ client, dateRange }: { client: User, dateRange?: D
         
         // Process allocated transactions
         filteredAllocated.forEach(tx => {
-            // Entry for the bank account
             balances.set(tx.bankAccountId, (balances.get(tx.bankAccountId) || 0) + tx.amount);
-            // Double entry for the allocated expense/income account
             balances.set(tx.allocatedTo.value, (balances.get(tx.allocatedTo.value) || 0) - tx.amount);
         });
 
         // Process unallocated (imported) transactions
         filteredImported.forEach(tx => {
-             // Entry for the bank account
             balances.set(tx.bankAccountId, (balances.get(tx.bankAccountId) || 0) + tx.amount);
-            // Double entry to the suspense account
             if (suspenseAccountId) {
                 balances.set(suspenseAccountId, (balances.get(suspenseAccountId) || 0) - tx.amount);
             }
@@ -121,30 +117,8 @@ function TrialBalanceReport({ client, dateRange }: { client: User, dateRange?: D
         return { debit, credit };
     }, [trialBalanceData]);
     
-    const getReportDateString = () => {
-        if (!dateRange || (!dateRange.from && !dateRange.to)) {
-            return `as at ${format(new Date(), "dd MMMM yyyy")}`;
-        }
-        if (dateRange.from && dateRange.to) {
-            return `for the period ${format(dateRange.from, "dd MMMM yyyy")} to ${format(dateRange.to, "dd MMMM yyyy")}`;
-        }
-        if (dateRange.from) {
-            return `from ${format(dateRange.from, "dd MMMM yyyy")}`;
-        }
-        if (dateRange.to) {
-            return `up to ${format(dateRange.to, "dd MMMM yyyy")}`;
-        }
-        return `as at ${format(new Date(), "dd MMMM yyyy")}`;
-    }
-
     return (
         <div className="max-h-[70vh] overflow-y-auto">
-            <DialogHeader className="text-center mb-4">
-                <DialogTitle className="text-lg">{client.companyName || client.name}</DialogTitle>
-                <DialogDescription>
-                    Trial Balance {getReportDateString()}
-                </DialogDescription>
-            </DialogHeader>
             <Table>
                 <TableHeader>
                     <TableRow>
@@ -210,6 +184,22 @@ export default function TrialBalancePage() {
             fetchClient();
         }
     }, [clientId]);
+    
+    const getReportDateString = () => {
+        if (!dateRange || (!dateRange.from && !dateRange.to)) {
+            return `as at ${format(new Date(), "dd MMMM yyyy")}`;
+        }
+        if (dateRange.from && dateRange.to) {
+            return `for the period ${format(dateRange.from, "dd MMMM yyyy")} to ${format(dateRange.to, "dd MMMM yyyy")}`;
+        }
+        if (dateRange.from) {
+            return `from ${format(dateRange.from, "dd MMMM yyyy")}`;
+        }
+        if (dateRange.to) {
+            return `up to ${format(dateRange.to, "dd MMMM yyyy")}`;
+        }
+        return `as at ${format(new Date(), "dd MMMM yyyy")}`;
+    }
 
     return (
         <div>
@@ -230,6 +220,12 @@ export default function TrialBalancePage() {
                                 <Button>View Trial Balance</Button>
                             </DialogTrigger>
                              <DialogContent className="sm:max-w-3xl">
+                                <DialogHeader className="text-center mb-4">
+                                    <DialogTitle className="text-lg">{client.companyName || client.name}</DialogTitle>
+                                    <DialogDescription>
+                                        Trial Balance {getReportDateString()}
+                                    </DialogDescription>
+                                </DialogHeader>
                                 <TrialBalanceReport client={client} dateRange={dateRange} />
                             </DialogContent>
                         </Dialog>
