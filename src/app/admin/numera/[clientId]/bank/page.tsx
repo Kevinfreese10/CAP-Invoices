@@ -37,6 +37,7 @@ export default function BankPage() {
   const [isImporting, setIsImporting] = useState(false);
   const [importedTransactions, setImportedTransactions] = useState<any[]>([]);
   const [isLoadingClient, setIsLoadingClient] = useState(true);
+  const [isAddAccountOpen, setIsAddAccountOpen] = useState(false);
   const params = useParams();
   const clientId = params.clientId as string;
   const { toast } = useToast();
@@ -102,6 +103,7 @@ export default function BankPage() {
         });
         toast({ title: 'Success', description: 'Bank account added successfully.' });
         bankForm.reset();
+        setIsAddAccountOpen(false);
         await fetchClient(); // Re-fetch to get updated accounts list
     } catch (e) {
         toast({ title: 'Error', description: 'Failed to save new bank account.', variant: 'destructive' });
@@ -166,7 +168,7 @@ export default function BankPage() {
            ) : (
                 <p className="text-sm text-muted-foreground text-center py-4">No bank accounts added yet.</p>
            )}
-          <Dialog>
+          <Dialog open={isAddAccountOpen} onOpenChange={setIsAddAccountOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" className="mt-4">
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Bank Account
