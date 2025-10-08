@@ -7,14 +7,16 @@ import { getFirestore, collection, getDocs, query, orderBy, where } from 'fireba
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, Banknote } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { ExtractedInvoice } from '@/lib/types';
-import { capChartOfAccounts, s38ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
-import { Separator } from '@/components/ui/separator';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 const db = getFirestore(firebaseApp);
 
-const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts];
+type SupplierGroup = {
+    supplier: string;
+    totalAmount: number;
+    invoices: ExtractedInvoice[];
+};
 
 function PaymentBatchTable({ title, invoices, totalAmount }: { title: string, invoices: ExtractedInvoice[], totalAmount: number }) {
     const formatPrice = (price: number) => {
@@ -23,12 +25,23 @@ function PaymentBatchTable({ title, invoices, totalAmount }: { title: string, in
           currency: 'ZAR',
         }).format(price);
     };
+    
+    const groupedBySupplier = useMemo(() => {
+        const groups: { [key: string]: SupplierGroup } = {};
+        invoices.forEach(invoice => {
+            if (!groups[invoice.supplier]) {
+                groups[invoice.supplier] = {
+                    supplier: invoice.supplier,
+                    totalAmount: 0,
+                    invoices: [],
+                };
+            }
+            groups[invoice.supplier].totalAmount += invoice.invoiceTotal;
+            groups[invoice.supplier].invoices.push(invoice);
+        });
+        return Object.values(groups).sort((a, b) => b.totalAmount - a.totalAmount);
+    }, [invoices]);
 
-    const getAccountDescription = (accountId?: string) => {
-        if (!accountId) return 'N/A';
-        const account = allAccounts.find(acc => acc.accountNumber === accountId);
-        return account ? account.description : accountId;
-    }
 
     return (
         <Card>
@@ -49,19 +62,47 @@ function PaymentBatchTable({ title, invoices, totalAmount }: { title: string, in
                     <TableHeader>
                         <TableRow>
                             <TableHead>Supplier</TableHead>
-                            <TableHead>Invoice #</TableHead>
-                            <TableHead>Date</TableHead>
-                            <TableHead className="text-right">Amount (Incl. VAT)</TableHead>
+                            <TableHead className="text-right">Total Amount Due</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {invoices.map((invoice) => (
-                            <TableRow key={invoice.id}>
-                                <TableCell className="font-medium">{invoice.supplier}</TableCell>
-                                <TableCell>{invoice.invoiceNumber}</TableCell>
-                                <TableCell>{invoice.date}</TableCell>
-                                <TableCell className="text-right font-mono">{formatPrice(invoice.invoiceTotal)}</TableCell>
-                            </TableRow>
+                        {groupedBySupplier.map((group) => (
+                           <Accordion type="single" collapsible key={group.supplier}>
+                               <AccordionItem value={group.supplier} className="border-b-0">
+                                   <TableRow className="border-b hover:bg-transparent">
+                                        <TableCell className="font-medium">
+                                            <AccordionTrigger className="p-0 hover:no-underline">{group.supplier}</AccordionTrigger>
+                                        </TableCell>
+                                        <TableCell className="text-right font-mono font-semibold">{formatPrice(group.totalAmount)}</TableCell>
+                                   </TableRow>
+                                   <AccordionContent asChild>
+                                      <tr>
+                                        <td colSpan={2} className="p-0">
+                                            <div className="p-4 bg-muted/50">
+                                                <Table>
+                                                    <TableHeader>
+                                                        <TableRow>
+                                                            <TableHead className="h-8">Invoice #</TableHead>
+                                                            <TableHead className="h-8">Date</TableHead>
+                                                            <TableHead className="h-8 text-right">Amount</TableHead>
+                                                        </TableRow>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {group.invoices.map(invoice => (
+                                                            <TableRow key={invoice.id} className="text-xs">
+                                                                <TableCell className="py-1">{invoice.invoiceNumber}</TableCell>
+                                                                <TableCell className="py-1">{invoice.date}</TableCell>
+                                                                <TableCell className="py-1 text-right font-mono">{formatPrice(invoice.invoiceTotal)}</TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                    </TableBody>
+                                                </Table>
+                                            </div>
+                                        </td>
+                                      </tr>
+                                   </AccordionContent>
+                               </AccordionItem>
+                           </Accordion>
                         ))}
                     </TableBody>
                 </Table>
