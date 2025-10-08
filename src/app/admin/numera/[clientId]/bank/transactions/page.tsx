@@ -11,12 +11,12 @@ import { Input } from "@/components/ui/input";
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove, addDoc, collection } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove, addDoc, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -409,6 +409,7 @@ function ReviewedTransactionsTab({ client, fetchClient }: { client: User | null;
 }
 
 const ruleFormSchema = z.object({
+  id: z.string().optional(),
   description: z.string().min(3, "Description is required"),
   keywords: z.string().min(3, "At least one keyword is required"),
   accountId: z.string().min(1, "Please select an account to allocate to."),
@@ -417,112 +418,237 @@ const ruleFormSchema = z.object({
 });
 
 
-function CreateRuleDialog({
-    isOpen,
-    onClose,
-    onSave,
-    transaction,
-    client,
-}: {
-    isOpen: boolean;
-    onClose: () => void;
-    onSave: (rule: Omit<AllocationRule, 'id' | 'type'>, scope: 'client' | 'global') => void;
-    transaction: ImportedTransaction | null;
-    client: User | null;
-}) {
+function RuleForm({ rule, client, onSave }: { rule: Partial<AllocationRule> | null, client: User | null, onSave: (ruleData: z.infer<typeof ruleFormSchema>) => void }) {
     const form = useForm<z.infer<typeof ruleFormSchema>>({
         resolver: zodResolver(ruleFormSchema),
     });
 
     useEffect(() => {
-        if (transaction) {
-            form.reset({
-                description: `Rule for: ${transaction.description}`,
-                keywords: transaction.description.split(' ').join(','),
-                accountId: '',
-                vatType: 'no_vat',
-                scope: 'client',
-            });
-        }
-    }, [transaction, form]);
+        form.reset({
+            id: rule?.id || undefined,
+            description: rule?.description || '',
+            keywords: Array.isArray(rule?.keywords) ? rule.keywords.join(', ') : '',
+            accountId: rule?.accountId || '',
+            vatType: rule?.vatType || 'no_vat',
+            scope: rule?.scope || 'client',
+        });
+    }, [rule, form]);
+    
+    return (
+         <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSave)} className="space-y-4">
+                <FormField control={form.control} name="description" render={({ field }) => (
+                    <FormItem><FormLabel>Rule Description</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                )}/>
+                <FormField control={form.control} name="keywords" render={({ field }) => (
+                    <FormItem><FormLabel>Keywords (comma-separated)</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>
+                )}/>
+                <FormField control={form.control} name="accountId" render={({ field }) => (
+                    <FormItem><FormLabel>Allocate To Account</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl>
+                            <SelectContent>{client?.chartOfAccounts?.map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.accountNumber} - {acc.description}</SelectItem>))}</SelectContent>
+                        </Select>
+                    <FormMessage /></FormItem>
+                )}/>
+                    <FormField control={form.control} name="vatType" render={({ field }) => (
+                    <FormItem><FormLabel>VAT Type</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl>
+                            <SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent>
+                        </Select>
+                    <FormMessage /></FormItem>
+                )}/>
+                <FormField
+                    control={form.control}
+                    name="scope"
+                    render={({ field }) => (
+                        <FormItem className="space-y-3">
+                        <FormLabel>Rule Scope</FormLabel>
+                        <FormControl>
+                            <RadioGroup
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                            className="flex flex-col space-y-1"
+                            >
+                            <FormItem className="flex items-center space-x-3 space-y-0">
+                                <FormControl><RadioGroupItem value="client" /></FormControl>
+                                <FormLabel className="font-normal">Client Specific</FormLabel>
+                            </FormItem>
+                            <FormItem className="flex items-center space-x-3 space-y-0">
+                                <FormControl><RadioGroupItem value="global" /></FormControl>
+                                <FormLabel className="font-normal">Global</FormLabel>
+                            </FormItem>
+                            </RadioGroup>
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                <DialogFooter>
+                    <Button type="submit">Save Rule</Button>
+                </DialogFooter>
+            </form>
+        </Form>
+    );
+}
 
-    const handleSave = (values: z.infer<typeof ruleFormSchema>) => {
-        onSave({
+function ManageRulesDialog({ 
+    isOpen,
+    onClose,
+    client,
+    globalRules,
+    fetchClientAndRules
+ } : { 
+    isOpen: boolean; 
+    onClose: () => void;
+    client: User | null;
+    globalRules: AllocationRule[];
+    fetchClientAndRules: () => void;
+}) {
+    const [editingRule, setEditingRule] = useState<Partial<AllocationRule> | null>(null);
+    const { toast } = useToast();
+
+    const handleSaveRule = async (values: z.infer<typeof ruleFormSchema>) => {
+        if (!client) return;
+
+        const ruleData: Omit<AllocationRule, 'id'> = {
             description: values.description,
             keywords: values.keywords.split(',').map(k => k.trim().toLowerCase()),
             accountId: values.accountId,
             vatType: values.vatType,
-        }, values.scope);
-        onClose();
+            type: 'hard', // All user-created rules are 'hard'
+        };
+
+        try {
+            if (values.id) { // Editing existing rule
+                 if (values.scope === 'client') {
+                    const clientRef = doc(db, 'clients', client.id);
+                    const updatedRules = client.allocationRules?.map(r => r.id === values.id ? { ...ruleData, id: values.id } : r) || [];
+                    await updateDoc(clientRef, { allocationRules: updatedRules });
+                } else { // Global
+                    const ruleRef = doc(db, 'allocationRules', values.id);
+                    await updateDoc(ruleRef, ruleData);
+                }
+                toast({ title: 'Rule Updated' });
+            } else { // Creating new rule
+                const newRule = { ...ruleData, id: `rule-${Date.now()}`};
+                if (values.scope === 'client') {
+                    const clientRef = doc(db, 'clients', client.id);
+                    await updateDoc(clientRef, { allocationRules: arrayUnion(newRule) });
+                } else {
+                    await addDoc(collection(db, 'allocationRules'), newRule);
+                }
+                toast({ title: 'Rule Created' });
+            }
+
+            setEditingRule(null);
+            fetchClientAndRules();
+        } catch (error) {
+            toast({ title: 'Save Failed', description: 'Could not save the rule.', variant: 'destructive'});
+            console.error(error);
+        }
     };
 
+    const handleDeleteRule = async (ruleId: string, scope: 'client' | 'global') => {
+        if (!client) return;
+        try {
+            if (scope === 'client') {
+                const clientRef = doc(db, 'clients', client.id);
+                const updatedRules = client.allocationRules?.filter(r => r.id !== ruleId) || [];
+                await updateDoc(clientRef, { allocationRules: updatedRules });
+            } else {
+                await deleteDoc(doc(db, 'allocationRules', ruleId));
+            }
+            toast({ title: 'Rule Deleted', variant: 'destructive' });
+            fetchClientAndRules();
+        } catch (error) {
+            toast({ title: 'Delete Failed', description: 'Could not delete the rule.', variant: 'destructive'});
+            console.error(error);
+        }
+    }
+    
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Create New Allocation Rule</DialogTitle>
-                    <DialogDescription>Create a rule to automatically handle similar transactions in the future.</DialogDescription>
+        <Dialog open={isOpen} onOpenChange={(open) => { if (!open) { setEditingRule(null); onClose(); }}}>
+            <DialogContent className="sm:max-w-4xl">
+                 <DialogHeader>
+                    <DialogTitle>Manage Allocation Rules</DialogTitle>
                 </DialogHeader>
-                <Form {...form}>
-                    <form onSubmit={form.handleSubmit(handleSave)} className="space-y-4">
-                        <FormField control={form.control} name="description" render={({ field }) => (
-                            <FormItem><FormLabel>Rule Description</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                        )}/>
-                        <FormField control={form.control} name="keywords" render={({ field }) => (
-                            <FormItem><FormLabel>Keywords (comma-separated)</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>
-                        )}/>
-                        <FormField control={form.control} name="accountId" render={({ field }) => (
-                            <FormItem><FormLabel>Allocate To Account</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                    <FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl>
-                                    <SelectContent>{client?.chartOfAccounts?.map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.accountNumber} - {acc.description}</SelectItem>))}</SelectContent>
-                                </Select>
-                            <FormMessage /></FormItem>
-                        )}/>
-                         <FormField control={form.control} name="vatType" render={({ field }) => (
-                            <FormItem><FormLabel>VAT Type</FormLabel>
-                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                    <FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl>
-                                    <SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent>
-                                </Select>
-                            <FormMessage /></FormItem>
-                        )}/>
-                        <FormField
-                            control={form.control}
-                            name="scope"
-                            render={({ field }) => (
-                                <FormItem className="space-y-3">
-                                <FormLabel>Rule Scope</FormLabel>
-                                <FormControl>
-                                    <RadioGroup
-                                    onValueChange={field.onChange}
-                                    defaultValue={field.value}
-                                    className="flex flex-col space-y-1"
-                                    >
-                                    <FormItem className="flex items-center space-x-3 space-y-0">
-                                        <FormControl><RadioGroupItem value="client" /></FormControl>
-                                        <FormLabel className="font-normal">Client Specific (applies only to this client)</FormLabel>
-                                    </FormItem>
-                                    <FormItem className="flex items-center space-x-3 space-y-0">
-                                        <FormControl><RadioGroupItem value="global" /></FormControl>
-                                        <FormLabel className="font-normal">Global (applies to all clients)</FormLabel>
-                                    </FormItem>
-                                    </RadioGroup>
-                                </FormControl>
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                            />
-                        <DialogFooter>
-                            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-                            <Button type="submit">Create Rule</Button>
-                        </DialogFooter>
-                    </form>
-                </Form>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-h-[70vh]">
+                     <div className="space-y-4">
+                        <h3 className="font-semibold">Rule Editor</h3>
+                         <Card>
+                            <CardContent className="pt-6">
+                               <RuleForm 
+                                   rule={editingRule}
+                                   client={client}
+                                   onSave={handleSaveRule}
+                                />
+                            </CardContent>
+                         </Card>
+                     </div>
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                            <h3 className="font-semibold">Existing Rules</h3>
+                            <Button variant="outline" size="sm" onClick={() => setEditingRule({})}>
+                                <PlusCircle className="mr-2 h-4 w-4" /> Create New
+                            </Button>
+                        </div>
+                        <Tabs defaultValue="client" className="w-full">
+                            <TabsList>
+                                <TabsTrigger value="client">Client Specific</TabsTrigger>
+                                <TabsTrigger value="global">Global</TabsTrigger>
+                            </TabsList>
+                            <TabsContent value="client" className="overflow-y-auto max-h-[50vh]">
+                                <RuleList rules={client?.allocationRules || []} scope="client" onEdit={setEditingRule} onDelete={handleDeleteRule} />
+                            </TabsContent>
+                            <TabsContent value="global" className="overflow-y-auto max-h-[50vh]">
+                                <RuleList rules={globalRules} scope="global" onEdit={setEditingRule} onDelete={handleDeleteRule} />
+                            </TabsContent>
+                        </Tabs>
+                     </div>
+                 </div>
             </DialogContent>
         </Dialog>
     )
 }
+
+function RuleList({ rules, scope, onEdit, onDelete }: { rules: AllocationRule[], scope: 'client' | 'global', onEdit: (rule: Partial<AllocationRule>) => void, onDelete: (id: string, scope: 'client' | 'global') => void }) {
+    if (rules.length === 0) {
+        return <p className="text-sm text-center text-muted-foreground p-8">No {scope} rules found.</p>
+    }
+    return (
+        <div className="space-y-2">
+            {rules.map(rule => (
+                <Card key={rule.id}>
+                    <CardContent className="p-3 flex justify-between items-center">
+                        <div className="text-sm">
+                            <p className="font-semibold">{rule.description}</p>
+                            <p className="text-xs text-muted-foreground">Keywords: {rule.keywords.join(', ')}</p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit({...rule, scope})}>
+                                <Edit className="h-4 w-4" />
+                            </Button>
+                             <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive">
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone. This will permanently delete the rule: "{rule.description}".</AlertDialogDescription></AlertDialogHeader>
+                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => onDelete(rule.id, scope)}>Delete</AlertDialogAction></AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </div>
+                    </CardContent>
+                </Card>
+            ))}
+        </div>
+    )
+}
+
 
 export default function BankTransactionsPage() {
   const [client, setClient] = useState<User | null>(null);
@@ -537,12 +663,15 @@ export default function BankTransactionsPage() {
   const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
   const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
   const [ruleTransaction, setRuleTransaction] = useState<ImportedTransaction | null>(null);
+  const [isManageRulesOpen, setIsManageRulesOpen] = useState(false);
+  const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
 
 
-  const fetchClient = async () => {
+  const fetchClientAndRules = async () => {
     if (!clientId) return;
     setIsLoading(true);
     try {
+        // Fetch Client
         const clientRef = doc(db, 'clients', clientId);
         const clientSnap = await getDoc(clientRef);
         if (clientSnap.exists()) {
@@ -554,11 +683,18 @@ export default function BankTransactionsPage() {
                 setSelectedAccountId(cashbookAccounts[0].id);
             }
         } else { toast({ title: 'Error', description: 'Client not found.', variant: 'destructive'}); }
-    } catch (e) { toast({ title: 'Error', description: 'Failed to fetch client data.', variant: 'destructive'});
+
+        // Fetch Global Rules
+        const rulesQuery = query(collection(db, "allocationRules"), orderBy("description"));
+        const rulesSnapshot = await getDocs(rulesQuery);
+        const fetchedRules = rulesSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as AllocationRule));
+        setGlobalRules(fetchedRules);
+
+    } catch (e) { toast({ title: 'Error', description: 'Failed to fetch data.', variant: 'destructive'});
     } finally { setIsLoading(false); }
   }
   
-  useEffect(() => { fetchClient(); }, [clientId]);
+  useEffect(() => { fetchClientAndRules(); }, [clientId]);
 
   const handleSaveTransactions = async (newTransactions: Omit<ImportedTransaction, 'clientId' | 'bankAccountId'>[]) => {
     if (!client || !selectedAccountId) return;
@@ -575,7 +711,7 @@ export default function BankTransactionsPage() {
             importedTransactions: arrayUnion(...transactionsToSave)
         });
         toast({ title: 'Import Successful', description: `${transactionsToSave.length} transactions have been imported.`});
-        await fetchClient(); // Re-fetch to show new data
+        await fetchClientAndRules(); // Re-fetch to show new data
     } catch (error) {
         toast({ title: 'Import Failed', description: 'Could not save the transactions.', variant: 'destructive' });
         console.error(error);
@@ -634,7 +770,7 @@ export default function BankTransactionsPage() {
       });
       toast({ title: 'Transactions Allocated', description: `${selectedTransactions.length} transactions have been allocated and moved to Reviewed.`});
       setSelectedTransactions([]);
-      await fetchClient(); // Re-fetch to show new data
+      await fetchClientAndRules(); // Re-fetch to show new data
     } catch (error) {
       toast({ title: 'Allocation Failed', description: 'Could not allocate the transactions.', variant: 'destructive' });
       console.error(error);
@@ -655,7 +791,7 @@ export default function BankTransactionsPage() {
       });
       toast({ title: 'Transactions Deleted', description: `${selectedTransactions.length} transactions have been removed.` });
       setSelectedTransactions([]);
-      await fetchClient(); // Re-fetch to show new data
+      await fetchClientAndRules(); // Re-fetch to show new data
     } catch (error) {
       toast({ title: 'Deletion Failed', description: 'Could not delete the transactions.', variant: 'destructive' });
       console.error(error);
@@ -714,7 +850,7 @@ export default function BankTransactionsPage() {
         }
         // --- End of auto-apply logic ---
 
-        await fetchClient(); // Refresh all data
+        await fetchClientAndRules(); // Refresh all data
     } catch (error) {
         toast({ title: 'Rule Creation Failed', description: 'Could not save the new rule.', variant: 'destructive'});
         console.error(error);
@@ -815,6 +951,10 @@ export default function BankTransactionsPage() {
                                         </DropdownMenuContent>
                                     </DropdownMenu>
                                     <Button variant="default" size="sm" onClick={() => setIsImportDialogOpen(true)}>Import Bank Statements</Button>
+                                    <Button variant="outline" size="sm" onClick={() => setIsManageRulesOpen(true)}>
+                                        <BookOpen className="mr-2 h-4 w-4" />
+                                        Allocation Rules
+                                    </Button>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <div className="relative">
@@ -950,7 +1090,7 @@ export default function BankTransactionsPage() {
                 </Card>
             </TabsContent>
             <TabsContent value="reviewed">
-                <ReviewedTransactionsTab client={client} fetchClient={fetchClient} />
+                <ReviewedTransactionsTab client={client} fetchClient={fetchClientAndRules} />
             </TabsContent>
         </Tabs>
         
@@ -968,8 +1108,18 @@ export default function BankTransactionsPage() {
             transaction={ruleTransaction}
             client={client}
         />
+
+        <ManageRulesDialog
+            isOpen={isManageRulesOpen}
+            onClose={() => setIsManageRulesOpen(false)}
+            client={client}
+            globalRules={globalRules}
+            fetchClientAndRules={fetchClientAndRules}
+        />
     </div>
   );
 }
+
+    
 
     
