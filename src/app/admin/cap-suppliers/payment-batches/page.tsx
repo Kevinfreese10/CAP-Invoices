@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, orderBy, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -83,7 +83,7 @@ function PaymentBatchTable({ title, invoices, totalAmount }: { title: string, in
                                         <TableCell className="text-right font-mono font-semibold">{formatPrice(group.totalAmount)}</TableCell>
                                     </TableRow>
                                     <CollapsibleContent asChild>
-                                        <TableRow>
+                                        <tr className="border-b-0">
                                             <TableCell colSpan={2} className="p-0">
                                                 <div className="p-4 bg-muted/50">
                                                     <Table>
@@ -106,7 +106,7 @@ function PaymentBatchTable({ title, invoices, totalAmount }: { title: string, in
                                                     </Table>
                                                 </div>
                                             </TableCell>
-                                        </TableRow>
+                                        </tr>
                                     </CollapsibleContent>
                                 </React.Fragment>
                            </Collapsible>
