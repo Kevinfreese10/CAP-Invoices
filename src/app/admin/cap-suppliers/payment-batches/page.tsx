@@ -70,7 +70,7 @@ function PaymentBatchTable({ title, invoices, totalAmount }: { title: string, in
                     <TableBody>
                         {groupedBySupplier.map((group) => (
                            <Collapsible asChild key={group.supplier} >
-                                <>
+                                <tbody>
                                     <TableRow>
                                         <TableCell className="font-medium">
                                             <CollapsibleTrigger asChild>
@@ -108,7 +108,7 @@ function PaymentBatchTable({ title, invoices, totalAmount }: { title: string, in
                                             </TableCell>
                                         </tr>
                                     </CollapsibleContent>
-                                </>
+                                </tbody>
                            </Collapsible>
                         ))}
                     </TableBody>
@@ -179,4 +179,3 @@ export default function PaymentBatchesPage() {
         </div>
     );
 }
-
