@@ -165,6 +165,7 @@ export type User = {
   submitsEmp501?: boolean;
   chartOfAccounts?: ChartOfAccount[];
   allocationRules?: AllocationRule[];
+  hasNumeraProfile?: boolean;
 };
 
 export type DiscountCode = {
@@ -251,4 +252,5 @@ export type ExtractedInvoice = {
   rejectionReason?: string;
   paymentBatch?: 'this_week' | 'month_end';
 };
+
 

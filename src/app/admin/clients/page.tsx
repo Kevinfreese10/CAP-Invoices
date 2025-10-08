@@ -15,7 +15,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { User, Task, ChartOfAccount } from '@/lib/types';
+import { User, Task, ChartOfAccount, AllocationRule } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, writeBatch, Timestamp, query, orderBy, where } from 'firebase/firestore';
@@ -27,11 +27,11 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { CalendarIcon } from 'lucide-react';
 import { format, addMonths, set, getMonth, getYear, lastDayOfMonth, isPast, addYears, setMonth, isToday } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Calendar } from '@/components/ui/calendar';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import NewTaskEmail from '@/components/emails/NewTaskEmail';
 import { chartOfAccounts as initialChartOfAccounts } from '@/lib/chart-of-accounts';
+import { allocationRules as initialAllocationRules } from '@/lib/allocation-rules';
 
 const db = getFirestore(firebaseApp);
 
@@ -66,6 +66,7 @@ const formSchema = z.object({
   email: z.string().email('A valid email is required.'),
   cellNumber: z.string().optional(),
   status: z.enum(clientStatuses),
+  createNumeraProfile: z.boolean().default(false),
   // Automation fields
   yearEnd: z.string().optional(),
   submitsProvisionalTaxes: z.boolean().default(false),
@@ -99,6 +100,7 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
             email: client?.email || '',
             cellNumber: client?.cellNumber || '',
             status: client?.status || 'Active',
+            createNumeraProfile: client?.hasNumeraProfile || false,
             yearEnd: client?.yearEnd || undefined,
             submitsProvisionalTaxes: client?.submitsProvisionalTaxes || false,
             submitsIncomeTaxReturn: client?.submitsIncomeTaxReturn || false,
@@ -136,6 +138,33 @@ function ClientForm({ client, onSubmit, onCancel }: { client: Client | null, onS
                     <FormField control={form.control} name="cellNumber" render={({ field }) => ( <FormItem><FormLabel>Cell Number</FormLabel><FormControl><Input placeholder="e.g. 0821234567" {...field} /></FormControl><FormMessage /></FormItem>)} />
                     <FormField control={form.control} name="status" render={({ field }) => ( <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{clientStatuses.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                  </div>
+
+                <Separator />
+                
+                <div className="space-y-4">
+                    <h3 className="text-lg font-medium">Numera Accounting Module</h3>
+                     <FormField
+                        control={form.control}
+                        name="createNumeraProfile"
+                        render={({ field }) => (
+                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                                <div className="space-y-0.5">
+                                    <FormLabel>Create Numera Profile</FormLabel>
+                                    <FormDescription>
+                                        This will create a full accounting profile for this client in the Numera module.
+                                    </FormDescription>
+                                </div>
+                                <FormControl>
+                                    <Switch
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                        disabled={client?.hasNumeraProfile || false}
+                                    />
+                                </FormControl>
+                            </FormItem>
+                        )}
+                        />
+                </div>
 
                 <Separator />
                 
@@ -634,7 +663,7 @@ export default function AdminClientsPage() {
   const handleFormSubmit = async (data: z.infer<typeof formSchema>) => {
     if (!currentUser) return;
     
-    const { ...clientFormData } = data;
+    const { createNumeraProfile, ...clientFormData } = data;
 
     const clientData: Partial<Client> = {
         ...clientFormData,
@@ -645,19 +674,35 @@ export default function AdminClientsPage() {
         role: 'client',
         source: 'Client Management',
     };
+    
+    if (createNumeraProfile) {
+        clientData.hasNumeraProfile = true;
+        clientData.source = 'Numera';
+        clientData.chartOfAccounts = initialChartOfAccounts;
+        clientData.allocationRules = initialAllocationRules;
+    }
 
     try {
         let clientToProcess: Client;
 
         if (selectedClient?.id) {
+            // Check if we need to add a Numera profile to an existing client
+            if (createNumeraProfile && !selectedClient.hasNumeraProfile) {
+                 toast({
+                    title: 'Creating Numera Profile...',
+                    description: 'Adding accounting module to existing client.',
+                });
+            } else {
+                 toast({
+                    title: 'Client Updated',
+                    description: 'The client details have been saved and tasks regenerated.',
+                });
+            }
             await deleteRecurringTasks(selectedClient.id);
             const clientRef = doc(db, "clients", selectedClient.id);
             await setDoc(clientRef, clientData, { merge: true });
-            toast({
-                title: 'Client Updated',
-                description: 'The client details have been saved and tasks regenerated.',
-            });
-            clientToProcess = { ...clientData, id: selectedClient.id } as Client;
+            
+            clientToProcess = { ...selectedClient, ...clientData };
         } else {
             const newDocRef = await addDoc(collection(db, "clients"), clientData);
             toast({
@@ -820,3 +865,4 @@ export default function AdminClientsPage() {
     </div>
   );
 }
+
