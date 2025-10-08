@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { getFirestore, collection, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
+import { sendEmail } from '@/lib/email';
 
 const db = getFirestore(firebaseApp);
 
@@ -90,6 +91,27 @@ export default function InboxPage() {
                     await handleProcessAttachments(email);
                 }
                  toast({ title: "Processing Complete!", description: "New invoices have been sent to the review page." });
+
+                 try {
+                     await sendEmail({
+                        to: 'kev@thinkestry.co.za',
+                        subject: 'New Invoices Ready for Review',
+                        html: `
+                            <p>Hi Kevin,</p>
+                            <p>${unprocessedEmails.length} new email(s) have been processed, and the invoices are now ready for your review.</p>
+                            <p><a href="${window.location.origin}/admin/cap-suppliers/review">Click here to review them</a>.</p>
+                            <p>Thanks,<br/>The My Accountant Automated System</p>
+                        `
+                     });
+                 } catch (emailError) {
+                    console.error("Failed to send review notification email:", emailError);
+                    toast({
+                        title: "Email Notification Failed",
+                        description: "Could not send the 'ready for review' email notification.",
+                        variant: 'destructive',
+                    });
+                 }
+
                  // Re-fetch everything after processing to get the latest status
                  await fetchEmailsAndProcess();
                  return; // Exit to avoid setting state with stale data
