@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, orderBy, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -9,7 +9,6 @@ import { Loader2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ExtractedInvoice } from '@/lib/types';
-import { Separator } from '@/components/ui/separator';
 import { capChartOfAccounts, s38ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 
 const db = getFirestore(firebaseApp);
@@ -36,6 +35,15 @@ export default function PaymentControlSheetPage() {
         };
         fetchInvoices();
     }, []);
+
+    const flattenedLineItems = useMemo(() => {
+        return invoices.flatMap(invoice => 
+            invoice.lineItems.map(item => ({
+                ...item,
+                parentInvoice: invoice,
+            }))
+        );
+    }, [invoices]);
     
     const formatPrice = (price: number) => {
         return new Intl.NumberFormat('en-ZA', {
@@ -57,7 +65,7 @@ export default function PaymentControlSheetPage() {
             <CardHeader>
             <CardTitle>Invoices Approved for Payment</CardTitle>
             <CardDescription>
-                These invoices are ready for payment processing.
+                These line items from approved invoices are ready for payment processing.
             </CardDescription>
             </CardHeader>
             <CardContent>
@@ -65,61 +73,40 @@ export default function PaymentControlSheetPage() {
                     <div className="flex justify-center items-center h-64">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     </div>
-                ) : invoices.length === 0 ? (
+                ) : flattenedLineItems.length === 0 ? (
                     <p className="text-center text-muted-foreground py-10">No invoices are currently approved for payment.</p>
                 ) : (
-                    <div className="space-y-6">
-                    {invoices.map((invoice) => (
-                        <div key={invoice.id} className="border rounded-lg p-4">
-                            <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 gap-4 mb-4">
-                                <div>
-                                    <p className="text-sm text-muted-foreground">Supplier</p>
-                                    <p className="font-semibold">{invoice.supplier}</p>
-                                </div>
-                                <div>
-                                    <p className="text-sm text-muted-foreground">Invoice #</p>
-                                    <p className="font-semibold">{invoice.invoiceNumber}</p>
-                                </div>
-                                <div>
-                                    <p className="text-sm text-muted-foreground">Commission #</p>
-                                    <p className="font-semibold">{invoice.commissionNumber || 'N/A'}</p>
-                                </div>
-                                 <div>
-                                    <p className="text-sm text-muted-foreground">Payment Batch</p>
-                                    <Badge variant="outline">{invoice.paymentBatch === 'this_week' ? 'This Week' : 'Month End'}</Badge>
-                                </div>
-                            </div>
-                             <Separator />
-                             <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Line Item Description</TableHead>
-                                        <TableHead>Allocated Account</TableHead>
-                                        <TableHead className="text-right">Amount (Excl. VAT)</TableHead>
-                                        <TableHead className="text-right">VAT</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {invoice.lineItems.map((item, index) => (
-                                        <TableRow key={index}>
-                                            <TableCell className="max-w-xs truncate">{item.description}</TableCell>
-                                            <TableCell>{getAccountDescription(item.accountId)}</TableCell>
-                                            <TableCell className="text-right">{formatPrice(item.exclusiveAmount)}</TableCell>
-                                            <TableCell className="text-right">{formatPrice(item.vatAmount)}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                             </Table>
-                             <Separator />
-                             <div className="flex justify-end pt-4">
-                                <div className="text-right">
-                                    <p className="text-sm text-muted-foreground">Invoice Total</p>
-                                    <p className="font-bold text-lg">{formatPrice(invoice.invoiceTotal)}</p>
-                                </div>
-                             </div>
-                        </div>
-                    ))}
-                    </div>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Line Item</TableHead>
+                                <TableHead>Allocated Account</TableHead>
+                                <TableHead>Payment Batch</TableHead>
+                                <TableHead className="text-right">Amount (Excl. VAT)</TableHead>
+                                <TableHead className="text-right">VAT</TableHead>
+                                <TableHead className="text-right">Total (Incl. VAT)</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {flattenedLineItems.map((item, index) => (
+                                <TableRow key={`${item.parentInvoice.id}-${index}`}>
+                                    <TableCell>
+                                        <p className="font-semibold">{item.description}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            {item.parentInvoice.supplier} | Inv #{item.parentInvoice.invoiceNumber} | Comm #{item.parentInvoice.commissionNumber || 'N/A'}
+                                        </p>
+                                    </TableCell>
+                                    <TableCell>{getAccountDescription(item.accountId)}</TableCell>
+                                    <TableCell>
+                                        <Badge variant="outline">{item.parentInvoice.paymentBatch === 'this_week' ? 'This Week' : 'Month End'}</Badge>
+                                    </TableCell>
+                                    <TableCell className="text-right font-mono">{formatPrice(item.exclusiveAmount)}</TableCell>
+                                    <TableCell className="text-right font-mono">{formatPrice(item.vatAmount)}</TableCell>
+                                    <TableCell className="text-right font-mono font-semibold">{formatPrice(item.exclusiveAmount + item.vatAmount)}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
                 )}
             </CardContent>
         </Card>
