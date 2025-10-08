@@ -249,4 +249,5 @@ export type ExtractedInvoice = {
   expenseType?: 'CAP' | 'S38';
   commissionNumber?: string;
   rejectionReason?: string;
+  paymentBatch?: 'this_week' | 'month_end';
 };

@@ -53,6 +53,7 @@ const formSchema = z.object({
   lineItems: z.array(lineItemSchema),
   invoiceTotal: z.preprocess((val) => Number(val), z.number()),
   expenseType: z.enum(['CAP', 'S38']).optional(),
+  paymentBatch: z.enum(['this_week', 'month_end']).optional(),
 });
 
 const rejectionFormSchema = z.object({
@@ -71,6 +72,7 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
             lineItems: invoice?.lineItems || [],
             invoiceTotal: invoice?.invoiceTotal || 0,
             expenseType: invoice?.expenseType || 'CAP',
+            paymentBatch: invoice?.paymentBatch || undefined,
         }
     });
 
@@ -101,32 +103,60 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto pr-4">
-                 <FormField
-                    control={form.control}
-                    name="expenseType"
-                    render={({ field }) => (
-                        <FormItem className="space-y-3">
-                        <FormLabel>Expense Type</FormLabel>
-                        <FormControl>
-                            <RadioGroup
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
-                            className="flex items-center space-x-4"
-                            >
-                            <FormItem className="flex items-center space-x-2 space-y-0">
-                                <FormControl><RadioGroupItem value="CAP" /></FormControl>
-                                <FormLabel className="font-normal">CAP Expense</FormLabel>
+                 <div className="grid grid-cols-2 gap-8">
+                    <FormField
+                        control={form.control}
+                        name="expenseType"
+                        render={({ field }) => (
+                            <FormItem className="space-y-3">
+                            <FormLabel>Expense Type</FormLabel>
+                            <FormControl>
+                                <RadioGroup
+                                onValueChange={field.onChange}
+                                defaultValue={field.value}
+                                className="flex items-center space-x-4"
+                                >
+                                <FormItem className="flex items-center space-x-2 space-y-0">
+                                    <FormControl><RadioGroupItem value="CAP" /></FormControl>
+                                    <FormLabel className="font-normal">CAP Expense</FormLabel>
+                                </FormItem>
+                                <FormItem className="flex items-center space-x-2 space-y-0">
+                                    <FormControl><RadioGroupItem value="S38" /></FormControl>
+                                    <FormLabel className="font-normal">S38 Expense</FormLabel>
+                                </FormItem>
+                                </RadioGroup>
+                            </FormControl>
+                            <FormMessage />
                             </FormItem>
-                            <FormItem className="flex items-center space-x-2 space-y-0">
-                                <FormControl><RadioGroupItem value="S38" /></FormControl>
-                                <FormLabel className="font-normal">S38 Expense</FormLabel>
+                        )}
+                        />
+                     <FormField
+                        control={form.control}
+                        name="paymentBatch"
+                        render={({ field }) => (
+                            <FormItem className="space-y-3">
+                            <FormLabel>Payment Batch</FormLabel>
+                            <FormControl>
+                                <RadioGroup
+                                onValueChange={field.onChange}
+                                defaultValue={field.value}
+                                className="flex items-center space-x-4"
+                                >
+                                <FormItem className="flex items-center space-x-2 space-y-0">
+                                    <FormControl><RadioGroupItem value="this_week" /></FormControl>
+                                    <FormLabel className="font-normal">This Week</FormLabel>
+                                </FormItem>
+                                <FormItem className="flex items-center space-x-2 space-y-0">
+                                    <FormControl><RadioGroupItem value="month_end" /></FormControl>
+                                    <FormLabel className="font-normal">Month End</FormLabel>
+                                </FormItem>
+                                </RadioGroup>
+                            </FormControl>
+                            <FormMessage />
                             </FormItem>
-                            </RadioGroup>
-                        </FormControl>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                    />
+                        )}
+                        />
+                 </div>
                 <div className="grid grid-cols-2 gap-4">
                     <FormField control={form.control} name="supplier" render={({ field }) => ( <FormItem><FormLabel>Supplier</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                     <FormField control={form.control} name="invoiceNumber" render={({ field }) => ( <FormItem><FormLabel>Invoice Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
@@ -313,7 +343,7 @@ export default function SecondReviewPage() {
                             <TableHead>Status</TableHead>
                             <TableHead>Supplier</TableHead>
                             <TableHead>Invoice #</TableHead>
-                            <TableHead>Comm #</TableHead>
+                            <TableHead>Payment Batch</TableHead>
                             <TableHead>Date</TableHead>
                             <TableHead>File</TableHead>
                             <TableHead className="text-right">Total</TableHead>
@@ -328,7 +358,13 @@ export default function SecondReviewPage() {
                                 </TableCell>
                                 <TableCell className="font-medium">{invoice.supplier}</TableCell>
                                 <TableCell>{invoice.invoiceNumber}</TableCell>
-                                <TableCell>{invoice.commissionNumber}</TableCell>
+                                <TableCell>
+                                    {invoice.paymentBatch ? (
+                                        <Badge variant="outline">{invoice.paymentBatch === 'this_week' ? 'This Week' : 'Month End'}</Badge>
+                                    ) : (
+                                        <span className="text-muted-foreground text-xs">Not set</span>
+                                    )}
+                                </TableCell>
                                 <TableCell>{invoice.date}</TableCell>
                                 <TableCell>{invoice.fileName}</TableCell>
                                 <TableCell className="text-right font-mono">R {invoice.invoiceTotal.toFixed(2)}</TableCell>
@@ -417,5 +453,3 @@ export default function SecondReviewPage() {
     </div>
   );
 }
-
-
