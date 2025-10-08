@@ -1,3 +1,4 @@
+
 'use client';
 
 import { ReactNode, useState, useEffect } from 'react';
@@ -82,7 +83,7 @@ export default function NumeraClientLayout({ children }: { children: ReactNode }
                         <MenubarItem>Customers</MenubarItem>
                         <MenubarItem>Suppliers</MenubarItem>
                         <MenubarItem>Items</MenubarItem>
-                        <MenubarItem asChild><Link href={`/admin/numera/${clientId}/bank`}>Bank Accounts</Link></MenubarItem>
+                        <MenubarItem asChild><Link href={`/admin/numera/${clientId}/bank/transactions`}>Bank Accounts</Link></MenubarItem>
                         <MenubarItem>Accounts</MenubarItem>
                     </MenubarContent>
                 </MenubarMenu>
@@ -92,8 +93,7 @@ export default function NumeraClientLayout({ children }: { children: ReactNode }
                 <MenubarMenu>
                      <MenubarTrigger>Banking <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
                      <MenubarContent>
-                        <MenubarItem asChild><Link href={`/admin/numera/${clientId}/bank`}>Bank Accounts</Link></MenubarItem>
-                        <MenubarItem asChild><Link href={`/admin/numera/${clientId}/bank/transactions`}>Transactions</Link></MenubarItem>
+                        <MenubarItem asChild><Link href={`/admin/numera/${clientId}/bank/transactions`}>Bank & Credit Cards</Link></MenubarItem>
                      </MenubarContent>
                 </MenubarMenu>
                 <MenubarMenu>
