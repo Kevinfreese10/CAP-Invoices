@@ -351,57 +351,65 @@ export default function SecondReviewPage() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {invoices.map((invoice) => (
-                            <TableRow key={invoice.id}>
-                                <TableCell>
-                                    {getStatusBadge(invoice.status)}
-                                </TableCell>
-                                <TableCell className="font-medium">{invoice.supplier}</TableCell>
-                                <TableCell>{invoice.invoiceNumber}</TableCell>
-                                <TableCell>
-                                    {invoice.paymentBatch ? (
-                                        <Badge variant="outline">{invoice.paymentBatch === 'this_week' ? 'This Week' : 'Month End'}</Badge>
-                                    ) : (
-                                        <span className="text-muted-foreground text-xs">Not set</span>
-                                    )}
-                                </TableCell>
-                                <TableCell>{invoice.date}</TableCell>
-                                <TableCell>{invoice.fileName}</TableCell>
-                                <TableCell className="text-right font-mono">R {invoice.invoiceTotal.toFixed(2)}</TableCell>
-                                <TableCell className="text-right">
-                                     <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent>
-                                            <DropdownMenuItem onSelect={() => handleApproveForPayment(invoice.id)} disabled={invoice.status === 'approved_for_payment'}>
-                                                <FileCheck2 className="mr-2 h-4 w-4" /> Approve for Payment
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem onSelect={() => setEditingInvoice(invoice)}>
-                                                <Edit className="mr-2 h-4 w-4" /> Edit
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem onSelect={() => setRejectingInvoice(invoice)} className="text-destructive">
-                                                <XCircle className="mr-2 h-4 w-4" /> Reject
-                                            </DropdownMenuItem>
-                                            <AlertDialog>
-                                                <AlertDialogTrigger asChild>
-                                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
-                                                        <Trash2 className="mr-2 h-4 w-4" /> Delete
-                                                    </DropdownMenuItem>
-                                                </AlertDialogTrigger>
-                                                <AlertDialogContent>
-                                                    <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone. This will permanently delete the invoice for {invoice.supplier}.</AlertDialogDescription></AlertDialogHeader>
-                                                    <AlertDialogFooter>
-                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                        <AlertDialogAction onClick={() => handleDelete(invoice.id)}>Delete</AlertDialogAction>
-                                                    </AlertDialogFooter>
-                                                </AlertDialogContent>
-                                            </AlertDialog>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </TableCell>
-                            </TableRow>
-                        ))}
+                        {invoices.map((invoice) => {
+                            const isApprovalDisabled = 
+                                !invoice.paymentBatch || 
+                                !invoice.expenseType || 
+                                !invoice.lineItems.every(item => !!item.accountId) ||
+                                invoice.status === 'approved_for_payment';
+
+                            return (
+                                <TableRow key={invoice.id}>
+                                    <TableCell>
+                                        {getStatusBadge(invoice.status)}
+                                    </TableCell>
+                                    <TableCell className="font-medium">{invoice.supplier}</TableCell>
+                                    <TableCell>{invoice.invoiceNumber}</TableCell>
+                                    <TableCell>
+                                        {invoice.paymentBatch ? (
+                                            <Badge variant="outline">{invoice.paymentBatch === 'this_week' ? 'This Week' : 'Month End'}</Badge>
+                                        ) : (
+                                            <span className="text-muted-foreground text-xs">Not set</span>
+                                        )}
+                                    </TableCell>
+                                    <TableCell>{invoice.date}</TableCell>
+                                    <TableCell>{invoice.fileName}</TableCell>
+                                    <TableCell className="text-right font-mono">R {invoice.invoiceTotal.toFixed(2)}</TableCell>
+                                    <TableCell className="text-right">
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent>
+                                                <DropdownMenuItem onSelect={() => handleApproveForPayment(invoice.id)} disabled={isApprovalDisabled}>
+                                                    <FileCheck2 className="mr-2 h-4 w-4" /> Approve for Payment
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onSelect={() => setEditingInvoice(invoice)}>
+                                                    <Edit className="mr-2 h-4 w-4" /> Edit
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onSelect={() => setRejectingInvoice(invoice)} className="text-destructive">
+                                                    <XCircle className="mr-2 h-4 w-4" /> Reject
+                                                </DropdownMenuItem>
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                                            <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                                        </DropdownMenuItem>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone. This will permanently delete the invoice for {invoice.supplier}.</AlertDialogDescription></AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => handleDelete(invoice.id)}>Delete</AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </TableCell>
+                                </TableRow>
+                            );
+                        })}
                     </TableBody>
                 </Table>
             )}
