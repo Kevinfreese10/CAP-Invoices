@@ -564,51 +564,31 @@ function ManageRulesDialog({
     
     return (
         <Dialog open={isOpen} onOpenChange={(open) => { if (!open) { setEditingRule(null); onClose(); }}}>
-            <DialogContent className="sm:max-w-4xl">
+            <DialogContent className="sm:max-w-xl">
                  <DialogHeader>
                     <DialogTitle>Manage Allocation Rules</DialogTitle>
+                     <DialogDescription>
+                        Create a new rule, or edit an existing one. Any changes will be applied to future transactions.
+                    </DialogDescription>
                 </DialogHeader>
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-h-[70vh]">
-                     <div className="space-y-4">
-                        <h3 className="font-semibold">{isCreatingNew ? 'Create New Rule' : 'Edit Rule'}</h3>
+                 <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-4">
+                    <Button variant="outline" size="sm" onClick={() => setEditingRule({ scope: 'client' })}>
+                        <PlusCircle className="mr-2 h-4 w-4" /> Create New Rule
+                    </Button>
+                    
+                    {editingRule && (
                         <Card>
                             <CardContent className="pt-6">
-                               {editingRule ? (
-                                    <RuleForm
-                                      key={editingRule.id || 'new'}
-                                      initialData={editingRule}
-                                      onSave={handleSaveRule}
-                                      onCancel={() => setEditingRule(null)}
-                                      client={client}
-                                    />
-                                ) : (
-                                    <div className="text-center text-muted-foreground p-8">
-                                        <p>Select a rule to edit, or create a new one.</p>
-                                    </div>
-                                )}
+                                <RuleForm
+                                    key={editingRule.id || 'new'}
+                                    initialData={editingRule}
+                                    onSave={handleSaveRule}
+                                    onCancel={() => setEditingRule(null)}
+                                    client={client}
+                                />
                             </CardContent>
-                         </Card>
-                     </div>
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                            <h3 className="font-semibold">Existing Rules</h3>
-                            <Button variant="outline" size="sm" onClick={() => setEditingRule({ scope: 'client' })}>
-                                <PlusCircle className="mr-2 h-4 w-4" /> Create New
-                            </Button>
-                        </div>
-                        <Tabs defaultValue="client" className="w-full">
-                            <TabsList>
-                                <TabsTrigger value="client">Client Specific</TabsTrigger>
-                                <TabsTrigger value="global">Global</TabsTrigger>
-                            </TabsList>
-                            <TabsContent value="client" className="overflow-y-auto max-h-[50vh]">
-                                <RuleList rules={client?.allocationRules || []} scope="client" onEdit={setEditingRule} onDelete={handleDeleteRule} />
-                            </TabsContent>
-                            <TabsContent value="global" className="overflow-y-auto max-h-[50vh]">
-                                <RuleList rules={globalRules} scope="global" onEdit={setEditingRule} onDelete={handleDeleteRule} />
-                            </TabsContent>
-                        </Tabs>
-                     </div>
+                        </Card>
+                    )}
                  </div>
             </DialogContent>
         </Dialog>
@@ -1262,3 +1242,4 @@ export default function BankTransactionsPage() {
   );
 }
 
+    
