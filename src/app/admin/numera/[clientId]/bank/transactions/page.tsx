@@ -909,7 +909,7 @@ export default function BankTransactionsPage() {
   const params = useParams();
   const clientId = params.clientId as string;
   const { toast } = useToast();
-  const [activeSubTab, setActiveSubTab] = useState('all');
+  const [activeSubTab, setActiveSubTab] = useState('income');
   const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
   const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
   const [ruleTransaction, setRuleTransaction] = useState<ImportedTransaction | AllocatedTransaction | null>(null);
@@ -1383,11 +1383,8 @@ export default function BankTransactionsPage() {
                 <Card>
                     <CardHeader className="p-0">
                        <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="w-full">
-                            <TabsList className="grid w-full grid-cols-3 rounded-t-lg rounded-b-none h-auto">
-                                <TabsTrigger value="all" className="rounded-tl-md">
-                                    All ({transactions.length})
-                                </TabsTrigger>
-                                <TabsTrigger value="income">
+                            <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none h-auto">
+                                <TabsTrigger value="income" className="rounded-tl-md">
                                     Income ({transactions.filter(t => t.amount >= 0).length})
                                 </TabsTrigger>
                                 <TabsTrigger value="expenses" className="rounded-tr-md">
