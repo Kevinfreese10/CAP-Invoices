@@ -232,10 +232,16 @@ export default function SecondReviewPage() {
         fetchInvoices();
     }, []);
 
-    const handleSave = async (id: string, data: any) => {
+    const handleSave = async (id: string, data: z.infer<typeof formSchema>) => {
         try {
             const docRef = doc(db, 'extractedInvoices', id);
-            await updateDoc(docRef, data);
+            const dataToSave = {
+                ...data,
+                commissionNumber: data.commissionNumber || null,
+                paymentBatch: data.paymentBatch || null,
+                expenseType: data.expenseType || null,
+            };
+            await updateDoc(docRef, dataToSave);
             toast({ title: 'Invoice Updated', description: 'Your changes have been saved.' });
             setEditingInvoice(null);
             fetchInvoices();
