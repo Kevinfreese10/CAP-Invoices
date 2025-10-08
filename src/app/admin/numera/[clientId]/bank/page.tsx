@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -13,13 +13,17 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Banknote, FileUp, Loader2, PlusCircle, TableIcon } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
-import { ImportedTransaction } from '@/lib/types';
+import { ImportedTransaction, ChartOfAccount, User } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { getFirestore, doc, updateDoc, arrayUnion, getDoc } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
+import { useParams } from 'next/navigation';
+import { useToast } from '@/hooks/use-toast';
+
+const db = getFirestore(firebaseApp);
 
 const bankAccountSchema = z.object({
   bankName: z.string().min(2, 'Bank name is required.'),
-  accountNumber: z.string().min(5, 'A valid account number is required.'),
-  accountName: z.string().min(2, 'Account name is required.'),
 });
 
 const fileImportSchema = z.object({
@@ -28,22 +32,81 @@ const fileImportSchema = z.object({
 
 
 export default function BankPage() {
-  const [bankAccounts, setBankAccounts] = useState<z.infer<typeof bankAccountSchema>[]>([]);
+  const [client, setClient] = useState<User | null>(null);
+  const [bankAccounts, setBankAccounts] = useState<ChartOfAccount[]>([]);
   const [isImporting, setIsImporting] = useState(false);
   const [importedTransactions, setImportedTransactions] = useState<any[]>([]);
+  const [isLoadingClient, setIsLoadingClient] = useState(true);
+  const params = useParams();
+  const clientId = params.clientId as string;
+  const { toast } = useToast();
 
   const bankForm = useForm<z.infer<typeof bankAccountSchema>>({
     resolver: zodResolver(bankAccountSchema),
-    defaultValues: { bankName: '', accountNumber: '', accountName: '' },
+    defaultValues: { bankName: '' },
   });
   
   const importForm = useForm<z.infer<typeof fileImportSchema>>({
     resolver: zodResolver(fileImportSchema),
   });
 
-  const onAddBankAccount = (values: z.infer<typeof bankAccountSchema>) => {
-    setBankAccounts([...bankAccounts, values]);
-    bankForm.reset();
+  const fetchClient = async () => {
+    if (!clientId) return;
+    setIsLoadingClient(true);
+    try {
+        const clientRef = doc(db, 'clients', clientId);
+        const clientSnap = await getDoc(clientRef);
+        if (clientSnap.exists()) {
+            const clientData = { id: clientSnap.id, ...clientSnap.data() } as User;
+            setClient(clientData);
+            const cashbookAccounts = clientData.chartOfAccounts?.filter(
+                acc => acc.accountNumber.startsWith('8400/')
+            ) || [];
+            setBankAccounts(cashbookAccounts);
+        } else {
+            toast({ title: 'Error', description: 'Client not found.', variant: 'destructive'});
+        }
+    } catch (e) {
+        toast({ title: 'Error', description: 'Failed to fetch client data.', variant: 'destructive'});
+    } finally {
+        setIsLoadingClient(false);
+    }
+  }
+  
+  useEffect(() => {
+    fetchClient();
+  }, [clientId]);
+
+  const onAddBankAccount = async (values: z.infer<typeof bankAccountSchema>) => {
+    if (!client || !client.id) {
+        toast({ title: 'Error', description: 'Client data is not loaded.', variant: 'destructive' });
+        return;
+    }
+    
+    // Find the next available account number
+    const existingBankNumbers = bankAccounts.map(acc => parseInt(acc.accountNumber.split('/')[1], 10));
+    const nextNumber = existingBankNumbers.length > 0 ? Math.max(...existingBankNumbers) + 1 : 1;
+    const newAccountNumber = `8400/${String(nextNumber).padStart(3, '0')}`;
+    
+    const newAccount: ChartOfAccount = {
+        id: newAccountNumber,
+        accountNumber: newAccountNumber,
+        description: values.bankName,
+        section: 'Balance Sheet',
+    };
+
+    try {
+        const clientRef = doc(db, 'clients', client.id);
+        await updateDoc(clientRef, {
+            chartOfAccounts: arrayUnion(newAccount)
+        });
+        toast({ title: 'Success', description: 'Bank account added successfully.' });
+        bankForm.reset();
+        await fetchClient(); // Re-fetch to get updated accounts list
+    } catch (e) {
+        toast({ title: 'Error', description: 'Failed to save new bank account.', variant: 'destructive' });
+        console.error(e);
+    }
   };
 
   const handleFileImport = async (values: z.infer<typeof fileImportSchema>) => {
@@ -84,14 +147,16 @@ export default function BankPage() {
           <CardDescription>Manage the client's bank accounts.</CardDescription>
         </CardHeader>
         <CardContent>
-           {bankAccounts.length > 0 ? (
+           {isLoadingClient ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+           ) : bankAccounts.length > 0 ? (
                 <ul className="space-y-2">
                     {bankAccounts.map((acc, index) => (
                         <li key={index} className="flex justify-between items-center p-2 border rounded-md">
                             <div className="flex items-center gap-2">
                                 <Banknote className="h-5 w-5 text-muted-foreground" />
                                 <div>
-                                    <p className="font-semibold">{acc.bankName} - {acc.accountName}</p>
+                                    <p className="font-semibold">{acc.description}</p>
                                     <p className="text-xs text-muted-foreground">{acc.accountNumber}</p>
                                 </div>
                             </div>
@@ -110,13 +175,11 @@ export default function BankPage() {
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Add New Bank Account</DialogTitle>
-                <DialogDescription>Enter the details of the new bank account.</DialogDescription>
+                <DialogDescription>Enter the name of the new bank account.</DialogDescription>
               </DialogHeader>
               <Form {...bankForm}>
                 <form onSubmit={bankForm.handleSubmit(onAddBankAccount)} className="space-y-4">
-                    <FormField control={bankForm.control} name="bankName" render={({ field }) => ( <FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={bankForm.control} name="accountName" render={({ field }) => ( <FormItem><FormLabel>Account Name / Type</FormLabel><FormControl><Input {...field} placeholder="e.g. Cheque Account" /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={bankForm.control} name="accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={bankForm.control} name="bankName" render={({ field }) => ( <FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} placeholder="e.g. FNB Cheque Account" /></FormControl><FormMessage /></FormItem> )} />
                     <Button type="submit">Add Account</Button>
                 </form>
               </Form>
