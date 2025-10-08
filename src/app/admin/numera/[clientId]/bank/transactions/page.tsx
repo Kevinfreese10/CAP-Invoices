@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Banknote, FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
@@ -28,6 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { Label } from '@/components/ui/label';
 
 
 const db = getFirestore(firebaseApp);
@@ -83,7 +84,7 @@ export default function BankTransactionsPage() {
         <h1 className="text-2xl font-bold tracking-tight">Banking</h1>
         <div className="flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-8 p-4 bg-card border rounded-lg">
             <div className="flex items-center gap-2">
-                <FormLabel>Bank or Credit Card</FormLabel>
+                <Label>Bank or Credit Card</Label>
                 <Select value={selectedAccountId || ''} onValueChange={setSelectedAccountId}>
                     <SelectTrigger className="w-[200px]">
                         <SelectValue placeholder="(None)" />
