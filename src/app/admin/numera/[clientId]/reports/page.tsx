@@ -77,7 +77,7 @@ export default function ReportsPage() {
             Select a report to view for this client.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
+        <CardContent className="grid gap-4">
           {reports.map((report) => (
             <Card key={report.title}>
               <CardHeader>
