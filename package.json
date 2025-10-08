@@ -61,7 +61,9 @@
     "tailwindcss-animate": "^1.0.7",
     "zod": "^3.24.2",
     "@react-email/components": "^0.0.21",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "imap-simple": "^5.1.0",
+    "mailparser": "^3.7.1"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.13",
@@ -73,6 +75,8 @@
     "tailwindcss": "^3.4.1",
     "typescript": "^5",
     "@types/nodemailer": "^6.4.15",
-    "@types/papaparse": "^5.3.14"
+    "@types/papaparse": "^5.3.14",
+    "@types/imap-simple": "^4.2.9",
+    "@types/mailparser": "^3.4.4"
   }
 }
