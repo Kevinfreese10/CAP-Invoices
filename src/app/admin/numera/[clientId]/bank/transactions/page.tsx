@@ -16,7 +16,7 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove, addDoc, collection } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -31,6 +31,7 @@ import Link from 'next/link';
 import { Label } from '@/components/ui/label';
 import { allVatTypes } from '@/lib/vat-types';
 import { Textarea } from '@/components/ui/textarea';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 const db = getFirestore(firebaseApp);
 
@@ -412,6 +413,7 @@ const ruleFormSchema = z.object({
   keywords: z.string().min(3, "At least one keyword is required"),
   accountId: z.string().min(1, "Please select an account to allocate to."),
   vatType: z.enum(allVatTypes.map(v => v.name) as [VatType, ...VatType[]]),
+  scope: z.enum(['client', 'global']).default('client'),
 });
 
 
@@ -424,7 +426,7 @@ function CreateRuleDialog({
 }: {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (rule: Omit<AllocationRule, 'id' | 'type'>) => void;
+    onSave: (rule: Omit<AllocationRule, 'id' | 'type'>, scope: 'client' | 'global') => void;
     transaction: ImportedTransaction | null;
     client: User | null;
 }) {
@@ -439,6 +441,7 @@ function CreateRuleDialog({
                 keywords: transaction.description.split(' ').join(','),
                 accountId: '',
                 vatType: 'no_vat',
+                scope: 'client',
             });
         }
     }, [transaction, form]);
@@ -449,7 +452,7 @@ function CreateRuleDialog({
             keywords: values.keywords.split(',').map(k => k.trim().toLowerCase()),
             accountId: values.accountId,
             vatType: values.vatType,
-        });
+        }, values.scope);
         onClose();
     };
 
@@ -484,6 +487,32 @@ function CreateRuleDialog({
                                 </Select>
                             <FormMessage /></FormItem>
                         )}/>
+                        <FormField
+                            control={form.control}
+                            name="scope"
+                            render={({ field }) => (
+                                <FormItem className="space-y-3">
+                                <FormLabel>Rule Scope</FormLabel>
+                                <FormControl>
+                                    <RadioGroup
+                                    onValueChange={field.onChange}
+                                    defaultValue={field.value}
+                                    className="flex flex-col space-y-1"
+                                    >
+                                    <FormItem className="flex items-center space-x-3 space-y-0">
+                                        <FormControl><RadioGroupItem value="client" /></FormControl>
+                                        <FormLabel className="font-normal">Client Specific (applies only to this client)</FormLabel>
+                                    </FormItem>
+                                    <FormItem className="flex items-center space-x-3 space-y-0">
+                                        <FormControl><RadioGroupItem value="global" /></FormControl>
+                                        <FormLabel className="font-normal">Global (applies to all clients)</FormLabel>
+                                    </FormItem>
+                                    </RadioGroup>
+                                </FormControl>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                            />
                         <DialogFooter>
                             <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
                             <Button type="submit">Create Rule</Button>
@@ -638,7 +667,7 @@ export default function BankTransactionsPage() {
     setIsRuleDialogOpen(true);
   };
   
-  const handleSaveRule = async (ruleData: Omit<AllocationRule, 'id' | 'type'>) => {
+  const handleSaveRule = async (ruleData: Omit<AllocationRule, 'id' | 'type'>, scope: 'client' | 'global') => {
     if (!client) return;
 
     const newRule: AllocationRule = {
@@ -648,12 +677,44 @@ export default function BankTransactionsPage() {
     };
     
     try {
-        const clientRef = doc(db, 'clients', client.id);
-        await updateDoc(clientRef, {
-            allocationRules: arrayUnion(newRule)
-        });
+        if (scope === 'client') {
+            const clientRef = doc(db, 'clients', client.id);
+            await updateDoc(clientRef, {
+                allocationRules: arrayUnion(newRule)
+            });
+        } else { // global
+            await addDoc(collection(db, 'allocationRules'), newRule);
+        }
+
         toast({ title: 'Allocation Rule Created', description: `New rule for "${ruleData.description}" has been saved.`});
-        await fetchClient();
+        
+        // --- Auto-apply and move logic ---
+        const transactionsToMove = client.importedTransactions?.filter(tx => 
+            newRule.keywords.some(keyword => tx.description.toLowerCase().includes(keyword))
+        ) || [];
+
+        if (transactionsToMove.length > 0) {
+            const remainingImported = client.importedTransactions?.filter(tx => !transactionsToMove.some(m => m.id === tx.id)) || [];
+            
+            const allocatedTransactions = transactionsToMove.map(tx => ({
+                ...tx,
+                allocatedTo: { value: newRule.accountId, type: 'account' as const },
+                vatType: newRule.vatType,
+                vatAmount: 0, // Placeholder
+                allocatedAt: new Date(),
+            }));
+            
+            const clientRef = doc(db, 'clients', client.id);
+            await updateDoc(clientRef, {
+                importedTransactions: remainingImported,
+                allocatedTransactions: arrayUnion(...allocatedTransactions),
+            });
+            
+            toast({ title: 'Rule Applied', description: `${transactionsToMove.length} matching transaction(s) have been automatically allocated and moved.`});
+        }
+        // --- End of auto-apply logic ---
+
+        await fetchClient(); // Refresh all data
     } catch (error) {
         toast({ title: 'Rule Creation Failed', description: 'Could not save the new rule.', variant: 'destructive'});
         console.error(error);
@@ -910,3 +971,5 @@ export default function BankTransactionsPage() {
     </div>
   );
 }
+
+    

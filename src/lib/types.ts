@@ -26,6 +26,7 @@ export type AllocationRule = {
   keywords: string[]; // Only for hard rules
   accountId: string;
   vatType: VatType;
+  scope?: 'client' | 'global';
 };
 
 export type Service = {
@@ -254,3 +255,5 @@ export type ExtractedInvoice = {
   rejectionReason?: string;
   paymentBatch?: 'this_week' | 'month_end';
 };
+
+    
