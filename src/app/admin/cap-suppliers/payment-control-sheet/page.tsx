@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, orderBy, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { ExtractedInvoice } from '@/lib/types';
 import { capChartOfAccounts, s38ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
+import { Input } from '@/components/ui/input';
 
 const db = getFirestore(firebaseApp);
 
@@ -18,6 +19,7 @@ const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts];
 export default function PaymentControlSheetPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [supplierFilter, setSupplierFilter] = useState('');
 
     useEffect(() => {
         const fetchInvoices = async () => {
@@ -49,26 +51,44 @@ export default function PaymentControlSheetPage() {
         return account ? account.description : accountId;
     }
 
+    const filteredInvoices = useMemo(() => {
+        return invoices.filter(invoice =>
+            invoice.supplier.toLowerCase().includes(supplierFilter.toLowerCase())
+        );
+    }, [invoices, supplierFilter]);
+
     return (
         <div className="space-y-8">
         <h1 className="text-3xl font-bold tracking-tight">Payment Control Sheet</h1>
         <Card>
             <CardHeader>
-            <CardTitle>Invoices Approved for Payment</CardTitle>
-            <CardDescription>
-                These line items from approved invoices are ready for payment processing.
-            </CardDescription>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <CardTitle>Invoices Approved for Payment</CardTitle>
+                        <CardDescription>
+                            These line items from approved invoices are ready for payment processing.
+                        </CardDescription>
+                    </div>
+                    <Input
+                        placeholder="Filter by supplier..."
+                        value={supplierFilter}
+                        onChange={(e) => setSupplierFilter(e.target.value)}
+                        className="max-w-sm"
+                    />
+                </div>
             </CardHeader>
             <CardContent>
                 {isLoading ? (
                     <div className="flex justify-center items-center h-64">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     </div>
-                ) : invoices.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-10">No invoices are currently approved for payment.</p>
+                ) : filteredInvoices.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-10">
+                        {invoices.length > 0 ? 'No invoices match the current filter.' : 'No invoices are currently approved for payment.'}
+                    </p>
                 ) : (
                     <div className="space-y-6">
-                        {invoices.map((invoice) => (
+                        {filteredInvoices.map((invoice) => (
                              <Card key={invoice.id} className="overflow-hidden">
                                 <CardHeader className="bg-muted/50">
                                     <div className="flex flex-wrap justify-between items-center gap-2">
