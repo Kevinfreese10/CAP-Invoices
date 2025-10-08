@@ -166,6 +166,8 @@ export type User = {
   chartOfAccounts?: ChartOfAccount[];
   allocationRules?: AllocationRule[];
   hasNumeraProfile?: boolean;
+  importedTransactions?: ImportedTransaction[];
+  allocatedTransactions?: AllocatedTransaction[];
 };
 
 export type DiscountCode = {
