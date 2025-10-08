@@ -1,15 +1,15 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Inbox, RefreshCw, FileWarning, Plug, Paperclip, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Loader2, Inbox, RefreshCw, FileWarning, Plug, Paperclip, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { getFirestore, collection, getDocs, query, where } from 'firebase/firestore';
+import { getFirestore, collection, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 
@@ -37,19 +37,42 @@ export default function InboxPage() {
     const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isTesting, setIsTesting] = useState(false);
-    const [isProcessing, setIsProcessing] = useState<number | null>(null);
+    const [isProcessing, setIsProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [processedUids, setProcessedUids] = useState<Set<number>>(new Set());
     const { toast } = useToast();
+    
+    const handleProcessAttachments = useCallback(async (email: Email) => {
+        const pdfAttachments = email.attachments.filter(att => att.contentType === 'application/pdf');
+        if (pdfAttachments.length === 0) {
+            return;
+        }
 
-    const fetchEmailsAndStatus = async () => {
+        setIsProcessing(true);
+
+        try {
+            await fetch('/api/emails/process-attachments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email }),
+            });
+        } catch (err: any) {
+             toast({
+                title: `Processing Failed for email from ${email.from}`,
+                description: err.message,
+                variant: "destructive",
+            });
+        } finally {
+            setIsProcessing(false);
+        }
+    }, [toast]);
+
+    const fetchEmailsAndProcess = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
             // Fetch processed email UIDs from Firestore
             const processedSnapshot = await getDocs(collection(db, 'processedEmails'));
-            const uids = new Set(processedSnapshot.docs.map(doc => doc.data().uid));
-            setProcessedUids(uids);
+            const processedUids = new Set(processedSnapshot.docs.map(doc => doc.data().uid));
 
             // Fetch emails from the API
             const response = await fetch('/api/emails/inbox');
@@ -59,63 +82,37 @@ export default function InboxPage() {
             }
             const data: Email[] = await response.json();
             
+            const unprocessedEmails = data.filter(email => !processedUids.has(email.uid) && email.attachments.some(att => att.contentType === 'application/pdf'));
+
+            if (unprocessedEmails.length > 0) {
+                toast({ title: `Found ${unprocessedEmails.length} new email(s) with attachments.`, description: 'Processing them now...' });
+                for (const email of unprocessedEmails) {
+                    await handleProcessAttachments(email);
+                }
+                 toast({ title: "Processing Complete!", description: "New invoices have been sent to the review page." });
+                 // Re-fetch everything after processing to get the latest status
+                 await fetchEmailsAndProcess();
+                 return; // Exit to avoid setting state with stale data
+            }
+            
             // Merge emails with their processed status
             const emailsWithStatus = data.map(email => ({
                 ...email,
-                isProcessed: uids.has(email.uid),
+                isProcessed: processedUids.has(email.uid),
             }));
 
             setEmails(emailsWithStatus);
-            if (emailsWithStatus.length > 0) {
+            if (emailsWithStatus.length > 0 && !selectedEmail) {
                 setSelectedEmail(emailsWithStatus[0]);
             }
+
         } catch (err: any) {
-            console.error("Error fetching emails:", err);
+            console.error("Error fetching or processing emails:", err);
             setError(err.message);
         } finally {
             setIsLoading(false);
         }
-    };
-    
-     const handleProcessAttachments = async (email: Email) => {
-        const pdfAttachments = email.attachments.filter(att => att.contentType === 'application/pdf');
-        if (pdfAttachments.length === 0) {
-            toast({ title: "No PDFs Found", description: "This email does not contain any PDF attachments to process.", variant: 'destructive'});
-            return;
-        }
-
-        setIsProcessing(email.uid);
-        toast({ title: `Processing ${pdfAttachments.length} PDF(s)...`, description: `Extracting data from attachments in email from ${email.from}.` });
-
-        try {
-            const response = await fetch('/api/emails/process-attachments', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email }),
-            });
-
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result.error || 'Failed to process attachments.');
-            }
-
-            toast({ title: "Processing Complete", description: `${result.processedCount} of ${result.totalPdfs} PDFs were successfully processed and sent for review.` });
-            
-            // Re-fetch to update processed status
-            fetchEmailsAndStatus();
-
-        } catch (err: any) {
-             toast({
-                title: "Processing Failed",
-                description: err.message,
-                variant: "destructive",
-            });
-        } finally {
-            setIsProcessing(null);
-        }
-    }
-
+    }, [handleProcessAttachments, toast, selectedEmail]);
 
     const handleTestConnection = async () => {
         setIsTesting(true);
@@ -144,10 +141,9 @@ export default function InboxPage() {
     }
 
     useEffect(() => {
-        fetchEmailsAndStatus();
-    }, []);
+        fetchEmailsAndProcess();
+    }, [fetchEmailsAndProcess]);
 
-    const hasPdfAttachments = (email: Email) => email.attachments.some(att => att.contentType === 'application/pdf');
 
     return (
         <div className="space-y-8">
@@ -158,9 +154,9 @@ export default function InboxPage() {
                         <Plug className={`mr-2 h-4 w-4 ${isTesting ? 'animate-pulse' : ''}`} />
                         Test Connection
                     </Button>
-                    <Button onClick={fetchEmailsAndStatus} variant="outline" disabled={isLoading}>
-                        <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-                        Refresh
+                    <Button onClick={fetchEmailsAndProcess} variant="outline" disabled={isLoading || isProcessing}>
+                        <RefreshCw className={`mr-2 h-4 w-4 ${isLoading || isProcessing ? 'animate-spin' : ''}`} />
+                        {isProcessing ? 'Processing...' : 'Refresh'}
                     </Button>
                 </div>
             </div>
@@ -213,7 +209,10 @@ export default function InboxPage() {
                         {selectedEmail ? (
                             <div className="flex flex-col h-full">
                                 <div className="p-4 border-b">
-                                    <h2 className="font-semibold text-lg">{selectedEmail.subject}</h2>
+                                    <div className="flex justify-between items-start">
+                                        <h2 className="font-semibold text-lg">{selectedEmail.subject}</h2>
+                                        {selectedEmail.isProcessed && <Badge variant="success"><CheckCircle2 className="mr-1 h-3 w-3"/> Processed</Badge>}
+                                    </div>
                                     <p className="text-sm"><strong>From:</strong> {selectedEmail.from}</p>
                                     <p className="text-sm text-muted-foreground"><strong>Date:</strong> {format(new Date(selectedEmail.date), 'dd MMMM yyyy, HH:mm')}</p>
                                     {selectedEmail.attachments && selectedEmail.attachments.length > 0 && (
@@ -228,15 +227,6 @@ export default function InboxPage() {
                                                         </a>
                                                     </Button>
                                                 ))}
-                                                <Separator orientation="vertical" className="h-6" />
-                                                <Button 
-                                                    size="sm"
-                                                    onClick={() => handleProcessAttachments(selectedEmail)}
-                                                    disabled={isProcessing === selectedEmail.uid || !hasPdfAttachments(selectedEmail) || selectedEmail.isProcessed}
-                                                >
-                                                    {isProcessing === selectedEmail.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (selectedEmail.isProcessed ? <CheckCircle2 className="mr-2 h-4 w-4" /> : <Sparkles className="mr-2 h-4 w-4" />)}
-                                                    {selectedEmail.isProcessed ? 'Processed' : 'Process PDF Attachments'}
-                                                </Button>
                                             </div>
                                         </>
                                     )}
