@@ -77,6 +77,18 @@ export default function BankTransactionsPage() {
     if (!client || !selectedAccountId) return 0;
     return transactions.reduce((sum, tx) => sum + tx.amount, 0);
   }, [transactions]);
+  
+  const lastImportDate = useMemo(() => {
+    if (!transactions || transactions.length === 0) return null;
+    const latestTransaction = transactions.reduce((latest, current) => {
+      return new Date(current.date) > new Date(latest.date) ? current : latest;
+    });
+    return new Date(latestTransaction.date).toLocaleDateString('en-ZA', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  }, [transactions]);
 
 
   return (
@@ -93,6 +105,8 @@ export default function BankTransactionsPage() {
                         {bankAccounts.map(acc => (
                             <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
                         ))}
+                        <Separator />
+                        <SelectItem value="create-new">Create new account...</SelectItem>
                     </SelectContent>
                 </Select>
             </div>
@@ -103,6 +117,7 @@ export default function BankTransactionsPage() {
             <div className="text-center md:text-left">
                 <p className="text-xl font-bold">{transactions.length}</p>
                 <p className="text-xs text-muted-foreground">To be Reviewed</p>
+                {lastImportDate && <p className="text-xs text-muted-foreground">Last import: {lastImportDate}</p>}
             </div>
         </div>
 
@@ -148,7 +163,6 @@ export default function BankTransactionsPage() {
                                 <TableRow>
                                     <TableHead className="w-12 p-2"><Checkbox /></TableHead>
                                     <TableHead>Date</TableHead>
-                                    <TableHead>Payee</TableHead>
                                     <TableHead>Description</TableHead>
                                     <TableHead>Type</TableHead>
                                     <TableHead>Selection</TableHead>
@@ -162,10 +176,10 @@ export default function BankTransactionsPage() {
                             </TableHeader>
                             <TableBody>
                                 {isLoading ? (
-                                    <TableRow><TableCell colSpan={12} className="text-center h-24"><Loader2 className="animate-spin" /></TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={11} className="text-center h-24"><Loader2 className="animate-spin" /></TableCell></TableRow>
                                 ) : transactions.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={12} className="text-center text-muted-foreground py-4">
+                                        <TableCell colSpan={11} className="text-center text-muted-foreground py-4">
                                             You have no new Bank Statement transactions to review. Import your Bank Statements or manually enter banking transactions below.
                                         </TableCell>
                                     </TableRow>
@@ -174,7 +188,6 @@ export default function BankTransactionsPage() {
                                         <TableRow key={tx.id}>
                                             <TableCell className="p-2"><Checkbox/></TableCell>
                                             <TableCell>{tx.date}</TableCell>
-                                            <TableCell></TableCell>
                                             <TableCell>{tx.description}</TableCell>
                                             <TableCell></TableCell>
                                             <TableCell>
@@ -211,7 +224,6 @@ export default function BankTransactionsPage() {
                                 )}
                                  <TableRow>
                                     <TableCell className="p-2"><Checkbox/></TableCell>
-                                    <TableCell><Input className="h-8" /></TableCell>
                                     <TableCell><Input className="h-8" /></TableCell>
                                     <TableCell><Input className="h-8" /></TableCell>
                                     <TableCell><Input className="h-8" /></TableCell>
