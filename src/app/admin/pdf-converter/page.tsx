@@ -12,22 +12,15 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Upload, Download } from 'lucide-react';
 import Papa from 'papaparse';
+import { convertPdfToCsv } from '@/ai/flows/convert-pdf-to-csv';
 
 const formSchema = z.object({
   pdf: z.custom<FileList>().refine((files) => files && files.length > 0, 'A PDF file is required.'),
 });
 
-// Mock data for demonstration purposes
-const mockCsvData = [
-    { Date: '2024-01-01', Description: 'Opening Balance', Amount: '1000.00' },
-    { Date: '2024-01-05', Description: 'DEBIT ORDE PAYMENT - TELKOM', Amount: '-150.00' },
-    { Date: '2024-01-15', Description: 'PAYMENT RECEIVED - CLIENT ABC', Amount: '500.00' },
-    { Date: '2024-01-25', Description: 'BANK CHARGES', Amount: '-25.00' },
-];
-
 export default function PDFConverterPage() {
   const [isConverting, setIsConverting] = useState(false);
-  const [csvData, setCsvData] = useState<any[] | null>(null);
+  const [csvData, setCsvData] = useState<string | null>(null);
   const [fileName, setFileName] = useState('');
   const { toast } = useToast();
 
@@ -43,25 +36,43 @@ export default function PDFConverterPage() {
   };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    const file = values.pdf[0];
+    if (!file) return;
+
     setIsConverting(true);
+    setCsvData(null);
     toast({ title: 'Conversion Started...', description: 'Your PDF is being processed.' });
 
-    // In a real app, you would send the PDF to a backend or use a wasm-based
-    // library to parse the PDF in the browser. For this demo, we'll simulate it.
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Set mock data
-    setCsvData(mockCsvData);
-    
-    setIsConverting(false);
-    toast({ title: 'Conversion Successful', description: 'Your CSV file is ready for download.' });
+    try {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = async () => {
+            const pdfDataUri = reader.result as string;
+            const result = await convertPdfToCsv({ pdfDataUri });
+            
+            if (result.csv) {
+                setCsvData(result.csv);
+                toast({ title: 'Conversion Successful', description: 'Your CSV file is ready for download.' });
+            } else {
+                throw new Error('Conversion returned no data.');
+            }
+        };
+        reader.onerror = (error) => {
+            throw error;
+        }
+
+    } catch (error) {
+        console.error('PDF Conversion Error:', error);
+        toast({ title: 'Conversion Failed', description: 'Could not convert the PDF file.', variant: 'destructive' });
+    } finally {
+        setIsConverting(false);
+    }
   };
   
   const handleDownload = () => {
     if (!csvData) return;
 
-    const csv = Papa.unparse(csvData);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
