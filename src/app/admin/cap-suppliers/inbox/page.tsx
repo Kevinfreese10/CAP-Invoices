@@ -163,8 +163,15 @@ export default function InboxPage() {
     }
 
     useEffect(() => {
-        fetchEmailsAndProcess();
-    }, [fetchEmailsAndProcess]);
+        fetchEmailsAndProcess(); // Initial fetch
+        
+        const intervalId = setInterval(() => {
+            toast({ title: "Auto-refreshing inbox...", description: "Fetching latest emails." });
+            fetchEmailsAndProcess();
+        }, 3600000); // 1 hour in milliseconds
+
+        return () => clearInterval(intervalId); // Cleanup on component unmount
+    }, [fetchEmailsAndProcess, toast]);
 
 
     return (
