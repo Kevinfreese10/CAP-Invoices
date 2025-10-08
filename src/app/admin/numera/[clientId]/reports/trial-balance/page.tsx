@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from "react"
@@ -73,6 +74,7 @@ function TrialBalanceReport({ client, dateRange }: { client: User, dateRange?: D
         });
 
         const suspenseAccountId = client.chartOfAccounts?.find(acc => acc.accountNumber === '9950/000')?.id;
+        const vatControlAccountId = client.chartOfAccounts?.find(acc => acc.accountNumber === '9500/000')?.id;
 
         const filteredAllocated = filterByDate(client.allocatedTransactions || []) as AllocatedTransaction[];
         const filteredImported = filterByDate(client.importedTransactions || []) as ImportedTransaction[];
@@ -80,7 +82,16 @@ function TrialBalanceReport({ client, dateRange }: { client: User, dateRange?: D
         // Process allocated transactions
         filteredAllocated.forEach(tx => {
             balances.set(tx.bankAccountId, (balances.get(tx.bankAccountId) || 0) + tx.amount);
-            balances.set(tx.allocatedTo.value, (balances.get(tx.allocatedTo.value) || 0) - tx.amount);
+            const vatAmount = tx.vatAmount || 0;
+            const exclusiveAmount = tx.amount - vatAmount;
+            
+            // The expense/income account gets the exclusive amount
+            balances.set(tx.allocatedTo.value, (balances.get(tx.allocatedTo.value) || 0) - exclusiveAmount);
+
+            // The VAT portion goes to the VAT control account
+            if (vatControlAccountId && vatAmount !== 0) {
+                 balances.set(vatControlAccountId, (balances.get(vatControlAccountId) || 0) - vatAmount);
+            }
         });
 
         // Process unallocated (imported) transactions

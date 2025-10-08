@@ -42,6 +42,15 @@ const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(price);
 };
 
+const calculateVat = (amount: number, vatType: VatType): number => {
+    const isStandardVat = vatType === 'standard_rated_purchases' || vatType === 'standard_rated_sales' || vatType === 'capital_goods_purchases';
+    if (isStandardVat) {
+        // Assuming amount is VAT inclusive
+        return amount * (15 / 115);
+    }
+    return 0;
+};
+
 const importFormSchema = z.object({
   file: z.instanceof(FileList).refine(files => files.length > 0, 'A file is required.'),
 });
@@ -441,7 +450,7 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                                             <TableCell className="w-[200px]">
                                                 <Select
                                                     value={tx.vatType}
-                                                    onValueChange={(newValue: VatType) => onUpdateAllocation(tx.id, { vatType: newValue })}
+                                                    onValueChange={(newValue: VatType) => onUpdateAllocation(tx.id, { vatType: newValue, vatAmount: calculateVat(tx.amount, newValue) })}
                                                 >
                                                     <SelectTrigger className="h-8">
                                                         <SelectValue />
@@ -919,7 +928,7 @@ export default function BankTransactionsPage() {
                 ...tx,
                 allocatedTo: { value: matchedRule.accountId, type: 'account' as const },
                 vatType: matchedRule.vatType,
-                vatAmount: 0, // Placeholder
+                vatAmount: calculateVat(tx.amount, matchedRule.vatType),
                 allocatedAt: new Date(),
             });
             allocatedCount++;
@@ -999,7 +1008,7 @@ export default function BankTransactionsPage() {
       ...tx,
       allocatedTo: { value: accountId, type: 'account' as const },
       vatType: 'no_vat' as VatType,
-      vatAmount: 0, // Placeholder
+      vatAmount: 0, 
       allocatedAt: new Date(),
     }));
 
@@ -1060,7 +1069,7 @@ export default function BankTransactionsPage() {
             ...tx,
             allocatedTo: { value: suggestion.accountId, type: 'account' as const },
             vatType: suggestion.vatType,
-            vatAmount: 0, // Placeholder for now
+            vatAmount: calculateVat(tx.amount, suggestion.vatType),
             allocatedAt: new Date(),
           });
           allocatedCount++;
@@ -1170,7 +1179,7 @@ export default function BankTransactionsPage() {
                 ...tx,
                 allocatedTo: { value: newRule.accountId, type: 'account' as const },
                 vatType: newRule.vatType,
-                vatAmount: 0, // Placeholder
+                vatAmount: calculateVat(tx.amount, newRule.vatType),
                 allocatedAt: new Date(),
             }));
             
