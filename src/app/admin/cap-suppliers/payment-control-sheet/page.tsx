@@ -79,7 +79,10 @@ export default function PaymentControlSheetPage() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Line Item</TableHead>
+                                <TableHead>Supplier</TableHead>
+                                <TableHead>Invoice #</TableHead>
+                                <TableHead>Commission #</TableHead>
+                                <TableHead>Line Item Description</TableHead>
                                 <TableHead>Allocated Account</TableHead>
                                 <TableHead>Payment Batch</TableHead>
                                 <TableHead className="text-right">Amount (Excl. VAT)</TableHead>
@@ -90,12 +93,10 @@ export default function PaymentControlSheetPage() {
                         <TableBody>
                             {flattenedLineItems.map((item, index) => (
                                 <TableRow key={`${item.parentInvoice.id}-${index}`}>
-                                    <TableCell>
-                                        <p className="font-semibold">{item.description}</p>
-                                        <p className="text-xs text-muted-foreground">
-                                            {item.parentInvoice.supplier} | Inv #{item.parentInvoice.invoiceNumber} | Comm #{item.parentInvoice.commissionNumber || 'N/A'}
-                                        </p>
-                                    </TableCell>
+                                    <TableCell>{item.parentInvoice.supplier}</TableCell>
+                                    <TableCell>{item.parentInvoice.invoiceNumber}</TableCell>
+                                    <TableCell>{item.parentInvoice.commissionNumber || 'N/A'}</TableCell>
+                                    <TableCell className="font-semibold">{item.description}</TableCell>
                                     <TableCell>{getAccountDescription(item.accountId)}</TableCell>
                                     <TableCell>
                                         <Badge variant="outline">{item.parentInvoice.paymentBatch === 'this_week' ? 'This Week' : 'Month End'}</Badge>
