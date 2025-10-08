@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { ImportedTransaction, ChartOfAccount, User } from '@/lib/types';
@@ -254,6 +254,7 @@ export default function BankTransactionsPage() {
   const params = useParams();
   const clientId = params.clientId as string;
   const { toast } = useToast();
+  const [activeSubTab, setActiveSubTab] = useState('all');
 
   const fetchClient = async () => {
     if (!clientId) return;
@@ -303,6 +304,16 @@ export default function BankTransactionsPage() {
     return client.importedTransactions?.filter(t => t.bankAccountId === selectedAccountId) || [];
   }, [client, selectedAccountId]);
 
+  const filteredTransactions = useMemo(() => {
+    if (activeSubTab === 'income') {
+      return transactions.filter(t => t.amount >= 0);
+    }
+    if (activeSubTab === 'expenses') {
+      return transactions.filter(t => t.amount < 0);
+    }
+    return transactions;
+  }, [transactions, activeSubTab]);
+
   const bankBalance = useMemo(() => {
     if (!client || !selectedAccountId) return 0;
     return transactions.reduce((sum, tx) => sum + tx.amount, 0);
@@ -315,6 +326,14 @@ export default function BankTransactionsPage() {
     });
     return new Date(latestTransaction.date).toLocaleDateString('en-GB');
   }, [transactions]);
+
+  const totalSpent = useMemo(() => {
+    return filteredTransactions.filter(tx => tx.amount < 0).reduce((sum, tx) => sum + tx.amount, 0);
+  }, [filteredTransactions]);
+
+  const totalReceived = useMemo(() => {
+    return filteredTransactions.filter(tx => tx.amount > 0).reduce((sum, tx) => sum + tx.amount, 0);
+  }, [filteredTransactions]);
 
 
   return (
@@ -356,31 +375,51 @@ export default function BankTransactionsPage() {
             </TabsList>
             <TabsContent value="new" className="mt-0">
                 <Card>
-                    <CardHeader className="p-4 border-b">
-                        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                            <div className="flex items-center gap-2 flex-wrap">
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild><Button variant="outline" size="sm">Actions</Button></DropdownMenuTrigger>
-                                    <DropdownMenuContent>
-                                        <DropdownMenuItem>Mark as Reviewed</DropdownMenuItem>
-                                        <DropdownMenuItem>Delete</DropdownMenuItem>
-                                        <DropdownMenuItem>Keep Duplicates</DropdownMenuItem>
-                                        <DropdownMenuItem>Batch Edit</DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                                <Button variant="ghost" size="sm" disabled>Mark as Reviewed</Button>
-                                <Button variant="ghost" size="sm" disabled>Delete</Button>
-                                <Button variant="ghost" size="sm" disabled>Keep Duplicates</Button>
-                                <Button variant="ghost" size="sm" disabled>Batch Edit</Button>
-                                <Button variant="default" size="sm" onClick={() => setIsImportDialogOpen(true)}>Import Bank Statements</Button>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <Link href="#" className="text-sm text-primary hover:underline">Shortcut Keys</Link>
-                                <div className="relative">
-                                    <Input placeholder="Search..." className="h-8 w-40 pr-8" />
-                                    <Search className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <CardHeader className="p-0">
+                       <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="w-full">
+                            <TabsList className="grid w-full grid-cols-3 rounded-t-lg rounded-b-none h-auto">
+                                <TabsTrigger value="all" className="rounded-tl-md">
+                                    <div className="text-center p-2">
+                                        <p className="text-lg font-bold">{formatPrice(totalReceived + totalSpent)}</p>
+                                        <p className="text-xs text-muted-foreground">Net Movement</p>
+                                    </div>
+                                </TabsTrigger>
+                                <TabsTrigger value="income">
+                                    <div className="text-center p-2">
+                                        <p className="text-lg font-bold">{formatPrice(totalReceived)}</p>
+                                        <p className="text-xs text-muted-foreground">Total Received</p>
+                                    </div>
+                                </TabsTrigger>
+                                <TabsTrigger value="expenses" className="rounded-tr-md">
+                                     <div className="text-center p-2">
+                                        <p className="text-lg font-bold">{formatPrice(totalSpent)}</p>
+                                        <p className="text-xs text-muted-foreground">Total Spent</p>
+                                    </div>
+                                </TabsTrigger>
+                            </TabsList>
+                        </Tabs>
+                        <div className="p-4 border-b">
+                            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild><Button variant="outline" size="sm">Actions</Button></DropdownMenuTrigger>
+                                        <DropdownMenuContent>
+                                            <DropdownMenuItem>Mark as Reviewed</DropdownMenuItem>
+                                            <DropdownMenuItem>Delete</DropdownMenuItem>
+                                            <DropdownMenuItem>Keep Duplicates</DropdownMenuItem>
+                                            <DropdownMenuItem>Batch Edit</DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                    <Button variant="default" size="sm" onClick={() => setIsImportDialogOpen(true)}>Import Bank Statements</Button>
                                 </div>
-                                <Button variant="ghost" size="icon" className="h-8 w-8"><Settings className="h-4 w-4" /></Button>
+                                <div className="flex items-center gap-2">
+                                    <Link href="#" className="text-sm text-primary hover:underline">Shortcut Keys</Link>
+                                    <div className="relative">
+                                        <Input placeholder="Search..." className="h-8 w-40 pr-8" />
+                                        <Search className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    </div>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8"><Settings className="h-4 w-4" /></Button>
+                                </div>
                             </div>
                         </div>
                     </CardHeader>
@@ -405,17 +444,17 @@ export default function BankTransactionsPage() {
                             <TableBody>
                                 {isLoading ? (
                                     <TableRow><TableCell colSpan={11} className="text-center h-24"><Loader2 className="animate-spin" /></TableCell></TableRow>
-                                ) : transactions.length === 0 ? (
+                                ) : filteredTransactions.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={11} className="text-center text-muted-foreground py-4">
                                             You have no new Bank Statement transactions to review. Import your Bank Statements or manually enter banking transactions below.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    transactions.map(tx => (
+                                    filteredTransactions.map(tx => (
                                         <TableRow key={tx.id}>
                                             <TableCell className="p-2"><Checkbox/></TableCell>
-                                            <TableCell>{tx.date}</TableCell>
+                                            <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                             <TableCell>{tx.description}</TableCell>
                                             <TableCell></TableCell>
                                             <TableCell>
@@ -438,14 +477,10 @@ export default function BankTransactionsPage() {
                                             <TableCell className="text-right">{tx.amount >= 0 ? formatPrice(tx.amount) : ''}</TableCell>
                                             <TableCell className="p-2"><Checkbox /></TableCell>
                                             <TableCell>
-                                                <div className="flex items-center gap-1">
-                                                    <Button variant="ghost" size="icon" className="h-6 w-6"><List className="h-4 w-4" /></Button>
-                                                    <Button variant="ghost" size="icon" className="h-6 w-6"><ArrowRightLeft className="h-4 w-4" /></Button>
-                                                    <Button variant="ghost" size="icon" className="h-6 w-6"><Paperclip className="h-4 w-4" /></Button>
-                                                    <Button variant="ghost" size="icon" className="h-6 w-6"><X className="h-4 w-4" /></Button>
-                                                    <Button variant="ghost" size="icon" className="h-6 w-6"><Plus className="h-4 w-4" /></Button>
-                                                    <Button variant="ghost" size="icon" className="h-6 w-6"><Minus className="h-4 w-4" /></Button>
-                                                </div>
+                                                <Button variant="ghost" size="sm" className="h-8">
+                                                    <Cog className="mr-2 h-4 w-4"/>
+                                                    Create Allocation Rule
+                                                </Button>
                                             </TableCell>
                                         </TableRow>
                                     ))
@@ -474,15 +509,11 @@ export default function BankTransactionsPage() {
                                     <TableCell><Input className="h-8" placeholder="R" /></TableCell>
                                     <TableCell><Input className="h-8" placeholder="R" /></TableCell>
                                     <TableCell className="p-2"><Checkbox /></TableCell>
-                                    <TableCell>
-                                         <div className="flex items-center gap-1">
-                                            <Button variant="ghost" size="icon" className="h-6 w-6"><List className="h-4 w-4" /></Button>
-                                            <Button variant="ghost" size="icon" className="h-6 w-6"><ArrowRightLeft className="h-4 w-4" /></Button>
-                                            <Button variant="ghost" size="icon" className="h-6 w-6"><Paperclip className="h-4 w-4" /></Button>
-                                            <Button variant="ghost" size="icon" className="h-6 w-6"><X className="h-4 w-4" /></Button>
-                                            <Button variant="ghost" size="icon" className="h-6 w-6"><Plus className="h-4 w-4" /></Button>
-                                            <Button variant="ghost" size="icon" className="h-6 w-6"><Minus className="h-4 w-4" /></Button>
-                                        </div>
+                                     <TableCell>
+                                        <Button variant="ghost" size="sm" className="h-8">
+                                            <Cog className="mr-2 h-4 w-4"/>
+                                            Create Allocation Rule
+                                        </Button>
                                     </TableCell>
                                  </TableRow>
                             </TableBody>
