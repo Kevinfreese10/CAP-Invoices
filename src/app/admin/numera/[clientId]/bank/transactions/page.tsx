@@ -255,6 +255,7 @@ export default function BankTransactionsPage() {
   const clientId = params.clientId as string;
   const { toast } = useToast();
   const [activeSubTab, setActiveSubTab] = useState('all');
+  const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
 
   const fetchClient = async () => {
     if (!clientId) return;
@@ -298,6 +299,16 @@ export default function BankTransactionsPage() {
         console.error(error);
     }
   };
+  
+  const handleBulkAllocate = async (accountId: string) => {
+    if (!client || selectedTransactions.length === 0) return;
+    // This is a placeholder for the actual allocation logic
+    toast({
+        title: `Allocating ${selectedTransactions.length} transactions`,
+        description: `to account ${accountId}`
+    });
+    setSelectedTransactions([]);
+  }
 
   const transactions = useMemo(() => {
     if (!client || !selectedAccountId) return [];
@@ -326,14 +337,6 @@ export default function BankTransactionsPage() {
     });
     return new Date(latestTransaction.date).toLocaleDateString('en-GB');
   }, [transactions]);
-
-  const totalSpent = useMemo(() => {
-    return filteredTransactions.filter(tx => tx.amount < 0).reduce((sum, tx) => sum + tx.amount, 0);
-  }, [filteredTransactions]);
-
-  const totalReceived = useMemo(() => {
-    return filteredTransactions.filter(tx => tx.amount > 0).reduce((sum, tx) => sum + tx.amount, 0);
-  }, [filteredTransactions]);
 
 
   return (
@@ -393,12 +396,11 @@ export default function BankTransactionsPage() {
                             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                                 <div className="flex items-center gap-2 flex-wrap">
                                     <DropdownMenu>
-                                        <DropdownMenuTrigger asChild><Button variant="outline" size="sm">Actions</Button></DropdownMenuTrigger>
+                                        <DropdownMenuTrigger asChild><Button variant="outline" size="sm" disabled={selectedTransactions.length === 0}>Actions</Button></DropdownMenuTrigger>
                                         <DropdownMenuContent>
                                             <DropdownMenuItem>Mark as Reviewed</DropdownMenuItem>
+                                            <DropdownMenuItem onSelect={() => handleBulkAllocate('some_account_id')}>Allocate Selected</DropdownMenuItem>
                                             <DropdownMenuItem>Delete</DropdownMenuItem>
-                                            <DropdownMenuItem>Keep Duplicates</DropdownMenuItem>
-                                            <DropdownMenuItem>Batch Edit</DropdownMenuItem>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
                                     <Button variant="default" size="sm" onClick={() => setIsImportDialogOpen(true)}>Import Bank Statements</Button>
@@ -419,7 +421,18 @@ export default function BankTransactionsPage() {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead className="w-12 p-2"><Checkbox /></TableHead>
+                                    <TableHead className="w-12 p-2">
+                                        <Checkbox 
+                                            checked={selectedTransactions.length === filteredTransactions.length && filteredTransactions.length > 0}
+                                            onCheckedChange={(checked) => {
+                                                if (checked) {
+                                                    setSelectedTransactions(filteredTransactions.map(t => t.id));
+                                                } else {
+                                                    setSelectedTransactions([]);
+                                                }
+                                            }}
+                                        />
+                                    </TableHead>
                                     <TableHead>Date</TableHead>
                                     <TableHead>Description</TableHead>
                                     <TableHead>Type</TableHead>
@@ -442,13 +455,22 @@ export default function BankTransactionsPage() {
                                     </TableRow>
                                 ) : (
                                     filteredTransactions.map(tx => (
-                                        <TableRow key={tx.id}>
-                                            <TableCell className="p-2"><Checkbox/></TableCell>
+                                        <TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && "selected"}>
+                                            <TableCell className="p-2">
+                                                <Checkbox 
+                                                    checked={selectedTransactions.includes(tx.id)}
+                                                    onCheckedChange={(checked) => {
+                                                        setSelectedTransactions(prev => 
+                                                            checked ? [...prev, tx.id] : prev.filter(id => id !== tx.id)
+                                                        );
+                                                    }}
+                                                />
+                                            </TableCell>
                                             <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                             <TableCell>{tx.description}</TableCell>
                                             <TableCell></TableCell>
                                             <TableCell>
-                                                <Select>
+                                                <Select onValueChange={(value) => handleBulkAllocate(value)}>
                                                     <SelectTrigger className="h-8">
                                                         <SelectValue placeholder="Select account" />
                                                     </SelectTrigger>
@@ -475,7 +497,7 @@ export default function BankTransactionsPage() {
                                     ))
                                 )}
                                  <TableRow>
-                                    <TableCell className="p-2"><Checkbox/></TableCell>
+                                    <TableCell className="p-2"></TableCell>
                                     <TableCell><Input className="h-8" /></TableCell>
                                     <TableCell><Input className="h-8" /></TableCell>
                                     <TableCell><Input className="h-8" /></TableCell>
