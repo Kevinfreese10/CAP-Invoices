@@ -135,7 +135,7 @@ export default function AdminBlogPage() {
                       <Link href={`/blog/${post.slug}`} className="hover:underline" target="_blank">{post.title}</Link>
                   </TableCell>
                   <TableCell>{post.author}</TableCell>
-                  <TableCell>{format(new Date(post.date), 'dd MMM yyyy')}</TableCell>
+                  <TableCell>{format(new Date(post.date), 'dd/MM/yyyy')}</TableCell>
                   <TableCell className="text-right">
                     <AlertDialog>
                         <DropdownMenu>

@@ -110,7 +110,7 @@ export default function AdminCompliancePage() {
     //         assigneeName={assignedStaff.name.split(' ')[0]}
     //         taskTitle={taskData.title}
     //         taskDescription={taskData.description}
-    //         dueDate={format(dueDate, 'dd MMMM yyyy')}
+    //         dueDate={format(dueDate, 'dd/MM/yyyy')}
     //         assignedBy={user.name}
     //         taskUrl={`${window.location.origin}/admin/dashboard`}
     //     />);
@@ -129,9 +129,9 @@ export default function AdminCompliancePage() {
   const formatDate = (timestamp: any): string => {
     if (!timestamp) return 'N/A';
     if (timestamp.toDate && typeof timestamp.toDate === 'function') {
-      return format(timestamp.toDate(), 'dd MMM yyyy, HH:mm');
+      return format(timestamp.toDate(), 'dd/MM/yyyy, HH:mm');
     }
-    return format(new Date(timestamp), 'dd MMM yyyy, HH:mm');
+    return format(new Date(timestamp), 'dd/MM/yyyy, HH:mm');
   };
 
   return (

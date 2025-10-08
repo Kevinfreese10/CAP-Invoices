@@ -321,7 +321,7 @@ export default function ResellerOrdersPage() {
                 {orders.map((order) => (
                   <TableRow key={order.id}>
                     <TableCell className="font-medium">{order.id}</TableCell>
-                    <TableCell>{format(new Date(order.date), 'dd MMM yyyy')}</TableCell>
+                    <TableCell>{format(new Date(order.date), 'dd/MM/yyyy')}</TableCell>
                     <TableCell>{order.customerName}</TableCell>
                     <TableCell>
                       <Badge variant={getStatusVariant(order.status)}>
@@ -430,7 +430,7 @@ export default function ResellerOrdersPage() {
                         <Link href={`/reseller/orders/${order.originalOrderId}`}>{order.originalOrderId}</Link>
                       </Button>
                     </TableCell>
-                    <TableCell>{format(new Date(order.date), 'dd MMM yyyy')}</TableCell>
+                    <TableCell>{format(new Date(order.date), 'dd/MM/yyyy')}</TableCell>
                     <TableCell className="text-right font-semibold">{formatPrice(order.total)}</TableCell>
                     <TableCell className="text-right">
                        <Button onClick={() => { setOutsourcedOrderDetails(order); setIsOutsourceModalOpen(true); }}>
@@ -481,7 +481,7 @@ export default function ResellerOrdersPage() {
                         <Link href={`/reseller/orders/${order.originalOrderId}`}>{order.originalOrderId}</Link>
                       </Button>
                     </TableCell>
-                    <TableCell>{format(new Date(order.date), 'dd MMM yyyy')}</TableCell>
+                    <TableCell>{format(new Date(order.date), 'dd/MM/yyyy')}</TableCell>
                     <TableCell>
                       <Badge variant={getStatusVariant(order.status)}>
                         {order.status}

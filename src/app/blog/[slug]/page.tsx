@@ -42,7 +42,7 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
           <div>
             <p className="font-semibold">{post.author}</p>
             <p className="text-sm text-muted-foreground">
-              Published on {format(new Date(post.date), 'dd MMMM yyyy')}
+              Published on {format(new Date(post.date), 'dd/MM/yyyy')}
             </p>
           </div>
         </div>

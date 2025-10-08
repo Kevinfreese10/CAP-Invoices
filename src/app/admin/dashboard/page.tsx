@@ -181,7 +181,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                     )}
                                     >
                                     {field.value ? (
-                                        format(field.value, "dd MMM yyyy")
+                                        format(field.value, "dd/MM/yyyy")
                                     ) : (
                                         <span>Pick a date</span>
                                     )}
@@ -289,7 +289,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                         <div className="bg-muted p-3 rounded-lg w-full">
                                             <div className="flex justify-between items-center mb-1">
                                                 <p className="text-xs font-semibold">{author?.name}</p>
-                                                <p className="text-xs text-muted-foreground">{format(date, 'dd MMM yyyy, HH:mm')}</p>
+                                                <p className="text-xs text-muted-foreground">{format(date, 'dd/MM/yyyy, HH:mm')}</p>
                                             </div>
                                             <p className="text-sm">{comment.text}</p>
                                         </div>
@@ -490,8 +490,8 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                         </TableCell>
                          <TableCell className="align-top text-xs">
                             <div className="flex flex-col">
-                                <span className="font-semibold">Due: {task.dueDate?.toDate ? format(task.dueDate.toDate(), 'dd MMM yyyy') : 'N/A'}</span>
-                                <span className="text-muted-foreground">Created: {task.createdAt?.toDate ? format(task.createdAt.toDate(), 'dd MMM yyyy') : 'N/A'}</span>
+                                <span className="font-semibold">Due: {task.dueDate?.toDate ? format(task.dueDate.toDate(), 'dd/MM/yyyy') : 'N/A'}</span>
+                                <span className="text-muted-foreground">Created: {task.createdAt?.toDate ? format(task.createdAt.toDate(), 'dd/MM/yyyy') : 'N/A'}</span>
                             </div>
                         </TableCell>
                         <TableCell className="align-top">
@@ -824,7 +824,7 @@ export default function AdminDashboardPage() {
                         //             assigneeName={assignee.name.split(' ')[0]}
                         //             taskTitle={data.title}
                         //             taskDescription={data.description}
-                        //             dueDate={format(data.dueDate, 'dd MMMM yyyy')}
+                        //             dueDate={format(data.dueDate, 'dd/MM/yyyy')}
                         //             assignedBy={user.name}
                         //             taskUrl={`${window.location.origin}/admin/dashboard`}
                         //         />);
@@ -1039,6 +1039,7 @@ export default function AdminDashboardPage() {
     
 
     
+
 
 
 

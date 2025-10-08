@@ -51,7 +51,7 @@ export default function BlogPage() {
                     <Link href={`/blog/${post.slug}`}>{post.title}</Link>
                 </CardTitle>
                 <CardDescription>
-                    by {post.author} on {format(new Date(post.date), 'dd MMMM yyyy')}
+                    by {post.author} on {format(new Date(post.date), 'dd/MM/yyyy')}
                 </CardDescription>
                 </CardHeader>
                 <CardContent className="flex-grow">

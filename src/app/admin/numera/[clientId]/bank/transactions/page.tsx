@@ -160,9 +160,9 @@ function ImportDialog({
 
   const handleDownloadExample = () => {
     const exampleData = [
-      { Date: '2024-07-01', Description: 'Payment from Client X', Amount: 5000.00 },
-      { Date: '2024-07-02', Description: 'Office Supplies', Amount: -250.50 },
-      { Date: '2024-07-03', Description: 'Bank Charges', Amount: -45.00 },
+      { Date: '01/07/2024', Description: 'Payment from Client X', Amount: 5000.00 },
+      { Date: '02/07/2024', Description: 'Office Supplies', Amount: -250.50 },
+      { Date: '03/07/2024', Description: 'Bank Charges', Amount: -45.00 },
     ];
     const csv = Papa.unparse(exampleData);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -313,11 +313,7 @@ export default function BankTransactionsPage() {
     const latestTransaction = transactions.reduce((latest, current) => {
       return new Date(current.date) > new Date(latest.date) ? current : latest;
     });
-    return new Date(latestTransaction.date).toLocaleDateString('en-ZA', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
+    return new Date(latestTransaction.date).toLocaleDateString('en-GB');
   }, [transactions]);
 
 

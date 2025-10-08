@@ -417,7 +417,7 @@ export default function AdminOrdersPage() {
                   <TableRow key={order.id}>
                     <TableCell className="font-medium">
                         <p>{order.originalOrderId || order.id}</p>
-                        <p className="text-xs text-muted-foreground">{format(new Date(order.date), 'dd MMM yyyy')}</p>
+                        <p className="text-xs text-muted-foreground">{format(new Date(order.date), 'dd/MM/yyyy')}</p>
                     </TableCell>
                     <TableCell>{customerName}</TableCell>
                     <TableCell>
