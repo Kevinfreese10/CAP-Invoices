@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -247,6 +248,7 @@ function ImportDialog({
 
 function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransaction, onUpdateAllocation }: { client: User | null; fetchClient: () => void; openRuleDialogForTransaction: (tx: AllocatedTransaction) => void; onUpdateAllocation: (txId: string, updates: Partial<AllocatedTransaction>) => void; }) {
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
+    const [searchTerm, setSearchTerm] = useState('');
     const { toast } = useToast();
 
     const handleBulkDelete = async () => {
@@ -297,7 +299,27 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
     }
 
 
-    const allocatedTransactions = client?.allocatedTransactions || [];
+    const allocatedTransactions = useMemo(() => {
+        const allTransactions = client?.allocatedTransactions || [];
+        if (!searchTerm) {
+            return allTransactions;
+        }
+        const lowercasedFilter = searchTerm.toLowerCase();
+
+        return allTransactions.filter(tx => {
+            const account = client?.chartOfAccounts?.find(acc => acc.id === tx.allocatedTo.value);
+            const accountDescription = account ? `${account.accountNumber} - ${account.description}` : '';
+
+            return (
+                tx.description.toLowerCase().includes(lowercasedFilter) ||
+                accountDescription.toLowerCase().includes(lowercasedFilter) ||
+                tx.vatType.toLowerCase().replace(/_/g, ' ').includes(lowercasedFilter) ||
+                tx.amount.toString().includes(lowercasedFilter)
+            );
+        });
+
+    }, [client, searchTerm]);
+
 
     return (
         <Card>
@@ -339,7 +361,12 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                     </div>
                     <div className="flex items-center gap-2">
                         <div className="relative">
-                            <Input placeholder="Search..." className="h-8 w-40 pr-8" />
+                            <Input 
+                                placeholder="Search..." 
+                                className="h-8 w-64 pr-8"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
                             <Search className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         </div>
                     </div>
@@ -375,7 +402,7 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                             {allocatedTransactions.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={8} className="text-center h-24 text-muted-foreground">
-                                        No reviewed transactions yet.
+                                        No reviewed transactions match your search.
                                     </TableCell>
                                 </TableRow>
                             ) : (
@@ -1479,4 +1506,3 @@ export default function BankTransactionsPage() {
     </div>
   );
 }
-
