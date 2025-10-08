@@ -528,8 +528,21 @@ function ManageRulesDialog({
                 if (values.scope === 'client') {
                     const clientRef = doc(db, 'clients', client.id);
                     await updateDoc(clientRef, { allocationRules: arrayUnion(newRule) });
-                } else {
-                    await addDoc(collection(db, 'allocationRules'), newRule);
+                } else { // global
+                    const newGlobalRuleRef = await addDoc(collection(db, 'allocationRules'), newRule);
+                    const newGlobalRuleWithId = { ...newRule, id: newGlobalRuleRef.id };
+                    
+                    const clientsQuery = query(collection(db, 'clients'), where('hasNumeraProfile', '==', true));
+                    const clientsSnapshot = await getDocs(clientsQuery);
+                    
+                    const batch = writeBatch(db);
+                    clientsSnapshot.forEach(clientDoc => {
+                        const clientRef = doc(db, 'clients', clientDoc.id);
+                        batch.update(clientRef, {
+                            allocationRules: arrayUnion(newGlobalRuleWithId)
+                        });
+                    });
+                    await batch.commit();
                 }
                 toast({ title: 'Rule Created' });
             }
@@ -928,15 +941,12 @@ export default function BankTransactionsPage() {
                 allocationRules: arrayUnion(newRule)
             });
         } else { // global
-            // Add to global collection
             const newGlobalRuleRef = await addDoc(collection(db, 'allocationRules'), newRule);
             const newGlobalRuleWithId = { ...newRule, id: newGlobalRuleRef.id };
             
-            // Fetch all Numera clients
             const clientsQuery = query(collection(db, 'clients'), where('hasNumeraProfile', '==', true));
             const clientsSnapshot = await getDocs(clientsQuery);
             
-            // Batch update all Numera clients
             const batch = writeBatch(db);
             clientsSnapshot.forEach(clientDoc => {
                 const clientRef = doc(db, 'clients', clientDoc.id);
