@@ -20,7 +20,7 @@ import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove, addDoc, 
 import { firebaseApp } from '@/lib/firebase';
 import { useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Separator } from '@/components/ui/separator';
@@ -244,7 +244,7 @@ function ImportDialog({
   );
 }
 
-function ReviewedTransactionsTab({ client, fetchClient }: { client: User | null; fetchClient: () => void }) {
+function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransaction }: { client: User | null; fetchClient: () => void; openRuleDialogForTransaction: (tx: AllocatedTransaction) => void; }) {
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     const { toast } = useToast();
 
@@ -367,12 +367,13 @@ function ReviewedTransactionsTab({ client, fetchClient }: { client: User | null;
                                 <TableHead>VAT Type</TableHead>
                                 <TableHead className="text-right">Amount</TableHead>
                                 <TableHead className="text-right">VAT Amount</TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {allocatedTransactions.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="text-center h-24 text-muted-foreground">
+                                    <TableCell colSpan={8} className="text-center h-24 text-muted-foreground">
                                         No reviewed transactions yet.
                                     </TableCell>
                                 </TableRow>
@@ -397,6 +398,16 @@ function ReviewedTransactionsTab({ client, fetchClient }: { client: User | null;
                                             <TableCell>{allVatTypes.find(v => v.name === tx.vatType)?.label || tx.vatType}</TableCell>
                                             <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
                                             <TableCell className="text-right font-mono">{formatPrice(tx.vatAmount)}</TableCell>
+                                            <TableCell className="text-right">
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="h-7 w-7"><MoreHorizontal className="h-4 w-4" /></Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent>
+                                                        <DropdownMenuItem onSelect={() => openRuleDialogForTransaction(tx)}>Create Rule</DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </TableCell>
                                         </TableRow>
                                     )
                                 })
@@ -422,7 +433,7 @@ function CreateRuleDialog({ isOpen, onClose, onSave, transaction, client }: {
     isOpen: boolean; 
     onClose: () => void;
     onSave: (ruleData: Omit<AllocationRule, 'id'|'type'>, scope: 'client'|'global') => void;
-    transaction: ImportedTransaction | null;
+    transaction: ImportedTransaction | AllocatedTransaction | null;
     client: User | null;
 }) {
     const form = useForm<z.infer<typeof ruleFormSchema>>({
@@ -432,11 +443,12 @@ function CreateRuleDialog({ isOpen, onClose, onSave, transaction, client }: {
 
     useEffect(() => {
         if (transaction) {
+            const allocatedTx = transaction as AllocatedTransaction;
             form.reset({
                 description: transaction.description,
                 keywords: transaction.description.split(' ').filter(s => s.length > 3).join(', '),
-                accountId: '',
-                vatType: 'no_vat',
+                accountId: allocatedTx.allocatedTo?.value || '',
+                vatType: allocatedTx.vatType || 'no_vat',
                 scope: 'client',
             });
         }
@@ -785,7 +797,7 @@ export default function BankTransactionsPage() {
   const [activeSubTab, setActiveSubTab] = useState('all');
   const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
   const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
-  const [ruleTransaction, setRuleTransaction] = useState<ImportedTransaction | null>(null);
+  const [ruleTransaction, setRuleTransaction] = useState<ImportedTransaction | AllocatedTransaction | null>(null);
   const [isManageRulesOpen, setIsManageRulesOpen] = useState(false);
   const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
   const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
@@ -1056,6 +1068,33 @@ export default function BankTransactionsPage() {
         console.error(error);
     }
   };
+  
+    const openRuleDialogForTransaction = async (tx: AllocatedTransaction) => {
+        if (!client) return;
+
+        // 1. Move transaction back to imported
+        const remainingAllocated = client.allocatedTransactions?.filter(t => t.id !== tx.id) || [];
+        const { allocatedTo, allocatedAt, vatType, vatAmount, ...importedTx } = tx;
+
+        try {
+            const clientRef = doc(db, 'clients', client.id);
+            await updateDoc(clientRef, {
+                allocatedTransactions: remainingAllocated,
+                importedTransactions: arrayUnion(importedTx),
+            });
+
+            // 2. Open rule dialog
+            setRuleTransaction(tx);
+            setIsRuleDialogOpen(true);
+
+            // 3. Refresh client data in background
+            await fetchClientAndRules();
+
+        } catch (error) {
+            toast({ title: "Error", description: "Could not move transaction to create rule.", variant: "destructive" });
+        }
+    };
+
 
   const handleAccountSelection = (accountId: string) => {
     if (accountId === 'create-new') {
@@ -1325,7 +1364,7 @@ export default function BankTransactionsPage() {
                 </Card>
             </TabsContent>
             <TabsContent value="reviewed">
-                <ReviewedTransactionsTab client={client} fetchClient={fetchClientAndRules} />
+                <ReviewedTransactionsTab client={client} fetchClient={fetchClientAndRules} openRuleDialogForTransaction={openRuleDialogForTransaction} />
             </TabsContent>
         </Tabs>
         
