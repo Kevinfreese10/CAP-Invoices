@@ -85,3 +85,4 @@ export let chartOfAccounts: ChartOfAccount[] = [
     { id: '9990/001', accountNumber: '9990/001', description: 'Bank Transfer Suspense', section: 'Balance Sheet' },
     { id: '9990/002', accountNumber: '9990/002', description: 'Unpaid Suspense', section: 'Balance Sheet' },
 ];
+

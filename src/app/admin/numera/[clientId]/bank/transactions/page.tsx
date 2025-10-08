@@ -693,6 +693,68 @@ function RuleForm({ initialData, onSave, onCancel, client } : {
     )
 }
 
+const newAccountFormSchema = z.object({
+  description: z.string().min(3, "Description is required"),
+  accountNumber: z.string().min(7, "Account number is required").regex(/^\d{4}\/\d{3}$/, "Format must be XXXX/XXX"),
+});
+
+function CreateAccountDialog({ isOpen, onClose, onSave, client } : {
+    isOpen: boolean;
+    onClose: () => void;
+    onSave: (account: Omit<ChartOfAccount, 'id' | 'section'>) => void;
+    client: User | null;
+}) {
+    const nextAccountNumber = useMemo(() => {
+        if (!client || !client.chartOfAccounts) return '8400/000';
+        const bankAccounts = client.chartOfAccounts
+            .filter(acc => acc.accountNumber.startsWith('8400/'))
+            .map(acc => parseInt(acc.accountNumber.split('/')[1], 10))
+            .sort((a,b) => a - b);
+        
+        const lastNum = bankAccounts[bankAccounts.length - 1];
+        if (lastNum === undefined) return '8400/000';
+        const nextNum = (lastNum + 1).toString().padStart(3, '0');
+        return `8400/${nextNum}`;
+    }, [client]);
+
+    const form = useForm<z.infer<typeof newAccountFormSchema>>({
+        resolver: zodResolver(newAccountFormSchema),
+        defaultValues: {
+            description: '',
+            accountNumber: nextAccountNumber,
+        }
+    });
+
+    useEffect(() => {
+        form.setValue('accountNumber', nextAccountNumber);
+    }, [nextAccountNumber, form]);
+
+    const handleSave = (values: z.infer<typeof newAccountFormSchema>) => {
+        onSave(values);
+        onClose();
+    }
+    
+    return (
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Create New Bank Account</DialogTitle>
+                </DialogHeader>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleSave)} className="space-y-4">
+                         <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Account Description</FormLabel><FormControl><Input {...field} placeholder="e.g., FNB Cheque Account" /></FormControl><FormMessage /></FormItem> )}/>
+                         <FormField control={form.control} name="accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )}/>
+                         <DialogFooter>
+                            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+                            <Button type="submit">Create Account</Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 export default function BankTransactionsPage() {
   const [client, setClient] = useState<User | null>(null);
   const [bankAccounts, setBankAccounts] = useState<ChartOfAccount[]>([]);
@@ -708,6 +770,7 @@ export default function BankTransactionsPage() {
   const [ruleTransaction, setRuleTransaction] = useState<ImportedTransaction | null>(null);
   const [isManageRulesOpen, setIsManageRulesOpen] = useState(false);
   const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
+  const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
 
 
   const fetchClientAndRules = async () => {
@@ -900,6 +963,35 @@ export default function BankTransactionsPage() {
     }
   };
 
+  const handleAccountSelection = (accountId: string) => {
+    if (accountId === 'create-new') {
+        setIsCreateAccountOpen(true);
+    } else {
+        setSelectedAccountId(accountId);
+    }
+  };
+
+  const handleCreateAccount = async (account: Omit<ChartOfAccount, 'id' | 'section'>) => {
+    if (!client) return;
+    const newAccount: ChartOfAccount = {
+        ...account,
+        id: account.accountNumber, // Use account number as ID for new accounts
+        section: 'Balance Sheet',
+    };
+    try {
+        const clientRef = doc(db, 'clients', client.id);
+        await updateDoc(clientRef, {
+            chartOfAccounts: arrayUnion(newAccount)
+        });
+        toast({ title: 'Bank Account Created', description: `Account ${newAccount.description} has been added.` });
+        await fetchClientAndRules(); // Refresh data
+        setSelectedAccountId(newAccount.id); // Select the new account
+    } catch (error) {
+        toast({ title: 'Creation Failed', description: 'Could not create the new account.', variant: 'destructive'});
+        console.error(error);
+    }
+  };
+
 
   return (
     <div className="space-y-4">
@@ -907,7 +999,7 @@ export default function BankTransactionsPage() {
         <div className="flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-8 p-4 bg-card border rounded-lg">
             <div className="flex items-center gap-2">
                 <Label>Bank or Credit Card</Label>
-                <Select value={selectedAccountId || ''} onValueChange={setSelectedAccountId}>
+                <Select value={selectedAccountId || ''} onValueChange={handleAccountSelection}>
                     <SelectTrigger className="w-[200px]">
                         <SelectValue placeholder="(None)" />
                     </SelectTrigger>
@@ -1159,6 +1251,14 @@ export default function BankTransactionsPage() {
             globalRules={globalRules}
             fetchClientAndRules={fetchClientAndRules}
         />
+        
+        <CreateAccountDialog
+            isOpen={isCreateAccountOpen}
+            onClose={() => setIsCreateAccountOpen(false)}
+            onSave={handleCreateAccount}
+            client={client}
+        />
     </div>
   );
 }
+
