@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule } from '@/lib/types';
@@ -32,6 +32,7 @@ import { Label } from '@/components/ui/label';
 import { allVatTypes } from '@/lib/vat-types';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 
 const db = getFirestore(firebaseApp);
 
@@ -776,6 +777,7 @@ export default function BankTransactionsPage() {
   const [bankAccounts, setBankAccounts] = useState<ChartOfAccount[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAiProcessing, setIsAiProcessing] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const params = useParams();
   const clientId = params.clientId as string;
@@ -845,15 +847,19 @@ export default function BankTransactionsPage() {
     return client.importedTransactions?.filter(t => t.bankAccountId === selectedAccountId) || [];
   }, [client, selectedAccountId]);
 
+  const expenseTransactions = useMemo(() => {
+    return transactions.filter(t => t.amount < 0);
+  }, [transactions]);
+
   const filteredTransactions = useMemo(() => {
     if (activeSubTab === 'income') {
       return transactions.filter(t => t.amount >= 0);
     }
     if (activeSubTab === 'expenses') {
-      return transactions.filter(t => t.amount < 0);
+      return expenseTransactions;
     }
     return transactions;
-  }, [transactions, activeSubTab]);
+  }, [transactions, activeSubTab, expenseTransactions]);
 
   const bankBalance = useMemo(() => {
     if (!client || !selectedAccountId) return 0;
@@ -919,6 +925,65 @@ export default function BankTransactionsPage() {
       console.error(error);
     }
   };
+  
+    const handleAiAllocate = async () => {
+    if (!client || expenseTransactions.length === 0) return;
+    
+    setIsAiProcessing(true);
+    toast({ title: "AI Allocation Started", description: `Processing ${expenseTransactions.length} expense transactions...` });
+
+    const chartOfAccountsStr = JSON.stringify(client.chartOfAccounts?.map(a => ({ id: a.id, accountNumber: a.accountNumber, description: a.description })));
+    let allocatedCount = 0;
+    
+    const newAllocated: AllocatedTransaction[] = [];
+    const stillImported: ImportedTransaction[] = [];
+    
+    for (const tx of expenseTransactions) {
+      try {
+        const suggestion = await suggestTransactionAllocation({ description: tx.description, chartOfAccounts: chartOfAccountsStr });
+        
+        if (suggestion && suggestion.confidence > 50) {
+          newAllocated.push({
+            ...tx,
+            allocatedTo: { value: suggestion.accountId, type: 'account' as const },
+            vatType: suggestion.vatType,
+            vatAmount: 0, // Placeholder for now
+            allocatedAt: new Date(),
+          });
+          allocatedCount++;
+          toast({ title: "AI Allocation", description: `"${tx.description}" allocated to ${suggestion.accountId} with ${suggestion.confidence}% confidence.` });
+        } else {
+            stillImported.push(tx);
+            toast({ title: "AI Allocation Skipped", description: `AI was not confident enough for "${tx.description}".`, variant: "default"});
+        }
+      } catch (error) {
+          stillImported.push(tx); // Keep transaction if AI fails
+          console.error(`AI allocation failed for "${tx.description}":`, error);
+          toast({ title: "AI Error", description: `Could not process "${tx.description}".`, variant: "destructive" });
+      }
+    }
+    
+    // Update non-expense transactions
+    const nonExpenseTransactions = client.importedTransactions?.filter(t => t.amount >= 0) || [];
+    const finalImportedTransactions = [...nonExpenseTransactions, ...stillImported];
+
+    try {
+        const clientRef = doc(db, 'clients', client.id);
+        await updateDoc(clientRef, {
+            importedTransactions: finalImportedTransactions,
+            allocatedTransactions: arrayUnion(...newAllocated),
+        });
+
+        toast({ title: "AI Allocation Complete", description: `${allocatedCount} out of ${expenseTransactions.length} expenses were automatically allocated.` });
+        fetchClientAndRules();
+    } catch (error) {
+        toast({ title: "Update Failed", description: 'Could not save AI allocations to the database.', variant: 'destructive'});
+        console.error("Firestore update failed after AI allocation:", error);
+    } finally {
+        setIsAiProcessing(false);
+    }
+  };
+
 
   const openRuleDialog = (transaction: ImportedTransaction) => {
     setRuleTransaction(transaction);
@@ -1071,7 +1136,7 @@ export default function BankTransactionsPage() {
                                     Income ({transactions.filter(t => t.amount >= 0).length})
                                 </TabsTrigger>
                                 <TabsTrigger value="expenses" className="rounded-tr-md">
-                                     Expenses ({transactions.filter(t => t.amount < 0).length})
+                                     Expenses ({expenseTransactions.length})
                                 </TabsTrigger>
                             </TabsList>
                         </Tabs>
@@ -1119,6 +1184,12 @@ export default function BankTransactionsPage() {
                                         <BookOpen className="mr-2 h-4 w-4" />
                                         Allocation Rules
                                     </Button>
+                                     {activeSubTab === 'expenses' && (
+                                        <Button variant="outline" size="sm" onClick={handleAiAllocate} disabled={isAiProcessing}>
+                                            {isAiProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                                            AI Allocate
+                                        </Button>
+                                    )}
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <div className="relative">

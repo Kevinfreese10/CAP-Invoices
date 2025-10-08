@@ -11,3 +11,4 @@ export * from '@/ai/flows/generate-blog-post-seo';
 export * from '@/ai/flows/generate-blog-post';
 export * from '@/ai/flows/website-q-and-a';
 export * from '@/ai/flows/extract-invoice-data';
+export * from '@/ai/flows/suggest-transaction-allocation';
