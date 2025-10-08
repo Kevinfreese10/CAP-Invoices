@@ -111,13 +111,22 @@ function ImportDialog({
             const amountStr = row.Amount || row.amount || row.Debit || row.Credit;
 
             if (!dateStr || !descriptionStr || amountStr === undefined) return null;
-
-            let date;
-            if (typeof dateStr === 'number') {
+            
+            let date: Date;
+            if (typeof dateStr === 'number') { // Excel date serial number
                 date = new Date(Math.round((dateStr - 25569) * 864e5));
-            } else {
+            } else if (String(dateStr).includes('/')) { // DD/MM/YYYY or MM/DD/YYYY format
+                const parts = String(dateStr).split('/');
+                if (parts.length === 3) {
+                    // Assuming DD/MM/YYYY format as per example
+                    date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+                } else {
+                    date = new Date(dateStr);
+                }
+            } else { // Standard date string
                 date = new Date(dateStr);
             }
+
              if (isNaN(date.getTime())) {
                 console.warn(`Invalid date format for row ${index}: ${dateStr}`);
                 return null;
@@ -132,11 +141,13 @@ function ImportDialog({
                 amount = parseFloat(String(amountStr).replace(/,/g, ''));
             }
 
+            if (isNaN(amount)) return null;
+
             return {
                 id: `import-${Date.now()}-${index}`,
                 date: date.toISOString().split('T')[0], // YYYY-MM-DD
                 description: descriptionStr,
-                amount: isNaN(amount) ? 0 : amount,
+                amount: amount,
             };
         }).filter(Boolean) as Omit<ImportedTransaction, 'clientId' | 'bankAccountId'>[];
 
@@ -1618,4 +1629,3 @@ export default function BankTransactionsPage() {
     </div>
   );
 }
-
