@@ -10,8 +10,8 @@ import { Input } from "@/components/ui/input";
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
-import { Banknote, FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus } from 'lucide-react';
+import { Form, FormControl, FormField, FormItem, FormMessage, FormLabel } from '@/components/ui/form';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { ImportedTransaction, ChartOfAccount, User } from '@/lib/types';
@@ -30,19 +30,204 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { Label } from '@/components/ui/label';
 
-
 const db = getFirestore(firebaseApp);
-
 
 const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(price);
 };
+
+const importFormSchema = z.object({
+  file: z.instanceof(FileList).refine(files => files.length > 0, 'A file is required.'),
+});
+
+function ImportDialog({
+  isOpen,
+  onClose,
+  onSave,
+  currentBalance,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (transactions: Omit<ImportedTransaction, 'clientId' | 'bankAccountId'>[]) => void;
+  currentBalance: number;
+}) {
+  const [parsedTransactions, setParsedTransactions] = useState<Omit<ImportedTransaction, 'clientId' | 'bankAccountId'>[]>([]);
+  const [isParsing, setIsParsing] = useState(false);
+  const { toast } = useToast();
+
+  const form = useForm({
+    resolver: zodResolver(importFormSchema),
+  });
+
+  const importTotal = useMemo(() => {
+    return parsedTransactions.reduce((sum, tx) => sum + tx.amount, 0);
+  }, [parsedTransactions]);
+
+  const newPotentialBalance = useMemo(() => {
+    return currentBalance + importTotal;
+  }, [currentBalance, importTotal]);
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsParsing(true);
+    setParsedTransactions([]);
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = e.target?.result;
+        let transactions: any[] = [];
+        if (file.name.endsWith('.csv')) {
+          const result = Papa.parse(data as string, { header: true });
+          transactions = result.data;
+        } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+          const workbook = XLSX.read(data, { type: 'binary' });
+          const sheetName = workbook.SheetNames[0];
+          transactions = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+        } else {
+          toast({ title: "Unsupported File", description: "Please upload a CSV or Excel file.", variant: "destructive" });
+          return;
+        }
+
+        const mappedTransactions = transactions.map((row: any, index: number) => {
+            // Flexible date parsing
+            const dateStr = row.Date || row.date || row.TransactionDate;
+            const descriptionStr = row.Description || row.description;
+            const amountStr = row.Amount || row.amount || row.Debit || row.Credit;
+
+            if (!dateStr || !descriptionStr || amountStr === undefined) return null;
+
+            // Attempt to parse different date formats
+            let date;
+            if (typeof dateStr === 'number') {
+                // Excel date serial number
+                date = new Date(Math.round((dateStr - 25569) * 864e5));
+            } else {
+                date = new Date(dateStr);
+            }
+             if (isNaN(date.getTime())) {
+                console.warn(`Invalid date format for row ${index}: ${dateStr}`);
+                return null;
+            }
+
+            // Handle separate Debit/Credit columns
+            let amount;
+            if (row.Debit && !row.Credit) {
+                amount = -Math.abs(parseFloat(row.Debit));
+            } else if (row.Credit && !row.Debit) {
+                amount = parseFloat(row.Credit);
+            } else {
+                amount = parseFloat(amountStr);
+            }
+
+            return {
+                id: `import-${Date.now()}-${index}`,
+                date: date.toISOString().split('T')[0], // YYYY-MM-DD
+                description: descriptionStr,
+                amount: isNaN(amount) ? 0 : amount,
+            };
+        }).filter(Boolean) as Omit<ImportedTransaction, 'clientId' | 'bankAccountId'>[];
+
+        setParsedTransactions(mappedTransactions);
+        toast({ title: 'File Parsed', description: `${mappedTransactions.length} transactions found.`});
+      } catch (error) {
+        toast({ title: "Parsing Error", description: "Could not read the file.", variant: "destructive"});
+        console.error(error);
+      } finally {
+        setIsParsing(false);
+      }
+    };
+
+    if (file.name.endsWith('.csv')) {
+        reader.readAsText(file);
+    } else {
+        reader.readAsBinaryString(file);
+    }
+  };
+
+  const handleSave = () => {
+    onSave(parsedTransactions);
+    onClose();
+  };
+  
+  const handleClose = () => {
+    form.reset();
+    setParsedTransactions([]);
+    onClose();
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+        <DialogContent className="sm:max-w-4xl">
+            <DialogHeader>
+                <DialogTitle>Import Bank Statement</DialogTitle>
+                <DialogDescription>Upload a CSV or Excel file to import transactions.</DialogDescription>
+            </DialogHeader>
+             <div className="space-y-4">
+                 <Form {...form}>
+                    <form>
+                        <FormField
+                        control={form.control}
+                        name="file"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Statement File</FormLabel>
+                            <FormControl>
+                                <Input type="file" accept=".csv, .xlsx, .xls" onChange={(e) => {
+                                field.onChange(e.target.files);
+                                handleFileChange(e);
+                                }}/>
+                            </FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+                    </form>
+                </Form>
+                {isParsing && <Loader2 className="animate-spin mx-auto"/>}
+
+                {parsedTransactions.length > 0 && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Import Summary</CardTitle>
+                        </CardHeader>
+                        <CardContent className="grid grid-cols-3 gap-4 text-center">
+                            <div>
+                                <p className="text-sm text-muted-foreground">Current Balance</p>
+                                <p className="text-lg font-bold">{formatPrice(currentBalance)}</p>
+                            </div>
+                            <div>
+                                <p className="text-sm text-muted-foreground">Import Amount</p>
+                                <p className="text-lg font-bold">{formatPrice(importTotal)}</p>
+                            </div>
+                            <div>
+                                <p className="text-sm text-muted-foreground">New Potential Balance</p>
+                                <p className="text-lg font-bold">{formatPrice(newPotentialBalance)}</p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+             </div>
+            <DialogFooter>
+                <Button variant="ghost" onClick={handleClose}>Cancel</Button>
+                <Button onClick={handleSave} disabled={parsedTransactions.length === 0}>
+                    Save {parsedTransactions.length} Transactions
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+  );
+}
+
 
 export default function BankTransactionsPage() {
   const [client, setClient] = useState<User | null>(null);
   const [bankAccounts, setBankAccounts] = useState<ChartOfAccount[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const params = useParams();
   const clientId = params.clientId as string;
   const { toast } = useToast();
@@ -67,6 +252,28 @@ export default function BankTransactionsPage() {
   }
   
   useEffect(() => { fetchClient(); }, [clientId]);
+
+  const handleSaveTransactions = async (newTransactions: Omit<ImportedTransaction, 'clientId' | 'bankAccountId'>[]) => {
+    if (!client || !selectedAccountId) return;
+
+    const transactionsToSave = newTransactions.map(tx => ({
+        ...tx,
+        clientId: client.id,
+        bankAccountId: selectedAccountId,
+    }));
+    
+    try {
+        const clientRef = doc(db, 'clients', client.id);
+        await updateDoc(clientRef, {
+            importedTransactions: arrayUnion(...transactionsToSave)
+        });
+        toast({ title: 'Import Successful', description: `${transactionsToSave.length} transactions have been imported.`});
+        await fetchClient(); // Re-fetch to show new data
+    } catch (error) {
+        toast({ title: 'Import Failed', description: 'Could not save the transactions.', variant: 'destructive' });
+        console.error(error);
+    }
+  };
 
   const transactions = useMemo(() => {
     if (!client || !selectedAccountId) return [];
@@ -116,8 +323,10 @@ export default function BankTransactionsPage() {
             </div>
             <div className="text-center md:text-left">
                 <p className="text-xl font-bold">{transactions.length}</p>
-                <p className="text-xs text-muted-foreground">To be Reviewed</p>
-                {lastImportDate && <p className="text-xs text-muted-foreground">Last import: {lastImportDate}</p>}
+                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <span>To be Reviewed</span>
+                    {lastImportDate && <span>(Last import: {lastImportDate})</span>}
+                </div>
             </div>
         </div>
 
@@ -144,7 +353,7 @@ export default function BankTransactionsPage() {
                                 <Button variant="ghost" size="sm" disabled>Delete</Button>
                                 <Button variant="ghost" size="sm" disabled>Keep Duplicates</Button>
                                 <Button variant="ghost" size="sm" disabled>Batch Edit</Button>
-                                <Button variant="default" size="sm">Import Bank Statements</Button>
+                                <Button variant="default" size="sm" onClick={() => setIsImportDialogOpen(true)}>Import Bank Statements</Button>
                             </div>
                             <div className="flex items-center gap-2">
                                 <Link href="#" className="text-sm text-primary hover:underline">Shortcut Keys</Link>
@@ -276,6 +485,13 @@ export default function BankTransactionsPage() {
                 </Card>
             </TabsContent>
         </Tabs>
+        
+        <ImportDialog 
+            isOpen={isImportDialogOpen}
+            onClose={() => setIsImportDialogOpen(false)}
+            onSave={handleSaveTransactions}
+            currentBalance={bankBalance}
+        />
     </div>
   );
 }
