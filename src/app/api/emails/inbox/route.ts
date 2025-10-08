@@ -6,7 +6,7 @@ import { simpleParser } from 'mailparser';
 export async function GET() {
   const config = {
     imap: {
-      user: 'invoices@myacc.co.za',
+      user: 'invoices2@myacc.co.za',
       password: 'Thinkestry10$',
       host: 'mail.myacc.co.za',
       port: 993,
@@ -20,10 +20,10 @@ export async function GET() {
     const connection = await imaps.connect(config);
     await connection.openBox('INBOX');
 
-    const searchCriteria = ['UNSEEN']; // Fetch only unread emails
+    const searchCriteria = ['ALL']; // Fetch all emails for now
     const fetchOptions = {
       bodies: [''],
-      markSeen: true,
+      markSeen: false, // Set to false to not mark emails as read
     };
 
     const messages = await connection.search(searchCriteria, fetchOptions);

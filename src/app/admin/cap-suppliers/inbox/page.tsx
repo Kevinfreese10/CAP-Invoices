@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Inbox, RefreshCw, FileWarning } from 'lucide-react';
+import { Loader2, Inbox, RefreshCw, FileWarning, Plug } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { format } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
 
 interface Email {
     uid: number;
@@ -20,7 +21,9 @@ export default function InboxPage() {
     const [emails, setEmails] = useState<Email[]>([]);
     const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isTesting, setIsTesting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const { toast } = useToast();
 
     const fetchEmails = async () => {
         setIsLoading(true);
@@ -44,6 +47,32 @@ export default function InboxPage() {
         }
     };
 
+    const handleTestConnection = async () => {
+        setIsTesting(true);
+        toast({ title: "Testing Connection...", description: "Please wait a moment." });
+        try {
+            const response = await fetch('/api/emails/test-connection', { method: 'POST' });
+            const result = await response.json();
+            if (result.success) {
+                toast({
+                    title: "Connection Successful",
+                    description: "Successfully connected to the IMAP server.",
+                    variant: 'default'
+                });
+            } else {
+                 throw new Error(result.error);
+            }
+        } catch (err: any) {
+             toast({
+                title: "Connection Failed",
+                description: err.message,
+                variant: "destructive",
+            });
+        } finally {
+            setIsTesting(false);
+        }
+    }
+
     useEffect(() => {
         fetchEmails();
     }, []);
@@ -52,16 +81,22 @@ export default function InboxPage() {
         <div className="space-y-8">
             <div className="flex items-center justify-between">
                 <h1 className="text-3xl font-bold tracking-tight">Email Inbox</h1>
-                <Button onClick={fetchEmails} variant="outline" disabled={isLoading}>
-                    <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-                    Refresh
-                </Button>
+                <div className="flex gap-2">
+                     <Button onClick={handleTestConnection} variant="outline" disabled={isTesting}>
+                        <Plug className={`mr-2 h-4 w-4 ${isTesting ? 'animate-pulse' : ''}`} />
+                        Test Connection
+                    </Button>
+                    <Button onClick={fetchEmails} variant="outline" disabled={isLoading}>
+                        <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                        Refresh
+                    </Button>
+                </div>
             </div>
             <Card className="h-[calc(100vh-12rem)]">
                 <div className="grid grid-cols-1 md:grid-cols-3 h-full">
                     <div className="md:col-span-1 border-r">
                         <CardHeader>
-                            <CardTitle>invoices@myacc.co.za</CardTitle>
+                            <CardTitle>invoices2@myacc.co.za</CardTitle>
                             <CardDescription>
                                 {isLoading ? 'Loading messages...' : `Showing ${emails.length} messages.`}
                             </CardDescription>
