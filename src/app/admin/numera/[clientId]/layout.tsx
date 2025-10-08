@@ -93,6 +93,7 @@ export default function NumeraClientLayout({ children }: { children: ReactNode }
                      <MenubarTrigger>Banking <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
                      <MenubarContent>
                         <MenubarItem asChild><Link href={`/admin/numera/${clientId}/bank`}>Bank Accounts</Link></MenubarItem>
+                        <MenubarItem asChild><Link href={`/admin/numera/${clientId}/bank/transactions`}>Transactions</Link></MenubarItem>
                      </MenubarContent>
                 </MenubarMenu>
                 <MenubarMenu>
