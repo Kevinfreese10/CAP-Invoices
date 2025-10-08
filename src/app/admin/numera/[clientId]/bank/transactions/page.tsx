@@ -667,9 +667,9 @@ export default function BankTransactionsPage() {
                                     </TableHead>
                                     <TableHead>Date</TableHead>
                                     <TableHead>Description</TableHead>
+                                    <TableHead>Reference</TableHead>
                                     <TableHead>Allocate To</TableHead>
                                     <TableHead>VAT Type</TableHead>
-                                    <TableHead>Reference</TableHead>
                                     <TableHead>Spent</TableHead>
                                     <TableHead>Received</TableHead>
                                     <TableHead>Actions</TableHead>
@@ -699,6 +699,7 @@ export default function BankTransactionsPage() {
                                             </TableCell>
                                             <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                             <TableCell>{tx.description}</TableCell>
+                                            <TableCell></TableCell>
                                             <TableCell>
                                                 <Select onValueChange={(value) => setAllocationAccountId(value)}>
                                                     <SelectTrigger className="h-8 w-[200px]">
@@ -727,7 +728,6 @@ export default function BankTransactionsPage() {
                                                     </SelectContent>
                                                 </Select>
                                             </TableCell>
-                                            <TableCell></TableCell>
                                             <TableCell className="text-right">{tx.amount < 0 ? formatPrice(Math.abs(tx.amount)) : ''}</TableCell>
                                             <TableCell className="text-right">{tx.amount >= 0 ? formatPrice(tx.amount) : ''}</TableCell>
                                             <TableCell>
@@ -743,6 +743,7 @@ export default function BankTransactionsPage() {
                                     <TableCell className="p-2"></TableCell>
                                     <TableCell><Input className="h-8" placeholder="Date" /></TableCell>
                                     <TableCell><Input className="h-8" placeholder="Description" /></TableCell>
+                                    <TableCell><Input className="h-8" placeholder="Reference" /></TableCell>
                                     <TableCell>
                                         <Select>
                                             <SelectTrigger className="h-8 w-[200px]"><SelectValue placeholder="Select account" /></SelectTrigger>
@@ -755,7 +756,6 @@ export default function BankTransactionsPage() {
                                             <SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent>
                                         </Select>
                                     </TableCell>
-                                    <TableCell><Input className="h-8" placeholder="Reference" /></TableCell>
                                     <TableCell><Input className="h-8" placeholder="R" /></TableCell>
                                     <TableCell><Input className="h-8" placeholder="R" /></TableCell>
                                      <TableCell>
