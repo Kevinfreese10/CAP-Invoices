@@ -37,6 +37,8 @@ const prompt = ai.definePrompt({
 
   The CSV should have the following columns: "Date", "Description", "Amount".
 
+  **Crucially, all dates in the "Date" column MUST be in the DD/MM/YYYY format (e.g., 28/10/2025).**
+
   Analyze the following PDF document and extract the transaction data:
   {{media url=pdfDataUri}}
   `,
