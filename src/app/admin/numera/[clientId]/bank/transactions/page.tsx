@@ -866,19 +866,61 @@ export default function BankTransactionsPage() {
 
   const handleSaveTransactions = async (newTransactions: Omit<ImportedTransaction, 'clientId' | 'bankAccountId'>[]) => {
     if (!client || !selectedAccountId) return;
-
-    const transactionsToSave = newTransactions.map(tx => ({
+    
+    const transactionsToProcess = newTransactions.map(tx => ({
         ...tx,
         clientId: client.id,
         bankAccountId: selectedAccountId,
     }));
+
+    const allRules = [...(client.allocationRules || []), ...globalRules];
+    const allocated: AllocatedTransaction[] = [];
+    const unallocated: ImportedTransaction[] = [];
+    let allocatedCount = 0;
+
+    for (const tx of transactionsToProcess) {
+        let matchedRule: AllocationRule | undefined;
+        for (const rule of allRules) {
+            if (rule.keywords.some(keyword => tx.description.toLowerCase().includes(keyword))) {
+                matchedRule = rule;
+                break;
+            }
+        }
+
+        if (matchedRule) {
+            allocated.push({
+                ...tx,
+                allocatedTo: { value: matchedRule.accountId, type: 'account' as const },
+                vatType: matchedRule.vatType,
+                vatAmount: 0, // Placeholder
+                allocatedAt: new Date(),
+            });
+            allocatedCount++;
+        } else {
+            unallocated.push(tx);
+        }
+    }
     
     try {
         const clientRef = doc(db, 'clients', client.id);
-        await updateDoc(clientRef, {
-            importedTransactions: arrayUnion(...transactionsToSave)
-        });
-        toast({ title: 'Import Successful', description: `${transactionsToSave.length} transactions have been imported.`});
+        const updatePayload: { [key: string]: any } = {};
+        if (unallocated.length > 0) {
+            updatePayload.importedTransactions = arrayUnion(...unallocated);
+        }
+        if (allocated.length > 0) {
+            updatePayload.allocatedTransactions = arrayUnion(...allocated);
+        }
+
+        if (Object.keys(updatePayload).length > 0) {
+            await updateDoc(clientRef, updatePayload);
+        }
+        
+        let toastMessage = `${transactionsToProcess.length} transactions imported.`;
+        if (allocatedCount > 0) {
+            toastMessage += ` ${allocatedCount} were automatically allocated.`
+        }
+        
+        toast({ title: 'Import Successful', description: toastMessage });
         await fetchClientAndRules(); // Re-fetch to show new data
     } catch (error) {
         toast({ title: 'Import Failed', description: 'Could not save the transactions.', variant: 'destructive' });
