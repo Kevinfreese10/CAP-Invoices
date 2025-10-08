@@ -89,7 +89,7 @@ export default function NumeraPage() {
                                         <TableCell>{client.email}</TableCell>
                                         <TableCell className="text-right">
                                             <Button variant="ghost" size="sm" asChild>
-                                                <Link href="#">
+                                                <Link href={`/admin/numera/${client.id}/dashboard`}>
                                                     View Profile <ArrowRight className="ml-2 h-4 w-4" />
                                                 </Link>
                                             </Button>
