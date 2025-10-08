@@ -10,6 +10,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
 
 const ConvertPdfToCsvInputSchema = z.object({
   pdfDataUri: z.string().describe(
@@ -49,6 +50,7 @@ const convertPdfToCsvFlow = ai.defineFlow(
     name: 'convertPdfToCsvFlow',
     inputSchema: ConvertPdfToCsvInputSchema,
     outputSchema: ConvertPdfToCsvOutputSchema,
+    model: googleAI('gemini-1.5-flash-latest'),
   },
   async (input) => {
     const { output } = await prompt(input);
