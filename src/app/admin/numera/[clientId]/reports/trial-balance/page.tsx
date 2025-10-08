@@ -3,13 +3,12 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useParams } from 'next/navigation';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { User, ChartOfAccount } from '@/lib/types';
+import { User, AllocatedTransaction, ImportedTransaction } from '@/lib/types';
 import {
   Dialog,
   DialogContent,
@@ -28,6 +27,8 @@ import {
   TableFooter,
 } from "@/components/ui/table";
 import { format } from 'date-fns';
+import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { DateRange } from "react-day-picker"
 
 const db = getFirestore(firebaseApp);
 
@@ -41,19 +42,26 @@ const formatPrice = (price: number) => {
     }).format(price);
 };
 
-// Function to determine if an account typically has a Debit or Credit balance
-const getAccountType = (accountNumber: string): 'debit' | 'credit' => {
-  const num = parseInt(accountNumber.split('/')[0]);
-  // Expenses (3000-4999), Assets (6000-8999, including bank accounts 8400) are typically Debit
-  if ((num >= 3000 && num < 5000) || (num >= 6000 && num < 9000)) {
-    return 'debit';
-  }
-  // Income (1000-2999), Liabilities (5000-5999, 9000-9999), Equity (5000-5999) are typically Credit
-  return 'credit';
-};
-
-function TrialBalanceReport({ client }: { client: User }) {
-    const reportDate = format(new Date(), "dd MMMM yyyy");
+function TrialBalanceReport({ client, dateRange }: { client: User, dateRange?: DateRange }) {
+    
+    const filterByDate = (transactions: (AllocatedTransaction | ImportedTransaction)[]) => {
+        if (!dateRange || (!dateRange.from && !dateRange.to)) {
+            return transactions;
+        }
+        return transactions.filter(tx => {
+            const txDate = new Date(tx.date);
+            if (dateRange.from && dateRange.to) {
+                return txDate >= dateRange.from && txDate <= dateRange.to;
+            }
+            if (dateRange.from) {
+                return txDate >= dateRange.from;
+            }
+            if (dateRange.to) {
+                return txDate <= dateRange.to;
+            }
+            return true;
+        });
+    }
 
     const accountBalances = useMemo(() => {
         const balances = new Map<string, number>();
@@ -66,8 +74,11 @@ function TrialBalanceReport({ client }: { client: User }) {
         // Get the suspense account ID
         const suspenseAccountId = client.chartOfAccounts?.find(acc => acc.accountNumber === '9950/000')?.id;
 
+        const filteredAllocated = filterByDate(client.allocatedTransactions || []) as AllocatedTransaction[];
+        const filteredImported = filterByDate(client.importedTransactions || []) as ImportedTransaction[];
+        
         // Process allocated transactions
-        client.allocatedTransactions?.forEach(tx => {
+        filteredAllocated.forEach(tx => {
             // Entry for the bank account
             balances.set(tx.bankAccountId, (balances.get(tx.bankAccountId) || 0) + tx.amount);
             // Double entry for the allocated expense/income account
@@ -75,7 +86,7 @@ function TrialBalanceReport({ client }: { client: User }) {
         });
 
         // Process unallocated (imported) transactions
-        client.importedTransactions?.forEach(tx => {
+        filteredImported.forEach(tx => {
              // Entry for the bank account
             balances.set(tx.bankAccountId, (balances.get(tx.bankAccountId) || 0) + tx.amount);
             // Double entry to the suspense account
@@ -85,7 +96,7 @@ function TrialBalanceReport({ client }: { client: User }) {
         });
 
         return balances;
-    }, [client]);
+    }, [client, dateRange]);
 
     const trialBalanceData = useMemo(() => {
         return client.chartOfAccounts
@@ -109,9 +120,31 @@ function TrialBalanceReport({ client }: { client: User }) {
         });
         return { debit, credit };
     }, [trialBalanceData]);
+    
+    const getReportDateString = () => {
+        if (!dateRange || (!dateRange.from && !dateRange.to)) {
+            return `as at ${format(new Date(), "dd MMMM yyyy")}`;
+        }
+        if (dateRange.from && dateRange.to) {
+            return `for the period ${format(dateRange.from, "dd MMMM yyyy")} to ${format(dateRange.to, "dd MMMM yyyy")}`;
+        }
+        if (dateRange.from) {
+            return `from ${format(dateRange.from, "dd MMMM yyyy")}`;
+        }
+        if (dateRange.to) {
+            return `up to ${format(dateRange.to, "dd MMMM yyyy")}`;
+        }
+        return `as at ${format(new Date(), "dd MMMM yyyy")}`;
+    }
 
     return (
         <div className="max-h-[70vh] overflow-y-auto">
+            <DialogHeader className="text-center mb-4">
+                <DialogTitle className="text-lg">{client.companyName || client.name}</DialogTitle>
+                <DialogDescription>
+                    Trial Balance {getReportDateString()}
+                </DialogDescription>
+            </DialogHeader>
             <Table>
                 <TableHeader>
                     <TableRow>
@@ -155,6 +188,7 @@ export default function TrialBalancePage() {
     const clientId = params.clientId as string;
     const [client, setClient] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
     
     useEffect(() => {
         const fetchClient = async () => {
@@ -186,7 +220,8 @@ export default function TrialBalancePage() {
                         Generate a trial balance for the selected period based on processed transactions.
                     </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
+                     <DateRangePicker onDateChange={setDateRange} />
                     {isLoading ? (
                         <Loader2 className="animate-spin" />
                     ) : client ? (
@@ -194,14 +229,8 @@ export default function TrialBalancePage() {
                             <DialogTrigger asChild>
                                 <Button>View Trial Balance</Button>
                             </DialogTrigger>
-                             <DialogContent className="sm:max-w-2xl">
-                                <DialogHeader className="text-center">
-                                    <DialogTitle className="text-lg">{client.companyName || client.name}</DialogTitle>
-                                    <DialogDescription>
-                                        Trial Balance as at {format(new Date(), "dd MMMM yyyy")}
-                                    </DialogDescription>
-                                </DialogHeader>
-                                <TrialBalanceReport client={client} />
+                             <DialogContent className="sm:max-w-3xl">
+                                <TrialBalanceReport client={client} dateRange={dateRange} />
                             </DialogContent>
                         </Dialog>
                     ) : (

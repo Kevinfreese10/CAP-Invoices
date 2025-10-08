@@ -1,28 +1,28 @@
 
+'use client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft } from "lucide-react";
-
+import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { useState } from "react";
+import { DateRange } from "react-day-picker";
 
 export default function GeneralLedgerPage({ params }: { params: { clientId: string }}) {
+    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+    
     return (
         <div>
-            <Button variant="outline" size="sm" asChild className="mb-4">
-                <Link href={`/admin/numera/${params.clientId}/reports`}>
-                    <ChevronLeft className="mr-2 h-4 w-4" />
-                    Back to Reports
-                </Link>
-            </Button>
             <Card>
                 <CardHeader>
-                    <CardTitle>General Ledger</CardTitle>
+                    <CardTitle>General Ledger Report</CardTitle>
                     <CardDescription>
-                        This report is under construction.
+                        Filter and view the general ledger for a specific period. This report is under construction.
                     </CardDescription>
                 </CardHeader>
-                <CardContent>
-                    <p>The General Ledger report will be available here soon.</p>
+                <CardContent className="space-y-4">
+                     <DateRangePicker onDateChange={setDateRange} />
+                     <Button disabled>View Report</Button>
                 </CardContent>
             </Card>
         </div>

@@ -22,32 +22,45 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
+interface DateRangePickerProps extends React.HTMLAttributes<HTMLDivElement> {
+  onDateChange: (date: DateRange | undefined) => void;
+}
+
 export function DateRangePicker({
   className,
-}: React.HTMLAttributes<HTMLDivElement>) {
+  onDateChange,
+}: DateRangePickerProps) {
   const [date, setDate] = React.useState<DateRange | undefined>(undefined);
   const [preset, setPreset] = React.useState<string>("all");
+
+  React.useEffect(() => {
+    onDateChange(date);
+  }, [date, onDateChange]);
 
   const handlePresetChange = (value: string) => {
     setPreset(value);
     const now = new Date();
+    let newDate: DateRange | undefined = undefined;
+
     switch (value) {
       case "all":
-        setDate(undefined);
+        newDate = undefined;
         break;
       case "this_month":
-        setDate({ from: startOfMonth(now), to: endOfMonth(now) });
+        newDate = { from: startOfMonth(now), to: endOfMonth(now) };
         break;
       case "this_year":
-        setDate({ from: startOfYear(now), to: endOfYear(now) });
+        newDate = { from: startOfYear(now), to: endOfYear(now) };
         break;
       case "custom":
-        // Keep current date or set a default if none
         if (!date) {
-            setDate({ from: startOfMonth(now), to: endOfMonth(now) });
+            newDate = { from: startOfMonth(now), to: endOfMonth(now) };
+        } else {
+            newDate = date;
         }
         break;
     }
+    setDate(newDate);
   };
 
   return (
