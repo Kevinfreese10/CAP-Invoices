@@ -418,78 +418,70 @@ const ruleFormSchema = z.object({
 });
 
 
-function RuleForm({ rule, client, onSave }: { rule: Partial<AllocationRule> | null, client: User | null, onSave: (ruleData: z.infer<typeof ruleFormSchema>) => void }) {
+function CreateRuleDialog({ isOpen, onClose, onSave, transaction, client }: { 
+    isOpen: boolean; 
+    onClose: () => void;
+    onSave: (ruleData: Omit<AllocationRule, 'id'|'type'>, scope: 'client'|'global') => void;
+    transaction: ImportedTransaction | null;
+    client: User | null;
+}) {
     const form = useForm<z.infer<typeof ruleFormSchema>>({
         resolver: zodResolver(ruleFormSchema),
+        defaultValues: { scope: 'client', vatType: 'no_vat' }
     });
 
     useEffect(() => {
-        form.reset({
-            id: rule?.id || undefined,
-            description: rule?.description || '',
-            keywords: Array.isArray(rule?.keywords) ? rule.keywords.join(', ') : '',
-            accountId: rule?.accountId || '',
-            vatType: rule?.vatType || 'no_vat',
-            scope: rule?.scope || 'client',
-        });
-    }, [rule, form]);
+        if (transaction) {
+            form.reset({
+                description: transaction.description,
+                keywords: transaction.description.split(' ').filter(s => s.length > 3).join(', '),
+                accountId: '',
+                vatType: 'no_vat',
+                scope: 'client',
+            });
+        }
+    }, [transaction, form]);
+
+    const handleSave = (values: z.infer<typeof ruleFormSchema>) => {
+        const ruleData = {
+            description: values.description,
+            keywords: values.keywords.split(',').map(k => k.trim().toLowerCase()),
+            accountId: values.accountId,
+            vatType: values.vatType,
+        };
+        onSave(ruleData, values.scope);
+        onClose();
+    };
     
     return (
-         <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSave)} className="space-y-4">
-                <FormField control={form.control} name="description" render={({ field }) => (
-                    <FormItem><FormLabel>Rule Description</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                )}/>
-                <FormField control={form.control} name="keywords" render={({ field }) => (
-                    <FormItem><FormLabel>Keywords (comma-separated)</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>
-                )}/>
-                <FormField control={form.control} name="accountId" render={({ field }) => (
-                    <FormItem><FormLabel>Allocate To Account</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl>
-                            <SelectContent>{client?.chartOfAccounts?.map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.accountNumber} - {acc.description}</SelectItem>))}</SelectContent>
-                        </Select>
-                    <FormMessage /></FormItem>
-                )}/>
-                    <FormField control={form.control} name="vatType" render={({ field }) => (
-                    <FormItem><FormLabel>VAT Type</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl>
-                            <SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent>
-                        </Select>
-                    <FormMessage /></FormItem>
-                )}/>
-                <FormField
-                    control={form.control}
-                    name="scope"
-                    render={({ field }) => (
-                        <FormItem className="space-y-3">
-                        <FormLabel>Rule Scope</FormLabel>
-                        <FormControl>
-                            <RadioGroup
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
-                            className="flex flex-col space-y-1"
-                            >
-                            <FormItem className="flex items-center space-x-3 space-y-0">
-                                <FormControl><RadioGroupItem value="client" /></FormControl>
-                                <FormLabel className="font-normal">Client Specific</FormLabel>
-                            </FormItem>
-                            <FormItem className="flex items-center space-x-3 space-y-0">
-                                <FormControl><RadioGroupItem value="global" /></FormControl>
-                                <FormLabel className="font-normal">Global</FormLabel>
-                            </FormItem>
-                            </RadioGroup>
-                        </FormControl>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                    />
-                <DialogFooter>
-                    <Button type="submit">Save Rule</Button>
-                </DialogFooter>
-            </form>
-        </Form>
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Create New Allocation Rule</DialogTitle>
+                    <DialogDescription>Based on transaction: "{transaction?.description}"</DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleSave)} className="space-y-4">
+                        <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Rule Description</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )}/>
+                        <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords (comma-separated)</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem> )}/>
+                        <FormField control={form.control} name="accountId" render={({ field }) => ( <FormItem><FormLabel>Allocate To Account</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl><SelectContent>{client?.chartOfAccounts?.map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.accountNumber} - {acc.description}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                        <FormField control={form.control} name="vatType" render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                         <FormField control={form.control} name="scope" render={({ field }) => (
+                            <FormItem className="space-y-3"><FormLabel>Rule Scope</FormLabel><FormControl>
+                                <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-col space-y-1">
+                                    <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="client" /></FormControl><FormLabel className="font-normal">Client Specific</FormLabel></FormItem>
+                                    <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="global" /></FormControl><FormLabel className="font-normal">Global (for all clients)</FormLabel></FormItem>
+                                </RadioGroup>
+                            </FormControl><FormMessage /></FormItem>
+                        )}/>
+                        <DialogFooter>
+                            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+                            <Button type="submit">Create and Apply Rule</Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
+            </DialogContent>
+        </Dialog>
     );
 }
 
@@ -532,12 +524,11 @@ function ManageRulesDialog({
                 }
                 toast({ title: 'Rule Updated' });
             } else { // Creating new rule
-                const newRule = { ...ruleData, id: `rule-${Date.now()}`};
                 if (values.scope === 'client') {
                     const clientRef = doc(db, 'clients', client.id);
-                    await updateDoc(clientRef, { allocationRules: arrayUnion(newRule) });
+                    await updateDoc(clientRef, { allocationRules: arrayUnion({ ...ruleData, id: `rule-${Date.now()}`}) });
                 } else {
-                    await addDoc(collection(db, 'allocationRules'), newRule);
+                    await addDoc(collection(db, 'allocationRules'), ruleData);
                 }
                 toast({ title: 'Rule Created' });
             }
@@ -555,8 +546,10 @@ function ManageRulesDialog({
         try {
             if (scope === 'client') {
                 const clientRef = doc(db, 'clients', client.id);
-                const updatedRules = client.allocationRules?.filter(r => r.id !== ruleId) || [];
-                await updateDoc(clientRef, { allocationRules: updatedRules });
+                const ruleToDelete = client.allocationRules?.find(r => r.id === ruleId);
+                if (ruleToDelete) {
+                    await updateDoc(clientRef, { allocationRules: arrayRemove(ruleToDelete) });
+                }
             } else {
                 await deleteDoc(doc(db, 'allocationRules', ruleId));
             }
@@ -579,10 +572,20 @@ function ManageRulesDialog({
                         <h3 className="font-semibold">Rule Editor</h3>
                          <Card>
                             <CardContent className="pt-6">
-                               <RuleForm 
-                                   rule={editingRule}
+                               <CreateRuleDialog
+                                   isOpen={!!editingRule}
+                                   onClose={() => setEditingRule(null)}
+                                   onSave={(ruleData, scope) => {
+                                        const values = {
+                                            ...ruleData,
+                                            id: editingRule?.id,
+                                            keywords: ruleData.keywords.join(', '),
+                                            scope: scope,
+                                        }
+                                        handleSaveRule(values)
+                                    }}
+                                   transaction={null}
                                    client={client}
-                                   onSave={handleSaveRule}
                                 />
                             </CardContent>
                          </Card>
@@ -1119,7 +1122,3 @@ export default function BankTransactionsPage() {
     </div>
   );
 }
-
-    
-
-    
