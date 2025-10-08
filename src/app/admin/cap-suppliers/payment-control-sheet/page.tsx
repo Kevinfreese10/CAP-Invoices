@@ -82,6 +82,7 @@ export default function PaymentControlSheetPage() {
                                 <TableHead>Supplier</TableHead>
                                 <TableHead>Invoice #</TableHead>
                                 <TableHead>Commission #</TableHead>
+                                <TableHead>Date</TableHead>
                                 <TableHead>Line Item Description</TableHead>
                                 <TableHead>Allocated Account</TableHead>
                                 <TableHead>Payment Batch</TableHead>
@@ -96,6 +97,7 @@ export default function PaymentControlSheetPage() {
                                     <TableCell>{item.parentInvoice.supplier}</TableCell>
                                     <TableCell>{item.parentInvoice.invoiceNumber}</TableCell>
                                     <TableCell>{item.parentInvoice.commissionNumber || 'N/A'}</TableCell>
+                                    <TableCell>{item.parentInvoice.date}</TableCell>
                                     <TableCell className="font-semibold">{item.description}</TableCell>
                                     <TableCell>{getAccountDescription(item.accountId)}</TableCell>
                                     <TableCell>
