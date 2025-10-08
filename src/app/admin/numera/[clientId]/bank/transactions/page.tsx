@@ -437,16 +437,15 @@ export default function BankTransactionsPage() {
                                     <TableHead>VAT</TableHead>
                                     <TableHead>Spent</TableHead>
                                     <TableHead>Received</TableHead>
-                                    <TableHead>Rec.</TableHead>
                                     <TableHead>Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {isLoading ? (
-                                    <TableRow><TableCell colSpan={11} className="text-center h-24"><Loader2 className="animate-spin" /></TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={10} className="text-center h-24"><Loader2 className="animate-spin" /></TableCell></TableRow>
                                 ) : filteredTransactions.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={11} className="text-center text-muted-foreground py-4">
+                                        <TableCell colSpan={10} className="text-center text-muted-foreground py-4">
                                             You have no new Bank Statement transactions to review. Import your Bank Statements or manually enter banking transactions below.
                                         </TableCell>
                                     </TableRow>
@@ -475,7 +474,6 @@ export default function BankTransactionsPage() {
                                             <TableCell></TableCell>
                                             <TableCell className="text-right">{tx.amount < 0 ? formatPrice(Math.abs(tx.amount)) : ''}</TableCell>
                                             <TableCell className="text-right">{tx.amount >= 0 ? formatPrice(tx.amount) : ''}</TableCell>
-                                            <TableCell className="p-2"><Checkbox /></TableCell>
                                             <TableCell>
                                                 <Button variant="ghost" size="sm" className="h-8">
                                                     <Cog className="mr-2 h-4 w-4"/>
@@ -508,7 +506,6 @@ export default function BankTransactionsPage() {
                                     <TableCell><Input className="h-8" /></TableCell>
                                     <TableCell><Input className="h-8" placeholder="R" /></TableCell>
                                     <TableCell><Input className="h-8" placeholder="R" /></TableCell>
-                                    <TableCell className="p-2"><Checkbox /></TableCell>
                                      <TableCell>
                                         <Button variant="ghost" size="sm" className="h-8">
                                             <Cog className="mr-2 h-4 w-4"/>
