@@ -33,6 +33,7 @@ import { allVatTypes } from '@/lib/vat-types';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
+import { googleAI } from '@genkit-ai/googleai';
 
 const db = getFirestore(firebaseApp);
 
@@ -1069,31 +1070,10 @@ export default function BankTransactionsPage() {
     }
   };
   
-    const openRuleDialogForTransaction = async (tx: AllocatedTransaction) => {
-        if (!client) return;
-
-        // 1. Move transaction back to imported
-        const remainingAllocated = client.allocatedTransactions?.filter(t => t.id !== tx.id) || [];
-        const { allocatedTo, allocatedAt, vatType, vatAmount, ...importedTx } = tx;
-
-        try {
-            const clientRef = doc(db, 'clients', client.id);
-            await updateDoc(clientRef, {
-                allocatedTransactions: remainingAllocated,
-                importedTransactions: arrayUnion(importedTx),
-            });
-
-            // 2. Open rule dialog
-            setRuleTransaction(tx);
-            setIsRuleDialogOpen(true);
-
-            // 3. Refresh client data in background
-            await fetchClientAndRules();
-
-        } catch (error) {
-            toast({ title: "Error", description: "Could not move transaction to create rule.", variant: "destructive" });
-        }
-    };
+  const openRuleDialogForTransaction = (tx: AllocatedTransaction) => {
+    setRuleTransaction(tx);
+    setIsRuleDialogOpen(true);
+  };
 
 
   const handleAccountSelection = (accountId: string) => {
