@@ -10,7 +10,7 @@ import { ArrowLeft, PlusCircle, Edit, Trash2, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getFirestore, collection, getDocs, query, orderBy, doc, setDoc, addDoc, deleteDoc } from "firebase/firestore";
+import { getFirestore, collection, getDocs, query, orderBy, doc, setDoc, addDoc, deleteDoc, updateDoc } from "firebase/firestore";
 import { firebaseApp } from "@/lib/firebase";
 import { AllocationRule } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
@@ -118,7 +118,7 @@ export default function NumeraSettingsPage() {
             keywords: values.keywords.split(',').map(k => k.trim().toLowerCase()),
             accountId: values.accountId,
             vatType: values.vatType,
-            type: 'hard', // All user-created global rules are 'hard'
+            type: 'hard' as 'hard', // All user-created global rules are 'hard'
         };
 
         try {
@@ -289,5 +289,4 @@ export default function NumeraSettingsPage() {
             </Tabs>
         </div>
     );
-
-    
+}
