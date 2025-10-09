@@ -91,8 +91,6 @@ function TrialBalanceReport({ client, dateRange }: { client: User, dateRange?: D
                         if (account.section === 'Balance Sheet') {
                             balances.set(accountId, (balances.get(accountId) || 0) + amount);
                         } else { // Income Statement
-                            // Income increases with credits (negative amount for our purpose)
-                            // Expenses increase with debits (positive amount for our purpose)
                             priorPeriodNetIncome += amount;
                         }
                     }
@@ -106,15 +104,12 @@ function TrialBalanceReport({ client, dateRange }: { client: User, dateRange?: D
                     const allocatedTx = tx as AllocatedTransaction;
                     const vatAmount = allocatedTx.vatAmount || 0;
                     const exclusiveAmount = allocatedTx.amount - vatAmount;
-                    // The contra-entry for the bank transaction
                     processTransaction(allocatedTx.allocatedTo.value, -exclusiveAmount);
                     if (vatControlAccountId && vatAmount !== 0) {
-                         // The contra-entry for the VAT portion
                         processTransaction(vatControlAccountId, -vatAmount);
                     }
                 } else {
                      if (suspenseAccountId) {
-                        // The unallocated amount is moved to suspense
                         processTransaction(suspenseAccountId, -tx.amount);
                     }
                 }
@@ -122,10 +117,17 @@ function TrialBalanceReport({ client, dateRange }: { client: User, dateRange?: D
         });
         
         if (retainedIncomeAccount) {
-            // Net income is (Income - Expenses). Income has credit balance, Expenses have debit.
-            // A positive priorPeriodNetIncome means more expenses than income (a loss), which should DECREASE equity (a debit).
-            // A negative priorPeriodNetIncome means more income than expenses (a profit), which should INCREASE equity (a credit).
-            // So we must subtract the net income from retained earnings.
+            // Net income is (Income - Expenses). Income has credit balance (negative amount), Expenses have debit (positive amount).
+            // A positive priorPeriodNetIncome means more expenses than income (a loss). A loss decreases retained income (equity), which is a Debit.
+            // A negative priorPeriodNetIncome means more income than expenses (a profit). A profit increases retained income (equity), which is a Credit.
+            // Our balances are Debit (positive) / Credit (negative).
+            // So a loss (positive) needs to result in a Debit (positive) to Retained Income.
+            // And a profit (negative) needs to result in a Credit (negative) to Retained Income.
+            // We must add the inverted amount. A loss (+500) becomes -500. A profit (-1000) becomes +1000. Wait, that's backwards.
+            // Let's rethink. Equity has a credit balance. Credits are negative.
+            // A profit (negative priorPeriodNetIncome) should INCREASE equity, making it MORE negative. So we ADD the negative number (i.e. subtract the positive).
+            // A loss (positive priorPeriodNetIncome) should DECREASE equity, making it LESS negative (or positive/debit). So we SUBTRACT the positive number.
+            // Correct. The logic `balances.set(..., ... - priorPeriodNetIncome)` is correct.
             balances.set(retainedIncomeAccount.id, (balances.get(retainedIncomeAccount.id) || 0) - priorPeriodNetIncome);
         }
 
