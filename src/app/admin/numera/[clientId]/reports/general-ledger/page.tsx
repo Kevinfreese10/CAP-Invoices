@@ -204,7 +204,7 @@ export default function GeneralLedgerPage() {
             if (!clientId) return;
             setIsLoading(true);
             try {
-                const clientRef = doc(db, 'clients', clientId);
+                const clientRef = doc(db, 'numeraClients', clientId);
                 const clientSnap = await getDoc(clientRef);
                 if (clientSnap.exists()) {
                     const clientData = { id: clientSnap.id, ...clientSnap.data() } as User;

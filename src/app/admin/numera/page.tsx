@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowRight, Settings, PlusCircle, MoreHorizontal, Trash2 } from 'lucide-react';
-import { getFirestore, collection, query, where, getDocs, doc, deleteDoc, addDoc, writeBatch } from 'firebase/firestore';
+import { getFirestore, collection, query, getDocs, doc, deleteDoc, addDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User, Task } from '@/lib/types';
 import Link from 'next/link';
@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
-import ClientForm from '@/components/admin/ClientForm'; // Re-using the client form
+import ClientForm from '@/components/admin/ClientForm';
 import { useAuth } from '@/contexts/AuthContext';
 import { chartOfAccounts as initialChartOfAccounts } from '@/lib/chart-of-accounts';
 import { allocationRules as initialAllocationRules } from '@/lib/allocation-rules';
@@ -34,12 +34,12 @@ export default function NumeraPage() {
     const fetchClientsAndStaff = async () => {
         setIsLoading(true);
         try {
-            const staffQuery = query(collection(db, "users"), where("role", "in", ['staff', 'admin']));
+            const staffQuery = query(collection(db, "users"));
             const staffSnapshot = await getDocs(staffQuery);
             const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
             setAllStaff(fetchedStaff);
 
-            const q = query(collection(db, "clients"), where("hasNumeraProfile", "==", true));
+            const q = query(collection(db, "numeraClients"));
             const querySnapshot = await getDocs(q);
             const fetchedClients = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Client));
             setClients(fetchedClients);
@@ -57,7 +57,7 @@ export default function NumeraPage() {
     
     useEffect(() => {
         fetchClientsAndStaff();
-    }, [toast]);
+    }, []);
 
     const handleFormSubmit = async (data: any) => {
         if (!currentUser) return;
@@ -72,13 +72,13 @@ export default function NumeraPage() {
             payrollDueDate: data.payrollDueDate || null,
             role: 'client',
             source: 'Numera',
-            hasNumeraProfile: true, // Always true when created from Numera module
+            hasNumeraProfile: true, 
             chartOfAccounts: initialChartOfAccounts,
             allocationRules: initialAllocationRules,
         };
 
         try {
-            const newDocRef = await addDoc(collection(db, "clients"), clientData);
+            const newDocRef = await addDoc(collection(db, "numeraClients"), clientData);
             toast({ title: 'Client Created', description: 'The new client has been added to Numera.'});
             fetchClientsAndStaff();
             setIsFormOpen(false);
@@ -92,7 +92,7 @@ export default function NumeraPage() {
         try {
             const batch = writeBatch(db);
 
-            const clientRef = doc(db, "clients", clientId);
+            const clientRef = doc(db, "numeraClients", clientId);
             batch.delete(clientRef);
             
             const tasksQuery = query(collection(db, 'tasks'), where('clientId', '==', clientId));
@@ -105,13 +105,13 @@ export default function NumeraPage() {
             
             toast({
                 title: 'Client Deleted',
-                description: `The client and their ${tasksSnapshot.size} associated tasks have been removed.`,
+                description: `The Numera client and their ${tasksSnapshot.size} associated tasks have been removed.`,
                 variant: 'destructive',
             });
             fetchClientsAndStaff();
         } catch (error) {
             console.error("Error deleting client:", error);
-            toast({ title: 'Error', description: 'Could not delete client and their tasks.', variant: 'destructive' });
+            toast({ title: 'Error', description: 'Could not delete Numera client and their tasks.', variant: 'destructive' });
         }
     };
 
@@ -211,7 +211,7 @@ export default function NumeraPage() {
                                                         <AlertDialogHeader>
                                                             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                                             <AlertDialogDescription>
-                                                                This action cannot be undone. This will permanently delete the client and all associated data for <span className="font-semibold">{client.name}</span>.
+                                                                This action cannot be undone. This will permanently delete the client and all associated data for <span className="font-semibold">{client.name}</span> from Numera.
                                                             </AlertDialogDescription>
                                                         </AlertDialogHeader>
                                                         <AlertDialogFooter>

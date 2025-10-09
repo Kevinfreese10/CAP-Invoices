@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -279,7 +278,7 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
         ) || [];
 
         try {
-            const clientRef = doc(db, 'clients', client.id);
+            const clientRef = doc(db, 'numeraClients', client.id);
             await updateDoc(clientRef, {
                 allocatedTransactions: remainingTransactions
             });
@@ -304,7 +303,7 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
         const remainingAllocated = client.allocatedTransactions?.filter(tx => !selectedTransactions.includes(tx.id)) || [];
         
         try {
-            const clientRef = doc(db, 'clients', client.id);
+            const clientRef = doc(db, 'numeraClients', client.id);
             await updateDoc(clientRef, {
                 allocatedTransactions: remainingAllocated,
                 importedTransactions: arrayUnion(...importedToMove),
@@ -654,7 +653,7 @@ function ManageRulesDialog({
         try {
             if (values.id) { // Editing existing rule
                  if (values.scope === 'client') {
-                    const clientRef = doc(db, 'clients', client.id);
+                    const clientRef = doc(db, 'numeraClients', client.id);
                     const updatedRules = client.allocationRules?.map(r => r.id === values.id ? { ...ruleData, id: values.id } : r) || [];
                     await updateDoc(clientRef, { allocationRules: updatedRules });
                 } else { // Global
@@ -665,18 +664,18 @@ function ManageRulesDialog({
             } else { // Creating new rule
                 const newRule = { ...ruleData, id: `rule-${Date.now()}` };
                 if (values.scope === 'client') {
-                    const clientRef = doc(db, 'clients', client.id);
+                    const clientRef = doc(db, 'numeraClients', client.id);
                     await updateDoc(clientRef, { allocationRules: arrayUnion(newRule) });
                 } else { // global
                     const newGlobalRuleRef = await addDoc(collection(db, 'allocationRules'), newRule);
                     const newGlobalRuleWithId = { ...newRule, id: newGlobalRuleRef.id };
                     
-                    const clientsQuery = query(collection(db, 'clients'), where('hasNumeraProfile', '==', true));
+                    const clientsQuery = query(collection(db, 'numeraClients'));
                     const clientsSnapshot = await getDocs(clientsQuery);
                     
                     const batch = writeBatch(db);
                     clientsSnapshot.forEach(clientDoc => {
-                        const clientRef = doc(db, 'clients', clientDoc.id);
+                        const clientRef = doc(db, 'numeraClients', clientDoc.id);
                         batch.update(clientRef, {
                             allocationRules: arrayUnion(newGlobalRuleWithId)
                         });
@@ -698,7 +697,7 @@ function ManageRulesDialog({
         if (!client) return;
         try {
             if (scope === 'client') {
-                const clientRef = doc(db, 'clients', client.id);
+                const clientRef = doc(db, 'numeraClients', client.id);
                 const ruleToDelete = client.allocationRules?.find(r => r.id === ruleId);
                 if (ruleToDelete) {
                     await updateDoc(clientRef, { allocationRules: arrayRemove(ruleToDelete) });
@@ -920,7 +919,7 @@ export default function BankTransactionsPage() {
   const params = useParams();
   const clientId = params.clientId as string;
   const { toast } = useToast();
-  const [activeSubTab, setActiveSubTab] = useState('income');
+  const [activeSubTab, setActiveSubTab] = useState('expenses');
   const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
   const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
   const [ruleTransaction, setRuleTransaction] = useState<ImportedTransaction | AllocatedTransaction | null>(null);
@@ -935,7 +934,7 @@ export default function BankTransactionsPage() {
     setIsLoading(true);
     try {
         // Fetch Client
-        const clientRef = doc(db, 'clients', clientId);
+        const clientRef = doc(db, 'numeraClients', clientId);
         const clientSnap = await getDoc(clientRef);
         if (clientSnap.exists()) {
             const clientData = { id: clientSnap.id, ...clientSnap.data() } as User;
@@ -997,7 +996,7 @@ export default function BankTransactionsPage() {
     }
     
     try {
-        const clientRef = doc(db, 'clients', client.id);
+        const clientRef = doc(db, 'numeraClients', client.id);
         const updatePayload: { [key: string]: any } = {};
         if (unallocated.length > 0) {
             updatePayload.importedTransactions = arrayUnion(...unallocated);
@@ -1118,7 +1117,7 @@ export default function BankTransactionsPage() {
     }));
 
     try {
-      const clientRef = doc(db, 'clients', client.id);
+      const clientRef = doc(db, 'numeraClients', client.id);
       await updateDoc(clientRef, {
         importedTransactions: remainingImported,
         allocatedTransactions: arrayUnion(...allocatedTransactions),
@@ -1140,7 +1139,7 @@ export default function BankTransactionsPage() {
     ) || [];
 
     try {
-      const clientRef = doc(db, 'clients', client.id);
+      const clientRef = doc(db, 'numeraClients', client.id);
       await updateDoc(clientRef, {
         importedTransactions: remainingTransactions
       });
@@ -1195,7 +1194,7 @@ export default function BankTransactionsPage() {
     const finalImportedTransactions = [...nonExpenseTransactions, ...stillImported];
 
     try {
-        const clientRef = doc(db, 'clients', client.id);
+        const clientRef = doc(db, 'numeraClients', client.id);
         await updateDoc(clientRef, {
             importedTransactions: finalImportedTransactions,
             allocatedTransactions: arrayUnion(...newAllocated),
@@ -1226,7 +1225,7 @@ export default function BankTransactionsPage() {
     });
 
     try {
-      const clientRef = doc(db, 'clients', client.id);
+      const clientRef = doc(db, 'numeraClients', client.id);
       const currentClientSnap = await getDoc(clientRef);
       const currentClientData = currentClientSnap.data() as User;
       
@@ -1261,7 +1260,7 @@ export default function BankTransactionsPage() {
     
     try {
         if (scope === 'client') {
-            const clientRef = doc(db, 'clients', client.id);
+            const clientRef = doc(db, 'numeraClients', client.id);
             await updateDoc(clientRef, {
                 allocationRules: arrayUnion(newRule)
             });
@@ -1269,12 +1268,12 @@ export default function BankTransactionsPage() {
             const newGlobalRuleRef = await addDoc(collection(db, 'allocationRules'), newRule);
             const newGlobalRuleWithId = { ...newRule, id: newGlobalRuleRef.id };
             
-            const clientsQuery = query(collection(db, 'clients'), where('hasNumeraProfile', '==', true));
+            const clientsQuery = query(collection(db, 'numeraClients'));
             const clientsSnapshot = await getDocs(clientsQuery);
             
             const batch = writeBatch(db);
             clientsSnapshot.forEach(clientDoc => {
-                const clientRef = doc(db, 'clients', clientDoc.id);
+                const clientRef = doc(db, 'numeraClients', clientDoc.id);
                 batch.update(clientRef, {
                     allocationRules: arrayUnion(newGlobalRuleWithId)
                 });
@@ -1300,7 +1299,7 @@ export default function BankTransactionsPage() {
                 allocatedAt: new Date(),
             }));
             
-            const clientRef = doc(db, 'clients', client.id);
+            const clientRef = doc(db, 'numeraClients', client.id);
             await updateDoc(clientRef, {
                 importedTransactions: remainingImported,
                 allocatedTransactions: arrayUnion(...allocatedTransactions),
@@ -1340,14 +1339,11 @@ export default function BankTransactionsPage() {
         section: 'Balance Sheet',
     };
     try {
-        const clientRef = doc(db, 'clients', client.id);
-        // Firestore's arrayUnion has issues with deep object merges.
-        // It's safer to read the existing array, add the new item, and write the whole array back.
+        const clientRef = doc(db, 'numeraClients', client.id);
         const clientSnap = await getDoc(clientRef);
         const existingClientData = clientSnap.data() as User;
         const existingAccounts = existingClientData.chartOfAccounts || [];
         
-        // Check if account number already exists
         if (existingAccounts.some(acc => acc.accountNumber === newAccount.accountNumber)) {
             toast({ title: 'Account Exists', description: `An account with number ${newAccount.accountNumber} already exists.`, variant: 'destructive'});
             return;

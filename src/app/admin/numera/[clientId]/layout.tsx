@@ -33,7 +33,7 @@ export default function NumeraClientLayout({ children }: { children: ReactNode }
     useEffect(() => {
         if (clientId) {
             const fetchClient = async () => {
-                const docRef = doc(db, 'clients', clientId);
+                const docRef = doc(db, 'numeraClients', clientId);
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
                     setClient({ id: docSnap.id, ...docSnap.data() } as User);

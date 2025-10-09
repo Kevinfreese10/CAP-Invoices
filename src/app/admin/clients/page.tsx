@@ -37,7 +37,7 @@ export default function AdminClientsPage() {
   const fetchClientsAndStaff = async () => {
     setIsLoading(true);
     try {
-        const staffQuery = query(collection(db, "users"), where("role", "in", ['staff', 'admin']));
+        const staffQuery = query(collection(db, "users"));
         const staffSnapshot = await getDocs(staffQuery);
         const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
         setAllStaff(fetchedStaff);
@@ -72,11 +72,9 @@ export default function AdminClientsPage() {
     try {
         const batch = writeBatch(db);
 
-        // Delete the client
         const clientRef = doc(db, "clients", clientId);
         batch.delete(clientRef);
         
-        // Find and delete associated tasks
         const tasksQuery = query(collection(db, 'tasks'), where('clientId', '==', clientId));
         const tasksSnapshot = await getDocs(tasksQuery);
         tasksSnapshot.docs.forEach(taskDoc => {
@@ -109,7 +107,6 @@ export default function AdminClientsPage() {
         vatCategory: data.isVatRegistered ? data.vatCategory : null,
         payrollDueDate: data.payrollDueDate || null,
         role: 'client',
-        source: 'Client Management', // Default source
     };
     
     if (createNumeraProfile) {
@@ -117,6 +114,8 @@ export default function AdminClientsPage() {
         clientData.source = 'Numera';
         clientData.chartOfAccounts = initialChartOfAccounts;
         clientData.allocationRules = initialAllocationRules;
+    } else {
+        clientData.source = 'Client Management';
     }
 
     try {

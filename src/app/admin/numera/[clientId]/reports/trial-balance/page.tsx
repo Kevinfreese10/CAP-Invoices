@@ -179,7 +179,7 @@ export default function TrialBalancePage() {
         const fetchClient = async () => {
             setIsLoading(true);
             try {
-                const docRef = doc(db, 'clients', clientId);
+                const docRef = doc(db, 'numeraClients', clientId);
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
                     setClient({ id: docSnap.id, ...docSnap.data() } as User);
