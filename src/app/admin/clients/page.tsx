@@ -304,7 +304,7 @@ export default function AdminClientsPage() {
         const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
         setAllStaff(fetchedStaff);
 
-        const clientsQuery = query(collection(db, "clients"), where("source", "==", "Client Management"), orderBy("name"));
+        const clientsQuery = query(collection(db, "clients"), orderBy("name"));
         const clientsSnapshot = await getDocs(clientsQuery);
         const fetchedClients = clientsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Client));
         setClients(fetchedClients);
@@ -866,6 +866,7 @@ export default function AdminClientsPage() {
     </div>
   );
 }
+
 
 
 
