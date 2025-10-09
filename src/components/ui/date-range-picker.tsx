@@ -2,7 +2,7 @@
 "use client"
 
 import * as React from "react"
-import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, getMonth } from "date-fns"
+import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, getMonth, endOfDay } from "date-fns"
 import { Calendar as CalendarIcon } from "lucide-react"
 import { DateRange } from "react-day-picker"
 
@@ -52,12 +52,12 @@ export function DateRangePicker({
         if (currentMonth > endMonth) {
             return {
                 start: new Date(year, endMonth + 1, 1),
-                end: new Date(year + 1, endMonth, new Date(year + 1, endMonth + 1, 0).getDate()),
+                end: endOfDay(new Date(year + 1, endMonth, new Date(year + 1, endMonth + 1, 0).getDate())),
             };
         } else {
              return {
                 start: new Date(year - 1, endMonth + 1, 1),
-                end: new Date(year, endMonth, new Date(year, endMonth + 1, 0).getDate()),
+                end: endOfDay(new Date(year, endMonth, new Date(year, endMonth + 1, 0).getDate())),
             };
         }
     };
@@ -68,7 +68,7 @@ export function DateRangePicker({
         lastYearStart.setFullYear(lastYearStart.getFullYear() - 1);
         const lastYearEnd = new Date(start);
         lastYearEnd.setDate(lastYearEnd.getDate() - 1);
-        return { from: lastYearStart, to: lastYearEnd };
+        return { from: lastYearStart, to: endOfDay(lastYearEnd) };
     };
 
 
@@ -77,7 +77,7 @@ export function DateRangePicker({
         newDate = undefined;
         break;
       case "this_month":
-        newDate = { from: startOfMonth(now), to: endOfMonth(now) };
+        newDate = { from: startOfMonth(now), to: endOfDay(endOfMonth(now)) };
         break;
       case "this_year":
         const { start, end } = getFinancialYear(now, financialYearEnd);
@@ -88,7 +88,7 @@ export function DateRangePicker({
         break;
       case "custom":
         if (!date) {
-            newDate = { from: startOfMonth(now), to: endOfMonth(now) };
+            newDate = { from: startOfMonth(now), to: endOfDay(endOfMonth(now)) };
         } else {
             newDate = date;
         }
@@ -166,7 +166,7 @@ export function DateRangePicker({
                                 initialFocus
                                 mode="single"
                                 selected={date?.to}
-                                onSelect={(day) => setDate(prev => ({ from: prev?.from, to: day }))}
+                                onSelect={(day) => setDate(prev => ({ from: prev?.from, to: day ? endOfDay(day) : undefined }))}
                                 numberOfMonths={1}
                             />
                             </PopoverContent>

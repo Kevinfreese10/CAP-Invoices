@@ -28,7 +28,7 @@ import {
   TableRow,
   TableFooter,
 } from "@/components/ui/table";
-import { format } from 'date-fns';
+import { format, startOfDay } from 'date-fns';
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
 import * as XLSX from 'xlsx';
@@ -50,13 +50,9 @@ function getFinancialYearStart(date: Date, endMonthName?: string) {
     const currentMonth = date.getMonth();
     let year = date.getFullYear();
 
-    // If current month is past the financial year end month, the FY started this calendar year.
-    // e.g., FY end is Feb. If we are in March 2024, the FY started 1 March 2024.
-    // The endMonth for Feb is 1. March is 2. 2 > 1 is true.
     if (currentMonth > endMonth) {
         return new Date(year, endMonth + 1, 1);
     } else {
-    // If we are in Jan or Feb 2024, the FY started 1 March 2023.
         return new Date(year - 1, endMonth + 1, 1);
     }
 }
@@ -74,7 +70,9 @@ function TrialBalanceReport({ client, dateRange }: { client: User, dateRange?: D
             balances.set(acc.id, 0);
         });
 
-        const reportStartDate = dateRange?.from || getFinancialYearStart(new Date(), client.yearEnd);
+        const reportStartDate = dateRange?.from ? startOfDay(dateRange.from) : getFinancialYearStart(new Date(), client.yearEnd);
+        const reportEndDate = dateRange?.to;
+
         const retainedIncomeAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '5200/000');
         const suspenseAccountId = client.chartOfAccounts?.find(acc => acc.accountNumber === '9950/000')?.id;
         const vatControlAccountId = client.chartOfAccounts?.find(acc => acc.accountNumber === '9500/000')?.id;
@@ -119,13 +117,17 @@ function TrialBalanceReport({ client, dateRange }: { client: User, dateRange?: D
         });
         
         if (retainedIncomeAccount) {
-            balances.set(retainedIncomeAccount.id, (balances.get(retainedIncomeAccount.id) || 0) + priorPeriodNetIncome);
+            // A profit (income > expenses) results in a negative priorPeriodNetIncome.
+            // This should increase the credit balance of Retained Income.
+            // A loss (expenses > income) results in a positive priorPeriodNetIncome.
+            // This should decrease the credit balance (i.e., add a debit).
+            balances.set(retainedIncomeAccount.id, (balances.get(retainedIncomeAccount.id) || 0) - priorPeriodNetIncome);
         }
 
         // 2. Process transactions within the current period
         allTransactions.forEach(tx => {
             const txDate = new Date(tx.date);
-            if (txDate >= reportStartDate && (!dateRange?.to || txDate <= dateRange.to)) {
+            if (txDate >= reportStartDate && (!reportEndDate || txDate <= reportEndDate)) {
                  const processTransaction = (accountId: string, amount: number) => {
                     balances.set(accountId, (balances.get(accountId) || 0) + amount);
                 };
