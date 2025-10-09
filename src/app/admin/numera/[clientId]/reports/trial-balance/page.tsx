@@ -98,7 +98,9 @@ function TrialBalanceReport({ client, dateRange }: { client: User, dateRange?: D
                 
                 const isAllocated = 'allocatedTo' in tx;
                 // Bank entries are always Balance Sheet
-                processTransaction(tx.bankAccountId, tx.amount);
+                if(tx.bankAccountId && balances.has(tx.bankAccountId)) {
+                    processTransaction(tx.bankAccountId, tx.amount);
+                }
 
                 if (isAllocated) {
                     const allocatedTx = tx as AllocatedTransaction;
@@ -117,17 +119,9 @@ function TrialBalanceReport({ client, dateRange }: { client: User, dateRange?: D
         });
         
         if (retainedIncomeAccount) {
-            // Net income is (Income - Expenses). Income has credit balance (negative amount), Expenses have debit (positive amount).
-            // A positive priorPeriodNetIncome means more expenses than income (a loss). A loss decreases retained income (equity), which is a Debit.
-            // A negative priorPeriodNetIncome means more income than expenses (a profit). A profit increases retained income (equity), which is a Credit.
-            // Our balances are Debit (positive) / Credit (negative).
-            // So a loss (positive) needs to result in a Debit (positive) to Retained Income.
-            // And a profit (negative) needs to result in a Credit (negative) to Retained Income.
-            // We must add the inverted amount. A loss (+500) becomes -500. A profit (-1000) becomes +1000. Wait, that's backwards.
-            // Let's rethink. Equity has a credit balance. Credits are negative.
-            // A profit (negative priorPeriodNetIncome) should INCREASE equity, making it MORE negative. So we ADD the negative number (i.e. subtract the positive).
-            // A loss (positive priorPeriodNetIncome) should DECREASE equity, making it LESS negative (or positive/debit). So we SUBTRACT the positive number.
-            // Correct. The logic `balances.set(..., ... - priorPeriodNetIncome)` is correct.
+            // A profit is a negative number (credit), a loss is a positive number (debit).
+            // To increase a credit balance (Retained Income), you subtract a negative (profit). balance - (-profit) = balance + profit.
+            // To decrease a credit balance (Retained Income), you subtract a positive (loss). balance - (+loss) = balance - loss.
             balances.set(retainedIncomeAccount.id, (balances.get(retainedIncomeAccount.id) || 0) - priorPeriodNetIncome);
         }
 
@@ -140,7 +134,9 @@ function TrialBalanceReport({ client, dateRange }: { client: User, dateRange?: D
                 };
                 
                 const isAllocated = 'allocatedTo' in tx;
-                processTransaction(tx.bankAccountId, tx.amount);
+                 if(tx.bankAccountId && balances.has(tx.bankAccountId)) {
+                    processTransaction(tx.bankAccountId, tx.amount);
+                }
                 
                  if (isAllocated) {
                     const allocatedTx = tx as AllocatedTransaction;
