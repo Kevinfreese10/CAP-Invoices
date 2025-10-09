@@ -117,11 +117,10 @@ function TrialBalanceReport({ client, dateRange }: { client: User, dateRange?: D
         });
         
         if (retainedIncomeAccount) {
-            // A profit (income > expenses) results in a negative priorPeriodNetIncome.
-            // This should increase the credit balance of Retained Income.
-            // A loss (expenses > income) results in a positive priorPeriodNetIncome.
-            // This should decrease the credit balance (i.e., add a debit).
-            balances.set(retainedIncomeAccount.id, (balances.get(retainedIncomeAccount.id) || 0) - priorPeriodNetIncome);
+            // A positive priorPeriodNetIncome is a loss (expenses > income), which creates a DEBIT on retained income.
+            // A negative priorPeriodNetIncome is a profit (income > expenses), which creates a CREDIT on retained income.
+            // Debits are positive, Credits are negative in our system.
+            balances.set(retainedIncomeAccount.id, (balances.get(retainedIncomeAccount.id) || 0) + priorPeriodNetIncome);
         }
 
         // 2. Process transactions within the current period
@@ -269,7 +268,7 @@ export default function TrialBalancePage() {
     const clientId = params.clientId as string;
     const [client, setClient] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
+    const [date, setDate] = React.useState<DateRange | undefined>(undefined);
     
     useEffect(() => {
         const fetchClient = async () => {
@@ -293,17 +292,17 @@ export default function TrialBalancePage() {
     }, [clientId]);
     
     const getReportDateString = () => {
-        if (!dateRange || (!dateRange.from && !dateRange.to)) {
+        if (!date || (!date.from && !date.to)) {
             return `as at ${format(new Date(), "dd MMMM yyyy")}`;
         }
-        if (dateRange.from && dateRange.to) {
-            return `for the period ${format(dateRange.from, "dd MMMM yyyy")} to ${format(dateRange.to, "dd MMMM yyyy")}`;
+        if (date.from && date.to) {
+            return `for the period ${format(date.from, "dd MMMM yyyy")} to ${format(date.to, "dd MMMM yyyy")}`;
         }
-        if (dateRange.from) {
-            return `from ${format(dateRange.from, "dd MMMM yyyy")}`;
+        if (date.from) {
+            return `from ${format(date.from, "dd MMMM yyyy")}`;
         }
-        if (dateRange.to) {
-            return `up to ${format(dateRange.to, "dd MMMM yyyy")}`;
+        if (date.to) {
+            return `up to ${format(date.to, "dd MMMM yyyy")}`;
         }
         return `as at ${format(new Date(), "dd MMMM yyyy")}`;
     }
@@ -318,7 +317,7 @@ export default function TrialBalancePage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                     <DateRangePicker onDateChange={setDateRange} financialYearEnd={client?.yearEnd} />
+                     <DateRangePicker onDateChange={setDate} financialYearEnd={client?.yearEnd} />
                     {isLoading ? (
                         <Loader2 className="animate-spin" />
                     ) : client ? (
@@ -333,7 +332,7 @@ export default function TrialBalancePage() {
                                         Trial Balance {getReportDateString()}
                                     </DialogDescription>
                                 </DialogHeader>
-                                <TrialBalanceReport client={client} dateRange={dateRange} />
+                                <TrialBalanceReport client={client} dateRange={date} />
                             </DialogContent>
                         </Dialog>
                     ) : (
