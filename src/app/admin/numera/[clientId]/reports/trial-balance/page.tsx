@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import * as React from "react"
@@ -51,10 +50,14 @@ function getFinancialYearStart(date: Date, endMonthName?: string) {
     const currentMonth = date.getMonth();
     let year = date.getFullYear();
 
+    // If current month is past the financial year end month, the FY started this calendar year.
+    // e.g., FY end is Feb. If we are in March 2024, the FY started 1 March 2024.
+    // The endMonth for Feb is 1. March is 2. 2 > 1 is true.
     if (currentMonth > endMonth) {
-        return new Date(year, endMonth, 1);
+        return new Date(year, endMonth + 1, 1);
     } else {
-        return new Date(year - 1, endMonth, 1);
+    // If we are in Jan or Feb 2024, the FY started 1 March 2023.
+        return new Date(year - 1, endMonth + 1, 1);
     }
 }
 
@@ -76,7 +79,7 @@ function TrialBalanceReport({ client, dateRange }: { client: User, dateRange?: D
         const suspenseAccountId = client.chartOfAccounts?.find(acc => acc.accountNumber === '9950/000')?.id;
         const vatControlAccountId = client.chartOfAccounts?.find(acc => acc.accountNumber === '9500/000')?.id;
 
-        let priorPeriodRetainedIncome = 0;
+        let priorPeriodNetIncome = 0;
 
         // 1. Calculate opening balances from transactions BEFORE the report start date
         allTransactions.forEach(tx => {
@@ -88,24 +91,30 @@ function TrialBalanceReport({ client, dateRange }: { client: User, dateRange?: D
                         if (account.section === 'Balance Sheet') {
                             balances.set(accountId, (balances.get(accountId) || 0) + amount);
                         } else { // Income Statement
-                            priorPeriodRetainedIncome += amount;
+                            // Income increases with credits (negative amount for our purpose)
+                            // Expenses increase with debits (positive amount for our purpose)
+                            priorPeriodNetIncome += amount;
                         }
                     }
                 };
                 
                 const isAllocated = 'allocatedTo' in tx;
+                // Bank entries are always Balance Sheet
                 processTransaction(tx.bankAccountId, tx.amount);
 
                 if (isAllocated) {
                     const allocatedTx = tx as AllocatedTransaction;
                     const vatAmount = allocatedTx.vatAmount || 0;
                     const exclusiveAmount = allocatedTx.amount - vatAmount;
+                    // The contra-entry for the bank transaction
                     processTransaction(allocatedTx.allocatedTo.value, -exclusiveAmount);
                     if (vatControlAccountId && vatAmount !== 0) {
+                         // The contra-entry for the VAT portion
                         processTransaction(vatControlAccountId, -vatAmount);
                     }
                 } else {
                      if (suspenseAccountId) {
+                        // The unallocated amount is moved to suspense
                         processTransaction(suspenseAccountId, -tx.amount);
                     }
                 }
@@ -113,7 +122,11 @@ function TrialBalanceReport({ client, dateRange }: { client: User, dateRange?: D
         });
         
         if (retainedIncomeAccount) {
-            balances.set(retainedIncomeAccount.id, (balances.get(retainedIncomeAccount.id) || 0) - priorPeriodRetainedIncome);
+            // Net income is (Income - Expenses). Income has credit balance, Expenses have debit.
+            // A positive priorPeriodNetIncome means more expenses than income (a loss), which should DECREASE equity (a debit).
+            // A negative priorPeriodNetIncome means more income than expenses (a profit), which should INCREASE equity (a credit).
+            // So we must subtract the net income from retained earnings.
+            balances.set(retainedIncomeAccount.id, (balances.get(retainedIncomeAccount.id) || 0) - priorPeriodNetIncome);
         }
 
         // 2. Process transactions within the current period
