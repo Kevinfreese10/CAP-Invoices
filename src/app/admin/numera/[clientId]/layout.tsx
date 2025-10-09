@@ -85,6 +85,7 @@ export default function NumeraClientLayout({ children }: { children: ReactNode }
                         <MenubarItem>Items</MenubarItem>
                         <MenubarItem asChild><Link href={`/admin/numera/${clientId}/bank/transactions`}>Bank Accounts</Link></MenubarItem>
                         <MenubarItem asChild><Link href={`/admin/numera/${clientId}/chart-of-accounts`}>Chart of Accounts</Link></MenubarItem>
+                        <MenubarItem asChild><Link href={`/admin/numera/${clientId}/journals`}>Journals</Link></MenubarItem>
                     </MenubarContent>
                 </MenubarMenu>
                 <MenubarMenu><MenubarTrigger>Customers</MenubarTrigger></MenubarMenu>
