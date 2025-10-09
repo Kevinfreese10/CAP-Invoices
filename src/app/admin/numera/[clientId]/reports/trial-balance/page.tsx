@@ -269,7 +269,7 @@ export default function TrialBalancePage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                     <DateRangePicker onDateChange={setDateRange} />
+                     <DateRangePicker onDateChange={setDateRange} financialYearEnd={client?.yearEnd} />
                     {isLoading ? (
                         <Loader2 className="animate-spin" />
                     ) : client ? (

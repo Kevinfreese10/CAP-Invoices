@@ -2,7 +2,7 @@
 "use client"
 
 import * as React from "react"
-import { format, startOfMonth, endOfMonth, startOfYear, endOfYear } from "date-fns"
+import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, getMonth } from "date-fns"
 import { Calendar as CalendarIcon } from "lucide-react"
 import { DateRange } from "react-day-picker"
 
@@ -24,11 +24,13 @@ import {
 
 interface DateRangePickerProps extends React.HTMLAttributes<HTMLDivElement> {
   onDateChange: (date: DateRange | undefined) => void;
+  financialYearEnd?: string; // e.g., "February"
 }
 
 export function DateRangePicker({
   className,
   onDateChange,
+  financialYearEnd,
 }: DateRangePickerProps) {
   const [date, setDate] = React.useState<DateRange | undefined>(undefined);
   const [preset, setPreset] = React.useState<string>("all");
@@ -42,6 +44,34 @@ export function DateRangePicker({
     const now = new Date();
     let newDate: DateRange | undefined = undefined;
 
+    const getFinancialYear = (date: Date, endMonthName?: string) => {
+        const endMonth = endMonthName ? new Date(`${endMonthName} 1, 2000`).getMonth() : 1; // Default to Feb if not provided
+        const currentMonth = date.getMonth();
+        let year = date.getFullYear();
+
+        if (currentMonth > endMonth) {
+            return {
+                start: new Date(year, endMonth + 1, 1),
+                end: new Date(year + 1, endMonth, new Date(year + 1, endMonth + 1, 0).getDate()),
+            };
+        } else {
+             return {
+                start: new Date(year - 1, endMonth + 1, 1),
+                end: new Date(year, endMonth, new Date(year, endMonth + 1, 0).getDate()),
+            };
+        }
+    };
+    
+    const lastFinancialYear = (date: Date, endMonthName?: string) => {
+        const { start } = getFinancialYear(date, endMonthName);
+        const lastYearStart = new Date(start);
+        lastYearStart.setFullYear(lastYearStart.getFullYear() - 1);
+        const lastYearEnd = new Date(start);
+        lastYearEnd.setDate(lastYearEnd.getDate() - 1);
+        return { from: lastYearStart, to: lastYearEnd };
+    };
+
+
     switch (value) {
       case "all":
         newDate = undefined;
@@ -50,7 +80,11 @@ export function DateRangePicker({
         newDate = { from: startOfMonth(now), to: endOfMonth(now) };
         break;
       case "this_year":
-        newDate = { from: startOfYear(now), to: endOfYear(now) };
+        const { start, end } = getFinancialYear(now, financialYearEnd);
+        newDate = { from: start, to: end };
+        break;
+      case "last_year":
+        newDate = lastFinancialYear(now, financialYearEnd);
         break;
       case "custom":
         if (!date) {
@@ -75,7 +109,8 @@ export function DateRangePicker({
                     <SelectContent>
                         <SelectItem value="all">All Dates</SelectItem>
                         <SelectItem value="this_month">This Month</SelectItem>
-                        <SelectItem value="this_year">This Year</SelectItem>
+                        <SelectItem value="this_year">This Financial Year</SelectItem>
+                        <SelectItem value="last_year">Last Financial Year</SelectItem>
                         <SelectItem value="custom">Custom Dates</SelectItem>
                     </SelectContent>
                 </Select>
