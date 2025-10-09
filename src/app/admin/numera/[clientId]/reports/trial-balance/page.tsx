@@ -119,10 +119,7 @@ function TrialBalanceReport({ client, dateRange }: { client: User, dateRange?: D
         });
         
         if (retainedIncomeAccount) {
-            // A profit is a negative number (credit), a loss is a positive number (debit).
-            // To increase a credit balance (Retained Income), you subtract a negative (profit). balance - (-profit) = balance + profit.
-            // To decrease a credit balance (Retained Income), you subtract a positive (loss). balance - (+loss) = balance - loss.
-            balances.set(retainedIncomeAccount.id, (balances.get(retainedIncomeAccount.id) || 0) - priorPeriodNetIncome);
+            balances.set(retainedIncomeAccount.id, (balances.get(retainedIncomeAccount.id) || 0) + priorPeriodNetIncome);
         }
 
         // 2. Process transactions within the current period
