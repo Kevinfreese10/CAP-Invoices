@@ -1,4 +1,5 @@
 
+
 'use client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,13 +9,14 @@ import { useState, useEffect, useMemo } from "react";
 import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction } from "@/lib/types";
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2 } from "lucide-react";
+import { Loader2, Download } from "lucide-react";
 import { useParams } from 'next/navigation';
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { format } from 'date-fns';
+import * as XLSX from 'xlsx';
 
 const db = getFirestore(firebaseApp);
 
@@ -147,44 +149,110 @@ function GeneralLedgerReport({ client, dateRange, fromAccount, toAccount }: { cl
 
     }, [transactions, accountsToDisplay, client.chartOfAccounts]);
 
+    const handleDownloadExcel = () => {
+        let excelData: any[] = [];
+        
+        groupedTransactions.forEach(group => {
+            excelData.push({
+                Date: `${group.account.accountNumber} - ${group.account.description}`,
+            });
+
+            excelData.push({
+                Date: "Date",
+                Description: "Description",
+                Debit: "Debit",
+                Credit: "Credit",
+                Balance: "Balance",
+            });
+
+            group.transactions.forEach(tx => {
+                excelData.push({
+                    Date: format(tx.date, 'dd/MM/yyyy'),
+                    Description: tx.description,
+                    Debit: tx.debit,
+                    Credit: tx.credit,
+                    Balance: tx.balance,
+                });
+            });
+
+            excelData.push({
+                Date: "Totals",
+                Description: "",
+                Debit: group.totalDebit,
+                Credit: group.totalCredit,
+                Balance: "",
+            });
+            
+            excelData.push({}); // Add a blank row for spacing
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(excelData, { skipHeader: true });
+        worksheet['!cols'] = [{ wch: 12 }, { wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
+        
+        Object.keys(worksheet).forEach(key => {
+            if (key.startsWith('C') || key.startsWith('D') || key.startsWith('E')) {
+                const cell = worksheet[key];
+                if (cell.v !== null && typeof cell.v === 'number') {
+                    cell.t = 'n';
+                    cell.z = 'R #,##0.00';
+                }
+            }
+        });
+
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "General Ledger");
+
+        const today = new Date().toISOString().split('T')[0];
+        const fileName = `${client.companyName || client.name}-General-Ledger-${today}.xlsx`;
+        XLSX.writeFile(workbook, fileName);
+    };
+
     return (
-        <div className="max-h-[70vh] overflow-y-auto space-y-6">
-            {groupedTransactions.map(group => (
-                <div key={group.account.id}>
-                    <h3 className="font-bold text-lg mb-2">{group.account.accountNumber} - {group.account.description}</h3>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Description</TableHead>
-                                <TableHead className="text-right">Debit</TableHead>
-                                <TableHead className="text-right">Credit</TableHead>
-                                <TableHead className="text-right">Balance</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {group.transactions.map((tx, index) => (
-                                <TableRow key={index}>
-                                    <TableCell>{format(tx.date, 'dd/MM/yyyy')}</TableCell>
-                                    <TableCell>{tx.description}</TableCell>
-                                    <TableCell className="text-right font-mono">{formatPrice(tx.debit)}</TableCell>
-                                    <TableCell className="text-right font-mono">{formatPrice(tx.credit)}</TableCell>
-                                    <TableCell className="text-right font-mono">{formatPrice(tx.balance)}</TableCell>
+        <>
+            <div className="max-h-[70vh] overflow-y-auto space-y-6">
+                {groupedTransactions.map(group => (
+                    <div key={group.account.id}>
+                        <h3 className="font-bold text-lg mb-2">{group.account.accountNumber} - {group.account.description}</h3>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Description</TableHead>
+                                    <TableHead className="text-right">Debit</TableHead>
+                                    <TableHead className="text-right">Credit</TableHead>
+                                    <TableHead className="text-right">Balance</TableHead>
                                 </TableRow>
-                            ))}
-                        </TableBody>
-                        <TableFooter>
-                            <TableRow>
-                                <TableCell colSpan={2} className="font-bold">Totals</TableCell>
-                                <TableCell className="text-right font-bold font-mono">{formatPrice(group.totalDebit)}</TableCell>
-                                <TableCell className="text-right font-bold font-mono">{formatPrice(group.totalCredit)}</TableCell>
-                                <TableCell></TableCell>
-                            </TableRow>
-                        </TableFooter>
-                    </Table>
-                </div>
-            ))}
-        </div>
+                            </TableHeader>
+                            <TableBody>
+                                {group.transactions.map((tx, index) => (
+                                    <TableRow key={index}>
+                                        <TableCell>{format(tx.date, 'dd/MM/yyyy')}</TableCell>
+                                        <TableCell>{tx.description}</TableCell>
+                                        <TableCell className="text-right font-mono">{formatPrice(tx.debit)}</TableCell>
+                                        <TableCell className="text-right font-mono">{formatPrice(tx.credit)}</TableCell>
+                                        <TableCell className="text-right font-mono">{formatPrice(tx.balance)}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                            <TableFooter>
+                                <TableRow>
+                                    <TableCell colSpan={2} className="font-bold">Totals</TableCell>
+                                    <TableCell className="text-right font-bold font-mono">{formatPrice(group.totalDebit)}</TableCell>
+                                    <TableCell className="text-right font-bold font-mono">{formatPrice(group.totalCredit)}</TableCell>
+                                    <TableCell></TableCell>
+                                </TableRow>
+                            </TableFooter>
+                        </Table>
+                    </div>
+                ))}
+            </div>
+             <DialogFooter className="mt-4">
+                <Button variant="outline" onClick={handleDownloadExcel}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Download Excel
+                </Button>
+            </DialogFooter>
+        </>
     );
 }
 

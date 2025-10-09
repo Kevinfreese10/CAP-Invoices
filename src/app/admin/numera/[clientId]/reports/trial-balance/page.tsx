@@ -6,7 +6,7 @@ import * as React from "react"
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, Download } from "lucide-react";
 import { useParams } from 'next/navigation';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -18,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Table,
@@ -30,7 +31,8 @@ import {
 } from "@/components/ui/table";
 import { format } from 'date-fns';
 import { DateRangePicker } from "@/components/ui/date-range-picker";
-import { DateRange } from "react-day-picker"
+import { DateRange } from "react-day-picker";
+import * as XLSX from 'xlsx';
 
 const db = getFirestore(firebaseApp);
 
@@ -127,44 +129,89 @@ function TrialBalanceReport({ client, dateRange }: { client: User, dateRange?: D
         });
         return { debit, credit };
     }, [trialBalanceData]);
+
+    const handleDownloadExcel = () => {
+        const dataToExport = trialBalanceData?.map(item => ({
+            Account: `${item.accountNumber} - ${item.description}`,
+            Debit: item.balance > 0 ? item.balance : 0,
+            Credit: item.balance < 0 ? -item.balance : 0
+        }));
+
+        if (!dataToExport) return;
+        
+        // Add totals row
+        dataToExport.push({
+            Account: 'Totals',
+            Debit: totals.debit,
+            Credit: totals.credit
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Trial Balance");
+
+        // Format columns as currency
+        worksheet['!cols'] = [{ wch: 40 }, { wch: 15 }, { wch: 15 }];
+        Object.keys(worksheet).forEach(key => {
+            if (key.startsWith('B') && key !== 'B1' || key.startsWith('C') && key !== 'C1') {
+                const cell = worksheet[key];
+                if (cell.v !== null && typeof cell.v === 'number') {
+                    cell.t = 'n';
+                    cell.z = 'R #,##0.00';
+                }
+            }
+        });
+
+        const today = new Date().toISOString().split('T')[0];
+        const fileName = `${client.companyName || client.name}-Trial-Balance-${today}.xlsx`;
+        XLSX.writeFile(workbook, fileName);
+    };
     
     return (
-        <div className="max-h-[70vh] overflow-y-auto">
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Account</TableHead>
-                        <TableHead className="text-right">Debit</TableHead>
-                        <TableHead className="text-right">Credit</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {trialBalanceData?.map(item => {
-                        const debitAmount = item.balance > 0 ? item.balance : 0;
-                        const creditAmount = item.balance < 0 ? -item.balance : 0;
-                        
-                        return (
-                            <TableRow key={item.id}>
-                                <TableCell>{item.accountNumber} - {item.description}</TableCell>
-                                <TableCell className="text-right font-mono">
-                                    {formatPrice(debitAmount)}
-                                </TableCell>
-                                <TableCell className="text-right font-mono">
-                                    {formatPrice(creditAmount)}
-                                </TableCell>
-                            </TableRow>
-                        )
-                    })}
-                </TableBody>
-                <TableFooter>
-                    <TableRow>
-                        <TableCell className="font-bold">Totals</TableCell>
-                        <TableCell className="text-right font-bold font-mono">{formatPrice(totals.debit)}</TableCell>
-                        <TableCell className="text-right font-bold font-mono">{formatPrice(totals.credit)}</TableCell>
-                    </TableRow>
-                </TableFooter>
-            </Table>
-        </div>
+        <>
+            <div className="max-h-[70vh] overflow-y-auto">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Account</TableHead>
+                            <TableHead className="text-right">Debit</TableHead>
+                            <TableHead className="text-right">Credit</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {trialBalanceData?.map(item => {
+                            const debitAmount = item.balance > 0 ? item.balance : 0;
+                            const creditAmount = item.balance < 0 ? -item.balance : 0;
+                            
+                            return (
+                                <TableRow key={item.id}>
+                                    <TableCell>{item.accountNumber} - {item.description}</TableCell>
+                                    <TableCell className="text-right font-mono">
+                                        {formatPrice(debitAmount)}
+                                    </TableCell>
+                                    <TableCell className="text-right font-mono">
+                                        {formatPrice(creditAmount)}
+                                    </TableCell>
+                                </TableRow>
+                            )
+                        })}
+                    </TableBody>
+                    <TableFooter>
+                        <TableRow>
+                            <TableCell className="font-bold">Totals</TableCell>
+                            <TableCell className="text-right font-bold font-mono">{formatPrice(totals.debit)}</TableCell>
+                            <TableCell className="text-right font-bold font-mono">{formatPrice(totals.credit)}</TableCell>
+                        </TableRow>
+                    </TableFooter>
+                </Table>
+            </div>
+            <DialogFooter className="mt-4">
+                <Button variant="outline" onClick={handleDownloadExcel}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Download Excel
+                </Button>
+            </DialogFooter>
+        </>
     );
 }
 
