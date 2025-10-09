@@ -1041,6 +1041,60 @@ export default function BankTransactionsPage() {
     }
   };
 
+  const handleDownloadExcel = () => {
+    if (!client || !selectedAccountId) return;
+
+    const wb = XLSX.utils.book_new();
+    const today = new Date().toISOString().split('T')[0];
+    const fileName = `${client.companyName || client.name}-Transactions-${today}.xlsx`;
+    const allAccounts = client.chartOfAccounts || [];
+
+    // Tab 1: Unallocated Income
+    const incomeData = (client.importedTransactions || [])
+        .filter(tx => tx.bankAccountId === selectedAccountId && tx.amount >= 0)
+        .map(tx => ({
+            Date: tx.date,
+            Reference: tx.reference,
+            Description: tx.description,
+            Amount: tx.amount,
+        }));
+    const wsIncome = XLSX.utils.json_to_sheet(incomeData);
+    XLSX.utils.book_append_sheet(wb, wsIncome, "Unallocated Income");
+
+    // Tab 2: Unallocated Expenses
+    const expenseData = (client.importedTransactions || [])
+        .filter(tx => tx.bankAccountId === selectedAccountId && tx.amount < 0)
+        .map(tx => ({
+            Date: tx.date,
+            Reference: tx.reference,
+            Description: tx.description,
+            Amount: tx.amount,
+        }));
+    const wsExpense = XLSX.utils.json_to_sheet(expenseData);
+    XLSX.utils.book_append_sheet(wb, wsExpense, "Unallocated Expenses");
+
+    // Tab 3: Reviewed Transactions
+    const reviewedData = (client.allocatedTransactions || [])
+        .filter(tx => tx.bankAccountId === selectedAccountId)
+        .map(tx => {
+            const account = allAccounts.find(acc => acc.id === tx.allocatedTo.value);
+            return {
+                Date: tx.date,
+                Reference: tx.reference,
+                Description: tx.description,
+                'Allocated Account': account ? `${account.accountNumber} - ${account.description}` : tx.allocatedTo.value,
+                'VAT Type': tx.vatType,
+                'VAT Amount': tx.vatAmount,
+                'Total Amount': tx.amount,
+            };
+        });
+    const wsReviewed = XLSX.utils.json_to_sheet(reviewedData);
+    XLSX.utils.book_append_sheet(wb, wsReviewed, "Reviewed Transactions");
+
+    XLSX.writeFile(wb, fileName);
+    toast({ title: 'Download Started', description: `Your file ${fileName} is downloading.`});
+  };
+
   const transactions = useMemo(() => {
     if (!client || !selectedAccountId) return [];
     return client.importedTransactions?.filter(t => t.bankAccountId === selectedAccountId) || [];
@@ -1414,6 +1468,12 @@ export default function BankTransactionsPage() {
                     {lastImportDate && <span>(Last import: {lastImportDate})</span>}
                 </div>
             </div>
+             <div className="md:ml-auto">
+                <Button variant="outline" onClick={handleDownloadExcel} disabled={!client}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Download Excel
+                </Button>
+            </div>
         </div>
 
         <Tabs defaultValue="new">
@@ -1663,5 +1723,6 @@ export default function BankTransactionsPage() {
     </div>
   );
 }
+
 
 
