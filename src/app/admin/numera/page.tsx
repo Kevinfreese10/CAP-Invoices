@@ -5,8 +5,8 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowRight, Settings, PlusCircle, MoreHorizontal, Trash2 } from 'lucide-react';
-import { getFirestore, collection, query, getDocs, doc, deleteDoc, addDoc, writeBatch } from 'firebase/firestore';
+import { Loader2, ArrowRight, Settings, PlusCircle, MoreHorizontal, Trash2, Edit } from 'lucide-react';
+import { getFirestore, collection, query, getDocs, doc, deleteDoc, addDoc, writeBatch, setDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User, Task } from '@/lib/types';
 import Link from 'next/link';
@@ -28,6 +28,7 @@ export default function NumeraPage() {
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
     const [isFormOpen, setIsFormOpen] = useState(false);
+    const [selectedClient, setSelectedClient] = useState<Client | null>(null);
     const { user: currentUser } = useAuth();
 
     const fetchClients = async () => {
@@ -52,6 +53,16 @@ export default function NumeraPage() {
     useEffect(() => {
         fetchClients();
     }, []);
+    
+    const handleAdd = () => {
+        setSelectedClient(null);
+        setIsFormOpen(true);
+    };
+
+    const handleEdit = (client: Client) => {
+        setSelectedClient(client);
+        setIsFormOpen(true);
+    };
 
     const handleFormSubmit = async (data: any) => {
         if (!currentUser) return;
@@ -64,20 +75,29 @@ export default function NumeraPage() {
             role: 'client',
             source: 'Numera',
             hasNumeraProfile: true, 
-            chartOfAccounts: initialChartOfAccounts,
-            allocationRules: initialAllocationRules,
-            importedTransactions: [],
-            allocatedTransactions: [],
         };
+        
+        if (!selectedClient) {
+            clientData.chartOfAccounts = initialChartOfAccounts;
+            clientData.allocationRules = initialAllocationRules;
+            clientData.importedTransactions = [];
+            clientData.allocatedTransactions = [];
+        }
 
         try {
-            const newDocRef = await addDoc(collection(db, "numeraClients"), clientData);
-            toast({ title: 'Client Created', description: 'The new client has been added to Numera.'});
+            if (selectedClient?.id) {
+                await setDoc(doc(db, "numeraClients", selectedClient.id), clientData, { merge: true });
+                toast({ title: 'Client Updated' });
+            } else {
+                const newDocRef = await addDoc(collection(db, "numeraClients"), clientData);
+                toast({ title: 'Client Created', description: 'The new client has been added to Numera.'});
+            }
             fetchClients();
             setIsFormOpen(false);
+            setSelectedClient(null);
         } catch (error) {
             console.error("Error creating Numera client:", error);
-            toast({ title: 'Error', description: 'Could not create the new client.', variant: 'destructive'});
+            toast({ title: 'Error', description: 'Could not save the client.', variant: 'destructive'});
         }
     };
 
@@ -103,22 +123,22 @@ export default function NumeraPage() {
             <div className="flex items-center justify-between">
                 <h1 className="text-3xl font-bold tracking-tight">Numera Accounting</h1>
                 <div className="flex items-center gap-2">
-                    <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+                    <Dialog open={isFormOpen} onOpenChange={(isOpen) => { setIsFormOpen(isOpen); if (!isOpen) setSelectedClient(null); }}>
                        <DialogTrigger asChild>
-                            <Button>
+                            <Button onClick={handleAdd}>
                                 <PlusCircle className="mr-2 h-4 w-4" />
                                 Create Client
                             </Button>
                        </DialogTrigger>
                        <DialogContent className="sm:max-w-xl">
                             <DialogHeader>
-                                <DialogTitle>Create New Numera Client</DialogTitle>
+                                <DialogTitle>{selectedClient ? 'Edit' : 'Create New'} Numera Client</DialogTitle>
                                 <DialogDescription>
                                     Add a new client to the Numera Accounting module.
                                 </DialogDescription>
                             </DialogHeader>
                             <ClientForm 
-                                client={null} 
+                                client={selectedClient} 
                                 onSubmit={handleFormSubmit}
                                 onCancel={() => setIsFormOpen(false)}
                                 isNumeraClient={true}
@@ -183,9 +203,12 @@ export default function NumeraPage() {
                                                         </DropdownMenuTrigger>
                                                         <DropdownMenuContent align="end">
                                                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                            <DropdownMenuItem onSelect={() => handleEdit(client)}>
+                                                                <Edit className="mr-2 h-4 w-4" /> Edit Client
+                                                            </DropdownMenuItem>
                                                             <AlertDialogTrigger asChild>
                                                                 <DropdownMenuItem className="text-destructive">
-                                                                    <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                                                    <Trash2 className="mr-2 h-4 w-4" /> Delete Client
                                                                 </DropdownMenuItem>
                                                             </AlertDialogTrigger>
                                                         </DropdownMenuContent>
