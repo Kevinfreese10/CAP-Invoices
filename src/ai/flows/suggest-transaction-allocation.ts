@@ -9,7 +9,7 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import {z} from 'zod';
 import { allVatTypes } from '@/lib/vat-types';
 import { googleAI } from '@genkit-ai/google-genai';
 
@@ -58,7 +58,7 @@ const suggestTransactionAllocationFlow = ai.defineFlow(
     outputSchema: SuggestTransactionAllocationOutputSchema,
   },
   async (input) => {
-    const { output } = await prompt(input, { model: googleAI.model('gemini-1.5-pro-latest') });
+    const { output } = await prompt(input, { model: googleAI.model('gemini-1.5-pro') });
     return output!;
   }
 );
