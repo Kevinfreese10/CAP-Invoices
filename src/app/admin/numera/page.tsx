@@ -25,7 +25,7 @@ export default function NumeraPage() {
         const fetchClients = async () => {
             setIsLoading(true);
             try {
-                const q = query(collection(db, "clients"), where("source", "==", "Numera"));
+                const q = query(collection(db, "clients"), where("hasNumeraProfile", "==", true));
                 const querySnapshot = await getDocs(q);
                 const fetchedClients = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Client));
                 setClients(fetchedClients);
