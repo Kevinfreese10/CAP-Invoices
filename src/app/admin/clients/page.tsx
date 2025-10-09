@@ -675,13 +675,13 @@ export default function AdminClientsPage() {
         payrollDueDate: data.payrollDueDate || null,
         role: 'client',
         source: 'Client Management',
-        chartOfAccounts: initialChartOfAccounts, // Always add chart of accounts
-        allocationRules: initialAllocationRules, // Always add allocation rules
     };
     
     if (createNumeraProfile) {
         clientData.hasNumeraProfile = true;
         clientData.source = 'Numera';
+        clientData.chartOfAccounts = initialChartOfAccounts;
+        clientData.allocationRules = initialAllocationRules;
     }
 
     try {
@@ -867,6 +867,7 @@ export default function AdminClientsPage() {
     </div>
   );
 }
+
 
 
 
