@@ -11,7 +11,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { allVatTypes } from '@/lib/vat-types';
-import { googleAI } from '@genkit-ai/googleai';
+import { googleAI } from '@genkit-ai/google-genai';
 
 const SuggestTransactionAllocationInputSchema = z.object({
   description: z.string().describe('The bank transaction description (e.g., "PICK N PAY RETAILERS").'),
