@@ -651,6 +651,7 @@ export default function AdminClientsPage() {
   };
   
   const deleteRecurringTasks = async (clientId: string) => {
+    if (!clientId) return 0;
     const tasksQuery = query(collection(db, 'tasks'), where('clientId', '==', clientId));
     const querySnapshot = await getDocs(tasksQuery);
     const batch = writeBatch(db);
@@ -866,6 +867,7 @@ export default function AdminClientsPage() {
     </div>
   );
 }
+
 
 
 
