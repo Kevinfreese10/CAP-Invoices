@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -155,12 +156,12 @@ function ImportDialog({
             }
             dateCounters[dateKey]++;
             const sequence = String(dateCounters[dateKey]).padStart(2, '0');
-            const reference = `${dateKey}${sequence}`;
 
             return {
                 id: `import-${Date.now()}-${index}`,
                 date: date.toISOString().split('T')[0], // YYYY-MM-DD
-                description: `${reference} ${descriptionStr}`,
+                reference: `${dateKey}${sequence}`,
+                description: descriptionStr,
                 amount: amount,
             };
         }).filter(Boolean) as Omit<ImportedTransaction, 'clientId' | 'bankAccountId'>[];
@@ -346,6 +347,7 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                 const accountDescription = account ? `${account.accountNumber} - ${account.description}` : '';
 
                 return (
+                    tx.reference.toLowerCase().includes(lowercasedFilter) ||
                     tx.description.toLowerCase().includes(lowercasedFilter) ||
                     accountDescription.toLowerCase().includes(lowercasedFilter) ||
                     tx.vatType.toLowerCase().replace(/_/g, ' ').includes(lowercasedFilter) ||
@@ -467,6 +469,7 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                                     />
                                 </TableHead>
                                 <SortableHeader sortKey="date">Date</SortableHeader>
+                                <SortableHeader sortKey="reference">Reference</SortableHeader>
                                 <SortableHeader sortKey="description">Description</SortableHeader>
                                 <SortableHeader sortKey="allocatedTo">Allocated To</SortableHeader>
                                 {isVatRegistered && <SortableHeader sortKey="vatType">VAT Type</SortableHeader>}
@@ -478,7 +481,7 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                         <TableBody>
                             {sortedAndFilteredTransactions.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={8} className="text-center h-24 text-muted-foreground">
+                                    <TableCell colSpan={9} className="text-center h-24 text-muted-foreground">
                                         No reviewed transactions match your search.
                                     </TableCell>
                                 </TableRow>
@@ -497,6 +500,7 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                                                 />
                                             </TableCell>
                                             <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
+                                            <TableCell>{tx.reference}</TableCell>
                                             <TableCell>{tx.description}</TableCell>
                                             <TableCell className="w-[250px]">
                                                 <Select
@@ -1508,6 +1512,7 @@ export default function BankTransactionsPage() {
                                         />
                                     </TableHead>
                                     <SortableHeader sortKey="date">Date</SortableHeader>
+                                    <SortableHeader sortKey="reference">Reference</SortableHeader>
                                     <SortableHeader sortKey="description">Description</SortableHeader>
                                     <TableHead>Allocate To</TableHead>
                                     {isVatRegistered && <TableHead>VAT Type</TableHead>}
@@ -1539,6 +1544,7 @@ export default function BankTransactionsPage() {
                                                 />
                                             </TableCell>
                                             <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
+                                            <TableCell>{tx.reference}</TableCell>
                                             <TableCell>{tx.description}</TableCell>
                                             <TableCell>
                                                 <Select>
@@ -1584,6 +1590,7 @@ export default function BankTransactionsPage() {
                                  <TableRow>
                                     <TableCell className="p-2"></TableCell>
                                     <TableCell><Input className="h-8" placeholder="Date" /></TableCell>
+                                    <TableCell><Input className="h-8" placeholder="Ref" /></TableCell>
                                     <TableCell><Input className="h-8" placeholder="Description" /></TableCell>
                                     <TableCell>
                                         <Select>
@@ -1656,4 +1663,5 @@ export default function BankTransactionsPage() {
     </div>
   );
 }
+
 

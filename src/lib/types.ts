@@ -209,6 +209,7 @@ export type ImportedTransaction = {
     id: string;
     clientId: string;
     date: string;
+    reference: string;
     description: string;
     amount: number;
     bankAccountId: string;
@@ -218,6 +219,7 @@ export type AllocatedTransaction = {
     id: string;
     clientId: string;
     date: string;
+    reference: string;
     description: string;
     amount: number;
     bankAccountId: string;
