@@ -40,7 +40,8 @@ const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(price);
 };
 
-const calculateVat = (amount: number, vatType: VatType): number => {
+const calculateVat = (amount: number, vatType: VatType, isVatRegistered: boolean): number => {
+    if (!isVatRegistered) return 0;
     const isStandardVat = vatType === 'standard_rated_purchases' || vatType === 'standard_rated_sales' || vatType === 'capital_goods_purchases';
     if (isStandardVat) {
         // Assuming amount is VAT inclusive
@@ -270,6 +271,8 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
     const [sortConfig, setSortConfig] = useState<{ key: keyof AllocatedTransaction; direction: 'ascending' | 'descending' } | null>({ key: 'date', direction: 'descending' });
     const { toast } = useToast();
 
+    const isVatRegistered = client?.isVatRegistered || false;
+
     const handleBulkDelete = async () => {
         if (!client || selectedTransactions.length === 0) return;
 
@@ -400,12 +403,6 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                             </DropdownMenuTrigger>
                             <DropdownMenuContent>
                                 <DropdownMenuItem onSelect={handleBulkMarkAsNew}>Mark as New</DropdownMenuItem>
-                                <DropdownMenuSub>
-                                    <DropdownMenuSubTrigger>Move To</DropdownMenuSubTrigger>
-                                    <DropdownMenuSubContent>
-                                         <DropdownMenuItem>Other Account</DropdownMenuItem>
-                                    </DropdownMenuSubContent>
-                                </DropdownMenuSub>
                                 <Separator />
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
@@ -458,9 +455,9 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                                 <SortableHeader sortKey="date">Date</SortableHeader>
                                 <SortableHeader sortKey="description">Description</SortableHeader>
                                 <SortableHeader sortKey="allocatedTo">Allocated To</SortableHeader>
-                                <SortableHeader sortKey="vatType">VAT Type</SortableHeader>
+                                {isVatRegistered && <SortableHeader sortKey="vatType">VAT Type</SortableHeader>}
                                 <SortableHeader sortKey="amount">Amount</SortableHeader>
-                                <SortableHeader sortKey="vatAmount">VAT Amount</SortableHeader>
+                                {isVatRegistered && <SortableHeader sortKey="vatAmount">VAT Amount</SortableHeader>}
                                 <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -504,25 +501,27 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                                                     </SelectContent>
                                                 </Select>
                                             </TableCell>
-                                            <TableCell className="w-[200px]">
-                                                <Select
-                                                    value={tx.vatType}
-                                                    onValueChange={(newValue: VatType) => onUpdateAllocation(tx.id, { vatType: newValue, vatAmount: calculateVat(tx.amount, newValue) })}
-                                                >
-                                                    <SelectTrigger className="h-8">
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {allVatTypes.map(vt => (
-                                                            <SelectItem key={vt.name} value={vt.name}>
-                                                                {vt.label}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </TableCell>
+                                            {isVatRegistered && (
+                                                <TableCell className="w-[200px]">
+                                                    <Select
+                                                        value={tx.vatType}
+                                                        onValueChange={(newValue: VatType) => onUpdateAllocation(tx.id, { vatType: newValue, vatAmount: calculateVat(tx.amount, newValue, isVatRegistered) })}
+                                                    >
+                                                        <SelectTrigger className="h-8">
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {allVatTypes.map(vt => (
+                                                                <SelectItem key={vt.name} value={vt.name}>
+                                                                    {vt.label}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </TableCell>
+                                            )}
                                             <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
-                                            <TableCell className="text-right font-mono">{formatPrice(tx.vatAmount)}</TableCell>
+                                            {isVatRegistered && <TableCell className="text-right font-mono">{formatPrice(tx.vatAmount)}</TableCell>}
                                             <TableCell className="text-right">
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
@@ -561,6 +560,7 @@ function CreateRuleDialog({ isOpen, onClose, onSave, transaction, client }: {
     transaction: ImportedTransaction | AllocatedTransaction | null;
     client: User | null;
 }) {
+    const isVatRegistered = client?.isVatRegistered || false;
     const form = useForm<z.infer<typeof ruleFormSchema>>({
         resolver: zodResolver(ruleFormSchema),
         defaultValues: { scope: 'client', vatType: 'no_vat' }
@@ -573,18 +573,18 @@ function CreateRuleDialog({ isOpen, onClose, onSave, transaction, client }: {
                 description: transaction.description,
                 keywords: transaction.description.split(' ').filter(s => s.length > 3).join(', '),
                 accountId: allocatedTx.allocatedTo?.value || '',
-                vatType: allocatedTx.vatType || 'no_vat',
+                vatType: isVatRegistered ? (allocatedTx.vatType || 'no_vat') : 'no_vat',
                 scope: 'client',
             });
         }
-    }, [transaction, form]);
+    }, [transaction, form, isVatRegistered]);
 
     const handleSave = (values: z.infer<typeof ruleFormSchema>) => {
         const ruleData = {
             description: values.description,
             keywords: values.keywords.split(',').map(k => k.trim().toLowerCase()),
             accountId: values.accountId,
-            vatType: values.vatType,
+            vatType: isVatRegistered ? values.vatType : 'no_vat',
         };
         onSave(ruleData, values.scope);
         onClose();
@@ -602,7 +602,7 @@ function CreateRuleDialog({ isOpen, onClose, onSave, transaction, client }: {
                         <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Rule Description</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )}/>
                         <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords (comma-separated)</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem> )}/>
                         <FormField control={form.control} name="accountId" render={({ field }) => ( <FormItem><FormLabel>Allocate To Account</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl><SelectContent>{client?.chartOfAccounts?.map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.accountNumber} - {acc.description}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
-                        <FormField control={form.control} name="vatType" render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                        {isVatRegistered && <FormField control={form.control} name="vatType" render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>}
                          <FormField control={form.control} name="scope" render={({ field }) => (
                             <FormItem className="space-y-3"><FormLabel>Rule Scope</FormLabel><FormControl>
                                 <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-col space-y-1">
@@ -829,7 +829,7 @@ function RuleForm({ initialData, onSave, onCancel, client } : {
                 <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Rule Description</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )}/>
                 <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords (comma-separated)</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem> )}/>
                 <FormField control={form.control} name="accountId" render={({ field }) => ( <FormItem><FormLabel>Allocate To Account</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl><SelectContent>{client?.chartOfAccounts?.map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.accountNumber} - {acc.description}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="vatType" render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                {client?.isVatRegistered && <FormField control={form.control} name="vatType" render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>}
                 <FormField control={form.control} name="scope" render={({ field }) => (
                     <FormItem className="space-y-3"><FormLabel>Rule Scope</FormLabel><FormControl>
                         <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-col space-y-1">
@@ -928,6 +928,7 @@ export default function BankTransactionsPage() {
   const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: keyof ImportedTransaction; direction: 'ascending' | 'descending' } | null>({ key: 'date', direction: 'descending' });
 
+  const isVatRegistered = client?.isVatRegistered || false;
 
   const fetchClientAndRules = async () => {
     if (!clientId) return;
@@ -985,8 +986,8 @@ export default function BankTransactionsPage() {
             allocated.push({
                 ...tx,
                 allocatedTo: { value: matchedRule.accountId, type: 'account' as const },
-                vatType: matchedRule.vatType,
-                vatAmount: calculateVat(tx.amount, matchedRule.vatType),
+                vatType: isVatRegistered ? matchedRule.vatType : 'no_vat',
+                vatAmount: calculateVat(tx.amount, matchedRule.vatType, isVatRegistered),
                 allocatedAt: new Date(),
             });
             allocatedCount++;
@@ -1172,8 +1173,8 @@ export default function BankTransactionsPage() {
           newAllocated.push({
             ...tx,
             allocatedTo: { value: suggestion.accountId, type: 'account' as const },
-            vatType: suggestion.vatType,
-            vatAmount: calculateVat(tx.amount, suggestion.vatType),
+            vatType: isVatRegistered ? suggestion.vatType : 'no_vat',
+            vatAmount: calculateVat(tx.amount, suggestion.vatType, isVatRegistered),
             allocatedAt: new Date(),
           });
           allocatedCount++;
@@ -1295,7 +1296,7 @@ export default function BankTransactionsPage() {
                 ...tx,
                 allocatedTo: { value: newRule.accountId, type: 'account' as const },
                 vatType: newRule.vatType,
-                vatAmount: calculateVat(tx.amount, newRule.vatType),
+                vatAmount: calculateVat(tx.amount, newRule.vatType, isVatRegistered),
                 allocatedAt: new Date(),
             }));
             
@@ -1435,7 +1436,6 @@ export default function BankTransactionsPage() {
                                                     ))}
                                                 </DropdownMenuSubContent>
                                             </DropdownMenuSub>
-                                            <DropdownMenuItem>Mark as Reviewed</DropdownMenuItem>
                                             <Separator />
                                             <AlertDialog>
                                                 <AlertDialogTrigger asChild>
@@ -1495,9 +1495,8 @@ export default function BankTransactionsPage() {
                                     </TableHead>
                                     <SortableHeader sortKey="date">Date</SortableHeader>
                                     <SortableHeader sortKey="description">Description</SortableHeader>
-                                    <TableHead>Reference</TableHead>
                                     <TableHead>Allocate To</TableHead>
-                                    <TableHead>VAT Type</TableHead>
+                                    {isVatRegistered && <TableHead>VAT Type</TableHead>}
                                     <SortableHeader sortKey="amount">Spent</SortableHeader>
                                     <SortableHeader sortKey="amount">Received</SortableHeader>
                                     <TableHead>Actions</TableHead>
@@ -1527,7 +1526,6 @@ export default function BankTransactionsPage() {
                                             </TableCell>
                                             <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                             <TableCell>{tx.description}</TableCell>
-                                            <TableCell></TableCell>
                                             <TableCell>
                                                 <Select>
                                                     <SelectTrigger className="h-8 w-[200px]">
@@ -1542,20 +1540,22 @@ export default function BankTransactionsPage() {
                                                     </SelectContent>
                                                 </Select>
                                             </TableCell>
-                                             <TableCell>
-                                                <Select>
-                                                    <SelectTrigger className="h-8 w-[180px]">
-                                                        <SelectValue placeholder="Select VAT type" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {allVatTypes.map(vt => (
-                                                            <SelectItem key={vt.name} value={vt.name}>
-                                                                {vt.label}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </TableCell>
+                                            {isVatRegistered && (
+                                                 <TableCell>
+                                                    <Select>
+                                                        <SelectTrigger className="h-8 w-[180px]">
+                                                            <SelectValue placeholder="Select VAT type" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {allVatTypes.map(vt => (
+                                                                <SelectItem key={vt.name} value={vt.name}>
+                                                                    {vt.label}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </TableCell>
+                                            )}
                                             <TableCell className="text-right">{tx.amount < 0 ? formatPrice(Math.abs(tx.amount)) : ''}</TableCell>
                                             <TableCell className="text-right">{tx.amount >= 0 ? formatPrice(tx.amount) : ''}</TableCell>
                                             <TableCell>
@@ -1571,19 +1571,20 @@ export default function BankTransactionsPage() {
                                     <TableCell className="p-2"></TableCell>
                                     <TableCell><Input className="h-8" placeholder="Date" /></TableCell>
                                     <TableCell><Input className="h-8" placeholder="Description" /></TableCell>
-                                    <TableCell><Input className="h-8" placeholder="Reference" /></TableCell>
                                     <TableCell>
                                         <Select>
                                             <SelectTrigger className="h-8 w-[200px]"><SelectValue placeholder="Select account" /></SelectTrigger>
                                             <SelectContent>{client?.chartOfAccounts?.map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.accountNumber} - {acc.description}</SelectItem>))}</SelectContent>
                                         </Select>
                                     </TableCell>
-                                    <TableCell>
-                                        <Select>
-                                            <SelectTrigger className="h-8 w-[180px]"><SelectValue placeholder="Select VAT type" /></SelectTrigger>
-                                            <SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent>
-                                        </Select>
-                                    </TableCell>
+                                     {isVatRegistered && (
+                                        <TableCell>
+                                            <Select>
+                                                <SelectTrigger className="h-8 w-[180px]"><SelectValue placeholder="Select VAT type" /></SelectTrigger>
+                                                <SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent>
+                                            </Select>
+                                        </TableCell>
+                                     )}
                                     <TableCell><Input className="h-8" placeholder="R" /></TableCell>
                                     <TableCell><Input className="h-8" placeholder="R" /></TableCell>
                                      <TableCell>

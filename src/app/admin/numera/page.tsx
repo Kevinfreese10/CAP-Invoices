@@ -29,16 +29,10 @@ export default function NumeraPage() {
     const { toast } = useToast();
     const [isFormOpen, setIsFormOpen] = useState(false);
     const { user: currentUser } = useAuth();
-    const [allStaff, setAllStaff] = useState<User[]>([]);
 
-    const fetchClientsAndStaff = async () => {
+    const fetchClients = async () => {
         setIsLoading(true);
         try {
-            const staffQuery = query(collection(db, "users"));
-            const staffSnapshot = await getDocs(staffQuery);
-            const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
-            setAllStaff(fetchedStaff);
-
             const q = query(collection(db, "numeraClients"));
             const querySnapshot = await getDocs(q);
             const fetchedClients = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Client));
@@ -56,31 +50,30 @@ export default function NumeraPage() {
     };
     
     useEffect(() => {
-        fetchClientsAndStaff();
+        fetchClients();
     }, []);
 
     const handleFormSubmit = async (data: any) => {
         if (!currentUser) return;
         
-        const { createNumeraProfile, ...clientFormData } = data;
-
-        const clientData = {
-            ...clientFormData,
-            financialsDueDate: data.financialsDueDate || null,
-            managementAccountsDueDate: data.requiresManagementAccounts ? data.managementAccountsDueDate : null,
-            vatCategory: data.isVatRegistered ? data.vatCategory : null,
-            payrollDueDate: data.payrollDueDate || null,
+        const clientData: Partial<User> = {
+            name: data.name,
+            companyName: data.name,
+            yearEnd: data.yearEnd,
+            isVatRegistered: data.isVatRegistered,
             role: 'client',
             source: 'Numera',
             hasNumeraProfile: true, 
             chartOfAccounts: initialChartOfAccounts,
             allocationRules: initialAllocationRules,
+            importedTransactions: [],
+            allocatedTransactions: [],
         };
 
         try {
             const newDocRef = await addDoc(collection(db, "numeraClients"), clientData);
             toast({ title: 'Client Created', description: 'The new client has been added to Numera.'});
-            fetchClientsAndStaff();
+            fetchClients();
             setIsFormOpen(false);
         } catch (error) {
             console.error("Error creating Numera client:", error);
@@ -90,28 +83,18 @@ export default function NumeraPage() {
 
     const handleDelete = async (clientId: string) => {
         try {
-            const batch = writeBatch(db);
-
             const clientRef = doc(db, "numeraClients", clientId);
-            batch.delete(clientRef);
-            
-            const tasksQuery = query(collection(db, 'tasks'), where('clientId', '==', clientId));
-            const tasksSnapshot = await getDocs(tasksQuery);
-            tasksSnapshot.docs.forEach(taskDoc => {
-                batch.delete(taskDoc.ref);
-            });
-
-            await batch.commit();
+            await deleteDoc(clientRef);
             
             toast({
                 title: 'Client Deleted',
-                description: `The Numera client and their ${tasksSnapshot.size} associated tasks have been removed.`,
+                description: `The Numera client has been removed.`,
                 variant: 'destructive',
             });
-            fetchClientsAndStaff();
+            fetchClients();
         } catch (error) {
             console.error("Error deleting client:", error);
-            toast({ title: 'Error', description: 'Could not delete Numera client and their tasks.', variant: 'destructive' });
+            toast({ title: 'Error', description: 'Could not delete Numera client.', variant: 'destructive' });
         }
     };
 
@@ -127,7 +110,7 @@ export default function NumeraPage() {
                                 Create Client
                             </Button>
                        </DialogTrigger>
-                       <DialogContent className="sm:max-w-2xl">
+                       <DialogContent className="sm:max-w-xl">
                             <DialogHeader>
                                 <DialogTitle>Create New Numera Client</DialogTitle>
                                 <DialogDescription>
@@ -138,7 +121,7 @@ export default function NumeraPage() {
                                 client={null} 
                                 onSubmit={handleFormSubmit}
                                 onCancel={() => setIsFormOpen(false)}
-                                allStaff={allStaff}
+                                isNumeraClient={true}
                             />
                        </DialogContent>
                     </Dialog>
@@ -172,8 +155,8 @@ export default function NumeraPage() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>Company Name</TableHead>
-                                    <TableHead>Contact Person</TableHead>
-                                    <TableHead>Email</TableHead>
+                                    <TableHead>Year End</TableHead>
+                                    <TableHead>VAT Registered</TableHead>
                                     <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -181,8 +164,8 @@ export default function NumeraPage() {
                                 {clients.map(client => (
                                     <TableRow key={client.id}>
                                         <TableCell className="font-medium">{client.companyName || client.name}</TableCell>
-                                        <TableCell>{client.contactPerson}</TableCell>
-                                        <TableCell>{client.email}</TableCell>
+                                        <TableCell>{client.yearEnd || 'N/A'}</TableCell>
+                                        <TableCell>{client.isVatRegistered ? 'Yes' : 'No'}</TableCell>
                                         <TableCell className="text-right">
                                              <div className="flex items-center justify-end gap-2">
                                                 <Button variant="ghost" size="sm" asChild>
