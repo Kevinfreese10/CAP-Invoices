@@ -1333,19 +1333,35 @@ export default function BankTransactionsPage() {
 
   const handleCreateAccount = async (account: Omit<ChartOfAccount, 'id' | 'section'>) => {
     if (!client) return;
+    
     const newAccount: ChartOfAccount = {
         ...account,
-        id: account.accountNumber, // Use account number as ID for new accounts
+        id: account.accountNumber,
         section: 'Balance Sheet',
     };
     try {
         const clientRef = doc(db, 'clients', client.id);
+        // Firestore's arrayUnion has issues with deep object merges.
+        // It's safer to read the existing array, add the new item, and write the whole array back.
+        const clientSnap = await getDoc(clientRef);
+        const existingClientData = clientSnap.data() as User;
+        const existingAccounts = existingClientData.chartOfAccounts || [];
+        
+        // Check if account number already exists
+        if (existingAccounts.some(acc => acc.accountNumber === newAccount.accountNumber)) {
+            toast({ title: 'Account Exists', description: `An account with number ${newAccount.accountNumber} already exists.`, variant: 'destructive'});
+            return;
+        }
+        
+        const updatedAccounts = [...existingAccounts, newAccount];
+
         await updateDoc(clientRef, {
-            chartOfAccounts: arrayUnion(newAccount)
+            chartOfAccounts: updatedAccounts
         });
+
         toast({ title: 'Bank Account Created', description: `Account ${newAccount.description} has been added.` });
-        await fetchClientAndRules(); // Refresh data
-        setSelectedAccountId(newAccount.id); // Select the new account
+        await fetchClientAndRules();
+        setSelectedAccountId(newAccount.id);
     } catch (error) {
         toast({ title: 'Creation Failed', description: 'Could not create the new account.', variant: 'destructive'});
         console.error(error);
