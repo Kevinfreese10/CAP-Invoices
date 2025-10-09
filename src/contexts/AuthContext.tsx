@@ -16,7 +16,7 @@ const auth = getAuth(firebaseApp);
 interface AuthContextType {
   user: User | null;
   login: (email: string, password?: string) => Promise<User | 'invalid_role' | 'invalid_credentials' | undefined>;
-  reauthenticate: (currentUser: User) => Promise<User | 'invalid_credentials' | undefined>;
+  reauthenticate: (currentUser: FirebaseUser) => Promise<User | 'invalid_credentials' | undefined>;
   logout: () => void;
   signup: (name: string, email: string) => User;
   updateUser: (updatedUser: User | null) => void;
@@ -95,7 +95,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const reauthenticate = async (firebaseUser: FirebaseUser | User): Promise<User | 'invalid_credentials' | undefined> => {
+  const reauthenticate = async (firebaseUser: FirebaseUser): Promise<User | 'invalid_credentials' | undefined> => {
         if (!firebaseUser.email) return 'invalid_credentials';
         const usersRef = collection(db, "users");
         const q = query(usersRef, where("email", "==", firebaseUser.email));
@@ -121,7 +121,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         if (foundUser.role !== 'admin' && foundUser.role !== 'staff' && foundUser.role !== 'reseller') {
             await auth.signOut();
-            return 'invalid_role';
+            // This is actually an invalid role, but we can treat it as invalid creds for simplicity
+            return 'invalid_credentials';
         }
 
         if (foundUser.uid !== firebaseUser.uid) {

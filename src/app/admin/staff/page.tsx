@@ -19,7 +19,7 @@ import { User } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc, query, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
+import { getAuth, createUserWithEmailAndPassword, User as FirebaseUser } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
 
 const db = getFirestore(firebaseApp);
@@ -173,8 +173,9 @@ export default function AdminStaffPage() {
             });
 
             // 3. Re-authenticate the admin user to restore their session
-            if(adminUser) {
-              await reauthenticate(adminUser);
+            const currentAuthUser = auth.currentUser;
+            if(currentAuthUser) {
+              await reauthenticate(currentAuthUser);
             }
 
             toast({ title: 'Staff Member Created', description: 'The new staff member has been added.' });
