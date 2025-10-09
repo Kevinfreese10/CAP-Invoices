@@ -10,7 +10,7 @@ import { Loader2, Download } from "lucide-react";
 import { useParams } from 'next/navigation';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { User, AllocatedTransaction, ImportedTransaction } from '@/lib/types';
+import { User, AllocatedTransaction, ImportedTransaction, ChartOfAccount } from '@/lib/types';
 import {
   Dialog,
   DialogContent,
@@ -46,61 +46,100 @@ const formatPrice = (price: number) => {
     }).format(price);
 };
 
+function getFinancialYearStart(date: Date, endMonthName?: string) {
+    const endMonth = endMonthName ? new Date(`${endMonthName} 1, 2000`).getMonth() : 1; // Default to Feb if not provided
+    const currentMonth = date.getMonth();
+    let year = date.getFullYear();
+
+    if (currentMonth > endMonth) {
+        return new Date(year, endMonth, 1);
+    } else {
+        return new Date(year - 1, endMonth, 1);
+    }
+}
+
 function TrialBalanceReport({ client, dateRange }: { client: User, dateRange?: DateRange }) {
     
-    const filterByDate = (transactions: (AllocatedTransaction | ImportedTransaction)[]) => {
-        if (!dateRange || (!dateRange.from && !dateRange.to)) {
-            return transactions;
-        }
-        return transactions.filter(tx => {
-            const txDate = new Date(tx.date);
-            if (dateRange.from && dateRange.to) {
-                return txDate >= dateRange.from && txDate <= dateRange.to;
-            }
-            if (dateRange.from) {
-                return txDate >= dateRange.from;
-            }
-            if (dateRange.to) {
-                return txDate <= dateRange.to;
-            }
-            return true;
-        });
-    }
-
     const accountBalances = useMemo(() => {
         const balances = new Map<string, number>();
-
-        // Initialize all accounts from master chart with 0 balance
+        const allTransactions: (AllocatedTransaction | ImportedTransaction)[] = [
+            ...(client.allocatedTransactions || []),
+            ...(client.importedTransactions || []),
+        ];
+        
         client.chartOfAccounts?.forEach(acc => {
             balances.set(acc.id, 0);
         });
 
+        const reportStartDate = dateRange?.from || getFinancialYearStart(new Date(), client.yearEnd);
+        const retainedIncomeAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '5200/000');
         const suspenseAccountId = client.chartOfAccounts?.find(acc => acc.accountNumber === '9950/000')?.id;
         const vatControlAccountId = client.chartOfAccounts?.find(acc => acc.accountNumber === '9500/000')?.id;
 
-        const filteredAllocated = filterByDate(client.allocatedTransactions || []) as AllocatedTransaction[];
-        const filteredImported = filterByDate(client.importedTransactions || []) as ImportedTransaction[];
-        
-        // Process allocated transactions
-        filteredAllocated.forEach(tx => {
-            balances.set(tx.bankAccountId, (balances.get(tx.bankAccountId) || 0) + tx.amount);
-            const vatAmount = tx.vatAmount || 0;
-            const exclusiveAmount = tx.amount - vatAmount;
-            
-            // The expense/income account gets the exclusive amount
-            balances.set(tx.allocatedTo.value, (balances.get(tx.allocatedTo.value) || 0) - exclusiveAmount);
+        let priorPeriodRetainedIncome = 0;
 
-            // The VAT portion goes to the VAT control account
-            if (vatControlAccountId && vatAmount !== 0) {
-                 balances.set(vatControlAccountId, (balances.get(vatControlAccountId) || 0) - vatAmount);
+        // 1. Calculate opening balances from transactions BEFORE the report start date
+        allTransactions.forEach(tx => {
+            const txDate = new Date(tx.date);
+            if (txDate < reportStartDate) {
+                const processTransaction = (accountId: string, amount: number) => {
+                    const account = client.chartOfAccounts?.find(a => a.id === accountId);
+                    if (account) {
+                        if (account.section === 'Balance Sheet') {
+                            balances.set(accountId, (balances.get(accountId) || 0) + amount);
+                        } else { // Income Statement
+                            priorPeriodRetainedIncome += amount;
+                        }
+                    }
+                };
+                
+                const isAllocated = 'allocatedTo' in tx;
+                processTransaction(tx.bankAccountId, tx.amount);
+
+                if (isAllocated) {
+                    const allocatedTx = tx as AllocatedTransaction;
+                    const vatAmount = allocatedTx.vatAmount || 0;
+                    const exclusiveAmount = allocatedTx.amount - vatAmount;
+                    processTransaction(allocatedTx.allocatedTo.value, -exclusiveAmount);
+                    if (vatControlAccountId && vatAmount !== 0) {
+                        processTransaction(vatControlAccountId, -vatAmount);
+                    }
+                } else {
+                     if (suspenseAccountId) {
+                        processTransaction(suspenseAccountId, -tx.amount);
+                    }
+                }
             }
         });
+        
+        if (retainedIncomeAccount) {
+            balances.set(retainedIncomeAccount.id, (balances.get(retainedIncomeAccount.id) || 0) - priorPeriodRetainedIncome);
+        }
 
-        // Process unallocated (imported) transactions
-        filteredImported.forEach(tx => {
-            balances.set(tx.bankAccountId, (balances.get(tx.bankAccountId) || 0) + tx.amount);
-            if (suspenseAccountId) {
-                balances.set(suspenseAccountId, (balances.get(suspenseAccountId) || 0) - tx.amount);
+        // 2. Process transactions within the current period
+        allTransactions.forEach(tx => {
+            const txDate = new Date(tx.date);
+            if (txDate >= reportStartDate && (!dateRange?.to || txDate <= dateRange.to)) {
+                 const processTransaction = (accountId: string, amount: number) => {
+                    balances.set(accountId, (balances.get(accountId) || 0) + amount);
+                };
+                
+                const isAllocated = 'allocatedTo' in tx;
+                processTransaction(tx.bankAccountId, tx.amount);
+                
+                 if (isAllocated) {
+                    const allocatedTx = tx as AllocatedTransaction;
+                    const vatAmount = allocatedTx.vatAmount || 0;
+                    const exclusiveAmount = allocatedTx.amount - vatAmount;
+                    processTransaction(allocatedTx.allocatedTo.value, -exclusiveAmount);
+                    if (vatControlAccountId && vatAmount !== 0) {
+                        processTransaction(vatControlAccountId, -vatAmount);
+                    }
+                } else {
+                     if (suspenseAccountId) {
+                        processTransaction(suspenseAccountId, -tx.amount);
+                    }
+                }
             }
         });
 
