@@ -104,6 +104,8 @@ function ImportDialog({
           toast({ title: "Unsupported File", description: "Please upload a CSV or Excel file.", variant: "destructive" });
           return;
         }
+        
+        const dateCounters: { [key: string]: number } = {};
 
         const mappedTransactions = transactions.map((row: any, index: number) => {
             const dateStr = row.Date || row.date || row.TransactionDate;
@@ -118,8 +120,8 @@ function ImportDialog({
             } else if (String(dateStr).includes('/')) { // DD/MM/YYYY or MM/DD/YYYY format
                 const parts = String(dateStr).split('/');
                 if (parts.length === 3) {
-                    // Assuming DD/MM/YYYY format as per example
-                    date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+                    const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+                    date = new Date(`${year}-${parts[1]}-${parts[0]}`);
                 } else {
                     date = new Date(dateStr);
                 }
@@ -127,7 +129,7 @@ function ImportDialog({
                 date = new Date(dateStr);
             }
 
-             if (isNaN(date.getTime())) {
+            if (isNaN(date.getTime())) {
                 console.warn(`Invalid date format for row ${index}: ${dateStr}`);
                 return null;
             }
@@ -142,11 +144,23 @@ function ImportDialog({
             }
 
             if (isNaN(amount)) return null;
+            
+            const yyyy = date.getFullYear();
+            const mm = String(date.getMonth() + 1).padStart(2, '0');
+            const dd = String(date.getDate()).padStart(2, '0');
+            const dateKey = `${yyyy}${mm}${dd}`;
+
+            if (!dateCounters[dateKey]) {
+                dateCounters[dateKey] = 0;
+            }
+            dateCounters[dateKey]++;
+            const sequence = String(dateCounters[dateKey]).padStart(2, '0');
+            const reference = `${dateKey}${sequence}`;
 
             return {
                 id: `import-${Date.now()}-${index}`,
                 date: date.toISOString().split('T')[0], // YYYY-MM-DD
-                description: descriptionStr,
+                description: `${reference} ${descriptionStr}`,
                 amount: amount,
             };
         }).filter(Boolean) as Omit<ImportedTransaction, 'clientId' | 'bankAccountId'>[];
@@ -1642,3 +1656,4 @@ export default function BankTransactionsPage() {
     </div>
   );
 }
+
