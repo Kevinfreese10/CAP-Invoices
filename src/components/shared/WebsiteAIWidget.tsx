@@ -1,43 +1,32 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { WebsiteQAndAOutput, websiteQAndA } from '@/ai/dev';
+import { websiteQAndA } from '@/ai/dev';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
-import { Loader2, Sparkles, History } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Progress } from '@/components/ui/progress';
-import Link from 'next/link';
+import { Loader2, MessageCircle, Send, X, Bot, User } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const formSchema = z.object({
-  question: z.string().min(10, 'Please ask a more detailed question.'),
+  question: z.string().min(1, 'Cannot send an empty message.'),
 });
 
-const RECENT_QUESTIONS_KEY = 'ai-widget-recent-questions';
-const MAX_RECENT_QUESTIONS = 3;
+type ChatMessage = {
+  role: 'user' | 'bot';
+  text: string;
+}
 
 export default function WebsiteAIWidget() {
-  const [response, setResponse] = useState<WebsiteQAndAOutput | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [recentQuestions, setRecentQuestions] = useState<string[]>([]);
-
-  useEffect(() => {
-    try {
-      const storedQuestions = localStorage.getItem(RECENT_QUESTIONS_KEY);
-      if (storedQuestions) {
-        setRecentQuestions(JSON.parse(storedQuestions));
-      }
-    } catch (e) {
-      console.error("Failed to parse recent questions from localStorage", e);
-    }
-  }, []);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -45,34 +34,38 @@ export default function WebsiteAIWidget() {
       question: '',
     },
   });
+
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [chatHistory]);
   
-  const handleExampleQuestionClick = (question: string) => {
-    form.setValue('question', question);
-    form.handleSubmit(onSubmit)();
-  };
+  useEffect(() => {
+    const welcomeMessage: ChatMessage = {
+      role: 'bot',
+      text: "Hello! I'm Khai, your AI assistant. How can I help you today? You can ask me about our services, pricing, or company information.",
+    };
+    setChatHistory([welcomeMessage]);
+  }, []);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    const userMessage: ChatMessage = { role: 'user', text: values.question };
+    setChatHistory(prev => [...prev, userMessage]);
     setIsLoading(true);
-    setResponse(null);
-    setError('');
-    try {
-      const response = await websiteQAndA({ question: values.question });
-      setResponse(response);
-      
-      // Update recent questions
-      setRecentQuestions(prev => {
-        const updatedQuestions = [values.question, ...prev.filter(q => q !== values.question)];
-        const uniqueQuestions = [...new Set(updatedQuestions)].slice(0, MAX_RECENT_QUESTIONS);
-        try {
-            localStorage.setItem(RECENT_QUESTIONS_KEY, JSON.stringify(uniqueQuestions));
-        } catch (e) {
-            console.error("Failed to save recent questions to localStorage", e);
-        }
-        return uniqueQuestions;
-      });
+    form.reset();
 
+    try {
+      const response = await websiteQAndA({ 
+        question: values.question,
+        // Include previous messages for conversational context
+        // history: chatHistory.map(m => ({ role: m.role, content: m.text }))
+       });
+      const botMessage: ChatMessage = { role: 'bot', text: response.answer };
+      setChatHistory(prev => [...prev, botMessage]);
     } catch (e) {
-      setError('Sorry, our AI is taking a break. Please try again later.');
+      const errorMessage: ChatMessage = { role: 'bot', text: 'Sorry, I am having trouble connecting. Please try again later.' };
+      setChatHistory(prev => [...prev, errorMessage]);
       console.error(e);
     } finally {
       setIsLoading(false);
@@ -80,89 +73,68 @@ export default function WebsiteAIWidget() {
   }
 
   return (
-    <Card className="max-w-3xl mx-auto">
-      <CardHeader className="text-center">
-        <div className="flex items-center justify-center gap-2">
-            <Sparkles className="h-6 w-6 text-primary" />
-            <CardTitle>Ask Our AI Assistant</CardTitle>
-        </div>
-        <CardDescription>Get instant answers about our services, pricing, and more.</CardDescription>
-      </CardHeader>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)}>
-          <CardContent className="space-y-4">
-            <FormField
-              control={form.control}
-              name="question"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <Input placeholder="e.g., How much does company registration cost?" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            {isLoading && (
-              <div className="flex items-center justify-center p-4">
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                <span>Finding the best answer...</span>
-              </div>
-            )}
-            {error && <Alert variant="destructive"><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
-            {response && !isLoading && (
-              <Alert>
-                <AlertTitle className="flex justify-between items-center">
-                    <span>Answer:</span>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>Confidence: {response.confidence}%</span>
-                        <Progress value={response.confidence} className="w-20 h-2" />
-                    </div>
-                </AlertTitle>
-                <AlertDescription>
-                  <p>{response.answer}</p>
-                  {response.serviceUrl && (
-                    <Button asChild variant="link" className="p-0 h-auto mt-2">
-                      <Link href={response.serviceUrl}>View Service Details</Link>
-                    </Button>
-                  )}
-                </AlertDescription>
-              </Alert>
-            )}
+    <>
+      <div className="fixed bottom-4 right-4 z-50">
+        <Button onClick={() => setIsOpen(!isOpen)} size="icon" className="w-16 h-16 rounded-full shadow-lg">
+           {isOpen ? <X className="h-8 w-8" /> : <MessageCircle className="h-8 w-8" />}
+        </Button>
+      </div>
 
-            {!isLoading && recentQuestions.length > 0 && (
-                 <div className="pt-4">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                        <History className="h-4 w-4" />
-                        <span>Recently asked</span>
+      {isOpen && (
+        <div className="fixed bottom-24 right-4 z-50 w-full max-w-sm">
+          <Card className="flex flex-col h-[60vh] shadow-xl">
+            <CardHeader className="flex flex-row items-center justify-between bg-primary text-primary-foreground p-4">
+              <div className="flex items-center gap-3">
+                  <Bot className="h-6 w-6" />
+                  <CardTitle className="text-lg">Khai - Your AI Assistant</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+              {chatHistory.map((message, index) => (
+                <div key={index} className={cn("flex items-end gap-2", message.role === 'user' ? 'justify-end' : 'justify-start')}>
+                  {message.role === 'bot' && <Bot className="h-6 w-6 text-primary flex-shrink-0" />}
+                   <div className={cn(
+                        "p-3 rounded-lg max-w-xs",
+                        message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                    )}>
+                        <p className="text-sm">{message.text}</p>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                        {recentQuestions.map((q, i) => (
-                        <Button 
-                            key={i} 
-                            variant="outline" 
-                            size="sm" 
-                            type="button" 
-                            onClick={() => handleExampleQuestionClick(q)}
-                            className="text-xs h-auto py-1 px-2"
-                        >
-                            {q}
-                        </Button>
-                        ))}
+                   {message.role === 'user' && <User className="h-6 w-6 text-primary flex-shrink-0" />}
+                </div>
+              ))}
+              {isLoading && (
+                 <div className="flex items-end gap-2 justify-start">
+                    <Bot className="h-6 w-6 text-primary flex-shrink-0" />
+                    <div className="p-3 rounded-lg bg-muted flex items-center">
+                       <Loader2 className="h-5 w-5 animate-spin text-primary" />
                     </div>
                 </div>
-            )}
-          </CardContent>
-          <CardFooter className="justify-center gap-2">
-            <Button type="submit" disabled={isLoading}>
-              Ask Question
-            </Button>
-            <Button variant="outline" asChild>
-                <Link href="/contact">Contact Support</Link>
-            </Button>
-          </CardFooter>
-        </form>
-      </Form>
-    </Card>
+              )}
+            </CardContent>
+            <CardFooter className="p-2 border-t">
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="w-full flex items-center gap-2">
+                  <FormField
+                    control={form.control}
+                    name="question"
+                    render={({ field }) => (
+                      <FormItem className="flex-grow">
+                        <FormControl>
+                          <Input placeholder="Type your message..." {...field} autoComplete="off" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Button type="submit" size="icon" disabled={isLoading}>
+                    <Send className="h-5 w-5" />
+                  </Button>
+                </form>
+              </Form>
+            </CardFooter>
+          </Card>
+        </div>
+      )}
+    </>
   );
 }

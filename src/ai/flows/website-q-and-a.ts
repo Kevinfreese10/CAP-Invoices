@@ -20,6 +20,10 @@ const db = getFirestore(firebaseApp);
 
 const WebsiteQAndAInputSchema = z.object({
   question: z.string().describe('The user\'s question.'),
+  history: z.array(z.object({
+    role: z.enum(['user', 'bot']),
+    content: z.string(),
+  })).optional().describe('The conversation history.'),
 });
 export type WebsiteQAndAInput = z.infer<typeof WebsiteQAndAInputSchema>;
 
@@ -75,11 +79,18 @@ export async function websiteQAndA(
     - If the answer is explicitly stated, confidence should be 90-100.
     - If the answer is inferred from multiple pieces of information, confidence should be 60-80.
     - If you cannot answer the question at all, confidence should be 0-10.
+    
+    Use the conversation history to understand the context of the question.
 
     CONTEXT:
     ---
     ${websiteContent}
     ---
+
+    CONVERSATION HISTORY:
+    {{#each history}}
+      {{role}}: {{{content}}}
+    {{/each}}
 
     User Question: {{{question}}}
     `,

@@ -14,7 +14,6 @@ import {
 } from '@/components/ui/card';
 import { Rocket, ShieldCheck, Wallet, Clock, Search, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import WebsiteAIWidget from '@/components/shared/WebsiteAIWidget';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
 import { collection, getDocs, orderBy, query, getFirestore, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -109,10 +108,6 @@ export default function Home() {
 
       {/* Trustindex Reviews Widget */}
       <TrustIndexWidget />
-
-      <section id="ai-assistant" className="container mx-auto px-4 scroll-m-20">
-        <WebsiteAIWidget />
-      </section>
 
       <section className="bg-background pt-16">
          <div className="container mx-auto px-4">
