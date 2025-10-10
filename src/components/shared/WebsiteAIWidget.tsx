@@ -59,7 +59,7 @@ export default function WebsiteAIWidget() {
       const response = await websiteQAndA({ 
         question: values.question,
         // Include previous messages for conversational context
-        // history: chatHistory.map(m => ({ role: m.role, content: m.text }))
+        history: chatHistory.map(m => ({ role: m.role, content: m.text }))
        });
       const botMessage: ChatMessage = { role: 'bot', text: response.answer };
       setChatHistory(prev => [...prev, botMessage]);
@@ -81,7 +81,7 @@ export default function WebsiteAIWidget() {
       </div>
 
       {isOpen && (
-        <div className="fixed bottom-24 right-4 z-50 w-full max-w-sm">
+        <div className="fixed bottom-24 right-4 left-4 z-50 sm:left-auto sm:w-full sm:max-w-sm">
           <Card className="flex flex-col h-[60vh] shadow-xl">
             <CardHeader className="flex flex-row items-center justify-between bg-gradient text-primary-foreground p-4">
               <div className="flex items-center gap-3">
