@@ -264,7 +264,7 @@ export default function ResellerDashboardPage() {
             <section>
                 <Card className="bg-primary/5 border-primary/20">
                     <CardHeader>
-                        <CardTitle>Premium Member Benefits</CardTitle>
+                        <CardTitle>Become a Premium Member</CardTitle>
                         <CardDescription>Upgrade to unlock powerful tools to automate and scale your practice.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
@@ -272,21 +272,21 @@ export default function ResellerDashboardPage() {
                             <BrainCircuit className="h-8 w-8 text-primary flex-shrink-0 mt-1" />
                             <div>
                                 <h4 className="font-semibold">AI Accountant</h4>
-                                <p className="text-sm text-muted-foreground">Upload your CSV bank statements and let our AI do the heavy lifting. It automatically allocates transactions within minutes — perfectly categorized and VAT-ready.</p>
+                                <p className="text-sm text-muted-foreground">Upload your CSV bank statements and let our AI Accountant do the heavy lifting. It automatically allocates all transactions within minutes — perfectly categorized and VAT-ready. Review, adjust, and finalize your books with just a few clicks, saving hours of manual work every month.</p>
                             </div>
                         </div>
                          <div className="flex items-start gap-4">
                             <Briefcase className="h-8 w-8 text-primary flex-shrink-0 mt-1" />
                             <div>
                                 <h4 className="font-semibold">Practice Manager</h4>
-                                <p className="text-sm text-muted-foreground">Easily manage your clients and deadlines in one place. The system automatically creates tasks, due dates, and compliance reminders to keep your practice organized.</p>
+                                <p className="text-sm text-muted-foreground">Easily manage your clients and deadlines in one place. When you add a new client, the system automatically creates related tasks, due dates, and compliance reminders — keeping your practice organized and your workflow seamless.</p>
                             </div>
                         </div>
                          <div className="flex items-start gap-4">
                             <Users className="h-8 w-8 text-primary flex-shrink-0 mt-1" />
                             <div>
                                 <h4 className="font-semibold">White-Label Outsourcing</h4>
-                                <p className="text-sm text-muted-foreground">Offer services under your own brand. Our team communicates with your clients through your email, ensuring your brand identity stays intact while we handle the work.</p>
+                                <p className="text-sm text-muted-foreground">Offer professional accounting and compliance services under your own brand. Our team communicates with your clients directly through your email, ensuring your brand identity stays intact while we handle the work in the background.</p>
                             </div>
                         </div>
                     </CardContent>
@@ -655,7 +655,3 @@ export default function ResellerDashboardPage() {
     </>
     );
 }
-
-    
-
-    
