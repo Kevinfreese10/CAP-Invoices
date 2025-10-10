@@ -29,18 +29,6 @@ const formSchema = z.object({
   email: z.string().email('Please enter a valid email.'),
   password: z.string().min(6, 'Password must be at least 6 characters.'),
   contactNumber: z.string().min(10, 'A valid contact number is required.'),
-  address: z.object({
-      street: z.string().min(3, 'Street address is required.'),
-      city: z.string().min(2, 'City is required.'),
-      province: z.string().min(2, 'Province is required.'),
-      zip: z.string().min(4, 'Postal code is required.'),
-  }),
-  bankingDetails: z.object({
-      bankName: z.string().min(3, 'Bank name is required.'),
-      accountHolder: z.string().min(2, 'Account holder name is required.'),
-      accountNumber: z.string().min(5, 'A valid account number is required.'),
-      branchCode: z.string().min(6, 'A valid branch code is required.'),
-  }),
   agreeTerms: z.boolean().refine(val => val === true, {
     message: 'You must accept the terms and conditions.',
   }),
@@ -62,8 +50,6 @@ export default function ResellerSignupForm() {
       email: '',
       password: '',
       contactNumber: '',
-      address: { street: '', city: '', province: '', zip: ''},
-      bankingDetails: { bankName: '', accountHolder: '', accountNumber: '', branchCode: ''},
       agreeTerms: false,
     },
   });
@@ -125,28 +111,6 @@ export default function ResellerSignupForm() {
             </div>
         </div>
 
-        <div className="space-y-4">
-            <h3 className="text-lg font-medium">Physical Address</h3>
-            <FormField control={form.control} name="address.street" render={({ field }) => ( <FormItem><FormLabel>Street Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <FormField control={form.control} name="address.city" render={({ field }) => ( <FormItem><FormLabel>City</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="address.province" render={({ field }) => ( <FormItem><FormLabel>Province</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="address.zip" render={({ field }) => ( <FormItem><FormLabel>Postal Code</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-            </div>
-        </div>
-
-        <Separator />
-
-        <div className="space-y-4">
-            <h3 className="text-lg font-medium">Banking Details (for payouts)</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 <FormField control={form.control} name="bankingDetails.bankName" render={({ field }) => ( <FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                 <FormField control={form.control} name="bankingDetails.accountHolder" render={({ field }) => ( <FormItem><FormLabel>Account Holder</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                 <FormField control={form.control} name="bankingDetails.accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                 <FormField control={form.control} name="bankingDetails.branchCode" render={({ field }) => ( <FormItem><FormLabel>Branch Code</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-            </div>
-        </div>
-        
         <Separator />
 
         <FormField
