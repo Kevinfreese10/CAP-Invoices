@@ -117,7 +117,7 @@ export default function BecomeAPartnerPage() {
                 Partner with My Accountant – Grow Smarter, Earn More, Work Freely.
             </p>
             <Button asChild size="lg" className="mt-8">
-            <Link href="/reseller-signup">Join the BEI — It's Free</Link>
+            <Link href="/reseller-signup">Join the Initiative — It's Free</Link>
             </Button>
         </div>
       </section>
@@ -140,25 +140,21 @@ export default function BecomeAPartnerPage() {
         <div className="text-center mb-12">
             <h2 className="text-3xl font-bold">The Challenges We’re Solving</h2>
         </div>
-        <div className="space-y-8">
+        <div className="space-y-8 max-w-4xl mx-auto">
             {challenges.map((challenge, index) => (
-                <div key={challenge.title} className="grid md:grid-cols-2 gap-8 items-center">
-                    <div className={index % 2 === 0 ? 'md:order-1' : 'md:order-2'}>
-                        <div className="flex items-center gap-4">
-                             <div className="bg-primary/10 rounded-full h-12 w-12 flex items-center justify-center flex-shrink-0">
-                                <challenge.icon className="h-6 w-6 text-primary" />
-                            </div>
-                            <div>
-                                <h3 className="text-xl font-bold">{challenge.title}</h3>
-                                <p className="text-muted-foreground">{challenge.description}</p>
-                            </div>
+                <div key={challenge.title} className="space-y-3">
+                    <div className="flex items-center gap-4">
+                        <div className="bg-primary/10 rounded-full h-12 w-12 flex items-center justify-center flex-shrink-0">
+                            <challenge.icon className="h-6 w-6 text-primary" />
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-bold">{challenge.title}</h3>
+                            <p className="text-muted-foreground">{challenge.description}</p>
                         </div>
                     </div>
-                    <div className={index % 2 === 0 ? 'md:order-2' : 'md:order-1'}>
-                        <div className="flex items-start gap-4">
-                           <ArrowRight className="h-6 w-6 text-green-500 mt-1 flex-shrink-0"/>
-                            <p className="font-medium">{challenge.solution}</p>
-                        </div>
+                    <div className="flex items-start gap-4 pl-16">
+                        <CheckCircle2 className="h-5 w-5 text-green-500 mt-1 flex-shrink-0"/>
+                        <p className="font-medium">{challenge.solution}</p>
                     </div>
                 </div>
             ))}
@@ -168,7 +164,7 @@ export default function BecomeAPartnerPage() {
       <section className="bg-muted/50 py-16">
         <div className="container mx-auto px-4">
             <div className="text-center mb-12">
-                <h2 className="text-3xl font-bold">Key Benefits of Joining the BEI</h2>
+                <h2 className="text-3xl font-bold">Key Benefits of Joining</h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {benefits.map(benefit => (
