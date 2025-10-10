@@ -253,31 +253,6 @@ export default function ResellerDashboardPage() {
             <section>
                 <WebsiteAIWidget />
             </section>
-
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                <Card className="flex flex-col">
-                    <CardHeader>
-                        <CardTitle>Create New Order</CardTitle>
-                        <CardDescription>Create a custom order for your clients.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex-grow flex items-end">
-                        <Button asChild>
-                            <Link href="/reseller/orders/new">Create Order</Link>
-                        </Button>
-                    </CardContent>
-                </Card>
-                <Card className="flex flex-col">
-                    <CardHeader>
-                        <CardTitle>Manage Orders</CardTitle>
-                        <CardDescription>View history and status of all your orders.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex-grow flex items-end">
-                        <Button asChild>
-                            <Link href="/reseller/orders">View Orders</Link>
-                        </Button>
-                    </CardContent>
-                </Card>
-            </div>
             
             <section>
                 <Card>
@@ -319,10 +294,20 @@ export default function ResellerDashboardPage() {
 
              <Card>
         <CardHeader>
-          <CardTitle>Your Client Orders</CardTitle>
-          <CardDescription>
-            View and manage all orders you've created for your clients.
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Your Client Orders</CardTitle>
+              <CardDescription>
+                View and manage all orders you've created for your clients.
+              </CardDescription>
+            </div>
+            <Button asChild>
+              <Link href="/reseller/orders/new">
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Create New Order
+              </Link>
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -619,3 +604,5 @@ export default function ResellerDashboardPage() {
     </>
     );
 }
+
+    
