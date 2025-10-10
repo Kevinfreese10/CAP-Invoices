@@ -27,6 +27,7 @@ import {
   FileX2,
   Banknote,
   MessageCircleQuestion,
+  Wrench,
 } from 'lucide-react';
 
 import {
@@ -79,6 +80,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/cap-suppliers/chart-of-accounts', label: 'Chart of Accounts', icon: Book, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
     { href: '/admin/cap-suppliers/inbox', label: 'Inbox', icon: Inbox, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
     { href: '/admin/services', label: 'Manage Services', icon: Briefcase, roles: ['admin'] },
+    { href: '/admin/tools', label: 'Tools', icon: Wrench, roles: ['admin'] },
   ];
   
   const settingsNavItems = [
