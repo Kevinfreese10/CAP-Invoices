@@ -109,8 +109,8 @@ export default function BecomeAPartnerPage() {
     <div className="space-y-16 pb-16">
       <section className="bg-background">
         <div className="container mx-auto px-4 py-16 text-center">
-            <h1 className="text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl text-foreground">
-                Bookkeeper Empowerment Initiative <span className="font-light text-primary">(BEI)</span>
+            <h1 className="text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl text-gradient">
+                Bookkeeper Empowerment Initiative
             </h1>
             <h2 className="mt-4 text-2xl md:text-3xl font-semibold">Empower Your Accounting Practice in South Africa</h2>
             <p className="mt-6 text-lg text-muted-foreground max-w-3xl mx-auto">
@@ -128,7 +128,7 @@ export default function BecomeAPartnerPage() {
         <div className="max-w-4xl mx-auto text-center space-y-4">
             <h2 className="text-3xl font-bold">About the Initiative</h2>
             <p className="text-muted-foreground text-lg">
-                The Bookkeeper Empowerment Initiative (BEI) by My Accountant was created to empower small and growing bookkeepers across South Africa. We know what it’s like to start out — you have the skills, but limited clients, tools, and support. That’s why BEI gives you the technology, mentorship, and opportunities to build your own brand, attract more clients, and scale your income — all while staying independent.
+                The Bookkeeper Empowerment Initiative by My Accountant was created to empower small and growing bookkeepers across South Africa. We know what it’s like to start out — you have the skills, but limited clients, tools, and support. That’s why BEI gives you the technology, mentorship, and opportunities to build your own brand, attract more clients, and scale your income — all while staying independent.
             </p>
              <p className="text-muted-foreground text-lg">
                 Whether you’re a freelance bookkeeper, a new accounting firm, or a small practitioner, BEI is designed to help you grow faster with less stress.
