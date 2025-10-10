@@ -81,7 +81,7 @@ export default function BecomeAPartnerPage() {
   const faqs = [
     {
         question: "Who should join the Bookkeeper Empowerment Initiative?",
-        answer: "BEI is ideal for passionate professionals who want to grow their business without stress, including: Freelance Bookkeepers, Startup Accounting Firms, Tax Practitioners, Business Consultants, and Payroll Administrators."
+        answer: "BEI is ideal for passionate professionals who want to grow their business without stress, including:\n- Freelance Bookkeepers\n- Startup Accounting Firms\n- Tax Practitioners\n- Business Consultants\n- Payroll Administrators"
     },
     {
         question: "What does it cost to join?",
@@ -177,39 +177,6 @@ export default function BecomeAPartnerPage() {
                 </div>
                 ))}
             </div>
-        </div>
-      </section>
-
-       <section className="container mx-auto px-4">
-        <div className="grid md:grid-cols-2 gap-12 items-center">
-          <div className="space-y-4">
-            <h2 className="text-3xl font-bold">How It Works</h2>
-            <p className="text-muted-foreground">Joining is simple and straightforward. Follow these steps to start growing your practice:</p>
-            <ul className="space-y-4">
-                {['Apply Online', 'Access Your Dashboard', 'Outsource or Accept Work', 'Learn & Grow'].map((step, index) => (
-                    <li key={index} className="flex items-center gap-4">
-                        <div className="flex-shrink-0 h-10 w-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-lg">{index + 1}</div>
-                        <p className="font-medium">{step}</p>
-                    </li>
-                ))}
-            </ul>
-          </div>
-           <Card className="bg-primary/5">
-            <CardHeader>
-                <CardTitle>Who Should Join?</CardTitle>
-                 <CardDescription>BEI is ideal for passionate professionals who want to grow their business without stress.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <ul className="space-y-3">
-                    {['Freelance Bookkeepers', 'Startup Accounting Firms', 'Tax Practitioners', 'Business Consultants', 'Payroll Administrators'].map(role => (
-                        <li key={role} className="flex items-center gap-2">
-                            <CheckCircle2 className="h-5 w-5 text-primary"/>
-                            <span className="font-medium">{role}</span>
-                        </li>
-                    ))}
-                </ul>
-            </CardContent>
-          </Card>
         </div>
       </section>
 
