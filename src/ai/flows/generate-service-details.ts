@@ -10,6 +10,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 
 const GenerateServiceDetailsInputSchema = z.object({
   title: z.string().describe('The title of the service.'),
@@ -92,7 +93,7 @@ const generateServiceDetailsFlow = ai.defineFlow(
     outputSchema: GenerateServiceDetailsOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
+    const {output} = await prompt(input, { model: googleAI.model('gemini-pro') });
     return output!;
   }
 );
