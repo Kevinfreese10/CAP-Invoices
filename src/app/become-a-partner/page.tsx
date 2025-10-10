@@ -80,6 +80,10 @@ export default function BecomeAPartnerPage() {
 
   const faqs = [
     {
+        question: "Who should join the Bookkeeper Empowerment Initiative?",
+        answer: "BEI is ideal for passionate professionals who want to grow their business without stress, including: Freelance Bookkeepers, Startup Accounting Firms, Tax Practitioners, Business Consultants, and Payroll Administrators."
+    },
+    {
         question: "What does it cost to join?",
         answer: "Joining is completely free. You’ll only pay for services you choose to outsource through the dashboard."
     },
@@ -95,14 +99,6 @@ export default function BecomeAPartnerPage() {
         question: "How do I get support?",
         answer: "You’ll have access to a dedicated partner support team, mentorship network, and helpdesk through your dashboard."
     }
-  ];
-
-  const whoShouldJoin = [
-    'Freelance Bookkeepers',
-    'Startup Accounting Firms',
-    'Tax Practitioners',
-    'Business Consultants',
-    'Payroll Administrators',
   ];
 
   return (
@@ -201,7 +197,7 @@ export default function BecomeAPartnerPage() {
             </CardHeader>
             <CardContent>
                 <ul className="space-y-3">
-                    {whoShouldJoin.map(role => (
+                    {['Freelance Bookkeepers', 'Startup Accounting Firms', 'Tax Practitioners', 'Business Consultants', 'Payroll Administrators'].map(role => (
                         <li key={role} className="flex items-center gap-2">
                             <CheckCircle2 className="h-5 w-5 text-primary"/>
                             <span className="font-medium">{role}</span>
