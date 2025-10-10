@@ -15,7 +15,7 @@ import { Separator } from '../ui/separator';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { getFirestore, doc, setDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { useState } 'react';
+import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
