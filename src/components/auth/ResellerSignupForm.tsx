@@ -14,12 +14,12 @@ import { Checkbox } from '../ui/checkbox';
 import { Separator } from '../ui/separator';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { getFirestore, doc, setDoc } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { services as allServices } from '@/lib/data';
+import { Service } from '@/lib/types';
 
 
 const auth = getAuth(firebaseApp);
@@ -56,6 +56,8 @@ export default function ResellerSignupForm() {
   const [isLoading, setIsLoading] = useState(false);
   const { reauthenticate } = useAuth();
   const adminUser = auth.currentUser;
+  const [allServices, setAllServices] = useState<Service[]>([]);
+  const [isServicesLoading, setIsServicesLoading] = useState(true);
 
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -71,6 +73,29 @@ export default function ResellerSignupForm() {
       capableServices: [],
     },
   });
+  
+  useEffect(() => {
+    const fetchServices = async () => {
+        setIsServicesLoading(true);
+        try {
+            const servicesQuery = query(collection(db, "services"), orderBy("title"));
+            const servicesSnapshot = await getDocs(servicesQuery);
+            const fetchedServices = servicesSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Service));
+            setAllServices(fetchedServices);
+        } catch (error) {
+            console.error("Error fetching services:", error);
+            toast({
+                title: 'Error',
+                description: 'Could not load services list.',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsServicesLoading(false);
+        }
+    };
+    fetchServices();
+  }, [toast]);
+
 
   const wantsOutsourcedWork = form.watch('wantsOutsourcedWork');
 
@@ -215,6 +240,12 @@ export default function ResellerSignupForm() {
                               Select all the services you are qualified to perform.
                             </p>
                           </div>
+                          {isServicesLoading ? (
+                             <div className="flex items-center gap-2 text-muted-foreground">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <span>Loading services...</span>
+                            </div>
+                          ) : (
                           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                             {allServices.map((service) => (
                               <FormField
@@ -250,6 +281,7 @@ export default function ResellerSignupForm() {
                               />
                             ))}
                           </div>
+                          )}
                           <FormMessage />
                         </FormItem>
                       )}
