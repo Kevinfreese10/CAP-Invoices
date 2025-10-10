@@ -17,10 +17,11 @@ import { useToast } from '@/hooks/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from '@/components/ui/dropdown-menu';
 import { services as allServices } from '@/lib/data';
 import { Separator } from '@/components/ui/separator';
+import CreateResellerOrderForm from '@/components/reseller/CreateResellerOrderForm';
 
 const db = getFirestore(firebaseApp);
 
@@ -32,6 +33,7 @@ export default function ResellerDashboardPage() {
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
     const [isOutsourceModalOpen, setIsOutsourceModalOpen] = useState(false);
+    const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
     const [outsourcedOrderDetails, setOutsourcedOrderDetails] = useState<Order | null>(null);
     const [allStaff, setAllStaff] = useState<User[]>([]);
     const [staffCounters, setStaffCounters] = useState<{ [key: string]: number }>({});
@@ -237,6 +239,11 @@ export default function ResellerDashboardPage() {
             return 'secondary';
         }
     };
+    
+    const handleOrderCreated = () => {
+        setIsCreateOrderOpen(false);
+        fetchOrdersAndStaff();
+    };
 
     const latestNews = blogPosts.slice(0, 3);
     const pendingApprovalOrders = outsourcedOrders.filter(o => o.status === 'Pending Payment');
@@ -293,120 +300,129 @@ export default function ResellerDashboardPage() {
             </section>
 
              <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Your Client Orders</CardTitle>
-              <CardDescription>
-                View and manage all orders you've created for your clients.
-              </CardDescription>
-            </div>
-            <Button asChild>
-              <Link href="/reseller/orders/new">
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Create New Order
-              </Link>
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-             <div className="flex justify-center items-center h-64">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-             </div>
-          ) : orders.length === 0 ? (
-             <p className="text-center text-muted-foreground py-8">No client orders to display.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Order ID</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Fulfillment</TableHead>
-                  <TableHead>Selling Price</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {orders.map((order) => (
-                  <TableRow key={order.id}>
-                    <TableCell className="font-medium">{order.id}</TableCell>
-                    <TableCell>{format(new Date(order.date), 'dd/MM/yyyy')}</TableCell>
-                    <TableCell>{order.customerName}</TableCell>
-                    <TableCell>
-                      <Badge variant={getStatusVariant(order.status)}>
-                        {order.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                        {order.isOutsourced ? (
-                            <Badge variant="info">Outsourced</Badge>
-                        ) : (
-                            <Badge variant="secondary">Internal</Badge>
-                        )}
-                    </TableCell>
-                    <TableCell className="font-semibold">{formatPrice(order.clientTotal || 0)}</TableCell>
-                    <TableCell className="text-right">
-                    <AlertDialog>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                           <DropdownMenuItem asChild>
-                            <Link href={`/reseller/orders/${order.id}`}>View/Add Notes</Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                           <DropdownMenuSub>
-                              <DropdownMenuSubTrigger disabled={order.isOutsourced}>Change Status</DropdownMenuSubTrigger>
-                              <DropdownMenuSubContent>
-                                  {orderStatuses.map(status => (
-                                      <DropdownMenuItem 
-                                        key={status} 
-                                        onClick={() => handleUpdateStatus(order.id, status)} 
-                                        disabled={order.status === status}
-                                      >
-                                          Mark as {status}
-                                      </DropdownMenuItem>
-                                  ))}
-                              </DropdownMenuSubContent>
-                           </DropdownMenuSub>
-                          <AlertDialogTrigger asChild>
-                             <DropdownMenuItem disabled={order.isOutsourced}>
-                               Outsource to My Accountant
-                             </DropdownMenuItem>
-                           </AlertDialogTrigger>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                      <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This will create a new internal order for My Accountant to fulfill. The cost to you will be {formatPrice(order.total)}. You will be shown payment details after confirming. Are you sure you want to proceed?
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleOutsource(order)}>
-                              Yes, Outsource this Order
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                <CardHeader>
+                <div className="flex items-center justify-between">
+                    <div>
+                    <CardTitle>Your Client Orders</CardTitle>
+                    <CardDescription>
+                        View and manage all orders you've created for your clients.
+                    </CardDescription>
+                    </div>
+                     <Dialog open={isCreateOrderOpen} onOpenChange={setIsCreateOrderOpen}>
+                        <DialogTrigger asChild>
+                             <Button>
+                                <PlusCircle className="mr-2 h-4 w-4" />
+                                Create New Order
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-4xl">
+                             <DialogHeader>
+                                <DialogTitle>New Order Details</DialogTitle>
+                                <DialogDescription>Fill out the form below to create a new order for a client.</DialogDescription>
+                            </DialogHeader>
+                            <CreateResellerOrderForm onOrderCreated={handleOrderCreated} />
+                        </DialogContent>
+                    </Dialog>
+                </div>
+                </CardHeader>
+                <CardContent>
+                {isLoading ? (
+                    <div className="flex justify-center items-center h-64">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                ) : orders.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-8">No client orders to display.</p>
+                ) : (
+                    <Table>
+                    <TableHeader>
+                        <TableRow>
+                        <TableHead>Order ID</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Customer</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Fulfillment</TableHead>
+                        <TableHead>Selling Price</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {orders.map((order) => (
+                        <TableRow key={order.id}>
+                            <TableCell className="font-medium">{order.id}</TableCell>
+                            <TableCell>{format(new Date(order.date), 'dd/MM/yyyy')}</TableCell>
+                            <TableCell>{order.customerName}</TableCell>
+                            <TableCell>
+                            <Badge variant={getStatusVariant(order.status)}>
+                                {order.status}
+                            </Badge>
+                            </TableCell>
+                            <TableCell>
+                                {order.isOutsourced ? (
+                                    <Badge variant="info">Outsourced</Badge>
+                                ) : (
+                                    <Badge variant="secondary">Internal</Badge>
+                                )}
+                            </TableCell>
+                            <TableCell className="font-semibold">{formatPrice(order.clientTotal || 0)}</TableCell>
+                            <TableCell className="text-right">
+                            <AlertDialog>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                    <span className="sr-only">Open menu</span>
+                                    <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                <DropdownMenuItem asChild>
+                                    <Link href={`/reseller/orders/${order.id}`}>View/Add Notes</Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuSub>
+                                    <DropdownMenuSubTrigger disabled={order.isOutsourced}>Change Status</DropdownMenuSubTrigger>
+                                    <DropdownMenuSubContent>
+                                        {orderStatuses.map(status => (
+                                            <DropdownMenuItem 
+                                                key={status} 
+                                                onClick={() => handleUpdateStatus(order.id, status)} 
+                                                disabled={order.status === status}
+                                            >
+                                                Mark as {status}
+                                            </DropdownMenuItem>
+                                        ))}
+                                    </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                                <AlertDialogTrigger asChild>
+                                    <DropdownMenuItem disabled={order.isOutsourced}>
+                                    Outsource to My Accountant
+                                    </DropdownMenuItem>
+                                </AlertDialogTrigger>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                    This will create a new internal order for My Accountant to fulfill. The cost to you will be {formatPrice(order.total)}. You will be shown payment details after confirming. Are you sure you want to proceed?
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleOutsource(order)}>
+                                    Yes, Outsource this Order
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                            </TableCell>
+                        </TableRow>
+                        ))}
+                    </TableBody>
+                    </Table>
+                )}
+                </CardContent>
+            </Card>
       
        <Card>
         <CardHeader>
@@ -604,5 +620,7 @@ export default function ResellerDashboardPage() {
     </>
     );
 }
+
+    
 
     

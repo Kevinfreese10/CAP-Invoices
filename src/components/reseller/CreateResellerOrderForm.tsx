@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Loader2, Plus, Trash, RefreshCw, Clock } from 'lucide-react';
+import { Loader2, Plus, Trash, RefreshCw, Clock, ClipboardCheck } from 'lucide-react';
 import { getFirestore, doc, setDoc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service } from '@/lib/types';
@@ -53,7 +53,7 @@ const formSchema = z.object({
 
 type CreateOrderFormValues = z.infer<typeof formSchema>;
 
-export default function CreateResellerOrderForm() {
+export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCreated: () => void }) {
   const router = useRouter();
   const { user: reseller } = useAuth();
   const { toast } = useToast();
@@ -183,7 +183,7 @@ export default function CreateResellerOrderForm() {
       });
       
       setIsLoading(false);
-      router.push('/reseller/orders');
+      onOrderCreated();
 
     } catch (error) {
         console.error("Error creating order: ", error);
@@ -198,7 +198,7 @@ export default function CreateResellerOrderForm() {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-h-[70vh] overflow-y-auto p-1 pr-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <FormField
             control={form.control}
@@ -415,3 +415,5 @@ export default function CreateResellerOrderForm() {
     </Form>
   );
 }
+
+    
