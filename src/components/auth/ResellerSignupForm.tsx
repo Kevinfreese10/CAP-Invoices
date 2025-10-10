@@ -217,7 +217,7 @@ export default function ResellerSignupForm() {
                             Would you like us to outsource work to you?
                         </FormLabel>
                          <p className="text-sm text-muted-foreground">
-                            If you belong to a professional accounting or tax body, we can send overflow work your way.
+                            If you belong to a professional accounting or tax body, we can send overflow work your way. You can complete this later.
                         </p>
                          <FormMessage />
                     </div>
