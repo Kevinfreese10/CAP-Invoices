@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useState, useEffect } from 'react';
-import { Loader2, ShieldCheck, Rocket, Wallet, Building, Landmark, CheckCircle, AlertTriangle, FileText, BotMessageSquare, LifeBuoy, GraduationCap, CalendarCheck2, FileWarning, BadgeDollarSign, FileUp, Phone, Mail } from 'lucide-react';
+import { Loader2, ShieldCheck, Rocket, Wallet, Building, Landmark, CheckCircle, AlertTriangle, FileText, BotMessageSquare, LifeBuoy, GraduationCap, CalendarCheck2, FileWarning, BadgeDollarSign, FileUp, Phone, Mail, Clock } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { getFirestore, addDoc, doc, setDoc, serverTimestamp, collection, Timestamp, getDocs, query, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -191,6 +191,39 @@ export default function CompliancePage() {
       setIsLoading(false);
     }
   }
+  
+  const whyChooseUs = [
+    {
+      title: 'Same-day service options',
+      description: 'for urgent SARS or CIPC filings.',
+      icon: Rocket,
+    },
+    {
+      title: 'Affordable pricing',
+      description: 'no hidden fees, just transparent packages.',
+      icon: Wallet,
+    },
+    {
+      title: 'Trusted experts',
+      description: 'over 150 five-star reviews from South African businesses.',
+      icon: ShieldCheck,
+    },
+      {
+      title: 'Free compliance assessment',
+      description: 'includes a SARS & CIPC health check (valued at R250).',
+      icon: CalendarCheck2,
+    },
+    {
+      title: 'All-in-one platform',
+      description: 'track orders, upload documents, and get instant updates online.',
+      icon: FileUp,
+    },
+     {
+      title: 'Common mistakes fixed',
+      description: 'We identify and correct issues before they affect your business.',
+      icon: FileWarning,
+    },
+  ];
 
   return (
      <div className="space-y-6 pb-16">
@@ -226,10 +259,11 @@ export default function CompliancePage() {
             Running a business in South Africa means keeping up with both SARS (South African Revenue Service) and CIPC (Companies and Intellectual Property Commission) regulations. At My Accountant, we take the stress out of compliance — so you can focus on growth while we handle the paperwork.
           </p>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-12">
+          <div className="grid grid-cols-1 lg:grid-cols-1 gap-8 mt-12">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-3"><Building className="h-6 w-6 text-primary"/> CIPC Compliance</CardTitle>
+                <CardDescription>Keep your company active and legally protected with our CIPC services.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div>
@@ -260,6 +294,7 @@ export default function CompliancePage() {
              <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-3"><Landmark className="h-6 w-6 text-primary"/> SARS Compliance</CardTitle>
+                <CardDescription>We make sure your business meets all SARS tax obligations — on time, every time.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                  <div>
@@ -290,37 +325,24 @@ export default function CompliancePage() {
 
           <div className="text-center mt-16 max-w-4xl mx-auto">
              <h2 className="text-3xl font-bold">🌟 Why Choose My Accountant?</h2>
-             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 mt-8">
-                <div className="text-center">
-                    <h4 className="font-bold text-lg">Fast Turnaround</h4>
-                    <p className="text-muted-foreground text-sm">We file and follow up daily.</p>
-                </div>
-                <div className="text-center">
-                    <h4 className="font-bold text-lg">Transparent Pricing</h4>
-                    <p className="text-muted-foreground text-sm">No hidden costs or call-out fees.</p>
-                </div>
-                 <div className="text-center">
-                    <h4 className="font-bold text-lg">Trusted Experts</h4>
-                    <p className="text-muted-foreground text-sm">Over 150 five-star reviews from SA businesses.</p>
-                </div>
-                 <div className="text-center">
-                    <h4 className="font-bold text-lg">Digital Convenience</h4>
-                    <p className="text-muted-foreground text-sm">Upload docs and track progress online.</p>
-                </div>
-                 <div className="text-center">
-                    <h4 className="font-bold text-lg">Free Compliance Check</h4>
-                    <p className="text-muted-foreground text-sm">Includes a SARS & CIPC health report (valued at R250).</p>
-                </div>
-                 <div className="text-center">
-                    <h4 className="font-bold text-lg">All-in-One Platform</h4>
-                    <p className="text-muted-foreground text-sm">Track orders, upload documents, and get instant updates.</p>
-                </div>
+             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mt-8">
+                {whyChooseUs.map((item) => (
+                    <div key={item.title} className="text-center">
+                        <div className="flex justify-center mb-4">
+                            <div className="bg-primary/10 rounded-full h-16 w-16 flex items-center justify-center">
+                                <item.icon className="h-8 w-8 text-primary" />
+                            </div>
+                        </div>
+                        <h4 className="font-bold text-lg">{item.title}</h4>
+                        <p className="text-muted-foreground text-sm">{item.description}</p>
+                    </div>
+                ))}
              </div>
           </div>
 
           <div className="text-center mt-16 max-w-3xl mx-auto">
              <h2 className="text-3xl font-bold">🚀 Ready to Get Compliant?</h2>
-             <p className="text-lg text-muted-foreground mt-4">Avoid penalties, protect your company, and restore your good standing with SARS and CIPC. Our team will review your compliance position and guide you step-by-step — no jargon, no stress.</p>
+             <p className="text-lg text-muted-foreground mt-4">Take the hassle out of SARS and CIPC compliance with professionals who care. Start your compliance journey today — fast, affordable, and fully online.</p>
               <div className="mt-8">
                  <Button asChild size="lg">
                     <Link href="#compliance-form">Book a Free Compliance Check</Link>
