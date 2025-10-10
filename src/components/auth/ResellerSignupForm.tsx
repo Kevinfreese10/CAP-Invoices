@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '../ui/checkbox';
 import { Separator } from '../ui/separator';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getFirestore, doc, setDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useState } from 'react';
@@ -22,6 +23,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
+const storage = getStorage(firebaseApp);
 
 const formSchema = z.object({
   companyName: z.string().min(2, 'Company name is required.'),
@@ -29,10 +31,22 @@ const formSchema = z.object({
   email: z.string().email('Please enter a valid email.'),
   password: z.string().min(6, 'Password must be at least 6 characters.'),
   contactNumber: z.string().min(10, 'A valid contact number is required.'),
+  wantsOutsourcedWork: z.boolean().default(false),
+  cv: z.any().optional(),
+  certificate: z.any().optional(),
   agreeTerms: z.boolean().refine(val => val === true, {
     message: 'You must accept the terms and conditions.',
   }),
+}).refine(data => {
+    if (data.wantsOutsourcedWork) {
+      return data.cv?.[0] && data.certificate?.[0];
+    }
+    return true;
+}, {
+    message: 'CV and Certificate are required to be considered for outsourced work.',
+    path: ['wantsOutsourcedWork'],
 });
+
 
 export default function ResellerSignupForm() {
   const router = useRouter();
@@ -50,29 +64,51 @@ export default function ResellerSignupForm() {
       email: '',
       password: '',
       contactNumber: '',
+      wantsOutsourcedWork: false,
       agreeTerms: false,
     },
   });
 
+  const wantsOutsourcedWork = form.watch('wantsOutsourcedWork');
+
+  const uploadFile = async (file: File, path: string): Promise<string> => {
+    const fileRef = ref(storage, path);
+    await uploadBytes(fileRef, file);
+    return await getDownloadURL(fileRef);
+  };
+
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     try {
-        const { password, ...resellerData } = values;
+        const { password, cv, certificate, ...resellerData } = values;
 
         // 1. Create the user in Firebase Authentication
         const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
         const newFirebaseUser = userCredential.user;
+        const uid = newFirebaseUser.uid;
+        
+        let cvUrl = '';
+        let certificateUrl = '';
 
-        // 2. Save reseller data to Firestore in the 'users' collection
-        await setDoc(doc(db, 'users', newFirebaseUser.uid), {
+        // 2. Upload files if they exist
+        if (values.wantsOutsourcedWork && values.cv?.[0] && values.certificate?.[0]) {
+            toast({ title: 'Uploading Documents...', description: 'Please wait while we upload your files.' });
+            cvUrl = await uploadFile(values.cv[0], `reseller-applications/${uid}/cv-${values.cv[0].name}`);
+            certificateUrl = await uploadFile(values.certificate[0], `reseller-applications/${uid}/certificate-${values.certificate[0].name}`);
+        }
+
+        // 3. Save reseller data to Firestore in the 'users' collection
+        await setDoc(doc(db, 'users', uid), {
             ...resellerData,
             name: values.contactPerson, // Use contact person as the main name
-            uid: newFirebaseUser.uid,
+            uid: uid,
             role: 'reseller',
             status: 'Active',
+            cvUrl: cvUrl,
+            certificateUrl: certificateUrl,
         });
         
-        // 3. Re-authenticate the original admin user if one was logged in
+        // 4. Re-authenticate the original admin user if one was logged in
         if (adminUser) {
             await reauthenticate(adminUser);
         }
@@ -110,6 +146,63 @@ export default function ResellerSignupForm() {
                 <FormField control={form.control} name="contactNumber" render={({ field }) => ( <FormItem><FormLabel>Contact Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
             </div>
         </div>
+        
+         <Separator />
+
+        <div className="space-y-4">
+             <h3 className="text-lg font-medium">Work With Us</h3>
+             <FormField
+                control={form.control}
+                name="wantsOutsourcedWork"
+                render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                    <FormControl>
+                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                        <FormLabel>
+                            Would you like us to outsource work to you?
+                        </FormLabel>
+                         <p className="text-sm text-muted-foreground">
+                            If you belong to a professional accounting or tax body, we can send overflow work your way.
+                        </p>
+                         <FormMessage />
+                    </div>
+                    </FormItem>
+                )}
+            />
+            {wantsOutsourcedWork && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                    <FormField
+                        control={form.control}
+                        name="cv"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Upload your CV</FormLabel>
+                                <FormControl>
+                                    <Input type="file" accept=".pdf,.doc,.docx" onChange={(e) => field.onChange(e.target.files)} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="certificate"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Upload Professional Certificate</FormLabel>
+                                <FormControl>
+                                    <Input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => field.onChange(e.target.files)} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
+            )}
+        </div>
+
 
         <Separator />
 
