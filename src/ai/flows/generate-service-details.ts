@@ -93,7 +93,7 @@ const generateServiceDetailsFlow = ai.defineFlow(
     outputSchema: GenerateServiceDetailsOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input, { model: googleAI.model('gemini-pro') });
+    const {output} = await prompt(input, { model: 'gemini-pro' });
     return output!;
   }
 );
