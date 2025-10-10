@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Rocket, ShieldCheck, Wallet, UserCheck, Cpu, Briefcase, Users, FileText, BotMessageSquare, LifeBuoy, GraduationCap, CheckCircle2 } from 'lucide-react';
+import { Rocket, ShieldCheck, Wallet, UserCheck, Cpu, Briefcase, Users, FileText, BotMessageSquare, LifeBuoy, GraduationCap, CheckCircle2, ArrowRight } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
 
@@ -140,20 +140,27 @@ export default function BecomeAPartnerPage() {
         <div className="text-center mb-12">
             <h2 className="text-3xl font-bold">The Challenges We’re Solving</h2>
         </div>
-         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {challenges.map(item => (
-                <Card key={item.title} className="text-center">
-                    <CardHeader>
-                         <div className="mx-auto bg-primary/10 rounded-full h-12 w-12 flex items-center justify-center">
-                            <item.icon className="h-6 w-6 text-primary" />
+        <div className="space-y-8">
+            {challenges.map((challenge, index) => (
+                <div key={challenge.title} className="grid md:grid-cols-2 gap-8 items-center">
+                    <div className={index % 2 === 0 ? 'md:order-1' : 'md:order-2'}>
+                        <div className="flex items-center gap-4">
+                             <div className="bg-primary/10 rounded-full h-12 w-12 flex items-center justify-center flex-shrink-0">
+                                <challenge.icon className="h-6 w-6 text-primary" />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-bold">{challenge.title}</h3>
+                                <p className="text-muted-foreground">{challenge.description}</p>
+                            </div>
                         </div>
-                        <CardTitle>{item.title}</CardTitle>
-                        <CardDescription>{item.description}</CardDescription>
-                    </CardHeader>
-                     <CardContent>
-                        <p className="text-sm font-medium text-foreground">{item.solution}</p>
-                    </CardContent>
-                </Card>
+                    </div>
+                    <div className={index % 2 === 0 ? 'md:order-2' : 'md:order-1'}>
+                        <div className="flex items-start gap-4">
+                           <ArrowRight className="h-6 w-6 text-green-500 mt-1 flex-shrink-0"/>
+                            <p className="font-medium">{challenge.solution}</p>
+                        </div>
+                    </div>
+                </div>
             ))}
         </div>
       </section>
