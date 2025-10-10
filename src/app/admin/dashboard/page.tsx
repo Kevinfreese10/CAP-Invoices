@@ -912,7 +912,7 @@ export default function AdminDashboardPage() {
                                 Create Task
                             </Button>
                         </DialogTrigger>
-                        <DialogContent className="sm:max-w-[700px]">
+                        <DialogContent className="sm:max-w-xl">
                             <DialogHeader>
                                 <DialogTitle>{selectedTask?.id ? 'Edit Task' : 'Create New Task'}</DialogTitle>
                                 <DialogDescription>
@@ -1039,6 +1039,7 @@ export default function AdminDashboardPage() {
     
 
     
+
 
 
 

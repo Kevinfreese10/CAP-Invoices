@@ -246,7 +246,7 @@ export default function ChartOfAccountsPage() {
                 </CardContent>
             </Card>
 
-            <DialogContent>
+            <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle>{editingAccount ? 'Edit' : 'Create'} Account</DialogTitle>
                 </DialogHeader>

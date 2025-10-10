@@ -610,7 +610,7 @@ function CreateRuleDialog({ isOpen, onClose, onSave, transaction, client }: {
     
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent>
+            <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle>Create New Allocation Rule</DialogTitle>
                     <DialogDescription>Based on transaction: "{transaction?.description}"</DialogDescription>
@@ -908,7 +908,7 @@ function CreateAccountDialog({ isOpen, onClose, onSave, client } : {
     
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent>
+            <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle>Create New Bank Account</DialogTitle>
                 </DialogHeader>

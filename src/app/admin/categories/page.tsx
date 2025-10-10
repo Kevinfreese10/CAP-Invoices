@@ -196,7 +196,7 @@ export default function AdminCategoriesPage() {
                     Create Category
                 </Button>
            </DialogTrigger>
-           <DialogContent className="sm:max-w-[500px]">
+           <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle>{selectedCategory ? 'Edit Category' : 'Create New Category'}</DialogTitle>
                     <DialogDescription>

@@ -135,7 +135,7 @@ export default function AdminServicesPage() {
                     Create Service
                 </Button>
            </DialogTrigger>
-           <DialogContent className="sm:max-w-[600px]">
+           <DialogContent className="sm:max-w-xl">
                 <DialogHeader>
                     <DialogTitle>{selectedService ? 'Edit Service' : 'Create New Service'}</DialogTitle>
                     <DialogDescription>

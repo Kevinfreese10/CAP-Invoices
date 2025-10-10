@@ -166,7 +166,7 @@ export default function NumeraSettingsPage() {
             </div>
 
             <Dialog open={isRuleFormOpen} onOpenChange={setIsRuleFormOpen}>
-                <DialogContent>
+                <DialogContent className="sm:max-w-lg">
                     <DialogHeader>
                         <DialogTitle>{editingRule?.id ? 'Edit' : 'Create'} Global Rule</DialogTitle>
                         <DialogDescription>This rule will be applied as a default to all new clients.</DialogDescription>
