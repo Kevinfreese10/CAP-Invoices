@@ -87,7 +87,10 @@ export default function ResellerOrdersPage() {
   const orderStatuses: Order['status'][] = ['Pending Payment', 'Processing', 'Completed', 'Cancelled'];
   
   const fetchOrdersAndStaff = async () => {
-      if (!user) return;
+      if (!user?.uid) {
+        setIsLoading(false);
+        return;
+      };
       setIsLoading(true);
       try {
         const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
@@ -98,7 +101,7 @@ export default function ResellerOrdersPage() {
         const ordersRef = collection(db, 'orders');
         
         // Fetch client-facing orders (no originalOrderId)
-        const clientOrdersQuery = query(ordersRef, where('resellerId', '==', user.id), where('originalOrderId', '==', null), orderBy('date', 'desc'));
+        const clientOrdersQuery = query(ordersRef, where('resellerId', '==', user.uid), where('originalOrderId', '==', null), orderBy('date', 'desc'));
         const clientOrdersSnapshot = await getDocs(clientOrdersQuery);
         let clientOrders = clientOrdersSnapshot.docs.map(doc => {
           const data = doc.data();
@@ -111,7 +114,7 @@ export default function ResellerOrdersPage() {
         setOrders(clientOrders.filter(order => order.status !== 'Cancelled'));
 
         // Fetch outsourced orders (with originalOrderId)
-        const outsourcedOrdersQuery = query(ordersRef, where('resellerId', '==', user.id), where('originalOrderId', '!=', null), orderBy('date', 'desc'));
+        const outsourcedOrdersQuery = query(ordersRef, where('resellerId', '==', user.uid), where('originalOrderId', '!=', null), orderBy('date', 'desc'));
         const outsourcedOrdersSnapshot = await getDocs(outsourcedOrdersQuery);
         let fetchedOutsourcedOrders = outsourcedOrdersSnapshot.docs.map(doc => {
             const data = doc.data();
@@ -170,7 +173,7 @@ export default function ResellerOrdersPage() {
             })),
             total: orderToOutsource.total,
             status: 'Pending Payment', // The new order for the admin is 'Pending Payment'
-            resellerId: user.id, // Link back to the reseller
+            resellerId: user.uid, // Link back to the reseller
             originalOrderId: orderToOutsource.id, // Link to the original order
         };
         
