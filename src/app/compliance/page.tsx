@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useState, useEffect } from 'react';
-import { Loader2, ShieldCheck, Rocket, Wallet } from 'lucide-react';
+import { Loader2, ShieldCheck, Rocket, Wallet, Building, Landmark, CheckCircle, AlertTriangle, FileText, BotMessageSquare, LifeBuoy, GraduationCap, CalendarCheck2, FileWarning, BadgeDollarSign, FileUp, Phone, Mail } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { getFirestore, addDoc, doc, setDoc, serverTimestamp, collection, Timestamp, getDocs, query, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -24,6 +24,7 @@ import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
 import Link from 'next/link';
+import { Separator } from '@/components/ui/separator';
 
 const db = getFirestore(firebaseApp);
 const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 8);
@@ -191,26 +192,8 @@ export default function CompliancePage() {
     }
   }
 
-  const whyChooseUs = [
-    {
-      title: 'Expert & Reliable',
-      description: 'Our team of seasoned professionals ensures accuracy and dependability.',
-      icon: ShieldCheck,
-    },
-    {
-      title: 'Affordable Pricing',
-      description: 'Transparent, competitive rates with no hidden costs.',
-      icon: Wallet,
-    },
-    {
-      title: 'Fast Turnaround',
-      description: 'We prioritize efficiency to meet your deadlines without compromising quality.',
-      icon: Rocket,
-    },
-  ];
-
   return (
-     <div className="space-y-16 pb-16">
+     <div className="space-y-6 pb-16">
       <section>
         <div className="container mx-auto grid grid-cols-1 items-center gap-12 px-4 py-16 lg:py-24">
           <div className="space-y-6 text-center">
@@ -231,27 +214,123 @@ export default function CompliancePage() {
 
       <TrustIndexWidget />
 
-      <section className="bg-background pt-16">
-         <div className="container mx-auto px-4">
-            <div className="text-center mb-12">
-                <h2 className="text-3xl font-bold">Why Choose My Accountant?</h2>
-                <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
-                    We're committed to providing you with the best service possible.
+       <section className="bg-background py-16">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold">🧾 SARS & CIPC Compliance</h2>
+            <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
+              Stay compliant. Stay confident.
+            </p>
+          </div>
+           <p className="text-lg text-center max-w-3xl mx-auto text-muted-foreground">
+            Running a business in South Africa means keeping up with both SARS (South African Revenue Service) and CIPC (Companies and Intellectual Property Commission) regulations. At My Accountant, we take the stress out of compliance — so you can focus on growth while we handle the paperwork.
+          </p>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-12">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-3"><Building className="h-6 w-6 text-primary"/> CIPC Compliance</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div>
+                  <h4 className="font-semibold">Annual Returns</h4>
+                  <p className="text-sm text-muted-foreground mt-1">Every registered company must file its annual returns with CIPC each year to remain active. Failure to do so can result in deregistration, which means your company bank accounts may be frozen and contracts rendered invalid.</p>
+                  <ul className="mt-3 space-y-2 text-sm">
+                    <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Submission of all outstanding annual returns</li>
+                    <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Reactivation of deregistered companies</li>
+                    <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Calculation and payment of CIPC penalties</li>
+                    <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Updating of registered company details</li>
+                  </ul>
+                   <p className="text-sm font-semibold mt-3 p-2 bg-green-50 rounded-md">✅ Once complete, you’ll receive your updated CIPC compliance confirmation for your records.</p>
+                </div>
+                <Separator/>
+                <div>
+                  <h4 className="font-semibold">Beneficial Ownership Declaration</h4>
+                  <p className="text-sm text-muted-foreground mt-1">Since 2023, CIPC has made it compulsory for all companies and close corporations to declare their beneficial owners — the natural persons who ultimately own or control the company.</p>
+                   <ul className="mt-3 space-y-2 text-sm">
+                    <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Preparing and submitting your Beneficial Ownership Declaration</li>
+                    <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Compiling the Beneficial Ownership Register as required by law</li>
+                    <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Updating your declaration whenever company ownership changes</li>
+                  </ul>
+                  <p className="text-sm font-semibold mt-3 p-2 bg-yellow-50 rounded-md">⚖️ Non-compliance may lead to penalties and even investigation under the Companies Act.</p>
+                </div>
+              </CardContent>
+            </Card>
+
+             <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-3"><Landmark className="h-6 w-6 text-primary"/> SARS Compliance</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                 <div>
+                  <h4 className="font-semibold">Outstanding Returns</h4>
+                  <p className="text-sm text-muted-foreground mt-1">Missed deadlines happen — but SARS penalties add up fast. We help you bring your company’s tax affairs up to date.</p>
+                   <ul className="mt-3 space-y-2 text-sm">
+                    <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Filing all outstanding Income Tax, VAT, and PAYE returns</li>
+                    <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Resolving late submission penalties and interest</li>
+                    <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Reconciling your tax accounts to ensure future compliance</li>
+                  </ul>
+                   <p className="text-sm font-semibold mt-3 p-2 bg-green-50 rounded-md">🕐 Once filed, we provide proof of submission and confirm your updated compliance status on SARS eFiling.</p>
+                </div>
+                <Separator/>
+                <div>
+                  <h4 className="font-semibold">Outstanding Debt</h4>
+                  <p className="text-sm text-muted-foreground mt-1">If you have outstanding tax debt with SARS, we can help you negotiate relief and reduce your financial burden.</p>
+                  <ul className="mt-3 space-y-2 text-sm">
+                    <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Apply for penalty remissions and interest reductions</li>
+                    <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Set up payment arrangements or compromise applications under Section 200</li>
+                    <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Prevent legal collection actions and asset seizures</li>
+                    <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Obtain a clean Tax Clearance Pin once your account is settled</li>
+                  </ul>
+                   <p className="text-sm font-semibold mt-3 p-2 bg-green-50 rounded-md">💡 We’ve helped clients save thousands through legitimate SARS relief measures.</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="text-center mt-16 max-w-4xl mx-auto">
+             <h2 className="text-3xl font-bold">🌟 Why Choose My Accountant?</h2>
+             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 mt-8">
+                <div className="text-center">
+                    <h4 className="font-bold text-lg">Fast Turnaround</h4>
+                    <p className="text-muted-foreground text-sm">We file and follow up daily.</p>
+                </div>
+                <div className="text-center">
+                    <h4 className="font-bold text-lg">Transparent Pricing</h4>
+                    <p className="text-muted-foreground text-sm">No hidden costs or call-out fees.</p>
+                </div>
+                 <div className="text-center">
+                    <h4 className="font-bold text-lg">Trusted Experts</h4>
+                    <p className="text-muted-foreground text-sm">Over 150 five-star reviews from SA businesses.</p>
+                </div>
+                 <div className="text-center">
+                    <h4 className="font-bold text-lg">Digital Convenience</h4>
+                    <p className="text-muted-foreground text-sm">Upload docs and track progress online.</p>
+                </div>
+                 <div className="text-center">
+                    <h4 className="font-bold text-lg">Free Compliance Check</h4>
+                    <p className="text-muted-foreground text-sm">Includes a SARS & CIPC health report (valued at R250).</p>
+                </div>
+                 <div className="text-center">
+                    <h4 className="font-bold text-lg">All-in-One Platform</h4>
+                    <p className="text-muted-foreground text-sm">Track orders, upload documents, and get instant updates.</p>
+                </div>
+             </div>
+          </div>
+
+          <div className="text-center mt-16 max-w-3xl mx-auto">
+             <h2 className="text-3xl font-bold">🚀 Ready to Get Compliant?</h2>
+             <p className="text-lg text-muted-foreground mt-4">Avoid penalties, protect your company, and restore your good standing with SARS and CIPC. Our team will review your compliance position and guide you step-by-step — no jargon, no stress.</p>
+              <div className="mt-8">
+                 <Button asChild size="lg">
+                    <Link href="#compliance-form">Book a Free Compliance Check</Link>
+                </Button>
+                <p className="mt-4 text-sm text-muted-foreground">
+                    Or contact us: <Phone className="inline h-4 w-4 mr-1"/> <a href="tel:0108244360" className="hover:underline">010 824 4360</a> | <Mail className="inline h-4 w-4 ml-2 mr-1"/> <a href="mailto:info@myacc.co.za" className="hover:underline">info@myacc.co.za</a>
                 </p>
-            </div>
-            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-                {whyChooseUs.map(item => (
-                    <div key={item.title} className="flex items-start gap-4">
-                        <div className="flex-shrink-0">
-                            <item.icon className="h-8 w-8 text-primary" />
-                        </div>
-                        <div>
-                            <h3 className="font-semibold">{item.title}</h3>
-                            <p className="text-sm text-muted-foreground">{item.description}</p>
-                        </div>
-                    </div>
-                ))}
-            </div>
+              </div>
+          </div>
+
         </div>
       </section>
       
@@ -364,4 +443,3 @@ export default function CompliancePage() {
     </div>
   );
 }
-
