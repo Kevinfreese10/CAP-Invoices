@@ -222,6 +222,26 @@ export default function CompliancePage() {
     setIsComplete(true);
   }
 
+  const sarsServices = [
+    { title: "Tax Clearance Pins:", description: "Same-day issue for R250." },
+    { title: "Income Tax Registration:", description: "Register your business and directors with SARS." },
+    { title: "VAT Registration:", description: "For businesses earning over R1 million or voluntarily from R50 000+." },
+    { title: "PAYE, UIF & SDL Registration:", description: "Stay compliant with employment laws." },
+    { title: "Tax Returns & Submissions:", description: "Including Income Tax, VAT, PAYE, and Provisional Tax." },
+    { title: "SARS Compliance Review:", description: "Identify risks, outstanding returns, and penalties." },
+    { title: "Remission of Fines & Penalties:", description: "We negotiate with SARS to reduce or remove penalties." },
+  ];
+
+  const cipcServices = [
+    { title: "Company Registration:", description: "Fast online setup with documents delivered to your inbox." },
+    { title: "Amendments:", description: "Update director details, company name, or address." },
+    { title: "Beneficial Ownership Declaration:", description: "Compliant with the new CIPC requirements." },
+    { title: "Annual Returns:", description: "Ensure your company remains in good standing." },
+    { title: "Reinstatements:", description: "Restore deregistered companies quickly and legally." },
+    { title: "Securities Register:", description: "Issued in terms of the Companies Act for transparency." },
+  ];
+
+
   const whyChooseUs = [
     {
       title: 'Same-day service options',
@@ -290,21 +310,23 @@ export default function CompliancePage() {
                     Running a business in South Africa means keeping up with both SARS (South African Revenue Service) and CIPC (Companies and Intellectual Property Commission) regulations. At My Accountant, we take the stress out of compliance — so you can focus on growth while we handle the paperwork.
                 </p>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-12">
+                <div className="mt-12 space-y-8">
                     <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-3"><Landmark className="h-6 w-6 text-primary"/> SARS Compliance</CardTitle>
                         <CardDescription>We make sure your business meets all SARS tax obligations — on time, every time.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        <ul className="space-y-2 text-sm">
-                            <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> <strong>Tax Clearance Pins:</strong> Same-day issue for R250.</li>
-                            <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> <strong>Income Tax Registration:</strong> Register your business and directors with SARS.</li>
-                            <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> <strong>VAT Registration:</strong> For businesses earning over R1 million or voluntarily from R50 000+.</li>
-                            <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> <strong>PAYE, UIF & SDL Registration:</strong> Stay compliant with employment laws.</li>
-                            <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> <strong>Tax Returns & Submissions:</strong> Including Income Tax, VAT, PAYE, and Provisional Tax.</li>
-                             <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> <strong>SARS Compliance Review:</strong> Identify risks, outstanding returns, and penalties.</li>
-                            <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> <strong>Remission of Fines & Penalties:</strong> We negotiate with SARS to reduce or remove penalties.</li>
+                        <ul className="space-y-4 text-sm">
+                            {sarsServices.map((service, index) => (
+                                <li key={index} className="grid grid-cols-1 sm:grid-cols-[1fr_2fr] items-start gap-x-4">
+                                    <div className="flex items-start gap-2 font-semibold text-foreground">
+                                        <CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> 
+                                        <span>{service.title}</span>
+                                    </div>
+                                    <div className="text-muted-foreground sm:pl-6">{service.description}</div>
+                                </li>
+                            ))}
                         </ul>
                          <p className="text-xs text-muted-foreground pt-4">📍 All SARS services are handled electronically and are 100% trackable through your online dashboard.</p>
                     </CardContent>
@@ -316,13 +338,16 @@ export default function CompliancePage() {
                         <CardDescription>Keep your company active and legally protected with our CIPC services.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                         <ul className="space-y-2 text-sm">
-                            <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> <strong>Company Registration:</strong> Fast online setup with documents delivered to your inbox.</li>
-                            <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> <strong>Amendments:</strong> Update director details, company name, or address.</li>
-                            <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> <strong>Beneficial Ownership Declaration:</strong> Compliant with the new CIPC requirements.</li>
-                            <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> <strong>Annual Returns:</strong> Ensure your company remains in good standing.</li>
-                            <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> <strong>Reinstatements:</strong> Restore deregistered companies quickly and legally.</li>
-                            <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> <strong>Securities Register:</strong> Issued in terms of the Companies Act for transparency.</li>
+                         <ul className="space-y-4 text-sm">
+                            {cipcServices.map((service, index) => (
+                                <li key={index} className="grid grid-cols-1 sm:grid-cols-[1fr_2fr] items-start gap-x-4">
+                                    <div className="flex items-start gap-2 font-semibold text-foreground">
+                                        <CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> 
+                                        <span>{service.title}</span>
+                                    </div>
+                                    <div className="text-muted-foreground sm:pl-6">{service.description}</div>
+                                </li>
+                            ))}
                         </ul>
                          <p className="text-xs text-muted-foreground pt-4">⚙️ We handle submissions directly with CIPC and keep you updated every step of the way.</p>
                     </CardContent>
@@ -374,7 +399,7 @@ export default function CompliancePage() {
         )}
         
         </div>
-        <DialogContent className="sm:max-w-xl w-[calc(100%-2rem)]">
+        <DialogContent className="sm:max-w-xl w-[calc(100%-2rem)] mx-auto">
              <DialogHeader>
                 <DialogTitle>Free Compliance Assessment</DialogTitle>
                 <DialogDescription>
