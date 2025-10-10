@@ -47,7 +47,7 @@ export async function websiteQAndA(
   // Serialize the website content to pass to the prompt
   const websiteContent = `
     SERVICES:
-    ${services.map(s => `Title: ${s.title}, URL: /services/${s.id}, Description: ${s.longDescription}, Price: ZAR ${s.price}`).join('\n\n')}
+    ${services.map(s => `Title: ${s.title}, URL: /services/${s.id}, Description: ${s.longDescription}, Price: ZAR ${s.price}, Turnaround Time: ${s.turnaroundTime}, Prerequisites: ${s.clientRequirements.join(', ')}`).join('\n\n')}
 
     BLOG POSTS:
     ${blogPosts.map(p => `Title: ${p.title}, Excerpt: ${p.excerpt}`).join('\n\n')}
@@ -69,7 +69,12 @@ export async function websiteQAndA(
     
     Your task is to answer user questions based *only* on the information provided in the context below. The Knowledge Base section is the highest source of truth.
 
-    If the user's question is about a specific service mentioned in the context, you must provide the 'serviceUrl' for that service in your response.
+    If the user's question is about a specific service mentioned in the context, you MUST provide the 'serviceUrl' for that service in your response.
+    
+    CRITICAL INSTRUCTION: When answering a question about a service, you MUST ALWAYS include the following details in your answer:
+    1.  The price.
+    2.  The completion time (turnaround time).
+    3.  A summary of the prerequisites (client requirements).
     
     If the answer is not found in the context, you MUST state that you do not have that information and suggest they contact support. For example, say "That's an excellent question! I don't have that specific information right now, but our expert team would be happy to help. You can reach them through our support page."
     
