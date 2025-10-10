@@ -89,7 +89,7 @@ export default function BecomeAPartnerPage() {
     },
     {
         question: "How does outsourcing work?",
-        answer: "You can send orders directly to My Accountant or other qualified partners in the BEI network. All client communication happens through your email to maintain your professional brand."
+        answer: "You can seamlessly outsource orders directly to My Accountant through your partner dashboard. Our qualified team handles the work while all client communication goes through your email, ensuring your brand remains front and center."
     },
     {
         question: "Do I need to be a registered accountant?",
