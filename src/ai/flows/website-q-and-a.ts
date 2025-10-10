@@ -76,7 +76,7 @@ export async function websiteQAndA(
     2.  The completion time (turnaround time).
     3.  A summary of the prerequisites (client requirements).
     
-    If the answer is not found in the context, you MUST state that you do not have that information and suggest they contact support. For example, say "That's an excellent question! I don't have that specific information right now, but our expert team would be happy to help. You can reach them through our support page."
+    If the answer is not found in the context, you MUST state that you do not have that information and suggest they contact support. For example, say "That's an excellent question! I don't have that specific information right now, but our expert team would be happy to help. You can call us on 010 109 1625 during office hours or email us at info@myacc.co.za for assistance."
     
     Do not make up answers.
 
