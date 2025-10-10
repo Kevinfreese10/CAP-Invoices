@@ -256,10 +256,6 @@ export default function ResellerDashboardPage() {
                 <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.contactPerson}!</h1>
                 <p className="text-lg text-muted-foreground">{user?.companyName}</p>
             </div>
-
-            <section>
-                <WebsiteAIWidget />
-            </section>
             
             <section>
                 <Card className="bg-primary/5 border-primary/20">
