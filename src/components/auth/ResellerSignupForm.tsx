@@ -61,7 +61,7 @@ export default function ResellerSignupForm() {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const { reauthenticate } = useAuth();
+  const { reauthenticate, login } = useAuth();
   const adminUser = auth.currentUser;
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [allCategories, setAllCategories] = useState<Category[]>([]);
@@ -161,17 +161,18 @@ export default function ResellerSignupForm() {
             certificateUrl: certificateUrl,
         });
         
-        // 4. Re-authenticate the original admin user if one was logged in
+        // 4. Re-authenticate the original admin user if one was logged in, then log in the new user.
         if (adminUser) {
             await reauthenticate(adminUser);
         }
+        await login(values.email, values.password);
 
         toast({
             title: 'Application Received!',
-            description: `Thank you, ${values.contactPerson}. Your reseller account has been created. Redirecting to login...`,
+            description: `Thank you, ${values.contactPerson}. Your reseller account has been created. Redirecting to your dashboard...`,
         });
         
-        router.push('/login');
+        router.push('/reseller/dashboard');
 
     } catch (error: any) {
         console.error("Reseller signup error:", error);
@@ -346,5 +347,3 @@ export default function ResellerSignupForm() {
     </Form>
   );
 }
-
-    
