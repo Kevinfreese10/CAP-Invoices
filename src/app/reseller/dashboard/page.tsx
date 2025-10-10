@@ -1,7 +1,7 @@
 
 'use client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import WebsiteAIWidget from '@/components/shared/WebsiteAIWidget';
@@ -261,6 +261,21 @@ export default function ResellerDashboardPage() {
                 <WebsiteAIWidget />
             </section>
             
+            <section>
+                <Card className="bg-primary/5 border-primary/20">
+                    <CardHeader>
+                        <CardTitle>Become a Premium Member</CardTitle>
+                        <CardDescription>Unlock exclusive benefits, priority support, and higher commission rates.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-muted-foreground">Upgrade to our premium plan to take your reselling business to the next level.</p>
+                    </CardContent>
+                    <CardFooter>
+                        <Button>Upgrade to Premium</Button>
+                    </CardFooter>
+                </Card>
+            </section>
+
             <section>
                 <Card>
                     <CardHeader>
