@@ -21,6 +21,7 @@ import { useRouter } from 'next/navigation';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import Image from 'next/image';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 const auth = getAuth(firebaseApp);
 const storage = getStorage(firebaseApp);
@@ -242,13 +243,32 @@ export default function CAPSuppliersPage() {
             <CardDescription>Follow these steps to process invoices.</CardDescription>
           </CardHeader>
           <CardContent>
-             <div className="flex flex-col items-center justify-center h-64 text-center text-muted-foreground border-2 border-dashed rounded-lg p-4">
-                <FileText className="h-10 w-10 mb-4" />
-                <p className="font-semibold">Extracted data will appear on the Review page.</p>
-                <p className="text-sm mt-2">1. Upload one or more invoice files.</p>
-                <p className="text-sm">2. Click "Extract Invoices".</p>
-                <p className="text-sm">3. You will be redirected to the Review page.</p>
-            </div>
+             <Accordion type="single" collapsible defaultValue="step-1">
+                <AccordionItem value="step-1">
+                    <AccordionTrigger>Step 1: Upload Invoices</AccordionTrigger>
+                    <AccordionContent>
+                        Select one or more PDF or image files of supplier invoices. You will see a preview of the selected files before proceeding.
+                    </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="step-2">
+                    <AccordionTrigger>Step 2: AI Extraction</AccordionTrigger>
+                    <AccordionContent>
+                        Click the "Extract Invoices" button. The AI will analyze each document to pull out key information like supplier name, invoice number, date, and line items. This may take a few moments per invoice.
+                    </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="step-3">
+                    <AccordionTrigger>Step 3: Review & Approve</AccordionTrigger>
+                    <AccordionContent>
+                        After extraction, you will be automatically redirected to the "Review" page. Here, you can verify the AI's accuracy, make any necessary corrections, and approve the invoices.
+                    </AccordionContent>
+                </AccordionItem>
+                 <AccordionItem value="step-4">
+                    <AccordionTrigger>Step 4: Final Control Sheet</AccordionTrigger>
+                    <AccordionContent>
+                       Once approved, invoices move to the control sheet for final review and payment processing.
+                    </AccordionContent>
+                </AccordionItem>
+            </Accordion>
           </CardContent>
         </Card>
       </div>
