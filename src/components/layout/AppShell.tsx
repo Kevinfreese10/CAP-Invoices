@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -5,7 +6,6 @@ import { usePathname } from 'next/navigation';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { ReactNode } from 'react';
-import NewVisitorPopup from '../shared/NewVisitorPopup';
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -23,7 +23,6 @@ export default function AppShell({ children }: { children: ReactNode }) {
       {shouldShowHeaderFooter && (
         <>
           <Header />
-          <NewVisitorPopup />
         </>
       )}
       <main className="flex-grow bg-background">{children}</main>

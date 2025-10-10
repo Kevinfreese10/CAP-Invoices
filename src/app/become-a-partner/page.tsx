@@ -13,6 +13,55 @@ const TrustIndexWidget = dynamic(() => import('@/components/shared/TrustIndexWid
   ssr: false,
 });
 
+const FaqSection = () => {
+    const faqs = [
+    {
+        question: "Who should join the Bookkeeper Empowerment Initiative?",
+        answer: "BEI is ideal for passionate professionals who want to grow their business without stress, including:\n- Freelance Bookkeepers\n- Startup Accounting Firms\n- Tax Practitioners\n- Business Consultants\n- Payroll Administrators"
+    },
+    {
+        question: "What does it cost to join?",
+        answer: "Joining is completely free — there are no upfront or monthly fees.\nYou’ll only pay for the services you choose to outsource through your dashboard.\n\nAs a My Accountant Partner, you’ll also receive a 25% discount on all our services, allowing you to set your own pricing and profit margins.\nOur retail pricing remains the same — you simply earn the difference."
+    },
+    {
+        question: "How does outsourcing work?",
+        answer: "You can seamlessly outsource orders directly to My Accountant through your partner dashboard.\nOur qualified team handles the work while all client communication goes through your email, ensuring your brand remains front and center."
+    },
+    {
+        question: "How It Works",
+        answer: "Joining is simple and straightforward. Follow these steps to start growing your practice:\n\n1. Apply Online\n2. Access Your Dashboard\n3. Outsource or Accept Work\n4. Learn & Grow",
+    },
+    {
+        question: "Do I need to be a registered accountant?",
+        answer: "No. Everyone is welcome — including business owners who do not work in the accounting or tax space but would like to offer these services to their clients.\n\nHowever, to qualify for opportunities where My Accountant outsources work to you, you must belong to a recognized professional accounting or tax body such as SAICA, SAIT, CIBA, or SAIPA. This ensures we maintain consistent quality and professional standards across all client work."
+    },
+    {
+        question: "How do I get support?",
+        answer: "You’ll have access to a dedicated partner support team, mentorship network, and helpdesk through your dashboard."
+    }
+  ];
+
+  return (
+      <section className="container mx-auto px-4 max-w-4xl">
+         <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold">Frequently Asked Questions</h2>
+        </div>
+         <Accordion type="single" collapsible className="w-full">
+            {faqs.map((faq, index) => (
+              <AccordionItem key={index} value={`item-${index}`}>
+                <AccordionTrigger>{faq.question}</AccordionTrigger>
+                <AccordionContent className="whitespace-pre-line">{faq.answer}</AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+      </section>
+  )
+}
+
+const DynamicFaqSection = dynamic(() => Promise.resolve(FaqSection), {
+    ssr: false,
+});
+
 
 export default function BecomeAPartnerPage() {
 
@@ -80,33 +129,6 @@ export default function BecomeAPartnerPage() {
         title: 'Technical & Partner Support',
         description: 'Our technical team ensures your reseller dashboard runs smoothly. You’ll have access to support whenever you need help with your account, orders, or system setup.',
     },
-  ];
-
-  const faqs = [
-    {
-        question: "Who should join the Bookkeeper Empowerment Initiative?",
-        answer: "BEI is ideal for passionate professionals who want to grow their business without stress, including:\n- Freelance Bookkeepers\n- Startup Accounting Firms\n- Tax Practitioners\n- Business Consultants\n- Payroll Administrators"
-    },
-    {
-        question: "What does it cost to join?",
-        answer: "Joining is completely free — there are no upfront or monthly fees.\nYou’ll only pay for the services you choose to outsource through your dashboard.\n\nAs a My Accountant Partner, you’ll also receive a 25% discount on all our services, allowing you to set your own pricing and profit margins.\nOur retail pricing remains the same — you simply earn the difference."
-    },
-    {
-        question: "How does outsourcing work?",
-        answer: "You can seamlessly outsource orders directly to My Accountant through your partner dashboard.\nOur qualified team handles the work while all client communication goes through your email, ensuring your brand remains front and center."
-    },
-    {
-        question: "How It Works",
-        answer: "Joining is simple and straightforward. Follow these steps to start growing your practice:\n\n1. Apply Online\n2. Access Your Dashboard\n3. Outsource or Accept Work\n4. Learn & Grow",
-    },
-    {
-        question: "Do I need to be a registered accountant?",
-        answer: "No. Everyone is welcome — including business owners who do not work in the accounting or tax space but would like to offer these services to their clients.\n\nHowever, to qualify for opportunities where My Accountant outsources work to you, you must belong to a recognized professional accounting or tax body such as SAICA, SAIT, CIBA, or SAIPA. This ensures we maintain consistent quality and professional standards across all client work."
-    },
-    {
-        question: "How do I get support?",
-        answer: "You’ll have access to a dedicated partner support team, mentorship network, and helpdesk through your dashboard."
-    }
   ];
 
   return (
@@ -184,19 +206,7 @@ export default function BecomeAPartnerPage() {
         </div>
       </section>
 
-      <section className="container mx-auto px-4 max-w-4xl">
-         <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold">Frequently Asked Questions</h2>
-        </div>
-         <Accordion type="single" collapsible className="w-full">
-            {faqs.map((faq, index) => (
-              <AccordionItem key={index} value={`item-${index}`}>
-                <AccordionTrigger>{faq.question}</AccordionTrigger>
-                <AccordionContent className="whitespace-pre-line">{faq.answer}</AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-      </section>
+      <DynamicFaqSection />
       
       <section className="container mx-auto px-4">
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
