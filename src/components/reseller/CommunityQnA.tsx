@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getFirestore, collection, addDoc, query, where, onSnapshot, orderBy, doc, updateDoc, arrayUnion, arrayRemove, getDocs } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, query, where, onSnapshot, orderBy, doc, updateDoc, arrayUnion, arrayRemove, getDocs, setDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { CommunityQuestion, CommunityAnswer, User } from '@/lib/types';
@@ -52,6 +52,9 @@ export default function CommunityQnA() {
                 fetchedQuestions.push(questionData);
             }
             setQuestions(fetchedQuestions);
+            setIsLoading(false);
+        }, (error) => {
+            console.error("Error fetching community questions:", error);
             setIsLoading(false);
         });
 
@@ -124,8 +127,8 @@ export default function CommunityQnA() {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Community Q&A</CardTitle>
-                <CardDescription>Ask questions and share your knowledge with other resellers.</CardDescription>
+                <CardTitle>Community Q&amp;A</CardTitle>
+                <CardDescription>Ask questions and share your knowledge with other Accountants</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
                 <div className="space-y-2">
@@ -150,7 +153,7 @@ export default function CommunityQnA() {
                             <div className="p-4 bg-muted/50 rounded-lg">
                                 <p className="font-semibold">{q.text}</p>
                                 <p className="text-xs text-muted-foreground">
-                                    Asked by {askedByUser?.name || '...'} about {formatDistanceToNow(q.askedAt.toDate(), { addSuffix: true })}
+                                    Asked by {askedByUser?.name || '...'} about {q.askedAt ? formatDistanceToNow(q.askedAt.toDate(), { addSuffix: true }) : ''}
                                 </p>
                             </div>
                             <div className="pl-6 space-y-4">
@@ -160,7 +163,7 @@ export default function CommunityQnA() {
                                         <div key={a.id} className="border-l-2 pl-4">
                                             <p>{a.text}</p>
                                             <div className="flex justify-between items-center text-xs text-muted-foreground mt-2">
-                                                <p>by {answeredByUser?.name || '...'} {formatDistanceToNow(a.answeredAt.toDate(), { addSuffix: true })}</p>
+                                                <p>by {answeredByUser?.name || '...'} {a.answeredAt ? formatDistanceToNow(a.answeredAt.toDate(), { addSuffix: true }) : ''}</p>
                                                 <Button variant="ghost" size="sm" onClick={() => handleLikeAnswer(q.id, a.id)}>
                                                     <ThumbsUp className="h-4 w-4 mr-2" />
                                                     {a.likes}
