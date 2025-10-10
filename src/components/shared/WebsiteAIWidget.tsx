@@ -81,7 +81,7 @@ export default function WebsiteAIWidget() {
       </div>
 
       {isOpen && (
-        <div className="fixed bottom-24 right-4 z-50 w-full max-w-sm">
+        <div className="fixed bottom-24 right-4 z-50 w-full max-w-sm sm:w-auto sm:max-w-sm md:max-w-md">
           <Card className="flex flex-col h-[60vh] shadow-xl">
             <CardHeader className="flex flex-row items-center justify-between bg-gradient text-primary-foreground p-4">
               <div className="flex items-center gap-3">
