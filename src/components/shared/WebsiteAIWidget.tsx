@@ -75,7 +75,7 @@ export default function WebsiteAIWidget() {
   return (
     <>
       <div className="fixed bottom-4 right-4 z-50">
-        <Button onClick={() => setIsOpen(!isOpen)} size="icon" className="w-16 h-16 rounded-full shadow-lg">
+        <Button onClick={() => setIsOpen(!isOpen)} size="icon" className="w-16 h-16 rounded-full shadow-lg bg-gradient">
            {isOpen ? <X className="h-8 w-8" /> : <MessageCircle className="h-8 w-8" />}
         </Button>
       </div>
@@ -83,7 +83,7 @@ export default function WebsiteAIWidget() {
       {isOpen && (
         <div className="fixed bottom-24 right-4 z-50 w-full max-w-sm">
           <Card className="flex flex-col h-[60vh] shadow-xl">
-            <CardHeader className="flex flex-row items-center justify-between bg-primary text-primary-foreground p-4">
+            <CardHeader className="flex flex-row items-center justify-between bg-gradient text-primary-foreground p-4">
               <div className="flex items-center gap-3">
                   <Bot className="h-6 w-6" />
                   <CardTitle className="text-lg">Khai - Your AI Assistant</CardTitle>
@@ -95,7 +95,7 @@ export default function WebsiteAIWidget() {
                   {message.role === 'bot' && <Bot className="h-6 w-6 text-primary flex-shrink-0" />}
                    <div className={cn(
                         "p-3 rounded-lg max-w-xs",
-                        message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                        message.role === 'user' ? 'bg-gradient text-primary-foreground' : 'bg-muted'
                     )}>
                         <p className="text-sm">{message.text}</p>
                     </div>

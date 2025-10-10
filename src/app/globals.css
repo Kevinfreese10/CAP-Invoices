@@ -74,4 +74,7 @@
     background-clip: text;
     color: transparent;
   }
+  .bg-gradient {
+    background-image: linear-gradient(to right, #D9006C, #8F00B3);
+  }
 }
