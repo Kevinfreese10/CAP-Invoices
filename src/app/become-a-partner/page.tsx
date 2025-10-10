@@ -204,20 +204,6 @@ export default function BecomeAPartnerPage() {
             </Button>
         </div>
       </section>
-
-      <section className="container mx-auto px-4">
-        <Card className="bg-gradient-to-r from-primary to-blue-600 text-primary-foreground">
-            <CardContent className="p-8 md:p-12 text-center space-y-6">
-                <h2 className="text-3xl font-bold">Secure Your Future Today</h2>
-                <p className="max-w-3xl mx-auto">
-                   Most small accounting practices fail due to isolation, lack of support, and limited scalability. The BEI helps you break that cycle — giving you the tools, mentorship, and opportunities to build a thriving practice.
-                </p>
-                <Button variant="secondary" size="lg" asChild>
-                    <Link href="/reseller-signup">Ready to grow your practice? Join the Bookkeeper Empowerment Initiative</Link>
-                </Button>
-            </CardContent>
-        </Card>
-      </section>
     </div>
   );
 }
