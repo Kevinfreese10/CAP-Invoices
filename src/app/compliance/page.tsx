@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useState, useEffect } from 'react';
-import { Loader2, ShieldCheck } from 'lucide-react';
+import { Loader2, ShieldCheck, Rocket, Wallet } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { getFirestore, addDoc, doc, setDoc, serverTimestamp, collection, Timestamp, getDocs, query, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -22,7 +22,8 @@ import { DiscountCode, Task, User } from '@/lib/types';
 import NewTaskEmail from '@/components/emails/NewTaskEmail';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
-
+import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
+import Link from 'next/link';
 
 const db = getFirestore(firebaseApp);
 const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 8);
@@ -190,118 +191,177 @@ export default function CompliancePage() {
     }
   }
 
+  const whyChooseUs = [
+    {
+      title: 'Expert & Reliable',
+      description: 'Our team of seasoned professionals ensures accuracy and dependability.',
+      icon: ShieldCheck,
+    },
+    {
+      title: 'Affordable Pricing',
+      description: 'Transparent, competitive rates with no hidden costs.',
+      icon: Wallet,
+    },
+    {
+      title: 'Fast Turnaround',
+      description: 'We prioritize efficiency to meet your deadlines without compromising quality.',
+      icon: Rocket,
+    },
+  ];
+
   return (
-    <div className="container mx-auto max-w-2xl px-4 py-12">
-        <div className="text-center mb-12">
-            <h1 className="text-4xl font-bold tracking-tight">Free Compliance Check</h1>
-            <p className="mt-4 text-lg text-muted-foreground max-w-3xl mx-auto">
-                Ensure your business is compliant with CIPC and SARS. Enter your details below for a free, no-obligation compliance assessment.
+     <div className="space-y-16 pb-16">
+      <section>
+        <div className="container mx-auto grid grid-cols-1 items-center gap-12 px-4 py-16 lg:py-24">
+          <div className="space-y-6 text-center">
+            <h1 className="text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl text-foreground">
+              Free <span className="text-gradient">#Compliance</span> Check
+            </h1>
+            <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
+              Ensure your business is compliant with CIPC and SARS. Enter your details below for a free, no-obligation compliance assessment and get 5% off your next service.
             </p>
+            <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
+              <Button asChild size="lg">
+                <Link href="#compliance-form">Get My Free Assessment</Link>
+              </Button>
+            </div>
+          </div>
         </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Company Details</CardTitle>
-          <CardDescription>All information is handled with strict confidentiality according to our POPIA policy.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isComplete ? (
-            <Alert>
-              <ShieldCheck className="h-4 w-4" />
-              <AlertTitle>Thank You!</AlertTitle>
-              <AlertDescription>
-                Your request has been submitted. One of our consultants will contact you within 24 hours with the results of your free compliance check. We have also sent a welcome email with your 5% discount code.
-              </AlertDescription>
-            </Alert>
-          ) : (
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-                 <FormField
-                  control={form.control}
-                  name="companyName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Company Name</FormLabel>
-                      <FormControl><Input {...field} placeholder="e.g., ABC (Pty) Ltd" /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="registrationNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Company Registration Number</FormLabel>
-                      <FormControl><Input {...field} placeholder="e.g., 2024/123456/07" /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                 <FormField
-                  control={form.control}
-                  name="sarsUsername"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>SARS e-Filing Username (Optional)</FormLabel>
-                      <FormControl><Input {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                 <FormField
-                  control={form.control}
-                  name="sarsPassword"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>SARS e-Filing Password (Optional)</FormLabel>
-                      <FormControl><Input type="password" {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <h3 className="text-lg font-medium pt-4">Your Contact Details</h3>
-                <FormField
-                  control={form.control}
-                  name="yourName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Your Full Name</FormLabel>
-                      <FormControl><Input {...field} placeholder="John Doe" /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="yourEmail"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Your Email Address</FormLabel>
-                      <FormControl><Input type="email" {...field} placeholder="name@example.com" /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                 <FormField
-                  control={form.control}
-                  name="yourPhone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Your Phone Number</FormLabel>
-                      <FormControl><Input type="tel" {...field} placeholder="0821234567" /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button type="submit" disabled={isLoading || isStaffLoading} className="w-full">
-                  {(isLoading || isStaffLoading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {isLoading ? 'Submitting...' : 'Sign up, get my free compliance assessment and 5% discount'}
-                </Button>
-              </form>
-            </Form>
-          )}
-        </CardContent>
-      </Card>
+      </section>
+
+      <TrustIndexWidget />
+
+      <section className="bg-background pt-16">
+         <div className="container mx-auto px-4">
+            <div className="text-center mb-12">
+                <h2 className="text-3xl font-bold">Why Choose My Accountant?</h2>
+                <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
+                    We're committed to providing you with the best service possible.
+                </p>
+            </div>
+            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+                {whyChooseUs.map(item => (
+                    <div key={item.title} className="flex items-start gap-4">
+                        <div className="flex-shrink-0">
+                            <item.icon className="h-8 w-8 text-primary" />
+                        </div>
+                        <div>
+                            <h3 className="font-semibold">{item.title}</h3>
+                            <p className="text-sm text-muted-foreground">{item.description}</p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+      </section>
+      
+      <section id="compliance-form" className="container mx-auto max-w-2xl px-4 py-12 scroll-m-20">
+        <Card>
+            <CardHeader>
+            <CardTitle>Company Details</CardTitle>
+            <CardDescription>All information is handled with strict confidentiality according to our POPIA policy.</CardDescription>
+            </CardHeader>
+            <CardContent>
+            {isComplete ? (
+                <Alert>
+                <ShieldCheck className="h-4 w-4" />
+                <AlertTitle>Thank You!</AlertTitle>
+                <AlertDescription>
+                    Your request has been submitted. One of our consultants will contact you within 24 hours with the results of your free compliance check. We have also sent a welcome email with your 5% discount code.
+                </AlertDescription>
+                </Alert>
+            ) : (
+                <Form {...form}>
+                <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+                    <FormField
+                    control={form.control}
+                    name="companyName"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Company Name</FormLabel>
+                        <FormControl><Input {...field} placeholder="e.g., ABC (Pty) Ltd" /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={form.control}
+                    name="registrationNumber"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Company Registration Number</FormLabel>
+                        <FormControl><Input {...field} placeholder="e.g., 2024/123456/07" /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={form.control}
+                    name="sarsUsername"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>SARS e-Filing Username (Optional)</FormLabel>
+                        <FormControl><Input {...field} /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={form.control}
+                    name="sarsPassword"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>SARS e-Filing Password (Optional)</FormLabel>
+                        <FormControl><Input type="password" {...field} /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <h3 className="text-lg font-medium pt-4">Your Contact Details</h3>
+                    <FormField
+                    control={form.control}
+                    name="yourName"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Your Full Name</FormLabel>
+                        <FormControl><Input {...field} placeholder="John Doe" /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={form.control}
+                    name="yourEmail"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Your Email Address</FormLabel>
+                        <FormControl><Input type="email" {...field} placeholder="name@example.com" /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={form.control}
+                    name="yourPhone"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Your Phone Number</FormLabel>
+                        <FormControl><Input type="tel" {...field} placeholder="0821234567" /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <Button type="submit" disabled={isLoading || isStaffLoading} className="w-full">
+                    {(isLoading || isStaffLoading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {isLoading ? 'Submitting...' : 'Sign up, get my free compliance assessment and 5% discount'}
+                    </Button>
+                </form>
+                </Form>
+            )}
+            </CardContent>
+        </Card>
+      </section>
     </div>
   );
 }
+
