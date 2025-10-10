@@ -9,6 +9,7 @@
  */
 
 import { ai } from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'zod';
 
 const ExtractStatementDataInputSchema = z.object({
@@ -58,7 +59,8 @@ const extractStatementDataFlow = ai.defineFlow(
     outputSchema: ExtractStatementDataOutputSchema,
   },
   async (input) => {
-    const { output } = await prompt(input);
+    const { output } = await prompt(input, { model: googleAI.model('gemini-1.5-flash-latest') });
     return output!;
   }
 );
+
