@@ -7,6 +7,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Rocket, ShieldCheck, Wallet, UserCheck, Cpu, Briefcase, Users, FileText, BotMessageSquare, LifeBuoy, GraduationCap, CheckCircle2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
 
 
 export default function BecomeAPartnerPage() {
@@ -120,6 +121,8 @@ export default function BecomeAPartnerPage() {
             </Button>
         </div>
       </section>
+
+      <TrustIndexWidget />
 
       <section className="container mx-auto px-4">
         <div className="max-w-4xl mx-auto text-center space-y-4">
@@ -237,5 +240,3 @@ export default function BecomeAPartnerPage() {
     </div>
   );
 }
-
-    
