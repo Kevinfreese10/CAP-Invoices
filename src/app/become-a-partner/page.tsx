@@ -92,6 +92,10 @@ export default function BecomeAPartnerPage() {
         answer: "You can seamlessly outsource orders directly to My Accountant through your partner dashboard.\nOur qualified team handles the work while all client communication goes through your email, ensuring your brand remains front and center."
     },
     {
+        question: "How It Works",
+        answer: "Joining is simple and straightforward. Follow these steps to start growing your practice:\n\n1. Apply Online\n2. Access Your Dashboard\n3. Outsource or Accept Work\n4. Learn & Grow",
+    },
+    {
         question: "Do I need to be a registered accountant?",
         answer: "No. Everyone is welcome — including business owners who do not work in the accounting or tax space but would like to offer these services to their clients.\n\nHowever, to qualify for opportunities where My Accountant outsources work to you, you must belong to a recognized professional accounting or tax body such as SAICA, SAIT, CIBA, or SAIPA. This ensures we maintain consistent quality and professional standards across all client work."
     },
