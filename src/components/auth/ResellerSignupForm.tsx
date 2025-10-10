@@ -16,7 +16,7 @@ import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getFirestore, doc, setDoc, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Service } from '@/lib/types';
@@ -49,6 +49,13 @@ const formSchema = z.object({
     path: ['wantsOutsourcedWork'],
 });
 
+type Category = { 
+    id: string; 
+    name: string; 
+    description: string; 
+    order: number; 
+};
+
 
 export default function ResellerSignupForm() {
   const router = useRouter();
@@ -57,6 +64,7 @@ export default function ResellerSignupForm() {
   const { reauthenticate } = useAuth();
   const adminUser = auth.currentUser;
   const [allServices, setAllServices] = useState<Service[]>([]);
+  const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [isServicesLoading, setIsServicesLoading] = useState(true);
 
 
@@ -75,26 +83,43 @@ export default function ResellerSignupForm() {
   });
   
   useEffect(() => {
-    const fetchServices = async () => {
+    const fetchServicesAndCategories = async () => {
         setIsServicesLoading(true);
         try {
             const servicesQuery = query(collection(db, "services"), orderBy("title"));
             const servicesSnapshot = await getDocs(servicesQuery);
             const fetchedServices = servicesSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Service));
             setAllServices(fetchedServices);
+
+            const categoriesQuery = query(collection(db, "categories"), orderBy("order"));
+            const categoriesSnapshot = await getDocs(categoriesQuery);
+            const fetchedCategories = categoriesSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Category));
+            setAllCategories(fetchedCategories);
+
         } catch (error) {
-            console.error("Error fetching services:", error);
+            console.error("Error fetching data:", error);
             toast({
                 title: 'Error',
-                description: 'Could not load services list.',
+                description: 'Could not load required data. Please try refreshing the page.',
                 variant: 'destructive',
             });
         } finally {
             setIsServicesLoading(false);
         }
     };
-    fetchServices();
+    fetchServicesAndCategories();
   }, [toast]);
+
+  const categorizedServices = useMemo(() => {
+    if (!allCategories.length || !allServices.length) return [];
+    
+    return allCategories
+      .map(category => ({
+        ...category,
+        services: allServices.filter(service => service.category === category.name),
+      }))
+      .filter(category => category.services.length > 0);
+  }, [allCategories, allServices]);
 
 
   const wantsOutsourcedWork = form.watch('wantsOutsourcedWork');
@@ -246,39 +271,41 @@ export default function ResellerSignupForm() {
                                 <span>Loading services...</span>
                             </div>
                           ) : (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                            {allServices.map((service) => (
-                              <FormField
-                                key={service.id}
-                                control={form.control}
-                                name="capableServices"
-                                render={({ field }) => {
-                                  return (
-                                    <FormItem
-                                      key={service.id}
-                                      className="flex flex-row items-start space-x-3 space-y-0"
-                                    >
-                                      <FormControl>
-                                        <Checkbox
-                                          checked={field.value?.includes(service.id)}
-                                          onCheckedChange={(checked) => {
-                                            return checked
-                                              ? field.onChange([...(field.value || []), service.id])
-                                              : field.onChange(
-                                                  field.value?.filter(
-                                                    (value) => value !== service.id
-                                                  )
-                                                )
-                                          }}
-                                        />
-                                      </FormControl>
-                                      <FormLabel className="font-normal">
-                                        {service.title}
-                                      </FormLabel>
-                                    </FormItem>
-                                  )
-                                }}
-                              />
+                          <div className="space-y-4">
+                             {categorizedServices.map(category => (
+                                <div key={category.id}>
+                                    <h4 className="font-semibold mb-2">{category.name}</h4>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-2">
+                                        {category.services.map((service) => (
+                                            <FormField
+                                                key={service.id}
+                                                control={form.control}
+                                                name="capableServices"
+                                                render={({ field }) => (
+                                                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                                    <FormControl>
+                                                        <Checkbox
+                                                        checked={field.value?.includes(service.id)}
+                                                        onCheckedChange={(checked) => {
+                                                            return checked
+                                                            ? field.onChange([...(field.value || []), service.id])
+                                                            : field.onChange(
+                                                                field.value?.filter(
+                                                                    (value) => value !== service.id
+                                                                )
+                                                            )
+                                                        }}
+                                                        />
+                                                    </FormControl>
+                                                    <FormLabel className="font-normal">
+                                                        {service.title}
+                                                    </FormLabel>
+                                                    </FormItem>
+                                                )}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
                             ))}
                           </div>
                           )}
