@@ -27,14 +27,12 @@ import { getNextOrderId } from '@/lib/sequence';
 const db = getFirestore(firebaseApp);
 
 const lineItemSchema = z.object({
-  isCustom: z.boolean().default(false),
-  serviceId: z.string().optional(),
+  serviceId: z.string().min(1, 'Please select a service.'),
   description: z.string().min(1, 'Description is required.'),
   quantity: z.preprocess(val => Number(val), z.number().min(1, 'Quantity must be at least 1.')),
   resellerPrice: z.preprocess(val => Number(val), z.number().min(0, 'Price cannot be negative.')),
   clientPrice: z.preprocess(val => Number(val), z.number().min(0, 'Client price cannot be negative.')),
 }).refine(data => {
-    if (data.isCustom) return true;
     if (data.serviceId) return data.clientPrice >= data.resellerPrice;
     return true;
 }, {
@@ -90,7 +88,7 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
       customerName: '',
       customerEmail: '',
       customerPhone: '',
-      items: [{ isCustom: false, serviceId: '', description: '', quantity: 1, resellerPrice: 0, clientPrice: 0 }],
+      items: [{ serviceId: '', description: '', quantity: 1, resellerPrice: 0, clientPrice: 0 }],
     },
     mode: 'onChange',
   });
@@ -265,7 +263,6 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
             <h3 className="text-lg font-medium mb-2">Order Items</h3>
             <div className="space-y-4">
                 {fields.map((field, index) => {
-                    const isCustom = form.watch(`items.${index}.isCustom`);
                     const lineItem = form.watch(`items.${index}`);
                     const resellerPrice = form.watch(`items.${index}.resellerPrice`);
                     const serviceId = form.watch(`items.${index}.serviceId`);
@@ -275,68 +272,40 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
                     <div key={field.id} className="p-3 border rounded-md space-y-3">
                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div className="md:col-span-3 space-y-2">
-                                {isCustom ? (
-                                    <FormField
-                                        control={form.control}
-                                        name={`items.${index}.description`}
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Custom Item Description</FormLabel>
-                                                <FormControl><Input {...field} /></FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                ) : (
-                                    <>
-                                    <FormField
-                                        control={form.control}
-                                        name={`items.${index}.serviceId`}
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Service</FormLabel>
-                                                <Select onValueChange={(value) => { field.onChange(value); handleServiceChange(value, index);}} defaultValue={field.value} disabled={isServicesLoading}>
-                                                    <FormControl><SelectTrigger><SelectValue placeholder={isServicesLoading ? "Loading services..." : "Select a service"} /></SelectTrigger></FormControl>
-                                                    <SelectContent>
-                                                        {allServices.map(service => (
-                                                            <SelectItem key={service.id} value={service.id}>{service.title}</SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    {selectedService && (
-                                        <div className="text-xs space-y-2 pt-2">
-                                            <div className="flex items-center gap-2 text-muted-foreground">
-                                                <Clock className="h-4 w-4" />
-                                                <span>{selectedService.turnaroundTime}</span>
-                                            </div>
-                                            {selectedService.clientRequirements.length > 0 && (
-                                                <div className="space-y-1">
-                                                    <p className="font-medium">Prerequisites:</p>
-                                                    <ul className="list-disc pl-5">
-                                                        {selectedService.clientRequirements.map((req, i) => <li key={i}>{req}</li>)}
-                                                    </ul>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                    </>
-                                )}
                                 <FormField
                                     control={form.control}
-                                    name={`items.${index}.isCustom`}
+                                    name={`items.${index}.serviceId`}
                                     render={({ field }) => (
-                                        <FormItem className="flex flex-row items-center space-x-2 pt-2">
-                                            <FormControl>
-                                                <Checkbox checked={field.value} onCheckedChange={field.onChange} suppressHydrationWarning />
-                                            </FormControl>
-                                            <FormLabel className="text-xs !mt-0">Enter custom item</FormLabel>
+                                        <FormItem>
+                                            <FormLabel>Service</FormLabel>
+                                            <Select onValueChange={(value) => { field.onChange(value); handleServiceChange(value, index);}} defaultValue={field.value} disabled={isServicesLoading}>
+                                                <FormControl><SelectTrigger><SelectValue placeholder={isServicesLoading ? "Loading services..." : "Select a service"} /></SelectTrigger></FormControl>
+                                                <SelectContent>
+                                                    {allServices.map(service => (
+                                                        <SelectItem key={service.id} value={service.id}>{service.title}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
                                         </FormItem>
                                     )}
                                 />
+                                {selectedService && (
+                                    <div className="text-xs space-y-2 pt-2">
+                                        <div className="flex items-center gap-2 text-muted-foreground">
+                                            <Clock className="h-4 w-4" />
+                                            <span>{selectedService.turnaroundTime}</span>
+                                        </div>
+                                        {selectedService.clientRequirements.length > 0 && (
+                                            <div className="space-y-1">
+                                                <p className="font-medium">Prerequisites:</p>
+                                                <ul className="list-disc pl-5">
+                                                    {selectedService.clientRequirements.map((req, i) => <li key={i}>{req}</li>)}
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                          </div>
                          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 items-end">
@@ -354,17 +323,7 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
                              <FormItem>
                                 <FormLabel>Outsourcing cost</FormLabel>
                                 <div className="flex items-center h-10 px-3 py-2 text-sm font-semibold rounded-md border bg-muted">
-                                {isCustom ? (
-                                    <FormField
-                                        control={form.control}
-                                        name={`items.${index}.resellerPrice`}
-                                        render={({ field }) => (
-                                            <FormControl><Input type="number" step="0.01" {...field} className="m-0 p-0 h-auto border-none bg-transparent" /></FormControl>
-                                        )}
-                                    />
-                                ) : (
                                     <span>{formatPrice(resellerPrice)}</span>
-                                )}
                                 </div>
                              </FormItem>
                              <FormField
@@ -406,7 +365,7 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
                     variant="outline"
                     size="sm"
                     className="mt-4"
-                    onClick={() => append({ isCustom: false, serviceId: '', description: '', quantity: 1, resellerPrice: 0, clientPrice: 0 })}
+                    onClick={() => append({ serviceId: '', description: '', quantity: 1, resellerPrice: 0, clientPrice: 0 })}
                 >
                     <Plus className="mr-2 h-4 w-4" /> Add Line Item
                 </Button>
@@ -439,7 +398,3 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
     </Form>
   );
 }
-
-    
-
-    
