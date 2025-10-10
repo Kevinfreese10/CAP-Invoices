@@ -194,100 +194,22 @@ function ComplianceFormCard({ onComplete }: { onComplete: () => void }) {
   }
 
   return (
-    <Card>
-        <CardHeader>
-        <CardTitle>Company Details</CardTitle>
-        <CardDescription>All information is handled with strict confidentiality according to our POPIA policy.</CardDescription>
-        </CardHeader>
-        <CardContent>
-            <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-                <FormField
-                control={form.control}
-                name="companyName"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Company Name</FormLabel>
-                    <FormControl><Input {...field} placeholder="e.g., ABC (Pty) Ltd" /></FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-                <FormField
-                control={form.control}
-                name="registrationNumber"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Company Registration Number</FormLabel>
-                    <FormControl><Input {...field} placeholder="e.g., 2024/123456/07" /></FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-                <FormField
-                control={form.control}
-                name="sarsUsername"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>SARS e-Filing Username (Optional)</FormLabel>
-                    <FormControl><Input {...field} /></FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-                <FormField
-                control={form.control}
-                name="sarsPassword"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>SARS e-Filing Password (Optional)</FormLabel>
-                    <FormControl><Input type="password" {...field} /></FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-                <h3 className="text-lg font-medium pt-4">Your Contact Details</h3>
-                <FormField
-                control={form.control}
-                name="yourName"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Your Full Name</FormLabel>
-                    <FormControl><Input {...field} placeholder="John Doe" /></FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-                <FormField
-                control={form.control}
-                name="yourEmail"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Your Email Address</FormLabel>
-                    <FormControl><Input type="email" {...field} placeholder="name@example.com" /></FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-                <FormField
-                control={form.control}
-                name="yourPhone"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Your Phone Number</FormLabel>
-                    <FormControl><Input type="tel" {...field} placeholder="0821234567" /></FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-                <Button type="submit" disabled={isLoading || isStaffLoading} className="w-full">
-                {(isLoading || isStaffLoading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {isLoading ? 'Submitting...' : 'Sign up, get my free compliance assessment and 5% discount'}
-                </Button>
-            </form>
-            </Form>
-        </CardContent>
-    </Card>
+    <Form {...form}>
+        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+            <FormField control={form.control} name="companyName" render={({ field }) => ( <FormItem><FormLabel>Company Name</FormLabel><FormControl><Input {...field} placeholder="e.g., ABC (Pty) Ltd" /></FormControl><FormMessage /></FormItem> )}/>
+            <FormField control={form.control} name="registrationNumber" render={({ field }) => ( <FormItem><FormLabel>Company Registration Number</FormLabel><FormControl><Input {...field} placeholder="e.g., 2024/123456/07" /></FormControl><FormMessage /></FormItem> )}/>
+            <FormField control={form.control} name="sarsUsername" render={({ field }) => ( <FormItem><FormLabel>SARS e-Filing Username (Optional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )}/>
+            <FormField control={form.control} name="sarsPassword" render={({ field }) => ( <FormItem><FormLabel>SARS e-Filing Password (Optional)</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem> )}/>
+            <h3 className="text-lg font-medium pt-4">Your Contact Details</h3>
+            <FormField control={form.control} name="yourName" render={({ field }) => ( <FormItem><FormLabel>Your Full Name</FormLabel><FormControl><Input {...field} placeholder="John Doe" /></FormControl><FormMessage /></FormItem> )}/>
+            <FormField control={form.control} name="yourEmail" render={({ field }) => ( <FormItem><FormLabel>Your Email Address</FormLabel><FormControl><Input type="email" {...field} placeholder="name@example.com" /></FormControl><FormMessage /></FormItem> )}/>
+            <FormField control={form.control} name="yourPhone" render={({ field }) => ( <FormItem><FormLabel>Your Phone Number</FormLabel><FormControl><Input type="tel" {...field} placeholder="0821234567" /></FormControl><FormMessage /></FormItem> )}/>
+            <Button type="submit" disabled={isLoading || isStaffLoading} className="w-full">
+            {(isLoading || isStaffLoading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isLoading ? 'Submitting...' : 'Sign up, get my free compliance assessment and 5% discount'}
+            </Button>
+        </form>
+    </Form>
   )
 }
 
@@ -358,86 +280,85 @@ export default function CompliancePage() {
 
         <section className="bg-background py-16">
             <div className="container mx-auto px-4">
-            <div className="text-center mb-12">
-                <h2 className="text-3xl font-bold">🧾 SARS & CIPC Compliance</h2>
-                <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
-                Stay compliant. Stay confident.
-                </p>
-            </div>
-            <p className="text-lg text-center max-w-3xl mx-auto text-muted-foreground">
-                Running a business in South Africa means keeping up with both SARS (South African Revenue Service) and CIPC (Companies and Intellectual Property Commission) regulations. At My Accountant, we take the stress out of compliance — so you can focus on growth while we handle the paperwork.
-            </p>
-
-            <div className="grid grid-cols-1 gap-8 mt-12">
-                <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-3"><Landmark className="h-6 w-6 text-primary"/> SARS Compliance</CardTitle>
-                    <CardDescription>We make sure your business meets all SARS tax obligations — on time, every time.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    <div>
-                    <h4 className="font-semibold">Outstanding Returns & Debt</h4>
-                    <p className="text-sm text-muted-foreground mt-1">Missed deadlines happen — but SARS penalties add up fast. We help you bring your company’s tax affairs up to date.</p>
-                    <ul className="mt-3 space-y-2 text-sm grid grid-cols-1 sm:grid-cols-2 gap-x-4">
-                        <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Filing all outstanding Income Tax, VAT, and PAYE returns</li>
-                        <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Resolving late submission penalties and interest</li>
-                        <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Set up payment arrangements or compromise applications</li>
-                        <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Reconciling your tax accounts to ensure future compliance</li>
-                    </ul>
-                    </div>
-                </CardContent>
-                </Card>
-
-                <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-3"><Building className="h-6 w-6 text-primary"/> CIPC Compliance</CardTitle>
-                    <CardDescription>Keep your company active and legally protected with our CIPC services.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    <div>
-                    <h4 className="font-semibold">Annual Returns & Maintenance</h4>
-                    <p className="text-sm text-muted-foreground mt-1">Every registered company must file its annual returns with CIPC each year to remain active. Failure to do so can result in deregistration, which means your company bank accounts may be frozen and contracts rendered invalid.</p>
-                    <ul className="mt-3 space-y-2 text-sm grid grid-cols-1 sm:grid-cols-2 gap-x-4">
-                        <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Submission of all outstanding annual returns</li>
-                        <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Reactivation of deregistered companies</li>
-                        <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Amendments to director details, company name, or address</li>
-                        <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Preparing and submitting your Beneficial Ownership Declaration</li>
-                    </ul>
-                    </div>
-                </CardContent>
-                </Card>
-            </div>
-
-            <div className="text-center mt-16 max-w-4xl mx-auto">
-                <h2 className="text-3xl font-bold">🌟 Why Choose My Accountant?</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mt-8">
-                    {whyChooseUs.map((item) => (
-                        <div key={item.title} className="text-center">
-                            <div className="flex justify-center mb-4">
-                                <div className="bg-primary/10 rounded-full h-16 w-16 flex items-center justify-center">
-                                    <item.icon className="h-8 w-8 text-primary" />
-                                </div>
-                            </div>
-                            <h4 className="font-bold text-lg">{item.title}</h4>
-                            <p className="text-muted-foreground text-sm">{item.description}</p>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            <div className="text-center mt-16 max-w-3xl mx-auto">
-                <h2 className="text-3xl font-bold">🚀 Ready to Get Compliant?</h2>
-                <p className="text-lg text-muted-foreground mt-4">Take the hassle out of SARS and CIPC compliance with professionals who care. Start your compliance journey today — fast, affordable, and fully online.</p>
-                <div className="mt-8">
-                    <DialogTrigger asChild>
-                        <Button size="lg">Book a Free Compliance Check</Button>
-                    </DialogTrigger>
-                    <p className="mt-4 text-sm text-muted-foreground">
-                        Or contact us: <Phone className="inline h-4 w-4 mr-1"/> <a href="tel:0108244360" className="hover:underline">010 824 4360</a> | <Mail className="inline h-4 w-4 ml-2 mr-1"/> <a href="mailto:info@myacc.co.za" className="hover:underline">info@myacc.co.za</a>
+                <div className="text-center mb-12">
+                    <h2 className="text-3xl font-bold">🧾 SARS & CIPC Compliance</h2>
+                    <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
+                    Stay compliant. Stay confident.
                     </p>
                 </div>
-            </div>
+                <p className="text-lg text-center max-w-3xl mx-auto text-muted-foreground">
+                    Running a business in South Africa means keeping up with both SARS (South African Revenue Service) and CIPC (Companies and Intellectual Property Commission) regulations. At My Accountant, we take the stress out of compliance — so you can focus on growth while we handle the paperwork.
+                </p>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-12">
+                    <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-3"><Landmark className="h-6 w-6 text-primary"/> SARS Compliance</CardTitle>
+                        <CardDescription>We make sure your business meets all SARS tax obligations — on time, every time.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        <div>
+                        <h4 className="font-semibold">Outstanding Returns & Debt</h4>
+                        <p className="text-sm text-muted-foreground mt-1">Missed deadlines happen — but SARS penalties add up fast. We help you bring your company’s tax affairs up to date.</p>
+                        <ul className="mt-3 space-y-2 text-sm grid grid-cols-1 gap-x-4">
+                            <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Filing all outstanding Income Tax, VAT, and PAYE returns</li>
+                            <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Resolving late submission penalties and interest</li>
+                            <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Set up payment arrangements or compromise applications</li>
+                            <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Reconciling your tax accounts to ensure future compliance</li>
+                        </ul>
+                        </div>
+                    </CardContent>
+                    </Card>
+
+                    <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-3"><Building className="h-6 w-6 text-primary"/> CIPC Compliance</CardTitle>
+                        <CardDescription>Keep your company active and legally protected with our CIPC services.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        <div>
+                        <h4 className="font-semibold">Annual Returns & Maintenance</h4>
+                        <p className="text-sm text-muted-foreground mt-1">Every registered company must file its annual returns with CIPC each year to remain active. Failure to do so can result in deregistration, which means your company bank accounts may be frozen and contracts rendered invalid.</p>
+                        <ul className="mt-3 space-y-2 text-sm grid grid-cols-1 gap-x-4">
+                            <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Submission of all outstanding annual returns</li>
+                            <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Reactivation of deregistered companies</li>
+                            <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Amendments to director details, company name, or address</li>
+                            <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Preparing and submitting your Beneficial Ownership Declaration</li>
+                        </ul>
+                        </div>
+                    </CardContent>
+                    </Card>
+                </div>
+
+                <div className="text-center mt-16 max-w-4xl mx-auto">
+                    <h2 className="text-3xl font-bold">🌟 Why Choose My Accountant?</h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mt-8">
+                        {whyChooseUs.map((item) => (
+                            <div key={item.title} className="text-center">
+                                <div className="flex justify-center mb-4">
+                                    <div className="bg-primary/10 rounded-full h-16 w-16 flex items-center justify-center">
+                                        <item.icon className="h-8 w-8 text-primary" />
+                                    </div>
+                                </div>
+                                <h4 className="font-bold text-lg">{item.title}</h4>
+                                <p className="text-muted-foreground text-sm">{item.description}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="text-center mt-16 max-w-3xl mx-auto">
+                    <h2 className="text-3xl font-bold">🚀 Ready to Get Compliant?</h2>
+                    <p className="text-lg text-muted-foreground mt-4">Take the hassle out of SARS and CIPC compliance with professionals who care. Start your compliance journey today — fast, affordable, and fully online.</p>
+                    <div className="mt-8">
+                        <DialogTrigger asChild>
+                            <Button size="lg">Book a Free Compliance Check</Button>
+                        </DialogTrigger>
+                        <p className="mt-4 text-sm text-muted-foreground">
+                            Or contact us: <Phone className="inline h-4 w-4 mr-1"/> <a href="tel:0108244360" className="hover:underline">010 824 4360</a> | <Mail className="inline h-4 w-4 ml-2 mr-1"/> <a href="mailto:info@myacc.co.za" className="hover:underline">info@myacc.co.za</a>
+                        </p>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -455,6 +376,12 @@ export default function CompliancePage() {
         
         </div>
         <DialogContent className="sm:max-w-xl">
+             <DialogHeader>
+                <DialogTitle>Free Compliance Assessment</DialogTitle>
+                <DialogDescription>
+                Enter your details below and we'll perform a free, no-obligation compliance check for your company.
+                </DialogDescription>
+            </DialogHeader>
             <ComplianceFormCard onComplete={handleFormComplete} />
         </DialogContent>
      </Dialog>
