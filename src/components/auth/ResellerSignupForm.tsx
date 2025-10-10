@@ -19,6 +19,7 @@ import { firebaseApp } from '@/lib/firebase';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { services as allServices } from '@/lib/data';
 
 
 const auth = getAuth(firebaseApp);
@@ -37,6 +38,7 @@ const formSchema = z.object({
   agreeTerms: z.boolean().refine(val => val === true, {
     message: 'You must accept the terms and conditions.',
   }),
+  capableServices: z.array(z.string()).optional(),
 }).refine(data => {
     if (data.wantsOutsourcedWork) {
       return data.cv?.[0] && data.certificate?.[0];
@@ -66,6 +68,7 @@ export default function ResellerSignupForm() {
       contactNumber: '',
       wantsOutsourcedWork: false,
       agreeTerms: false,
+      capableServices: [],
     },
   });
 
@@ -172,32 +175,84 @@ export default function ResellerSignupForm() {
                 )}
             />
             {wantsOutsourcedWork && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
-                    <FormField
-                        control={form.control}
-                        name="cv"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Upload your CV</FormLabel>
-                                <FormControl>
-                                    <Input type="file" accept=".pdf,.doc,.docx" onChange={(e) => field.onChange(e.target.files)} />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                    <FormField
-                        control={form.control}
-                        name="certificate"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Upload Professional Certificate</FormLabel>
-                                <FormControl>
-                                    <Input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => field.onChange(e.target.files)} />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
+                <div className="space-y-4 pt-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField
+                            control={form.control}
+                            name="cv"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Upload your CV</FormLabel>
+                                    <FormControl>
+                                        <Input type="file" accept=".pdf,.doc,.docx" onChange={(e) => field.onChange(e.target.files)} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="certificate"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Upload Professional Certificate</FormLabel>
+                                    <FormControl>
+                                        <Input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => field.onChange(e.target.files)} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+                     <FormField
+                      control={form.control}
+                      name="capableServices"
+                      render={() => (
+                        <FormItem>
+                          <div className="mb-4">
+                            <FormLabel className="text-base">Service Capabilities</FormLabel>
+                            <p className="text-sm text-muted-foreground">
+                              Select all the services you are qualified to perform.
+                            </p>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                            {allServices.map((service) => (
+                              <FormField
+                                key={service.id}
+                                control={form.control}
+                                name="capableServices"
+                                render={({ field }) => {
+                                  return (
+                                    <FormItem
+                                      key={service.id}
+                                      className="flex flex-row items-start space-x-3 space-y-0"
+                                    >
+                                      <FormControl>
+                                        <Checkbox
+                                          checked={field.value?.includes(service.id)}
+                                          onCheckedChange={(checked) => {
+                                            return checked
+                                              ? field.onChange([...(field.value || []), service.id])
+                                              : field.onChange(
+                                                  field.value?.filter(
+                                                    (value) => value !== service.id
+                                                  )
+                                                )
+                                          }}
+                                        />
+                                      </FormControl>
+                                      <FormLabel className="font-normal">
+                                        {service.title}
+                                      </FormLabel>
+                                    </FormItem>
+                                  )
+                                }}
+                              />
+                            ))}
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
                     />
                 </div>
             )}
@@ -232,3 +287,5 @@ export default function ResellerSignupForm() {
     </Form>
   );
 }
+
+    

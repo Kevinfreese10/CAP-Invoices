@@ -149,6 +149,10 @@ export type User = {
     user: string;
     pass: string;
   },
+  wantsOutsourcedWork?: boolean;
+  cvUrl?: string;
+  certificateUrl?: string;
+  capableServices?: string[];
   // Client specific fields for task automation & Numera
   yearEnd?: any;
   preparesFinancials?: boolean;
@@ -257,5 +261,7 @@ export type ExtractedInvoice = {
   rejectionReason?: string;
   paymentBatch?: 'this_week' | 'month_end';
 };
+
+    
 
     
