@@ -278,7 +278,7 @@ export default function CompliancePage() {
 
         <TrustIndexWidget />
 
-        <section className="bg-background py-16">
+         <section className="bg-background py-16">
             <div className="container mx-auto px-4">
                 <div className="text-center mb-12">
                     <h2 className="text-3xl font-bold">🧾 SARS & CIPC Compliance</h2>
@@ -290,7 +290,7 @@ export default function CompliancePage() {
                     Running a business in South Africa means keeping up with both SARS (South African Revenue Service) and CIPC (Companies and Intellectual Property Commission) regulations. At My Accountant, we take the stress out of compliance — so you can focus on growth while we handle the paperwork.
                 </p>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-12">
+                <div className="grid grid-cols-1 gap-8 mt-12">
                     <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-3"><Landmark className="h-6 w-6 text-primary"/> SARS Compliance</CardTitle>
@@ -300,7 +300,7 @@ export default function CompliancePage() {
                         <div>
                         <h4 className="font-semibold">Outstanding Returns & Debt</h4>
                         <p className="text-sm text-muted-foreground mt-1">Missed deadlines happen — but SARS penalties add up fast. We help you bring your company’s tax affairs up to date.</p>
-                        <ul className="mt-3 space-y-2 text-sm grid grid-cols-1 gap-x-4">
+                        <ul className="mt-3 space-y-2 text-sm grid grid-cols-1 md:grid-cols-2 gap-x-4">
                             <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Filing all outstanding Income Tax, VAT, and PAYE returns</li>
                             <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Resolving late submission penalties and interest</li>
                             <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Set up payment arrangements or compromise applications</li>
@@ -319,7 +319,7 @@ export default function CompliancePage() {
                         <div>
                         <h4 className="font-semibold">Annual Returns & Maintenance</h4>
                         <p className="text-sm text-muted-foreground mt-1">Every registered company must file its annual returns with CIPC each year to remain active. Failure to do so can result in deregistration, which means your company bank accounts may be frozen and contracts rendered invalid.</p>
-                        <ul className="mt-3 space-y-2 text-sm grid grid-cols-1 gap-x-4">
+                        <ul className="mt-3 space-y-2 text-sm grid grid-cols-1 md:grid-cols-2 gap-x-4">
                             <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Submission of all outstanding annual returns</li>
                             <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Reactivation of deregistered companies</li>
                             <li className="flex items-start gap-2"><CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0"/> Amendments to director details, company name, or address</li>
@@ -354,8 +354,8 @@ export default function CompliancePage() {
                         <DialogTrigger asChild>
                             <Button size="lg">Book a Free Compliance Check</Button>
                         </DialogTrigger>
-                        <p className="mt-4 text-sm text-muted-foreground">
-                            Or contact us: <Phone className="inline h-4 w-4 mr-1"/> <a href="tel:0108244360" className="hover:underline">010 824 4360</a> | <Mail className="inline h-4 w-4 ml-2 mr-1"/> <a href="mailto:info@myacc.co.za" className="hover:underline">info@myacc.co.za</a>
+                         <p className="mt-4 text-sm text-muted-foreground">
+                            Or contact us: <Phone className="inline h-4 w-4 mr-1"/> <a href="tel:0101091625" className="hover:underline">010 109 1625</a> | <Mail className="inline h-4 w-4 ml-2 mr-1"/> <a href="mailto:info@myacc.co.za" className="hover:underline">info@myacc.co.za</a>
                         </p>
                     </div>
                 </div>
