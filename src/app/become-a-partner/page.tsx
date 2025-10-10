@@ -4,11 +4,14 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Rocket, ShieldCheck, Wallet, UserCheck, Cpu, Briefcase, Users, FileText, BotMessageSquare, LifeBuoy, GraduationCap, CheckCircle2, ArrowRight } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
-import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
 import WebsiteAIWidget from '@/components/shared/WebsiteAIWidget';
+import dynamic from 'next/dynamic';
+
+const TrustIndexWidget = dynamic(() => import('@/components/shared/TrustIndexWidget'), {
+  ssr: false,
+});
 
 
 export default function BecomeAPartnerPage() {
