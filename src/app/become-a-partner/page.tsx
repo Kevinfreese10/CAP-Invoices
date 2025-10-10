@@ -14,6 +14,12 @@ export default function BecomeAPartnerPage() {
 
   const challenges = [
     {
+      title: 'Limited Service Range',
+      description: 'Offering only bookkeeping services limits your earning potential.',
+      solution: "Through BEI, you can sell My Accountant’s full suite of services — from company registration to VAT, COIDA, CIDB, NCR, and more.",
+      icon: Briefcase,
+    },
+    {
       title: 'Lack of Mentorship',
       description: 'Many bookkeepers work alone, with no guidance from experienced professionals.',
       solution: 'We provide mentorship from senior accountants and industry experts who help you grow your confidence and capabilities.',
@@ -24,12 +30,6 @@ export default function BecomeAPartnerPage() {
       description: 'Without proper systems, managing clients and documents becomes messy.',
       solution: 'You get access to our cloud-based reseller dashboard to manage, track, and outsource client orders seamlessly.',
       icon: Cpu,
-    },
-    {
-      title: 'Limited Service Range',
-      description: 'Offering only bookkeeping services limits your earning potential.',
-      solution: "Through BEI, you can sell My Accountant’s full suite of services — from company registration to VAT, COIDA, CIDB, NCR, and more.",
-      icon: Briefcase,
     },
     {
       title: 'Capacity Constraints',
