@@ -12,11 +12,22 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '../ui/checkbox';
 import { Separator } from '../ui/separator';
+import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
+import { getFirestore, doc, setDoc } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
+import { useState } 'react';
+import { Loader2 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+
+
+const auth = getAuth(firebaseApp);
+const db = getFirestore(firebaseApp);
 
 const formSchema = z.object({
   companyName: z.string().min(2, 'Company name is required.'),
   contactPerson: z.string().min(2, 'Contact person is required.'),
   email: z.string().email('Please enter a valid email.'),
+  password: z.string().min(6, 'Password must be at least 6 characters.'),
   contactNumber: z.string().min(10, 'A valid contact number is required.'),
   address: z.object({
       street: z.string().min(3, 'Street address is required.'),
@@ -38,6 +49,10 @@ const formSchema = z.object({
 export default function ResellerSignupForm() {
   const router = useRouter();
   const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
+  const { reauthenticate } = useAuth();
+  const adminUser = auth.currentUser;
+
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -45,6 +60,7 @@ export default function ResellerSignupForm() {
       companyName: '',
       contactPerson: '',
       email: '',
+      password: '',
       contactNumber: '',
       address: { street: '', city: '', province: '', zip: ''},
       bankingDetails: { bankName: '', accountHolder: '', accountNumber: '', branchCode: ''},
@@ -52,14 +68,46 @@ export default function ResellerSignupForm() {
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    // In a real app, you would submit this to your backend
-    console.log('New reseller signup:', values);
-    toast({
-      title: 'Application Received!',
-      description: `Thank you, ${values.contactPerson}. We'll review your application and be in touch.`,
-    });
-    router.push('/login');
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    setIsLoading(true);
+    try {
+        const { password, ...resellerData } = values;
+
+        // 1. Create the user in Firebase Authentication
+        const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+        const newFirebaseUser = userCredential.user;
+
+        // 2. Save reseller data to Firestore in the 'users' collection
+        await setDoc(doc(db, 'users', newFirebaseUser.uid), {
+            ...resellerData,
+            name: values.contactPerson, // Use contact person as the main name
+            uid: newFirebaseUser.uid,
+            role: 'reseller',
+            status: 'Active',
+        });
+        
+        // 3. Re-authenticate the original admin user if one was logged in
+        if (adminUser) {
+            await reauthenticate(adminUser);
+        }
+
+        toast({
+            title: 'Application Received!',
+            description: `Thank you, ${values.contactPerson}. Your reseller account has been created. Redirecting to login...`,
+        });
+        
+        router.push('/login');
+
+    } catch (error: any) {
+        console.error("Reseller signup error:", error);
+        toast({
+            title: 'Signup Failed',
+            description: error.message || 'There was a problem creating your account. Please try again.',
+            variant: 'destructive',
+        });
+    } finally {
+        setIsLoading(false);
+    }
   }
 
   return (
@@ -71,7 +119,8 @@ export default function ResellerSignupForm() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="companyName" render={({ field }) => ( <FormItem><FormLabel>Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="contactPerson" render={({ field }) => ( <FormItem><FormLabel>Contact Person</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Login Email Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                 <FormField control={form.control} name="password" render={({ field }) => ( <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="contactNumber" render={({ field }) => ( <FormItem><FormLabel>Contact Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
             </div>
         </div>
@@ -89,7 +138,7 @@ export default function ResellerSignupForm() {
         <Separator />
 
         <div className="space-y-4">
-            <h3 className="text-lg font-medium">Banking Details</h3>
+            <h3 className="text-lg font-medium">Banking Details (for payouts)</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <FormField control={form.control} name="bankingDetails.bankName" render={({ field }) => ( <FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                  <FormField control={form.control} name="bankingDetails.accountHolder" render={({ field }) => ( <FormItem><FormLabel>Account Holder</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
@@ -118,8 +167,9 @@ export default function ResellerSignupForm() {
             )}
         />
         
-        <Button type="submit" className="w-full" size="lg">
-          Submit Application
+        <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Submit Application
         </Button>
       </form>
     </Form>
