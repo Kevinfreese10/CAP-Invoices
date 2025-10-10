@@ -109,8 +109,8 @@ export default function BecomeAPartnerPage() {
     <div className="space-y-16 pb-16">
       <section className="bg-background">
         <div className="container mx-auto px-4 py-16 text-center">
-            <h1 className="text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl text-gradient">
-                Bookkeeper Empowerment Initiative
+            <h1 className="text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl">
+                Bookkeeper <span className="text-gradient">Empowerment</span> Initiative
             </h1>
             <h2 className="mt-4 text-2xl md:text-3xl font-semibold">Empower Your Accounting Practice in South Africa</h2>
             <p className="mt-6 text-lg text-muted-foreground max-w-3xl mx-auto">
