@@ -112,7 +112,7 @@ export type Order = {
   isOutsourced?: boolean;
   assignedTo?: string[] | null;
   department?: 'Accounting and Tax' | 'Administration' | 'CAP' | null;
-  originalOrderId?: string;
+  originalOrderId?: string | null;
   notes?: OrderNote[];
   source?: 'Client' | 'Staff' | 'Reseller';
 };
