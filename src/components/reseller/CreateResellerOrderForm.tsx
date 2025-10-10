@@ -11,11 +11,10 @@ import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Loader2, Plus, Trash, RefreshCw, Clock, ClipboardCheck } from 'lucide-react';
-import { getFirestore, doc, setDoc, Timestamp } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, Timestamp, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service } from '@/lib/types';
 import { Separator } from '../ui/separator';
-import { services as allServices } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
 import { useAuth } from '@/contexts/AuthContext';
@@ -59,6 +58,31 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [total, setTotal] = useState(0);
+  const [allServices, setAllServices] = useState<Service[]>([]);
+  const [isServicesLoading, setIsServicesLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchServices = async () => {
+        setIsServicesLoading(true);
+        try {
+            const q = query(collection(db, "services"), orderBy("title"));
+            const querySnapshot = await getDocs(q);
+            const fetchedServices = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Service));
+            setAllServices(fetchedServices);
+        } catch (error) {
+            console.error("Error fetching services:", error);
+            toast({
+                title: 'Error',
+                description: 'Could not load the list of services. Please try again.',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsServicesLoading(false);
+        }
+    };
+    fetchServices();
+  }, [toast]);
+
 
   const form = useForm<CreateOrderFormValues>({
     resolver: zodResolver(formSchema),
@@ -271,8 +295,8 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
                                         render={({ field }) => (
                                             <FormItem>
                                                 <FormLabel>Service</FormLabel>
-                                                <Select onValueChange={(value) => { field.onChange(value); handleServiceChange(value, index);}} defaultValue={field.value}>
-                                                    <FormControl><SelectTrigger><SelectValue placeholder="Select a service" /></SelectTrigger></FormControl>
+                                                <Select onValueChange={(value) => { field.onChange(value); handleServiceChange(value, index);}} defaultValue={field.value} disabled={isServicesLoading}>
+                                                    <FormControl><SelectTrigger><SelectValue placeholder={isServicesLoading ? "Loading services..." : "Select a service"} /></SelectTrigger></FormControl>
                                                     <SelectContent>
                                                         {allServices.map(service => (
                                                             <SelectItem key={service.id} value={service.id}>{service.title}</SelectItem>
@@ -415,5 +439,7 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
     </Form>
   );
 }
+
+    
 
     
