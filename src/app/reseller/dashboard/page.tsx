@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import WebsiteAIWidget from '@/components/shared/WebsiteAIWidget';
 import { useBlog } from '@/contexts/BlogContext';
-import { Loader2, ArrowRight, Banknote, Building, Clock, MoreHorizontal, PlusCircle, BrainCircuit, Briefcase, Users } from 'lucide-react';
+import { Loader2, ArrowRight, Banknote, Building, Clock, MoreHorizontal, PlusCircle, BrainCircuit, Briefcase, Users, CheckCircle, BadgeDollarSign, UserPlus } from 'lucide-react';
 import Image from 'next/image';
 import { format } from 'date-fns';
 import { Order, Service, User } from '@/lib/types';
@@ -293,6 +293,53 @@ export default function ResellerDashboardPage() {
                     <CardFooter>
                         <Button>Upgrade to Premium</Button>
                     </CardFooter>
+                </Card>
+            </section>
+            
+             <section>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Premium Member Pricing</CardTitle>
+                        <CardDescription>Upgrade your practice with automation, white-label outsourcing, and AI-powered tools — all at an affordable monthly rate.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="grid md:grid-cols-3 gap-6">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2"><BadgeDollarSign /> Monthly Subscription</CardTitle>
+                                <p className="text-3xl font-bold">R290<span className="text-sm font-normal text-muted-foreground">/month</span></p>
+                            </CardHeader>
+                            <CardContent className="space-y-2 text-sm">
+                                <p className="text-muted-foreground">Get full access to the Premium platform and unlock:</p>
+                                <ul className="space-y-2">
+                                    <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> AI Accountant access</li>
+                                    <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> Practice Manager</li>
+                                    <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> White-Label Outsourcing</li>
+                                    <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> 25% discount on all services</li>
+                                    <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> Partner support & client dashboard</li>
+                                </ul>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                             <CardHeader>
+                                <CardTitle className="flex items-center gap-2"><BrainCircuit /> AI Accountant Usage</CardTitle>
+                                <p className="text-3xl font-bold">R250<span className="text-sm font-normal text-muted-foreground">/client/month</span></p>
+                            </CardHeader>
+                            <CardContent className="space-y-2 text-sm text-muted-foreground">
+                                <p>Add AI automation to any of your client profiles.</p>
+                                <p>Upload their CSV or bank statements — and the AI Accountant will allocate and categorize all transactions in minutes.</p>
+                                <p className="font-semibold text-foreground">Pay only for the clients you activate AI services for.</p>
+                            </CardContent>
+                        </Card>
+                         <Card>
+                             <CardHeader>
+                                <CardTitle className="flex items-center gap-2"><UserPlus /> Additional Users</CardTitle>
+                                <p className="text-3xl font-bold">R50<span className="text-sm font-normal text-muted-foreground">/user/month</span></p>
+                            </CardHeader>
+                            <CardContent className="space-y-2 text-sm text-muted-foreground">
+                                <p>Invite your staff or junior bookkeepers to your dashboard and manage client work collaboratively.</p>
+                            </CardContent>
+                        </Card>
+                    </CardContent>
                 </Card>
             </section>
 
