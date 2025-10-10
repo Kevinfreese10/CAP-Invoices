@@ -4,7 +4,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import WebsiteAIWidget from '@/components/shared/WebsiteAIWidget';
 import { useBlog } from '@/contexts/BlogContext';
 import { Loader2, ArrowRight, Banknote, Building, Clock, MoreHorizontal, PlusCircle, BrainCircuit, Briefcase, Users, CheckCircle, BadgeDollarSign, UserPlus } from 'lucide-react';
 import Image from 'next/image';
@@ -309,7 +308,7 @@ export default function ResellerDashboardPage() {
                                 <Card>
                                     <CardHeader>
                                         <CardTitle className="flex items-center gap-2"><BrainCircuit /> AI Accountant Usage</CardTitle>
-                                        <p className="text-3xl font-bold">R250<span className="text-sm font-normal text-muted-foreground">/client/month</span></p>
+                                        <p className="text-3xl font-bold">R450<span className="text-sm font-normal text-muted-foreground">/client/month</span></p>
                                     </CardHeader>
                                     <CardContent className="space-y-2 text-sm text-muted-foreground">
                                         <p>Add AI automation to any of your client profiles.</p>
