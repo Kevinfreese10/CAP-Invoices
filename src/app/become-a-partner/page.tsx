@@ -193,6 +193,17 @@ export default function BecomeAPartnerPage() {
             ))}
           </Accordion>
       </section>
+      
+      <section className="container mx-auto px-4">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Button asChild size="lg">
+                <Link href="/reseller-signup">Sign Up Now</Link>
+            </Button>
+            <Button asChild variant="outline" size="lg">
+                <Link href="/login">Access Demo Dashboard</Link>
+            </Button>
+        </div>
+      </section>
 
       <section className="container mx-auto px-4">
         <Card className="bg-gradient-to-r from-primary to-blue-600 text-primary-foreground">
