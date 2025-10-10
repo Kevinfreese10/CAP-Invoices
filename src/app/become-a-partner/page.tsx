@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Rocket, ShieldCheck, Wallet, UserCheck, Cpu, Briefcase, Users, FileText, BotMessageSquare, LifeBuoy, GraduationCap, CheckCircle2, ArrowRight } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
+import WebsiteAIWidget from '@/components/shared/WebsiteAIWidget';
 
 
 export default function BecomeAPartnerPage() {
@@ -203,6 +204,10 @@ export default function BecomeAPartnerPage() {
                 <Link href="/login">Access Demo Dashboard</Link>
             </Button>
         </div>
+      </section>
+
+      <section id="ai-assistant" className="container mx-auto px-4 scroll-m-20">
+        <WebsiteAIWidget />
       </section>
     </div>
   );
