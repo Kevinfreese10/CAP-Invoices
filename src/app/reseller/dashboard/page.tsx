@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import WebsiteAIWidget from '@/components/shared/WebsiteAIWidget';
 import { useBlog } from '@/contexts/BlogContext';
-import { Loader2, ArrowRight, Banknote, Building, Clock, MoreHorizontal, PlusCircle } from 'lucide-react';
+import { Loader2, ArrowRight, Banknote, Building, Clock, MoreHorizontal, PlusCircle, BrainCircuit, Briefcase, Users } from 'lucide-react';
 import Image from 'next/image';
 import { format } from 'date-fns';
 import { Order, Service, User } from '@/lib/types';
@@ -264,11 +264,31 @@ export default function ResellerDashboardPage() {
             <section>
                 <Card className="bg-primary/5 border-primary/20">
                     <CardHeader>
-                        <CardTitle>Become a Premium Member</CardTitle>
-                        <CardDescription>Unlock exclusive benefits, priority support, and higher commission rates.</CardDescription>
+                        <CardTitle>Premium Member Benefits</CardTitle>
+                        <CardDescription>Upgrade to unlock powerful tools to automate and scale your practice.</CardDescription>
                     </CardHeader>
-                    <CardContent>
-                        <p className="text-muted-foreground">Upgrade to our premium plan to take your reselling business to the next level.</p>
+                    <CardContent className="space-y-6">
+                        <div className="flex items-start gap-4">
+                            <BrainCircuit className="h-8 w-8 text-primary flex-shrink-0 mt-1" />
+                            <div>
+                                <h4 className="font-semibold">AI Accountant</h4>
+                                <p className="text-sm text-muted-foreground">Upload your CSV bank statements and let our AI do the heavy lifting. It automatically allocates transactions within minutes — perfectly categorized and VAT-ready.</p>
+                            </div>
+                        </div>
+                         <div className="flex items-start gap-4">
+                            <Briefcase className="h-8 w-8 text-primary flex-shrink-0 mt-1" />
+                            <div>
+                                <h4 className="font-semibold">Practice Manager</h4>
+                                <p className="text-sm text-muted-foreground">Easily manage your clients and deadlines in one place. The system automatically creates tasks, due dates, and compliance reminders to keep your practice organized.</p>
+                            </div>
+                        </div>
+                         <div className="flex items-start gap-4">
+                            <Users className="h-8 w-8 text-primary flex-shrink-0 mt-1" />
+                            <div>
+                                <h4 className="font-semibold">White-Label Outsourcing</h4>
+                                <p className="text-sm text-muted-foreground">Offer services under your own brand. Our team communicates with your clients through your email, ensuring your brand identity stays intact while we handle the work.</p>
+                            </div>
+                        </div>
                     </CardContent>
                     <CardFooter>
                         <Button>Upgrade to Premium</Button>
