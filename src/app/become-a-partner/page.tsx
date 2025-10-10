@@ -34,7 +34,7 @@ export default function BecomeAPartnerPage() {
     {
       title: 'Capacity Constraints',
       description: 'Handling large clients or complex projects alone isn’t easy.',
-      solution: 'We connect you with vetted senior bookkeepers so you can outsource overflow work securely and confidently.',
+      solution: 'We’re a qualified team of accountants and tax professionals — when you outsource overflow work to us, it’s handled securely, accurately, and on time.',
       icon: Users,
     },
      {
