@@ -85,7 +85,7 @@ export default function BecomeAPartnerPage() {
     },
     {
         question: "What does it cost to join?",
-        answer: "Joining is completely free. You’ll only pay for services you choose to outsource through the dashboard."
+        answer: "Joining is completely free — there are no upfront or monthly fees.\nYou’ll only pay for the services you choose to outsource through your dashboard.\n\nAs a My Accountant Partner, you’ll also receive a 25% discount on all our services, allowing you to set your own pricing and profit margins.\nOur retail pricing remains the same — you simply earn the difference."
     },
     {
         question: "How does outsourcing work?",
@@ -217,7 +217,7 @@ export default function BecomeAPartnerPage() {
             {faqs.map((faq, index) => (
               <AccordionItem key={index} value={`item-${index}`}>
                 <AccordionTrigger>{faq.question}</AccordionTrigger>
-                <AccordionContent>{faq.answer}</AccordionContent>
+                <AccordionContent className="whitespace-pre-line">{faq.answer}</AccordionContent>
               </AccordionItem>
             ))}
           </Accordion>
