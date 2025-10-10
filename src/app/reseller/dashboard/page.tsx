@@ -330,7 +330,38 @@ export default function ResellerDashboardPage() {
                         </div>
                     </CardContent>
                     <CardFooter>
-                        <Button>Upgrade to Premium</Button>
+                         <Dialog>
+                            <DialogTrigger asChild>
+                                 <Button>Upgrade to Premium</Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Confirm Your Subscription</DialogTitle>
+                                    <DialogDescription>Please make payment to the details below to activate your premium membership.</DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4 py-4">
+                                     <div className="space-y-2">
+                                        <p className="text-sm font-medium">Bank Name:</p>
+                                        <p className="text-lg font-semibold p-2 bg-muted rounded-md">FNB</p>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <p className="text-sm font-medium">Account Holder:</p>
+                                        <p className="text-lg font-semibold p-2 bg-muted rounded-md">My Accountant (Pty) Ltd</p>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <p className="text-sm font-medium">Amount:</p>
+                                        <p className="text-lg font-semibold p-2 bg-muted rounded-md">R 290.00</p>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <p className="text-sm font-medium">Reference:</p>
+                                        <p className="text-lg font-semibold p-2 bg-destructive/10 text-destructive rounded-md">{user?.email}</p>
+                                    </div>
+                                </div>
+                                <DialogFooter>
+                                    <p className="text-xs text-muted-foreground">Your premium membership will be activated once payment is confirmed.</p>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
                     </CardFooter>
                 </Card>
             </section>
