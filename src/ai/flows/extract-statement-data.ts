@@ -59,7 +59,7 @@ const extractStatementDataFlow = ai.defineFlow(
     outputSchema: ExtractStatementDataOutputSchema,
   },
   async (input) => {
-    const { output } = await prompt(input, { model: googleAI.model('gemini-1.5-flash-latest') });
+    const { output } = await prompt(input, { model: 'googleai/gemini-2.5-flash' });
     return output!;
   }
 );
