@@ -43,17 +43,6 @@ export default function ResellerDashboardPage() {
                         </Button>
                     </CardContent>
                 </Card>
-                <Card className="flex flex-col">
-                    <CardHeader>
-                        <CardTitle>Manage Profile</CardTitle>
-                        <CardDescription>Update your company information.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex-grow flex items-end">
-                        <Button asChild>
-                            <Link href="/reseller/profile">Edit Profile</Link>
-                        </Button>
-                    </CardContent>
-                </Card>
             </div>
         </div>
     );
