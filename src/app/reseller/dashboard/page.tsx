@@ -21,6 +21,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { services as allServices } from '@/lib/data';
 import { Separator } from '@/components/ui/separator';
 import CreateResellerOrderForm from '@/components/reseller/CreateResellerOrderForm';
+import CommunityQnA from '@/components/reseller/CommunityQnA';
 
 const db = getFirestore(firebaseApp);
 
@@ -285,7 +286,7 @@ export default function ResellerDashboardPage() {
                             </div>
                         </div>
                         <Separator />
-                        <div>
+                        <div className="pt-4">
                             <CardTitle>Premium Member Pricing</CardTitle>
                             <CardDescription>Upgrade your practice with automation, white-label outsourcing, and AI-powered tools — all at an affordable monthly rate.</CardDescription>
                             <div className="grid md:grid-cols-3 gap-6 mt-4">
@@ -332,6 +333,10 @@ export default function ResellerDashboardPage() {
                         <Button>Upgrade to Premium</Button>
                     </CardFooter>
                 </Card>
+            </section>
+            
+            <section>
+              <CommunityQnA />
             </section>
 
             <section>

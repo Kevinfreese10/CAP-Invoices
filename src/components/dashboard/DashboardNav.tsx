@@ -25,7 +25,8 @@ import {
   Percent,
   Inbox,
   FileX2,
-  Banknote
+  Banknote,
+  MessageCircleQuestion,
 } from 'lucide-react';
 
 import {
@@ -66,6 +67,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/orders', label: 'Manage Orders', icon: ShieldCheck, roles: ['admin', 'staff'] },
     { href: '/admin/resellers', label: 'Manage Resellers', icon: Users, roles: ['admin'] },
     { href: '/admin/compliance', label: 'Compliance', icon: ShieldCheck, roles: ['admin'] },
+    { href: '/admin/community/questions', label: 'Community Q&A', icon: MessageCircleQuestion, roles: ['admin'] },
     { href: '/admin/clients', label: 'Manage Clients', icon: BookUser, roles: ['admin'] },
     { href: '/admin/numera', label: 'Numera', icon: Book, roles: ['admin'] },
     { href: '/admin/cap-suppliers', label: 'CAP Suppliers', icon: FileText, roles: ['admin', 'staff'], department: 'Accounting and Tax' },

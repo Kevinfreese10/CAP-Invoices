@@ -262,6 +262,27 @@ export type ExtractedInvoice = {
   paymentBatch?: 'this_week' | 'month_end';
 };
 
+export type CommunityQuestion = {
+    id: string;
+    text: string;
+    askedBy: string;
+    askedAt: any;
+    status: 'pending_approval' | 'approved' | 'rejected';
+    answerCount: number;
+    answers?: CommunityAnswer[]; // Optional: for client-side joining
+    askedByUserDetails?: { name: string; companyName?: string; }; // Optional: for client-side joining
+};
+
+export type CommunityAnswer = {
+    id: string;
+    text: string;
+    answeredBy: string;
+    answeredAt: any;
+    likes: number;
+    isBestAnswer: boolean;
+    answeredByUserDetails?: { name: string; companyName?: string; }; // Optional: for client-side joining
+};
+
     
 
     
