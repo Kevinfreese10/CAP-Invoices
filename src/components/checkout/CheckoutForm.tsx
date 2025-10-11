@@ -116,8 +116,8 @@ export default function CheckoutForm() {
             quantity: item.quantity
         })),
         total: finalTotal,
-        discountCode: appliedDiscount?.code,
-        discountAmount: appliedDiscount?.amount,
+        discountCode: appliedDiscount?.code || null,
+        discountAmount: appliedDiscount?.amount || null,
         status: 'Pending Payment',
         date: Timestamp.now(),
         department: department || null,
