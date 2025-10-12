@@ -230,12 +230,12 @@ export default function AdminOrdersPage() {
   };
 
   const addEmailToHistory = async (orderId: string, subject: string, message: string) => {
-    if (!user) return;
+    if (!user?.uid) return;
 
      const emailNote: OrderNote = {
       text: message,
-      subject: subject,
-      authorId: user.id,
+      subject: subject || null, // Ensure subject is not undefined
+      authorId: user.uid,
       date: Timestamp.now(),
       type: 'email',
     };
@@ -302,7 +302,7 @@ export default function AdminOrdersPage() {
               title: `Process Order: ${orderToUpdate.id}`,
               description: `Fulfill the services for order ${orderToUpdate.id}. Services include: ${orderToUpdate.items.map(i => i.title).join(', ')}.`,
               assignedTo: assignedStaffIds,
-              createdBy: user.uid, // <-- This is now safe
+              createdBy: user.uid, // This is now safe
               dueDate: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)), // 7 days from now
               priority: 'Medium',
               status: 'To-Do',
