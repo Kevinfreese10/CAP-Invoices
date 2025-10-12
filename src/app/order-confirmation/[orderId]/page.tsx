@@ -36,6 +36,9 @@ export default function OrderConfirmationRedirectPage() {
                     const name_first = nameParts[0];
                     const name_last = nameParts.slice(1).join(' ');
 
+                    const itemName = orderData.items.length === 1 ? orderData.items[0].title : `My Accountant - Order #${orderId}`;
+                    const itemDescription = orderData.items.map(item => `${item.title} (x${item.quantity})`).join(', ');
+
                     const dataForSignature: { [key: string]: any } = {
                         merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID,
                         merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY,
@@ -47,8 +50,8 @@ export default function OrderConfirmationRedirectPage() {
                         email_address: orderData.customerEmail,
                         m_payment_id: orderId,
                         amount: orderData.total.toFixed(2),
-                        item_name: `Order #${orderId}`,
-                        item_description: orderData.items.map(item => `${item.title} (x${item.quantity})`).join(', '),
+                        item_name: itemName,
+                        item_description: itemDescription,
                     };
                     
                     try {
@@ -106,3 +109,4 @@ export default function OrderConfirmationRedirectPage() {
     </div>
   );
 }
+
