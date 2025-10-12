@@ -81,7 +81,10 @@ export default function AdminCompliancePage() {
   }, []);
 
    const createTask = async (request: ComplianceRequest) => {
-    if (!user || !user.uid) return;
+    if (!user || !user.uid) {
+        console.error("Cannot create task: current user or user ID is not available.");
+        return;
+    }
 
     const assignedStaff = getNextAdminStaff();
     if (!assignedStaff || !assignedStaff.uid) {
