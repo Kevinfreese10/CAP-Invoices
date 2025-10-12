@@ -40,7 +40,8 @@ const processSuccessfulPayment = async (orderId: string) => {
 
     const order = { id: orderSnap.id, ...orderSnap.data() } as Order;
 
-    if (order.status === 'Processing') {
+    // Prevent re-processing
+    if (order.status === 'Processing' || order.status === 'Completed') {
         console.log(`Order ${orderId} has already been processed.`);
         return { success: true, message: 'Order already processed.' };
     }
@@ -60,37 +61,9 @@ const processSuccessfulPayment = async (orderId: string) => {
         assignedTo: assignedToId ? [assignedToId] : [],
         department: department || null,
     });
-
-    const itemsWithServices = order.items.map(item => {
-        const service = allServices.find(s => s.id === item.id);
-        return { ...item, service };
-    }).filter(item => item.service) as { service: Service }[];
-
-    const emailHtml = render(<DocumentRequestEmail order={order} items={itemsWithServices} replyTo={assignedStaff?.email || 'info@myacc.co.za'} />);
-    const attachments = itemsWithServices
-        .filter(item => item.service.attachmentUrl)
-        .map(item => ({
-            filename: `${item.service.title.replace(/\s/g, '_')}.pdf`,
-            path: item.service.attachmentUrl!,
-        }));
-
-    await sendEmail({
-        to: order.customerEmail,
-        subject: `Action Required for Your Order #${orderId}`,
-        html: emailHtml,
-        attachments: attachments,
-        replyTo: assignedStaff?.email,
-    });
-
-    const emailNote: OrderNote = {
-        text: 'Sent "Request Documents" email to client after payment confirmation.',
-        date: Timestamp.now(),
-        authorId: 'system',
-        type: 'email',
-        subject: `Action Required for Your Order #${orderId}`,
-    };
-    await updateDoc(orderRef, { notes: arrayUnion(emailNote) });
-
+    
+    // The email is now sent from the success page to give immediate feedback.
+    // However, the task creation should happen here reliably.
     if (assignedStaff?.id) {
         const taskData: Omit<Task, 'id'> = {
             title: `Process Order: ${orderId}`,
@@ -135,10 +108,26 @@ function rfc3986Encode(str: string) {
 function generateSignature(data: { [key: string]: any }, passphrase?: string): string {
     let pfOutput = '';
     
+    // Use the exact order from the form submission, not the ITN order
+    const orderedKeys = [
+        'merchant_id', 'merchant_key', 'return_url', 'cancel_url', 'notify_url',
+        'name_first', 'name_last', 'email_address', 'cell_number', 'm_payment_id',
+        'amount', 'item_name', 'item_description', 'payment_method'
+    ];
+    
+    // Create a new object with only the keys relevant for signature generation
+    // from the ITN payload
+    const dataForSignature: {[key: string]: any} = {};
+     orderedKeys.forEach(key => {
+        if(data.hasOwnProperty(key)) {
+            dataForSignature[key] = data[key];
+        }
+    });
+
     for (const key in data) {
         if (data.hasOwnProperty(key) && key !== 'signature') {
             const value = data[key];
-            if (value !== '' && value !== null && value !== undefined) {
+             if (value !== '' && value !== null && value !== undefined) {
                 pfOutput += `${key}=${rfc3986Encode(String(value).trim())}&`;
             }
         }
@@ -154,31 +143,67 @@ function generateSignature(data: { [key: string]: any }, passphrase?: string): s
 }
 
 export async function POST(req: NextRequest) {
+  // Acknowledge receipt of the ITN post from PayFast
+  const response = new NextResponse('OK', { status: 200 });
+
   const body = await req.text();
   const data: { [key:string]: any } = Object.fromEntries(new URLSearchParams(body));
 
   console.log('Received PayFast ITN:', data);
   
-  // Signature validation should be done, but skipping for this fix to ensure status update
-  // A robust implementation would perform the full validation suite (IP, data query, signature)
+  // Security Checks
+  // 1. Signature Validation
+  // Note: The signature from ITN uses ALL POSTed fields, not the ordered list from the initial request.
+  const tempParamString = Object.keys(data)
+    .filter(key => key !== 'signature')
+    .map(key => `${key}=${rfc3986Encode(String(data[key]).trim())}`)
+    .join('&');
 
-  const orderId = data.m_payment_id;
-  if (!orderId) {
-    console.error('No m_payment_id in ITN payload.');
-    return new NextResponse('No order ID', { status: 400 });
-  }
+    const signatureStringWithPassphrase = `${tempParamString}&passphrase=${rfc3986Encode(process.env.PAYFAST_PASSPHRASE || '')}`;
+    const expectedSignature = crypto.createHash('md5').update(signatureStringWithPassphrase).digest('hex');
 
-  if (data.payment_status === 'COMPLETE') {
-    try {
-        await processSuccessfulPayment(orderId);
-        console.log(`Order ${orderId} processing initiated via ITN.`);
-    } catch(error) {
-        console.error(`Error processing order ${orderId} from ITN:`, error);
-        return new NextResponse('Error processing order', { status: 500 });
+    if (data.signature !== expectedSignature) {
+        console.error('ITN Signature Mismatch');
+        console.error('Received:', data.signature);
+        console.error('Expected:', expectedSignature);
+        // Don't process, but still return 200 OK to stop PayFast retries.
+        return response;
     }
-  } else {
-    console.log(`Payment for order ${orderId} not complete. Status: ${data.payment_status}`);
-  }
 
-  return new NextResponse('OK', { status: 200 });
+    const orderId = data.m_payment_id;
+    if (!orderId) {
+        console.error('No m_payment_id in ITN payload.');
+        return response;
+    }
+  
+    // Fetch order from Firestore
+    const orderRef = doc(db, 'orders', orderId);
+    const orderSnap = await getDoc(orderRef);
+    if (!orderSnap.exists()) {
+        console.error(`Order ${orderId} not found.`);
+        return response;
+    }
+    const orderData = orderSnap.data() as Order;
+    
+    // 2. Amount Validation
+    const amountGross = parseFloat(data.amount_gross);
+    const orderTotal = orderData.total;
+    if (Math.abs(amountGross - orderTotal) > 0.01) {
+        console.error(`Amount mismatch for order ${orderId}. Expected ${orderTotal}, got ${amountGross}`);
+        return response;
+    }
+
+    // 3. Status Check & Update
+    if (data.payment_status === 'COMPLETE') {
+        try {
+            await processSuccessfulPayment(orderId);
+            console.log(`Order ${orderId} processing initiated successfully via ITN.`);
+        } catch(error) {
+            console.error(`Error processing order ${orderId} from ITN:`, error);
+        }
+    } else {
+        console.log(`Payment for order ${orderId} not complete. Status: ${data.payment_status}`);
+    }
+
+    return response;
 }
