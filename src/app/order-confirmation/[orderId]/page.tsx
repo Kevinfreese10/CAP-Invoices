@@ -1,5 +1,4 @@
 
-
 'use client';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
@@ -78,9 +77,9 @@ export default function OrderConfirmationRedirectPage() {
     useEffect(() => {
         if (payfastData) {
             // The form is submitted via JavaScript as soon as the component mounts with the order data
-            const payfastForm = document.getElementById('payfast-form');
+            const payfastForm = document.getElementById('payfast-form') as HTMLFormElement;
             if (payfastForm) {
-                payfastForm.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                payfastForm.submit();
             }
         }
     }, [payfastData]);
@@ -110,4 +109,3 @@ export default function OrderConfirmationRedirectPage() {
     </div>
   );
 }
-
