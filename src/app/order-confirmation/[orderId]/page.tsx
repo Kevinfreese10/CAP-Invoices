@@ -6,13 +6,18 @@ import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order } from '@/lib/types';
 import { Loader2 } from 'lucide-react';
-import crypto from 'crypto-js';
+import crypto from 'crypto';
 
 const db = getFirestore(firebaseApp);
 
 type PayfastData = {
     [key: string]: string;
 };
+
+// A more compatible MD5 hash function
+function md5(str: string) {
+  return crypto.createHash('md5').update(str).digest('hex');
+}
 
 export default function OrderConfirmationRedirectPage() {
     const params = useParams();
@@ -60,8 +65,14 @@ export default function OrderConfirmationRedirectPage() {
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ data: dataForSignature }),
                         });
-                        const { signature } = await response.json();
+                        const { signature, signatureString } = await response.json();
                         
+                        console.log("--- PayFast Signature Debug ---");
+                        console.log("Data Sent for Signature:", dataForSignature);
+                        console.log("String Used for Hashing:", signatureString);
+                        console.log("Generated Signature:", signature);
+                        console.log("-----------------------------");
+
                         setPayfastData({ ...dataForSignature, signature });
                     } catch (error) {
                         console.error("Error fetching signature", error);
@@ -76,10 +87,9 @@ export default function OrderConfirmationRedirectPage() {
     
     useEffect(() => {
         if (payfastData) {
-            // The form is submitted via JavaScript as soon as the component mounts with the order data
             const payfastForm = document.getElementById('payfast-form') as HTMLFormElement;
             if (payfastForm) {
-                payfastForm.submit();
+                 setTimeout(() => payfastForm.submit(), 100); 
             }
         }
     }, [payfastData]);

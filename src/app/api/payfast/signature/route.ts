@@ -2,25 +2,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 
-function generateSignature(data: { [key: string]: any }, passphrase?: string): string {
-    // 1. Create parameter string
+function generateSignature(data: { [key: string]: any }, passphrase?: string): { signature: string, signatureString: string } {
     let pfOutput = '';
-    for (const key in data) {
-        if (data.hasOwnProperty(key) && data[key] !== '') {
-            pfOutput += `${key}=${encodeURIComponent(data[key]).replace(/%20/g, '+')}&`;
-        }
-    }
+    
+    // IMPORTANT: The order of properties must be EXACTLY as specified by PayFast.
+    const orderedKeys = [
+        'merchant_id', 'merchant_key', 'return_url', 'cancel_url', 'notify_url',
+        'name_first', 'name_last', 'email_address', 'cell_number', 'm_payment_id',
+        'amount', 'item_name', 'item_description'
+    ];
 
-    // 2. Remove last ampersand
+    orderedKeys.forEach(key => {
+        if (data.hasOwnProperty(key) && data[key] !== '' && data[key] !== null && data[key] !== undefined) {
+             pfOutput += `${key}=${encodeURIComponent(data[key]).replace(/%20/g, '+')}&`;
+        }
+    });
+
     let getString = pfOutput.slice(0, -1);
     
-    // 3. Add passphrase
     if (passphrase) {
         getString += `&passphrase=${encodeURIComponent(passphrase).replace(/%20/g, '+')}`;
     }
 
-    // 4. MD5 hash the final string
-    return crypto.createHash('md5').update(getString).digest('hex');
+    const signature = crypto.createHash('md5').update(getString).digest('hex');
+    
+    return { signature, signatureString: getString };
 }
 
 export async function POST(req: NextRequest) {
@@ -28,12 +34,9 @@ export async function POST(req: NextRequest) {
         const { data } = await req.json();
         const passphrase = process.env.PAYFAST_PASSPHRASE;
         
-        // IMPORTANT: The order of properties in `dataForSignature` matters for PayFast.
-        // It must match the order in which they are processed.
-        // We receive it pre-ordered from the client, so we generate from that.
-        const signature = generateSignature(data, passphrase);
+        const { signature, signatureString } = generateSignature(data, passphrase);
 
-        return NextResponse.json({ signature });
+        return NextResponse.json({ signature, signatureString });
 
     } catch (error) {
         console.error("Signature generation error:", error);
