@@ -14,11 +14,6 @@ type PayfastData = {
     [key: string]: string;
 };
 
-// A more compatible MD5 hash function
-function md5(str: string) {
-  return crypto.createHash('md5').update(str).digest('hex');
-}
-
 export default function OrderConfirmationRedirectPage() {
     const params = useParams();
     const [order, setOrder] = useState<Order | null>(null);
@@ -53,10 +48,12 @@ export default function OrderConfirmationRedirectPage() {
                         name_first: name_first,
                         name_last: name_last,
                         email_address: orderData.customerEmail,
+                        cell_number: orderData.customerPhone, // Assuming customerPhone is on the order
                         m_payment_id: orderId,
                         amount: orderData.total.toFixed(2),
                         item_name: itemName,
                         item_description: itemDescription,
+                        payment_method: orderData.paymentMethod || '',
                     };
                     
                     try {
@@ -65,6 +62,11 @@ export default function OrderConfirmationRedirectPage() {
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ data: dataForSignature }),
                         });
+
+                        if (!response.ok) {
+                            throw new Error(`Signature API failed with status: ${response.status}`);
+                        }
+
                         const { signature, signatureString } = await response.json();
                         
                         console.log("--- PayFast Signature Debug ---");
@@ -89,7 +91,7 @@ export default function OrderConfirmationRedirectPage() {
         if (payfastData) {
             const payfastForm = document.getElementById('payfast-form') as HTMLFormElement;
             if (payfastForm) {
-                 setTimeout(() => payfastForm.submit(), 100); 
+                 setTimeout(() => payfastForm.submit(), 500); 
             }
         }
     }, [payfastData]);
@@ -112,9 +114,12 @@ export default function OrderConfirmationRedirectPage() {
         <p className="text-muted-foreground">Please wait while we securely redirect you to complete your payment.</p>
         
         <form id="payfast-form" action={process.env.NEXT_PUBLIC_PAYFAST_URL} method="post" className="hidden">
-            {payfastData && Object.entries(payfastData).map(([key, value]) => (
-                <input key={key} type="hidden" name={key} value={value} />
-            ))}
+            {payfastData && Object.entries(payfastData).map(([key, value]) => {
+                if (value !== '' && value !== null && value !== undefined) {
+                    return <input key={key} type="hidden" name={key} value={String(value)} />
+                }
+                return null;
+            })}
         </form>
     </div>
   );

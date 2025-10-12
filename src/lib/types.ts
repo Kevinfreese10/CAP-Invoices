@@ -100,6 +100,7 @@ export type Order = {
   resellerId?: string;
   customerName: string;
   customerEmail: string;
+  customerPhone?: string;
   endCustomerName?: string; // Added for reseller's client
   endCustomerEmail?: string; // Added for reseller's client
   date: any;
@@ -107,6 +108,7 @@ export type Order = {
   total: number;
   discountCode: string | null;
   discountAmount: number | null;
+  paymentMethod?: string;
   clientTotal?: number;
   status: 'Pending Payment' | 'Processing' | 'Completed' | 'Cancelled' | 'Outsourced';
   isOutsourced?: boolean;
