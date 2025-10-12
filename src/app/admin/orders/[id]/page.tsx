@@ -282,7 +282,7 @@ export default function AdminOrderDetailsPage() {
 
      const emailNote: OrderNote = {
       text: message,
-      subject: subject,
+      subject: subject || null,
       authorId: currentUser.uid,
       date: Timestamp.now(),
       type: 'email',
