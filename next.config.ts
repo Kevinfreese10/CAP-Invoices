@@ -1,3 +1,4 @@
+
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
@@ -36,6 +37,13 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
     ],
+  },
+  env: {
+    NEXT_PUBLIC_PAYFAST_MERCHANT_ID: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID,
+    NEXT_PUBLIC_PAYFAST_MERCHANT_KEY: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY,
+    PAYFAST_PASSPHRASE: process.env.PAYFAST_PASSPHRASE,
+    NEXT_PUBLIC_PAYFAST_URL: process.env.NEXT_PUBLIC_PAYFAST_URL,
+    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   },
 };
 
