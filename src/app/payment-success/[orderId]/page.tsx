@@ -1,5 +1,4 @@
 
-
 'use client';
 import { useEffect, useState } from 'react';
 import { useParams, notFound } from 'next/navigation';
@@ -12,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { processSuccessfulPayment } from '@/app/actions';
 
 const db = getFirestore(firebaseApp);
 
@@ -21,11 +21,20 @@ export default function PaymentSuccessPage() {
     const [order, setOrder] = useState<Order | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [assignee, setAssignee] = useState<User | null>(null);
+    const [hasProcessed, setHasProcessed] = useState(false);
 
     useEffect(() => {
-        if (orderId) {
-            const fetchOrderDetails = async () => {
-                setIsLoading(true);
+        const processAndFetchOrder = async () => {
+            if (!orderId || hasProcessed) return;
+
+            setIsLoading(true);
+            
+            try {
+                // Perform the server-side processing
+                await processSuccessfulPayment(orderId);
+                setHasProcessed(true); // Ensure this runs only once
+
+                // Fetch the updated order details to display
                 const orderRef = doc(db, 'orders', orderId);
                 const orderSnap = await getDoc(orderRef);
 
@@ -34,40 +43,33 @@ export default function PaymentSuccessPage() {
                     setOrder(orderData);
 
                     if (orderData.assignedTo && orderData.assignedTo.length > 0) {
-                         const staffQuery = query(collection(db, "users"), where('uid', '==', orderData.assignedTo[0]));
-                         const staffSnapshot = await getDocs(staffQuery);
-                         if (!staffSnapshot.empty) {
-                             setAssignee(staffSnapshot.docs[0].data() as User);
-                         }
+                        const staffQuery = query(collection(db, "users"), where('uid', '==', orderData.assignedTo[0]));
+                        const staffSnapshot = await getDocs(staffQuery);
+                        if (!staffSnapshot.empty) {
+                            setAssignee(staffSnapshot.docs[0].data() as User);
+                        }
                     }
                 } else {
                     notFound();
                 }
+            } catch (error) {
+                console.error("Error processing or fetching order:", error);
+                // Optionally show an error message to the user
+            } finally {
                 setIsLoading(false);
-            };
+            }
+        };
+        
+        processAndFetchOrder();
 
-            // It can take a moment for the ITN to update the order status.
-            // We'll poll a few times to give it a chance to complete.
-            let attempts = 0;
-            const interval = setInterval(() => {
-                fetchOrderDetails();
-                attempts++;
-                if (attempts > 5 || (order && order.status === 'Processing')) {
-                    clearInterval(interval);
-                }
-            }, 2000);
-            
-            return () => clearInterval(interval);
-
-        }
-    }, [orderId, order?.status]);
+    }, [orderId, hasProcessed]);
     
     if (isLoading) {
         return (
             <div className="container mx-auto px-4 py-20 text-center">
                 <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
                 <h1 className="mt-4 text-2xl font-semibold">Finalizing your order...</h1>
-                <p className="text-muted-foreground">Please wait while we confirm your payment.</p>
+                <p className="text-muted-foreground">Please wait while we confirm your payment and send your confirmation email.</p>
             </div>
         );
     }
@@ -88,7 +90,7 @@ export default function PaymentSuccessPage() {
                     <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
                     <CardTitle className="text-3xl mt-4">Payment Successful!</CardTitle>
                     <CardDescription>
-                        Thank you for your order. We have received your payment and will begin processing your services shortly.
+                        Thank you for your order. We have received your payment and sent a confirmation email with instructions for the next steps.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-8">
@@ -121,7 +123,7 @@ export default function PaymentSuccessPage() {
                     <section>
                         <h3 className="font-semibold text-lg mb-2">Next Steps: Required Documents</h3>
                          <p className="text-sm text-muted-foreground mb-4">
-                            To get started, please prepare the following documents. You will receive an email shortly with instructions on where to upload them.
+                            To get started, please prepare the following documents and look for an email with instructions on where to upload them.
                         </p>
                         <div className="space-y-4">
                             {orderedServices.map(service => (

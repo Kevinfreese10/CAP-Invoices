@@ -1,7 +1,6 @@
 
-
 import { NextRequest, NextResponse } from 'next/server';
-import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query, addDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import crypto from 'crypto';
 import { Order, Service, User, OrderNote, Task } from '@/lib/types';
@@ -24,19 +23,15 @@ function rfc3986Encode(str: string) {
 function generateSignature(data: { [key: string]: any }, passphrase?: string): string {
     let pfOutput = '';
     
-    const orderedKeys = [
-        'm_payment_id', 'pf_payment_id', 'payment_status', 'item_name', 'item_description',
-        'amount_gross', 'amount_fee', 'amount_net', 'custom_str1', 'custom_str2',
-        'custom_str3', 'custom_str4', 'custom_str5', 'custom_int1', 'custom_int2',
-        'custom_int3', 'custom_int4', 'custom_int5', 'name_first', 'name_last',
-        'email_address', 'merchant_id'
-    ];
-
-    orderedKeys.forEach(key => {
-        if (data.hasOwnProperty(key) && data[key] !== '' && data[key] !== null && data[key] !== undefined) {
-             pfOutput += `${key}=${rfc3986Encode(String(data[key]).trim())}&`;
+    // Create parameter string
+    for (const key in data) {
+        if (data.hasOwnProperty(key) && key !== 'signature') {
+            const value = data[key];
+            if (value !== '' && value !== null && value !== undefined) {
+                pfOutput += `${key}=${rfc3986Encode(String(value).trim())}&`;
+            }
         }
-    });
+    }
 
     // Remove last ampersand
     let getString = pfOutput.slice(0, -1);
@@ -49,80 +44,40 @@ function generateSignature(data: { [key: string]: any }, passphrase?: string): s
 }
 
 export async function POST(req: NextRequest) {
-  try {
-    const formData = await req.formData();
-    const data: { [key:string]: any } = {};
-    formData.forEach((value, key) => {
-        data[key] = value;
-    });
+  const body = await req.text();
+  const data: { [key:string]: any } = Object.fromEntries(new URLSearchParams(body));
 
-    console.log('Received PayFast ITN:', data);
+  console.log('Received PayFast ITN:', data);
 
-    const receivedSignature = data.signature;
-    const expectedSignature = generateSignature(data, process.env.PAYFAST_PASSPHRASE);
+  const receivedSignature = data.signature;
+  const expectedSignature = generateSignature(data, process.env.PAYFAST_PASSPHRASE);
 
-    if (receivedSignature !== expectedSignature) {
-        console.error('Signature mismatch on ITN');
-        console.error('Received:', receivedSignature);
-        console.error('Expected:', expectedSignature);
-        return new NextResponse('Signature mismatch', { status: 400 });
-    }
-    
-    const orderId = data.m_payment_id;
-    const orderRef = doc(db, 'orders', orderId);
-    const orderSnap = await getDoc(orderRef);
-
-    if (!orderSnap.exists()) {
-        console.error(`Order ${orderId} not found in database.`);
-        return new NextResponse('Order not found', { status: 404 });
-    }
-    
-    if (data.payment_status === 'COMPLETE') {
-      await updateDoc(orderRef, {
-        status: 'Processing',
-      });
-      console.log(`Order ${orderId} updated to Processing.`);
-
-      // Send document request email after successful payment
-      const order = orderSnap.data() as Order;
-      const itemsWithServices = order.items.map(item => {
-        const service = allServices.find(s => s.id === item.id);
-        return { ...item, service };
-      }).filter(item => item.service) as { service: Service }[];
-
-      const emailHtml = render(<DocumentRequestEmail order={order} items={itemsWithServices} replyTo="info@myacc.co.za" />);
-      
-      const attachments = itemsWithServices
-        .filter(item => item.service.attachmentUrl)
-        .map(item => ({
-            filename: `${item.service.title.replace(/\s/g, '_')}.pdf`,
-            path: item.service.attachmentUrl!,
-        }));
-      
-      await sendEmail({
-          to: order.customerEmail,
-          subject: `Action Required for Your Order #${order.id}`,
-          html: emailHtml,
-          attachments: attachments,
-      });
-
-      const emailNote: OrderNote = {
-          text: 'Sent "Request Documents" email to client after payment.',
-          date: Timestamp.now(),
-          authorId: 'system',
-          type: 'email',
-          subject: `Action Required for Your Order #${order.id}`,
-      };
-      await updateDoc(orderRef, { notes: arrayUnion(emailNote) });
-
-    } else {
-      console.log(`Payment for order ${orderId} not complete. Status: ${data.payment_status}`);
-    }
-
-    return new NextResponse('OK', { status: 200 });
-  } catch (error) {
-    console.error('PayFast ITN Error:', error);
-    return new NextResponse('Error processing ITN', { status: 500 });
+  if (receivedSignature !== expectedSignature) {
+      console.error('Signature mismatch on ITN');
+      console.error('Received:', receivedSignature);
+      console.error('Expected:', expectedSignature);
+      // Even with mismatch, return 200 to prevent retries, but log the error.
+      return new NextResponse('Signature mismatch', { status: 200 });
   }
-}
+  
+  const orderId = data.m_payment_id;
+  const orderRef = doc(db, 'orders', orderId);
+  const orderSnap = await getDoc(orderRef);
 
+  if (!orderSnap.exists()) {
+      console.error(`Order ${orderId} not found in database.`);
+      return new NextResponse('Order not found', { status: 200 }); // Return 200 to stop retries
+  }
+  
+  if (data.payment_status === 'COMPLETE') {
+    // Only update the status. The success page will handle the rest.
+    await updateDoc(orderRef, {
+      status: 'Processing',
+    });
+    console.log(`Order ${orderId} status updated to Processing via ITN.`);
+  } else {
+    console.log(`Payment for order ${orderId} not complete. Status: ${data.payment_status}`);
+  }
+
+  return new NextResponse('OK', { status: 200 });
+}
