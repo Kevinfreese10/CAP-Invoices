@@ -3,27 +3,29 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import crypto from 'crypto';
-import { Order, ItnLog } from '@/lib/types';
+import { Order, ItnLog, Service, User, Task } from '@/lib/types';
+import { services as allServices } from '@/lib/data';
+import { render } from '@react-email/components';
+import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
+import { sendEmail } from '@/lib/email';
+import { getDocs, collection, query, where, addDoc } from 'firebase/firestore';
 
 const db = getFirestore(firebaseApp);
 
+// Helper function for RFC3986 encoding
 function rfc3986Encode(str: string) {
     return encodeURIComponent(str).replace(/[!'()*]/g, (c) => {
         return '%' + c.charCodeAt(0).toString(16).toUpperCase();
     }).replace(/%20/g, '+');
 }
 
+// Function to generate MD5 signature from data object
 function generateSignature(data: { [key: string]: any }, passphrase?: string): string {
-    const sigData = { ...data };
-    delete sigData.signature;
-
-    // The PayFast ITN signature is calculated on the URL-encoded, alphabetically sorted key-value pairs
-    const sortedKeys = Object.keys(sigData).sort();
-
+    const sortedKeys = Object.keys(data).sort();
     let pfOutput = '';
     sortedKeys.forEach(key => {
-        if (sigData[key] !== '' && sigData[key] !== null && sigData[key] !== undefined) {
-            pfOutput += `${key}=${rfc3986Encode(String(sigData[key]).trim())}&`;
+        if (data[key] !== '' && data[key] !== null && data[key] !== undefined) {
+            pfOutput += `${key}=${rfc3986Encode(String(data[key]).trim())}&`;
         }
     });
 
@@ -31,117 +33,143 @@ function generateSignature(data: { [key: string]: any }, passphrase?: string): s
     if (passphrase) {
         getString += `&passphrase=${rfc3986Encode(passphrase.trim())}`;
     }
-
     return crypto.createHash('md5').update(getString).digest('hex');
 }
 
-
+// Main handler for the ITN POST request
 export async function POST(req: NextRequest) {
     let data: { [key: string]: string } = {};
-    let logMessage = '';
-    let logStatus: ItnLog['status'] = 'Failed';
-    let orderId = '';
-    
+    let orderId: string = '';
+
     try {
         const bodyText = await req.text();
         data = Object.fromEntries(new URLSearchParams(bodyText));
         orderId = data.m_payment_id;
 
-        const orderRef = orderId ? doc(db, 'orders', orderId) : null;
+        if (!orderId) {
+            console.warn('ITN received without m_payment_id.');
+            return new NextResponse('OK', { status: 200 });
+        }
+        
+        const orderRef = doc(db, 'orders', orderId);
 
+        // --- Log the ITN attempt ---
         const logItnAttempt = async (message: string, status: ItnLog['status']) => {
-            if (orderRef) {
-                const logEntry: ItnLog = {
-                    receivedAt: Timestamp.now(),
-                    status: status,
-                    message: message,
-                    payload: data,
-                };
+            const logEntry: ItnLog = {
+                receivedAt: Timestamp.now(),
+                status: status,
+                message: message,
+                payload: data,
+            };
+            try {
                 await updateDoc(orderRef, { itnHistory: arrayUnion(logEntry) });
+            } catch (logError) {
+                console.error(`Failed to log ITN attempt for order ${orderId}:`, logError);
             }
         };
+
+        const orderSnap = await getDoc(orderRef);
+
+        if (!orderSnap.exists()) {
+            await logItnAttempt(`Order ${orderId} not found in database.`, 'Failed');
+            return new NextResponse('OK', { status: 200 });
+        }
+
+        const orderData = orderSnap.data() as Order;
+
+        // --- Idempotency Check: If already processed, do nothing ---
+        if (orderData.status === 'Processing' || orderData.status === 'Completed') {
+            await logItnAttempt('Duplicate ITN received for already processed order. Ignored.', 'Success');
+            return new NextResponse('OK', { status: 200 });
+        }
 
         // --- 1. SIGNATURE VALIDATION ---
         const receivedSignature = data.signature;
         if (!receivedSignature) {
-            logMessage = 'ITN received without signature.';
-            console.error(logMessage, { orderId });
-            await logItnAttempt(logMessage, 'Failed');
-            return new NextResponse('OK', { status: 200 }); // Acknowledge to prevent retries
+            await logItnAttempt('ITN received without signature.', 'Failed');
+            return new NextResponse('OK', { status: 200 });
         }
         
-        // Note: The ITN signature calculation is different from the payment signature.
-        // It's based on the received POST data, not the initial payment data.
-        const expectedSignature = generateSignature(data, process.env.PAYFAST_PASSPHRASE);
+        const sigData = { ...data };
+        delete sigData.signature;
+        const expectedSignature = generateSignature(sigData, process.env.PAYFAST_PASSPHRASE);
 
         if (receivedSignature.toLowerCase() !== expectedSignature.toLowerCase()) {
-            logMessage = `Signature mismatch. Received: ${receivedSignature}, Expected: ${expectedSignature}`;
-            console.error(logMessage, { orderId });
-            await logItnAttempt(logMessage, 'Failed');
-            return new NextResponse('OK', { status: 200 }); // Respond 200 but do not process
-        }
-
-        // --- 2. RETRIEVE ORDER & VALIDATE AMOUNT ---
-        if (!orderRef) {
-             logMessage = 'No m_payment_id in ITN payload.';
-             console.error(logMessage);
-             return new NextResponse('OK', { status: 200 });
-        }
-        
-        const orderSnap = await getDoc(orderRef);
-
-        if (!orderSnap.exists()) {
-            logMessage = `Order ${orderId} not found in database.`;
-            console.error(logMessage);
+            await logItnAttempt(`Signature mismatch. Received: ${receivedSignature}, Expected: ${expectedSignature}`, 'Failed');
             return new NextResponse('OK', { status: 200 });
         }
-        const orderData = orderSnap.data() as Order;
-
+        
+        // --- 2. AMOUNT VALIDATION ---
         const amountGross = parseFloat(data.amount_gross);
-        const orderTotal = orderData.total;
-
-        if (Math.abs(amountGross - orderTotal) > 0.01) {
-            logMessage = `Amount mismatch for order ${orderId}. Expected ${orderTotal}, but PayFast reported ${amountGross}.`;
-            console.error(logMessage);
-            await logItnAttempt(logMessage, 'Failed');
+        if (Math.abs(amountGross - orderData.total) > 0.01) {
+            await logItnAttempt(`Amount mismatch. Expected ${orderData.total}, but PayFast reported ${amountGross}.`, 'Failed');
             return new NextResponse('OK', { status: 200 });
         }
-        
-        // --- 4. PROCESS PAYMENT STATUS ---
+
+        // --- 3. PROCESS PAYMENT STATUS ---
         if (data.payment_status === 'COMPLETE') {
-            if (orderData.status !== 'Processing') {
-                await updateDoc(orderRef, { status: 'Processing' });
-                logMessage = 'Payment completed successfully. Order status updated to Processing.';
-                logStatus = 'Success';
-            } else {
-                logMessage = 'Duplicate ITN received for already processed order. Ignored.';
-                logStatus = 'Success';
+            await updateDoc(orderRef, { status: 'Processing' });
+            
+            // --- Post-Payment Actions ---
+            try {
+                const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
+                const staffSnapshot = await getDocs(staffQuery);
+                const allStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+
+                const department = orderData.department as 'Accounting and Tax' | 'Administration' | 'CAP' | undefined;
+                let assignedStaff: User | undefined;
+                if (department) {
+                    const staffInDept = allStaff.filter(u => u.role === 'staff' && u.department === department);
+                    if (staffInDept.length > 0) {
+                        const randomIndex = Math.floor(Math.random() * staffInDept.length);
+                        assignedStaff = staffInDept[randomIndex];
+                    }
+                }
+
+                if (assignedStaff) {
+                    await updateDoc(orderRef, { assignedTo: [assignedStaff.id] });
+                    const taskData: Omit<Task, 'id'> = {
+                      title: `Process Order: ${orderData.id}`,
+                      description: `Fulfill the services for order ${orderData.id}.`,
+                      assignedTo: [assignedStaff.id],
+                      createdBy: 'system',
+                      createdAt: Timestamp.now(),
+                      dueDate: Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                      priority: 'Medium',
+                      status: 'To-Do',
+                      orderId: orderData.id,
+                      comments: [],
+                    };
+                    await addDoc(collection(db, 'tasks'), taskData);
+                }
+
+                const itemsWithServices = orderData.items.map(item => {
+                    const service = allServices.find(s => s.id === item.id);
+                    return { ...item, service };
+                }).filter(item => item.service) as { service: Service }[];
+        
+                const emailHtml = render(<DocumentRequestEmail order={orderData} items={itemsWithServices} replyTo={assignedStaff?.email || 'info@myacc.co.za'} />);
+                await sendEmail({
+                    to: orderData.customerEmail,
+                    subject: `Action Required for Your Order #${orderId}`,
+                    html: emailHtml,
+                });
+                
+                await logItnAttempt('Payment completed successfully. Order processed, task created, and email sent.', 'Success');
+
+            } catch (actionError: any) {
+                 await logItnAttempt(`Payment validated, but post-payment actions failed: ${actionError.message}`, 'Failed');
             }
+
         } else {
-            logMessage = `Payment not complete. Status: ${data.payment_status}.`;
-            logStatus = 'Failed';
+            await logItnAttempt(`Payment not complete. Status: ${data.payment_status}.`, 'Failed');
         }
 
-        await logItnAttempt(logMessage, logStatus);
         return new NextResponse('OK', { status: 200 });
         
     } catch (error: any) {
         console.error('Critical Error in ITN handler:', error);
-        logMessage = `An internal server error occurred: ${error.message}`;
-        if(orderId) {
-             const orderRef = doc(db, 'orders', orderId);
-             try {
-                await updateDoc(orderRef, { itnHistory: arrayUnion({
-                    receivedAt: Timestamp.now(),
-                    status: 'Failed',
-                    message: logMessage,
-                    payload: data,
-                 }) });
-             } catch (logError) {
-                 console.error("Failed to even log the error to Firestore:", logError);
-             }
-        }
-        // Always respond 200 OK to prevent PayFast from retrying a failing request.
+        // Still respond 200 OK to prevent PayFast from retrying a failing request.
         return new NextResponse('OK', { status: 200 });
     }
 }

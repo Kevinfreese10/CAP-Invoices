@@ -2,19 +2,15 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useParams, notFound } from 'next/navigation';
-import { getFirestore, doc, getDoc, collection, query, where, getDocs, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service, User, OrderNote } from '@/lib/types';
-import { Loader2, CheckCircle, Clock, ClipboardCheck, User as UserIcon } from 'lucide-react';
+import { Order, Service, User } from '@/lib/types';
+import { Loader2, CheckCircle, User as UserIcon } from 'lucide-react';
 import { services as allServices } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { sendEmail } from '@/lib/email';
-import { render } from '@react-email/components';
-import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
-import { useToast } from '@/hooks/use-toast';
 
 const db = getFirestore(firebaseApp);
 
@@ -24,51 +20,22 @@ export default function PaymentSuccessPage() {
     const [order, setOrder] = useState<Order | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [assignee, setAssignee] = useState<User | null>(null);
-    const { toast } = useToast();
-    const [emailSent, setEmailSent] = useState(false);
 
     useEffect(() => {
-        if (!orderId) return;
+        if (!orderId) {
+            setIsLoading(false);
+            return;
+        }
 
         const fetchOrderDetails = async () => {
-            setIsLoading(true);
-            try {
-                const orderRef = doc(db, 'orders', orderId);
-                const orderSnap = await getDoc(orderRef);
+            const orderRef = doc(db, 'orders', orderId);
+            const orderSnap = await getDoc(orderRef);
 
-                if (orderSnap.exists()) {
-                    const orderData = orderSnap.data() as Order;
-                    setOrder(orderData);
-                    
-                    if (orderData.status === 'Processing' && !emailSent) {
-                         const itemsWithServices = orderData.items.map(item => {
-                            const service = allServices.find(s => s.id === item.id);
-                            return { ...item, service };
-                        }).filter(item => item.service) as { service: Service }[];
+            if (orderSnap.exists()) {
+                const orderData = orderSnap.data() as Order;
+                setOrder(orderData);
 
-                        const emailHtml = render(<DocumentRequestEmail order={orderData} items={itemsWithServices} replyTo="info@myacc.co.za" />);
-                        
-                         try {
-                            await sendEmail({
-                                to: orderData.customerEmail,
-                                subject: `Action Required for Your Order #${orderId}`,
-                                html: emailHtml,
-                            });
-                             const emailNote: OrderNote = {
-                                text: 'Sent "Request Documents" email to client after payment.',
-                                date: Timestamp.now(),
-                                authorId: 'system', // System-sent
-                                type: 'email',
-                                subject: `Action Required for Your Order #${orderId}`,
-                            };
-                            await updateDoc(orderRef, { notes: arrayUnion(emailNote) });
-                            setEmailSent(true); // Prevent re-sending email
-                        } catch(e) {
-                             console.error("Failed to send document request email:", e);
-                             toast({ title: 'Email Failed', description: 'Could not send document request email.', variant: 'destructive'});
-                        }
-                    }
-
+                if (orderData.status === 'Processing') {
                     if (orderData.assignedTo && orderData.assignedTo.length > 0) {
                          const staffQuery = query(collection(db, "users"), where('uid', '==', orderData.assignedTo[0]));
                          const staffSnapshot = await getDocs(staffQuery);
@@ -76,33 +43,30 @@ export default function PaymentSuccessPage() {
                              setAssignee(staffSnapshot.docs[0].data() as User);
                          }
                     }
-                } else {
-                    notFound();
+                    setIsLoading(false);
+                    return true; // Stop polling
                 }
-            } catch (error) {
-                console.error("Error fetching order details:", error);
-            } finally {
+            } else {
                 setIsLoading(false);
+                notFound();
+                return true; // Stop polling
             }
+            return false; // Continue polling
         };
         
         let attempts = 0;
-        const interval = setInterval(() => {
-            if (order && order.status === 'Processing') {
-                clearInterval(interval);
-                fetchOrderDetails();
-                return;
-            }
-            fetchOrderDetails();
+        const interval = setInterval(async () => {
+            const shouldStop = await fetchOrderDetails();
             attempts++;
-            if (attempts > 5) {
+            if (shouldStop || attempts > 5) {
                 clearInterval(interval);
+                setIsLoading(false); // Stop loading even if status didn't change
             }
-        }, 2000);
+        }, 3000); // Increased polling interval
 
         return () => clearInterval(interval);
 
-    }, [orderId, order?.status, emailSent, toast]);
+    }, [orderId]);
     
     if (isLoading) {
         return (
@@ -115,7 +79,12 @@ export default function PaymentSuccessPage() {
     }
     
     if (!order) {
-        return notFound();
+        return (
+             <div className="container mx-auto px-4 py-20 text-center">
+                <h1 className="mt-4 text-2xl font-semibold">Waiting for Payment Confirmation</h1>
+                <p className="text-muted-foreground">We are waiting for the payment provider to confirm your transaction. This page will update automatically.</p>
+            </div>
+        );
     }
 
     const orderedServices = order.items.map(item => {
@@ -130,7 +99,7 @@ export default function PaymentSuccessPage() {
                     <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
                     <CardTitle className="text-3xl mt-4">Payment Successful!</CardTitle>
                     <CardDescription>
-                        Thank you for your order. We have received your payment and sent a confirmation email with instructions for the next steps.
+                        Thank you for your order. We have received your payment and will begin processing your services shortly.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-8">
@@ -163,7 +132,7 @@ export default function PaymentSuccessPage() {
                     <section>
                         <h3 className="font-semibold text-lg mb-2">Next Steps: Required Documents</h3>
                          <p className="text-sm text-muted-foreground mb-4">
-                            To get started, please prepare the following documents and look for an email with instructions on where to upload them.
+                            To get started, please prepare the following documents. You will receive an email shortly with instructions on where to upload them.
                         </p>
                         <div className="space-y-4">
                             {orderedServices.map(service => (
@@ -204,3 +173,4 @@ export default function PaymentSuccessPage() {
         </div>
     );
 }
+
