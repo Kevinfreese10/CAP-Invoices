@@ -7,7 +7,6 @@ import { Order, Service, User, OrderNote, Task } from '@/lib/types';
 import { services as allServices } from '@/lib/data';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
-import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
 import NewTaskEmail from '@/components/emails/NewTaskEmail';
 import { format } from 'date-fns';
 
@@ -40,7 +39,6 @@ const processSuccessfulPayment = async (orderId: string) => {
 
     const order = { id: orderSnap.id, ...orderSnap.data() } as Order;
 
-    // Prevent re-processing
     if (order.status === 'Processing' || order.status === 'Completed') {
         console.log(`Order ${orderId} has already been processed.`);
         return { success: true, message: 'Order already processed.' };
@@ -125,7 +123,7 @@ function generateSignature(data: { [key: string]: any }, passphrase?: string): s
 }
 
 export async function POST(req: NextRequest) {
-  // Acknowledge receipt of the ITN post from PayFast
+  // Acknowledge receipt of the ITN post from PayFast to prevent retries
   const response = new NextResponse('OK', { status: 200 });
 
   try {
@@ -134,18 +132,20 @@ export async function POST(req: NextRequest) {
 
     console.log('Received PayFast ITN:', data);
     
+    // 1. Signature validation
     const receivedSignature = data.signature;
-    delete data.signature; // Remove signature from data object before generating our own
-    const expectedSignature = generateSignature(data, process.env.PAYFAST_PASSPHRASE);
+    const pfDataWithoutSignature = { ...data };
+    delete pfDataWithoutSignature.signature;
+    const expectedSignature = generateSignature(pfDataWithoutSignature, process.env.PAYFAST_PASSPHRASE);
 
     if (receivedSignature !== expectedSignature) {
         console.error('ITN Signature Mismatch');
         console.error('Received:', receivedSignature);
         console.error('Expected:', expectedSignature);
-        // Even with mismatch, return 200 OK to stop PayFast retries, but don't process.
-        return response;
+        return response; // Acknowledge but do not process
     }
-
+    
+    // 2. Data validation
     const orderId = data.m_payment_id;
     if (!orderId) {
         console.error('No m_payment_id in ITN payload.');
@@ -160,6 +160,7 @@ export async function POST(req: NextRequest) {
     }
     const orderData = orderSnap.data() as Order;
     
+    // 3. Amount validation
     const amountGross = parseFloat(data.amount_gross);
     const orderTotal = orderData.total;
     if (Math.abs(amountGross - orderTotal) > 0.01) {
@@ -167,16 +168,20 @@ export async function POST(req: NextRequest) {
         return response;
     }
 
+    // 4. Process payment status
     if (data.payment_status === 'COMPLETE') {
+        // This is the main processing logic that was failing
         await processSuccessfulPayment(orderId);
         console.log(`Order ${orderId} processing initiated successfully via ITN.`);
     } else {
         console.log(`Payment for order ${orderId} not complete. Status: ${data.payment_status}`);
+        // Optionally update status for failed/cancelled payments
+        await updateDoc(orderRef, { status: 'Cancelled' });
     }
   } catch (error) {
     console.error('Error processing ITN:', error);
-    // Still return 200 to prevent retries on server error
   }
 
+  // Always return 200 OK to PayFast to prevent retries
   return response;
 }
