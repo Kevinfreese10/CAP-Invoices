@@ -1,5 +1,4 @@
 
-
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -95,16 +94,6 @@ export default function CheckoutForm() {
       const firstService = cartItems[0]?.service;
       const department = firstService?.department as 'Accounting and Tax' | 'Administration' | undefined;
       
-      const confirmationEmailSubject = `My Accountant | Your Order Confirmation: #${orderId}`;
-      
-      const confirmationNote: OrderNote = {
-          text: 'Order confirmation email sent to client.',
-          date: Timestamp.now(),
-          authorId: currentUser?.uid || 'system',
-          type: 'email',
-          subject: confirmationEmailSubject,
-      };
-
       const orderData: Order = {
         id: orderId,
         customerName: values.name,
@@ -116,20 +105,15 @@ export default function CheckoutForm() {
             quantity: item.quantity
         })),
         total: finalTotal,
-        discountCode: appliedDiscount?.code || null,
-        discountAmount: appliedDiscount?.amount || null,
+        discountCode: appliedDiscount ? appliedDiscount.code : null,
+        discountAmount: appliedDiscount ? appliedDiscount.amount : null,
         status: 'Pending Payment',
         date: Timestamp.now(),
         department: department || null,
         assignedTo: null,
-        notes: [confirmationNote],
+        notes: [],
         source: 'Client',
       };
-
-      const existingUser = users.find(u => u.email === values.email);
-      if (!existingUser) {
-        signup(values.name, values.email);
-      }
       
       await setDoc(doc(db, 'orders', orderId), orderData);
 
@@ -142,14 +126,8 @@ export default function CheckoutForm() {
           });
       }
       
-      const emailHtml = render(<OrderConfirmationEmail order={orderData} />);
-      await sendEmail({
-          to: values.email,
-          bcc: 'kev@thinkestry.co.za',
-          subject: confirmationEmailSubject,
-          html: emailHtml,
-      });
-
+      // Don't send email here, redirect to confirmation page which handles payment form.
+      
       clearCart();
       setIsLoading(false);
       router.push(`/order-confirmation/${orderId}`);
@@ -191,7 +169,7 @@ export default function CheckoutForm() {
 
             <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isLoading ? 'Processing...' : 'Place Order'}
+              {isLoading ? 'Processing...' : 'Proceed to Payment'}
             </Button>
           </form>
         </Form>

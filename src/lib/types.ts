@@ -105,8 +105,8 @@ export type Order = {
   date: any;
   items: any[];
   total: number;
-  discountCode?: string;
-  discountAmount?: number;
+  discountCode: string | null;
+  discountAmount: number | null;
   clientTotal?: number;
   status: 'Pending Payment' | 'Processing' | 'Completed' | 'Cancelled' | 'Outsourced';
   isOutsourced?: boolean;

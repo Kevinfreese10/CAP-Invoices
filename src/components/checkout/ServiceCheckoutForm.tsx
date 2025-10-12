@@ -1,5 +1,4 @@
 
-
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -7,7 +6,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { users } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -20,8 +18,8 @@ import { Order, Service, User, DiscountCode, OrderNote } from '@/lib/types';
 import { Checkbox } from '../ui/checkbox';
 import { Separator } from '../ui/separator';
 import { sendEmail } from '@/lib/email';
-import { render } from '@react-email/components';
 import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
+import { render } from '@react-email/components';
 import Link from 'next/link';
 import { getNextOrderId } from '@/lib/sequence';
 
@@ -113,16 +111,6 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
       const orderId = await getNextOrderId();
       const department = service.department as 'Accounting and Tax' | 'Administration' | undefined;
 
-      const confirmationEmailSubject = `My Accountant | Your Order Confirmation: #${orderId}`;
-      
-      const confirmationNote: OrderNote = {
-          text: 'Order confirmation email sent to client.',
-          date: Timestamp.now(),
-          authorId: currentUser?.uid || 'system',
-          type: 'email',
-          subject: confirmationEmailSubject,
-      };
-
       const orderData: Order = {
         id: orderId,
         customerName: values.name,
@@ -134,23 +122,18 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
             quantity: 1
         }],
         total: finalTotal,
-        discountCode: appliedDiscount?.code || null,
-        discountAmount: appliedDiscount?.amount || null,
+        discountCode: appliedDiscount ? appliedDiscount.code : null,
+        discountAmount: appliedDiscount ? appliedDiscount.amount : null,
         status: 'Pending Payment',
         date: Timestamp.now(),
         department: department || null,
         assignedTo: null,
-        notes: [confirmationNote],
+        notes: [],
         source: 'Client',
       };
-
-      const existingUser = users.find(u => u.email === values.email);
-      if (!existingUser) {
-        signup(values.name, values.email);
-      }
-
-      await setDoc(doc(db, 'orders', orderId), orderData);
       
+      await setDoc(doc(db, 'orders', orderId), orderData);
+
       if (appliedDiscount) {
           const discountRef = doc(db, 'discounts', appliedDiscount.code);
           await updateDoc(discountRef, {
@@ -160,14 +143,8 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
           });
       }
       
-      const emailHtml = render(<OrderConfirmationEmail order={orderData} />);
-      await sendEmail({
-          to: values.email,
-          bcc: 'kev@thinkestry.co.za',
-          subject: confirmationEmailSubject,
-          html: emailHtml,
-      });
-
+      // Don't send email here, redirect to confirmation page which handles payment form.
+      
       setIsLoading(false);
       router.push(`/order-confirmation/${orderId}`);
 
@@ -185,7 +162,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
   return (
     <Card className="sticky top-24">
       <CardHeader>
-        <CardTitle>Complete Your Order</CardTitle>
+        <CardTitle>Place Your Order</CardTitle>
       </CardHeader>
       <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -224,11 +201,8 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
                 </div>
                 <Button type="submit" className="w-full" size="lg" disabled={isLoading || !form.formState.isValid}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {isLoading ? 'Processing...' : 'Place Order & Proceed to Payment'}
+                {isLoading ? 'Processing...' : 'Proceed to Payment'}
                 </Button>
-                 <p className="text-xs text-muted-foreground text-center w-full">
-                    You will be asked to make a manual EFT payment after placing your order.
-                </p>
             </CardFooter>
           </form>
         </Form>
