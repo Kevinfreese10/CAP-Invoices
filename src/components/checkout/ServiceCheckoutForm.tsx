@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -22,13 +23,15 @@ import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 import { render } from '@react-email/components';
 import Link from 'next/link';
 import { getNextOrderId } from '@/lib/sequence';
+import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 
 const db = getFirestore(firebaseApp);
 
 const formSchema = z.object({
-  name: z.string().min(2, 'Name is required.'),
-  email: z.string().email('Invalid email address.'),
-  phone: z.string().min(10, 'A valid phone number is required.'),
+  name_first: z.string().min(1, 'First name is required.'),
+  name_last: z.string().min(1, 'Last name is required.'),
+  email_address: z.string().email('Invalid email address.'),
+  cell_number: z.string().min(10, 'A valid phone number is required.'),
   agreePrereqs: z.boolean().refine(val => val === true, {
     message: 'You must confirm you have the prerequisites.',
   }),
@@ -36,6 +39,7 @@ const formSchema = z.object({
     message: 'You must agree to the refund policy.',
   }),
   discountCode: z.string().optional(),
+  paymentMethod: z.string().optional(),
 });
 
 const formatPrice = (price: number) => {
@@ -53,18 +57,20 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
   const { signup, user: currentUser } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; amount: number } | null>(null);
+  const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; amount: number; percentage: number; } | null>(null);
   const [isVerifyingDiscount, setIsVerifyingDiscount] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: '',
-      email: '',
-      phone: '',
+      name_first: '',
+      name_last: '',
+      email_address: '',
+      cell_number: '',
       agreePrereqs: false,
       agreeRefund: false,
       discountCode: '',
+      paymentMethod: '',
     },
     mode: 'onChange',
   });
@@ -90,7 +96,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
 
         const discountData = discountSnap.data() as Omit<DiscountCode, 'id'>;
         const discountAmount = service.price * (discountData.percentage / 100);
-        setAppliedDiscount({ code: discountSnap.id, amount: discountAmount });
+        setAppliedDiscount({ code: discountSnap.id, amount: discountAmount, percentage: discountData.percentage });
         toast({ title: 'Discount Applied!', description: `You've received a ${discountData.percentage}% discount.`});
     } catch (error) {
         toast({ title: 'Error', description: 'Could not verify discount code.', variant: 'destructive'});
@@ -109,12 +115,13 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
 
     try {
       const orderId = await getNextOrderId();
-      const department = service.department as 'Accounting and Tax' | 'Administration' | undefined;
+      const department = service.department as 'Accounting and Tax' | 'Administration' | 'CAP' | undefined;
 
       const orderData: Order = {
         id: orderId,
-        customerName: values.name,
-        customerEmail: values.email,
+        customerName: `${values.name_first} ${values.name_last}`,
+        customerEmail: values.email_address,
+        customerPhone: values.cell_number,
         items: [{ 
             id: service.id, 
             title: service.title, 
@@ -124,6 +131,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
         total: finalTotal,
         discountCode: appliedDiscount ? appliedDiscount.code : null,
         discountAmount: appliedDiscount ? appliedDiscount.amount : null,
+        paymentMethod: values.paymentMethod || '',
         status: 'Pending Payment',
         date: Timestamp.now(),
         department: department || null,
@@ -168,10 +176,38 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
           <form onSubmit={form.handleSubmit(onSubmit)}>
             <CardContent className="space-y-6">
                 <div className="space-y-4">
-                    <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input placeholder="John Doe" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input placeholder="name@example.com" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="phone" render={({ field }) => ( <FormItem><FormLabel>Phone Number</FormLabel><FormControl><Input placeholder="082 123 4567" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <FormField control={form.control} name="name_first" render={({ field }) => ( <FormItem><FormLabel>First Name</FormLabel><FormControl><Input placeholder="John" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                        <FormField control={form.control} name="name_last" render={({ field }) => ( <FormItem><FormLabel>Last Name</FormLabel><FormControl><Input placeholder="Doe" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    </div>
+                    <FormField control={form.control} name="email_address" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input placeholder="name@example.com" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="cell_number" render={({ field }) => ( <FormItem><FormLabel>Phone Number</FormLabel><FormControl><Input placeholder="082 123 4567" {...field} /></FormControl><FormMessage /></FormItem> )} />
                 </div>
+                 <Separator />
+                <FormField
+                    control={form.control}
+                    name="paymentMethod"
+                    render={({ field }) => (
+                        <FormItem className="space-y-3">
+                        <FormLabel>Preferred Payment Method (Optional)</FormLabel>
+                        <FormControl>
+                            <RadioGroup
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                            className="grid grid-cols-2 md:grid-cols-3 gap-4"
+                            >
+                            {['eft', 'cc', 'dc', 'mp', 'mc', 'sc', 'ss', 'zp', 'mt', 'rc', 'mu', 'ap', 'sp', 'cp'].map(method => (
+                                <FormItem key={method} className="flex items-center space-x-2 space-y-0">
+                                    <FormControl><RadioGroupItem value={method} /></FormControl>
+                                    <FormLabel className="font-normal capitalize">{method}</FormLabel>
+                                </FormItem>
+                            ))}
+                            </RadioGroup>
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                />
                  <Separator />
                 <div className="space-y-2">
                     <FormLabel>Discount Code</FormLabel>
@@ -182,6 +218,11 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
                             <span className="ml-2">Apply</span>
                         </Button>
                     </div>
+                     {appliedDiscount && (
+                        <p className="text-sm text-green-600">
+                            Successfully applied a {appliedDiscount.percentage}% discount!
+                        </p>
+                    )}
                 </div>
                 <Separator />
                 <div className="space-y-4">
