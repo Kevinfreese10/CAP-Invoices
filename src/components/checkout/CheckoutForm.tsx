@@ -31,7 +31,6 @@ const formSchema = z.object({
   email_address: z.string().email('Invalid email address.'),
   cell_number: z.string().min(10, 'A valid phone number is required.'),
   discountCode: z.string().optional(),
-  paymentMethod: z.string().optional(),
 });
 
 export default function CheckoutForm() {
@@ -52,7 +51,6 @@ export default function CheckoutForm() {
       email_address: '',
       cell_number: '',
       discountCode: '',
-      paymentMethod: '',
     },
   });
 
@@ -87,6 +85,10 @@ export default function CheckoutForm() {
   const finalTotal = appliedDiscount ? cartTotal - appliedDiscount.amount : cartTotal;
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (!currentUser) {
+       toast({ title: 'Error', description: 'Authentication issue, please reload.', variant: 'destructive' });
+       return;
+    }
     setIsLoading(true);
     toast({
       title: 'Processing Order...',
@@ -98,6 +100,16 @@ export default function CheckoutForm() {
       const firstService = cartItems[0]?.service;
       const department = firstService?.department as 'Accounting and Tax' | 'Administration' | 'CAP' | undefined;
       
+      const confirmationEmailSubject = `My Accountant | Order Confirmation: #${orderId}`;
+
+      const confirmationNote: OrderNote = {
+          text: 'Order confirmation email sent to client.',
+          date: Timestamp.now(),
+          authorId: currentUser.uid,
+          type: 'email',
+          subject: confirmationEmailSubject,
+      };
+
       const orderData: Order = {
         id: orderId,
         customerName: `${values.name_first} ${values.name_last}`,
@@ -112,12 +124,12 @@ export default function CheckoutForm() {
         total: finalTotal,
         discountCode: appliedDiscount ? appliedDiscount.code : null,
         discountAmount: appliedDiscount ? appliedDiscount.amount : null,
-        paymentMethod: values.paymentMethod || '',
+        paymentMethod: 'EFT',
         status: 'Pending Payment',
         date: Timestamp.now(),
         department: department || null,
         assignedTo: null,
-        notes: [],
+        notes: [confirmationNote],
         source: 'Client',
       };
       
@@ -131,6 +143,15 @@ export default function CheckoutForm() {
               orderId: orderId,
           });
       }
+      
+      // Send confirmation email with EFT details
+      const emailHtml = render(<OrderConfirmationEmail order={orderData} />);
+      await sendEmail({
+        to: values.email_address,
+        bcc: 'kev@thinkestry.co.za',
+        subject: confirmationEmailSubject,
+        html: emailHtml,
+      });
       
       clearCart();
       setIsLoading(false);
@@ -181,7 +202,7 @@ export default function CheckoutForm() {
 
             <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isLoading ? 'Processing...' : 'Proceed to Payment'}
+              {isLoading ? 'Processing...' : 'Place Order via EFT'}
             </Button>
           </form>
         </Form>

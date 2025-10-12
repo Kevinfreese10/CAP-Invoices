@@ -1,26 +1,31 @@
 
 'use client';
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, notFound } from 'next/navigation';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order } from '@/lib/types';
-import { Loader2 } from 'lucide-react';
-import crypto from 'crypto';
+import { Loader2, CheckCircle, Banknote } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 
 const db = getFirestore(firebaseApp);
 
-type PayfastData = {
-    [key: string]: string;
+const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
+    }).format(price);
 };
 
-export default function OrderConfirmationRedirectPage() {
+export default function OrderConfirmationPage() {
     const params = useParams();
+    const orderId = params.orderId as string;
     const [order, setOrder] = useState<Order | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [payfastData, setPayfastData] = useState<PayfastData | null>(null);
-    const orderId = params.orderId as string;
-    
+
     useEffect(() => {
         if (orderId) {
             const fetchOrder = async () => {
@@ -28,88 +33,96 @@ export default function OrderConfirmationRedirectPage() {
                 const orderRef = doc(db, 'orders', orderId);
                 const orderSnap = await getDoc(orderRef);
                 if (orderSnap.exists()) {
-                    const orderData = { ...orderSnap.data(), id: orderSnap.id } as Order;
-                    setOrder(orderData);
-                    
-                    const nameParts = orderData.customerName.split(' ');
-                    const name_first = nameParts[0];
-                    const name_last = nameParts.slice(1).join(' ');
-
-                    const itemName = orderData.items.length === 1 ? orderData.items[0].title : `My Accountant - Order #${orderId}`;
-                    const itemDescription = orderData.items.map(item => `${item.title} (x${item.quantity})`).join(', ');
-
-                    const dataForSignature: { [key: string]: any } = {
-                        merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID,
-                        merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY,
-                        return_url: `https://studio--studio-2604127518-57889.us-central1.hosted.app/payment-success/${orderId}`,
-                        cancel_url: `https://studio--studio-2604127518-57889.us-central1.hosted.app/payment-cancelled`,
-                        notify_url: `https://studio--studio-2604127518-57889.us-central1.hosted.app/api/payfast/notify`,
-                        name_first: name_first,
-                        name_last: name_last,
-                        email_address: orderData.customerEmail,
-                        cell_number: orderData.customerPhone,
-                        m_payment_id: orderId,
-                        amount: orderData.total.toFixed(2),
-                        item_name: itemName,
-                        item_description: itemDescription,
-                    };
-                    
-                    try {
-                        const response = await fetch('/api/payfast/signature', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ data: dataForSignature }),
-                        });
-
-                        if (!response.ok) {
-                            throw new Error(`Signature API failed with status: ${response.status}`);
-                        }
-
-                        const { signature } = await response.json();
-                        setPayfastData({ ...dataForSignature, signature });
-                    } catch (error) {
-                        console.error("Error fetching signature", error);
-                    }
+                    setOrder({ ...orderSnap.data(), id: orderSnap.id } as Order);
+                } else {
+                    notFound();
                 }
                 setIsLoading(false);
             };
             fetchOrder();
         }
     }, [orderId]);
-    
-    useEffect(() => {
-        if (payfastData) {
-            const payfastForm = document.getElementById('payfast-form') as HTMLFormElement;
-            if (payfastForm) {
-                 setTimeout(() => payfastForm.submit(), 500); 
-            }
-        }
-    }, [payfastData]);
 
-    if (isLoading || !payfastData) {
+    if (isLoading) {
         return (
-            <div className="container mx-auto px-4 py-12 text-center">
+            <div className="container mx-auto px-4 py-20 text-center">
                 <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
-                <h1 className="mt-4 text-2xl font-semibold">Loading your order...</h1>
-                <p className="text-muted-foreground">Please wait while we prepare your payment details.</p>
+                <h1 className="mt-4 text-2xl font-semibold">Loading Your Order Confirmation...</h1>
             </div>
         );
     }
-    
-  return (
-    <div className="container mx-auto px-4 py-12 text-center">
-        <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
-        <h1 className="mt-4 text-2xl font-semibold">Redirecting to PayFast...</h1>
-        <p className="text-muted-foreground">Please wait while we securely redirect you to complete your payment.</p>
-        
-        <form id="payfast-form" action={process.env.NEXT_PUBLIC_PAYFAST_URL} method="post" className="hidden">
-            {payfastData && Object.entries(payfastData).map(([key, value]) => {
-                if (value !== '' && value !== null && value !== undefined) {
-                    return <input key={key} type="hidden" name={key} value={String(value)} />
-                }
-                return null;
-            })}
-        </form>
-    </div>
-  );
+
+    if (!order) {
+        return notFound();
+    }
+
+    return (
+        <div className="container mx-auto px-4 py-12 max-w-4xl">
+            <Card>
+                <CardHeader className="text-center">
+                    <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
+                    <CardTitle className="text-3xl mt-4">Order Placed Successfully!</CardTitle>
+                    <CardDescription>
+                        Thank you for your order. Please use the banking details below to complete your payment via EFT.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-8">
+                     <section>
+                        <h3 className="font-semibold text-lg mb-2">Order Summary</h3>
+                        <div className="border rounded-lg p-4 space-y-2">
+                           <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground">Order ID:</span>
+                                <span className="font-mono">{order.id}</span>
+                            </div>
+                            <Separator />
+                            {order.items.map((item: any, index: number) => (
+                                <div key={index} className="flex justify-between items-center">
+                                    <p>{item.title}</p>
+                                    <p className="font-semibold">{formatPrice(item.price)}</p>
+                                </div>
+                            ))}
+                             <Separator />
+                            <div className="flex justify-between font-bold text-lg">
+                                <p>Total Due</p>
+                                <p>{formatPrice(order.total)}</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section>
+                        <h3 className="font-semibold text-lg mb-2 flex items-center gap-2"><Banknote/> EFT Payment Details</h3>
+                         <div className="border rounded-lg p-4 space-y-3">
+                            <div className="grid grid-cols-[150px_1fr] items-center">
+                                <span className="font-medium text-muted-foreground">Bank Name:</span>
+                                <span className="font-semibold">FNB</span>
+                            </div>
+                            <div className="grid grid-cols-[150px_1fr] items-center">
+                                <span className="font-medium text-muted-foreground">Account Holder:</span>
+                                <span className="font-semibold">My Accountant (Pty) Ltd</span>
+                            </div>
+                            <div className="grid grid-cols-[150px_1fr] items-center">
+                                <span className="font-medium text-muted-foreground">Account Number:</span>
+                                <span className="font-semibold">63084378223</span>
+                            </div>
+                            <div className="grid grid-cols-[150px_1fr] items-center">
+                                <span className="font-medium text-muted-foreground">Branch Code:</span>
+                                <span className="font-semibold">250655</span>
+                            </div>
+                             <div className="grid grid-cols-[150px_1fr] items-center mt-2">
+                                <span className="font-medium text-muted-foreground">Reference:</span>
+                                <span className="font-semibold text-destructive p-1 bg-destructive/10 rounded-sm">{order.id}</span>
+                            </div>
+                         </div>
+                    </section>
+                    
+                    <div className="text-center pt-4">
+                        <p className="text-sm text-muted-foreground">An email with these payment details has been sent to you.</p>
+                        <Button asChild className="mt-4">
+                            <Link href="/">Back to Homepage</Link>
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    );
 }
