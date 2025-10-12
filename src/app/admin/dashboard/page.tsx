@@ -789,7 +789,7 @@ export default function AdminDashboardPage() {
 
 
     const handleFormSubmit = async (data: Omit<Task, 'id' | 'status' | 'createdBy' | 'comments' | 'priority' | 'createdAt'>) => {
-        if (!user) return;
+        if (!user || !user.uid) return;
         setIsLoading(true);
 
         const taskData = {
@@ -1039,6 +1039,7 @@ export default function AdminDashboardPage() {
     
 
     
+
 
 
 

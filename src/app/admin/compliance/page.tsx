@@ -81,11 +81,11 @@ export default function AdminCompliancePage() {
   }, []);
 
    const createTask = async (request: ComplianceRequest) => {
-    if (!user) return;
+    if (!user || !user.uid) return;
 
     const assignedStaff = getNextAdminStaff();
-    if (!assignedStaff) {
-        console.error("No staff in Administration department to assign task.");
+    if (!assignedStaff || !assignedStaff.uid) {
+        console.error("No staff in Administration department to assign task or staff has no UID.");
         return;
     }
     const dueDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000); // 2 days from now
