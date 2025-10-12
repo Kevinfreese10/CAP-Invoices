@@ -9,7 +9,7 @@ import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
 import { getFirestore, collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Metadata, ResolvingMetadata } from 'next';
-import ClientServiceCheckoutForm from '@/components/checkout/ClientServiceCheckoutForm';
+import ServiceCheckoutForm from '@/components/checkout/ServiceCheckoutForm';
 
 
 const db = getFirestore(firebaseApp);
@@ -71,7 +71,7 @@ export async function generateMetadata(
     description: service.metaDescription || service.description,
     openGraph: {
       title: service.metaTitle || service.title,
-      description: service.metaDescription || service.description,
+      description: service.metaDescription || service.excerpt,
       images: [service.imageUrl, ...previousImages],
     },
     twitter: {
@@ -146,7 +146,7 @@ export default async function ServiceDetailPage({ params }: Props) {
         </div>
 
         <div className="md:col-span-1">
-            <ClientServiceCheckoutForm service={service} />
+            <ServiceCheckoutForm service={service} />
         </div>
       </div>
     </div>
