@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -38,7 +39,7 @@ export default function CheckoutForm() {
   const { cartItems, cartTotal, clearCart } = useCart();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; amount: number } | null>(null);
+  const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; amount: number; percentage: number; } | null>(null);
   const [isVerifyingDiscount, setIsVerifyingDiscount] = useState(false);
 
 
@@ -71,7 +72,7 @@ export default function CheckoutForm() {
 
         const discountData = discountSnap.data() as Omit<DiscountCode, 'id'>;
         const discountAmount = cartTotal * (discountData.percentage / 100);
-        setAppliedDiscount({ code: discountSnap.id, amount: discountAmount });
+        setAppliedDiscount({ code: discountSnap.id, amount: discountAmount, percentage: discountData.percentage });
         toast({ title: 'Discount Applied!', description: `You've received a ${discountData.percentage}% discount.`});
     } catch (error) {
         toast({ title: 'Error', description: 'Could not verify discount code.', variant: 'destructive'});
@@ -92,7 +93,7 @@ export default function CheckoutForm() {
     try {
       const orderId = await getNextOrderId();
       const firstService = cartItems[0]?.service;
-      const department = firstService?.department as 'Accounting and Tax' | 'Administration' | undefined;
+      const department = firstService?.department as 'Accounting and Tax' | 'Administration' | 'CAP' | undefined;
       
       const orderData: Order = {
         id: orderId,
@@ -165,6 +166,11 @@ export default function CheckoutForm() {
                         <span className="ml-2">Apply</span>
                     </Button>
                 </div>
+                 {appliedDiscount && (
+                    <p className="text-sm text-green-600">
+                        Successfully applied a {appliedDiscount.percentage}% discount!
+                    </p>
+                )}
             </div>
 
             <Button type="submit" className="w-full" size="lg" disabled={isLoading}>

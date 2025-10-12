@@ -28,35 +28,7 @@ const formatPrice = (price: number) => {
 
 export default function CheckoutPage() {
   const { cartItems, cartTotal, isCartLoaded } = useCart();
-  const [discountCode, setDiscountCode] = useState('');
-  const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; amount: number } | null>(null);
-  const [isVerifying, setIsVerifying] = useState(false);
-  const { toast } = useToast();
-
-  const handleApplyDiscount = async () => {
-    if (!discountCode) return;
-    setIsVerifying(true);
-    try {
-        const discountRef = doc(db, 'discounts', discountCode);
-        const discountSnap = await getDoc(discountRef);
-        if (discountSnap.exists() && discountSnap.data().status === 'active') {
-            const discountData = discountSnap.data() as DiscountCode;
-            const discountAmount = cartTotal * (discountData.percentage / 100);
-            setAppliedDiscount({ code: discountCode, amount: discountAmount });
-            toast({ title: 'Discount Applied', description: `You've received a ${discountData.percentage}% discount.` });
-        } else {
-            toast({ title: 'Invalid Code', description: 'This discount code is invalid or has been used.', variant: 'destructive' });
-            setAppliedDiscount(null);
-        }
-    } catch (error) {
-        toast({ title: 'Error', description: 'Could not verify discount code.', variant: 'destructive' });
-    } finally {
-        setIsVerifying(false);
-    }
-  };
-
-  const discountedTotal = appliedDiscount ? cartTotal - appliedDiscount.amount : cartTotal;
-
+  
   if (!isCartLoaded) {
     return (
       <div className="flex h-[calc(100vh-20rem)] items-center justify-center">
@@ -110,15 +82,9 @@ export default function CheckoutPage() {
                   <span>Subtotal</span>
                   <span>{formatPrice(cartTotal)}</span>
                 </div>
-                {appliedDiscount && (
-                    <div className="flex justify-between text-green-600">
-                        <span>Discount ({appliedDiscount.code})</span>
-                        <span>- {formatPrice(appliedDiscount.amount)}</span>
-                    </div>
-                )}
                  <div className="flex justify-between font-bold text-lg">
                     <span>Total</span>
-                    <span>{formatPrice(discountedTotal)}</span>
+                    <span>{formatPrice(cartTotal)}</span>
                 </div>
               </div>
             </CardContent>

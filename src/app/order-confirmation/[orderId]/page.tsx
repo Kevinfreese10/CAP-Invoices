@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
@@ -28,15 +29,16 @@ export default function OrderConfirmationRedirectPage() {
                 const orderRef = doc(db, 'orders', orderId);
                 const orderSnap = await getDoc(orderRef);
                 if (orderSnap.exists()) {
-                    const orderData = orderSnap.data() as Order;
+                    const orderData = { ...orderSnap.data(), id: orderSnap.id } as Order;
+                    setOrder(orderData);
                     
                     const nameParts = orderData.customerName.split(' ');
                     const name_first = nameParts[0];
                     const name_last = nameParts.slice(1).join(' ');
 
-                    const dataForSignature: PayfastData = {
-                        merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || '10042278',
-                        merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || 'qqci9vis4sszy',
+                    const dataForSignature: { [key: string]: any } = {
+                        merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID,
+                        merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY,
                         return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success`,
                         cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-cancelled`,
                         notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,

@@ -1,22 +1,33 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 
 function generateSignature(data: { [key: string]: any }, passphrase?: string): string {
-    // Create parameter string
-    let pfOutput = '';
+    // 1. Filter out signature and any blank fields
+    const filteredData: { [key: string]: any } = {};
     for (const key in data) {
-        if (data.hasOwnProperty(key)) {
-            pfOutput += `${key}=${encodeURIComponent(data[key]).replace(/%20/g, '+')}&`;
+        if (key !== 'signature' && data[key] !== '' && data[key] !== null) {
+            filteredData[key] = data[key];
         }
     }
 
-    // Remove last ampersand
+    // 2. Sort the data alphabetically by key
+    const sortedKeys = Object.keys(filteredData).sort();
+
+    // 3. Create the parameter string
+    let pfOutput = '';
+    sortedKeys.forEach(key => {
+        pfOutput += `${key}=${encodeURIComponent(String(filteredData[key]).trim()).replace(/%20/g, '+')}&`;
+    });
+
+    // 4. Remove the last ampersand and append the passphrase
     let getString = pfOutput.slice(0, -1);
     if (passphrase) {
-        getString += `&passphrase=${encodeURIComponent(passphrase).replace(/%20/g, '+')}`;
+        getString += `&passphrase=${encodeURIComponent(passphrase.trim()).replace(/%20/g, '+')}`;
     }
 
+    // 5. MD5 hash the final string
     return crypto.createHash('md5').update(getString).digest('hex');
 }
 
