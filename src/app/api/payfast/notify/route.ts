@@ -30,10 +30,21 @@ const getNextStaffMember = async (department: 'Accounting and Tax' | 'Administra
     return nextStaff;
 };
 
+// Custom encoder to match PHP's urlencode which uses '+' for spaces
+function rfc3986Encode(str: string): string {
+    return encodeURIComponent(str).replace(/[!'()*]/g, (c) => {
+        return '%' + c.charCodeAt(0).toString(16).toUpperCase();
+    }).replace(/%20/g, '+');
+}
 
-// Function to generate the signature string from the data received from PayFast.
-// Note: PayFast's ITN signature calculation is different from the payment request signature.
-// ITN signature uses alphabetical sorting of the received data.
+/**
+ * Generates a PayFast ITN signature.
+ * NOTE: ITN signature calculation uses ALPHABETICAL sorting of the received data,
+ * unlike the initial payment request.
+ * @param data The data received from PayFast.
+ * @param passphrase Your PayFast passphrase.
+ * @returns The generated MD5 signature.
+ */
 function generateItnSignature(data: { [key: string]: any }, passphrase?: string): string {
     // Create a new object for sorting, excluding the signature
     const sigData = { ...data };
@@ -45,8 +56,8 @@ function generateItnSignature(data: { [key: string]: any }, passphrase?: string)
     // Create the parameter string
     let pfOutput = '';
     sortedKeys.forEach(key => {
-        if (sigData[key] !== '') {
-            pfOutput += `${key}=${encodeURIComponent(sigData[key]).replace(/%20/g, '+')}&`;
+        if (sigData[key] !== '' && sigData[key] !== null && sigData[key] !== undefined) {
+            pfOutput += `${key}=${rfc3986Encode(String(sigData[key]).trim())}&`;
         }
     });
 
@@ -54,7 +65,7 @@ function generateItnSignature(data: { [key: string]: any }, passphrase?: string)
     let getString = pfOutput.slice(0, -1);
 
     if (passphrase) {
-        getString += `&passphrase=${encodeURIComponent(passphrase).replace(/%20/g, '+')}`;
+        getString += `&passphrase=${rfc3986Encode(passphrase.trim())}`;
     }
 
     return crypto.createHash('md5').update(getString, 'utf8').digest('hex');
