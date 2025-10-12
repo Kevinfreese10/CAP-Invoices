@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -21,7 +22,6 @@ import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 import { render } from '@react-email/components';
 import { getNextOrderId } from '@/lib/sequence';
 import { Separator } from '../ui/separator';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 const db = getFirestore(firebaseApp);
 
@@ -161,34 +161,6 @@ export default function CheckoutForm() {
             </div>
             <FormField control={form.control} name="email_address" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input placeholder="name@example.com" {...field} /></FormControl><FormMessage /></FormItem> )} />
             <FormField control={form.control} name="cell_number" render={({ field }) => ( <FormItem><FormLabel>Cell Number</FormLabel><FormControl><Input placeholder="082 123 4567" {...field} /></FormControl><FormMessage /></FormItem> )} />
-
-            <Separator />
-
-             <FormField
-                control={form.control}
-                name="paymentMethod"
-                render={({ field }) => (
-                    <FormItem className="space-y-3">
-                    <FormLabel>Preferred Payment Method (Optional)</FormLabel>
-                    <FormControl>
-                        <RadioGroup
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                        className="grid grid-cols-2 md:grid-cols-3 gap-4"
-                        >
-                        {['eft', 'cc', 'dc', 'mp', 'mc', 'sc', 'ss', 'zp', 'mt', 'rc', 'mu', 'ap', 'sp', 'cp'].map(method => (
-                            <FormItem key={method} className="flex items-center space-x-2 space-y-0">
-                                <FormControl><RadioGroupItem value={method} /></FormControl>
-                                <FormLabel className="font-normal capitalize">{method}</FormLabel>
-                            </FormItem>
-                        ))}
-                        </RadioGroup>
-                    </FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-
 
             <Separator />
             <div className="space-y-2">
