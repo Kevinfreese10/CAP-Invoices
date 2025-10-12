@@ -94,6 +94,13 @@ export type OrderNote = {
   subject?: string;
 };
 
+export type ItnLog = {
+  receivedAt: any;
+  status: 'Success' | 'Failed';
+  message: string;
+  payload: { [key: string]: string };
+};
+
 export type Order = {
   id: string;
   userId?: string;
@@ -116,6 +123,7 @@ export type Order = {
   department?: 'Accounting and Tax' | 'Administration' | 'CAP' | null;
   originalOrderId?: string | null;
   notes?: OrderNote[];
+  itnHistory?: ItnLog[];
   source?: 'Client' | 'Staff' | 'Reseller';
 };
 

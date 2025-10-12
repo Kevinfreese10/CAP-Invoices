@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, arrayUnion, getDoc, Timestamp, addDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, User, Service, OrderNote, Task } from '@/lib/types';
+import { Order, User, Service, OrderNote, Task, ItnLog } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { services as allServices } from '@/lib/data';
 import {
@@ -32,7 +32,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from '@/components/ui/dropdown-menu';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import {
   Tooltip,
@@ -44,9 +44,59 @@ import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
 import ReviewRequestEmail from '@/components/emails/ReviewRequestEmail';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 
 const db = getFirestore(firebaseApp);
+
+function BackendSummaryModal({ order }: { order: Order }) {
+  if (!order.itnHistory || order.itnHistory.length === 0) {
+    return (
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Backend Summary for Order {order.id}</DialogTitle>
+          <DialogDescription>No backend notifications have been received for this order yet.</DialogDescription>
+        </DialogHeader>
+      </DialogContent>
+    )
+  }
+
+  return (
+    <DialogContent className="max-w-2xl">
+      <DialogHeader>
+        <DialogTitle>Backend Summary for Order {order.id}</DialogTitle>
+        <DialogDescription>History of notifications received from PayFast.</DialogDescription>
+      </DialogHeader>
+      <ScrollArea className="max-h-[60vh] pr-6">
+        <div className="space-y-4">
+          {order.itnHistory.slice().reverse().map((log, index) => (
+            <Card key={index}>
+              <CardHeader>
+                <CardTitle className="text-base flex justify-between items-center">
+                  <span>
+                    Status: <Badge variant={log.status === 'Success' ? 'success' : 'destructive'}>{log.status}</Badge>
+                  </span>
+                   <span className="text-xs font-normal text-muted-foreground">
+                    {format(log.receivedAt.toDate(), 'dd/MM/yyyy, HH:mm:ss')}
+                  </span>
+                </CardTitle>
+                <CardDescription className="pt-2">{log.message}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <h4 className="font-semibold text-sm mb-2">Received Payload:</h4>
+                <pre className="text-xs bg-muted p-2 rounded-md overflow-x-auto">
+                  {JSON.stringify(log.payload, null, 2)}
+                </pre>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </ScrollArea>
+    </DialogContent>
+  );
+}
+
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -54,6 +104,7 @@ export default function AdminOrdersPage() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [allStaff, setAllStaff] = useState<User[]>([]);
+  const [viewingBackendSummary, setViewingBackendSummary] = useState<Order | null>(null);
 
   // Simple round-robin counter for staff assignment
   const [staffCounters, setStaffCounters] = useState<{ [key: string]: number }>({});
@@ -117,6 +168,7 @@ export default function AdminOrdersPage() {
               id: doc.id,
               date: data.date.toDate(),
               notes: (data.notes || []).map((note: any) => ({...note, date: note.date.toDate()})),
+              itnHistory: (data.itnHistory || []).map((log: any) => ({...log, receivedAt: log.receivedAt.toDate()})),
             } as Order;
           });
           
@@ -281,7 +333,7 @@ export default function AdminOrdersPage() {
             return { ...item, service };
         }).filter(item => item.service) as { service: Service }[];
         
-        const subject = `Action Required: Documents needed for your order #${emailOrder.id}`;
+        const subject = `Action Required for Your Order #${emailOrder.id}`;
         const message = "Sent 'Request Documents' email to client.";
         const replyToEmail = assignedStaffMember?.email || 'info@myacc.co.za';
 
@@ -369,163 +421,171 @@ export default function AdminOrdersPage() {
 
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">Manage Orders</h1>
-        <Button asChild>
-          <Link href="/admin/orders/new">
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Create Custom Order
-          </Link>
-        </Button>
-      </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>All Client Orders</CardTitle>
-          <CardDescription>
-            {user?.role === 'staff' ? 'Showing all orders assigned to you.' : 'View and manage all orders in the system.'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-             <div className="flex justify-center items-center h-64">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-             </div>
-          ) : orders.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">No orders to display.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Order ID</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Assigned To</TableHead>
-                  <TableHead>Last Update</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {orders.map((order) => {
-                  const assignee = getAssignee(order.assignedTo?.[0]);
-                  const lastNote = order.notes && order.notes.length > 0 ? order.notes[order.notes.length - 1] : null;
-                  const lastNoteAuthor = lastNote ? getAssignee(lastNote.authorId) : null;
-                  const customerName = order.resellerId ? order.endCustomerName : order.customerName;
-                  return (
-                  <TableRow key={order.id}>
-                    <TableCell className="font-medium">
-                        <p>{order.originalOrderId || order.id}</p>
-                        <p className="text-xs text-muted-foreground">{format(new Date(order.date), 'dd/MM/yyyy')}</p>
-                    </TableCell>
-                    <TableCell>{customerName}</TableCell>
-                    <TableCell>
-                      {assignee ? (
-                         <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger>
-                                <span>{assignee.name}</span>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>{assignee.name}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      ) : (
-                        <span className="text-muted-foreground">N/A</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="max-w-[250px] truncate">
-                        {lastNote && lastNoteAuthor ? (
-                            <div className="flex items-start gap-2">
-                                <MessageSquare className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                                <div className="text-xs">
-                                    <span className="font-semibold">{lastNoteAuthor.name}:</span>
-                                    <span className="text-muted-foreground ml-1">"{lastNote.subject || lastNote.text}"</span>
-                                </div>
-                            </div>
+    <Dialog>
+        <div className="space-y-8">
+        <div className="flex items-center justify-between">
+            <h1 className="text-3xl font-bold tracking-tight">Manage Orders</h1>
+            <Button asChild>
+            <Link href="/admin/orders/new">
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Create Custom Order
+            </Link>
+            </Button>
+        </div>
+        <Card>
+            <CardHeader>
+            <CardTitle>All Client Orders</CardTitle>
+            <CardDescription>
+                {user?.role === 'staff' ? 'Showing all orders assigned to you.' : 'View and manage all orders in the system.'}
+            </CardDescription>
+            </CardHeader>
+            <CardContent>
+            {isLoading ? (
+                <div className="flex justify-center items-center h-64">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+            ) : orders.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">No orders to display.</p>
+            ) : (
+                <Table>
+                <TableHeader>
+                    <TableRow>
+                    <TableHead>Order ID</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Assigned To</TableHead>
+                    <TableHead>Last Update</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Source</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {orders.map((order) => {
+                    const assignee = getAssignee(order.assignedTo?.[0]);
+                    const lastNote = order.notes && order.notes.length > 0 ? order.notes[order.notes.length - 1] : null;
+                    const lastNoteAuthor = lastNote ? getAssignee(lastNote.authorId) : null;
+                    const customerName = order.resellerId ? order.endCustomerName : order.customerName;
+                    return (
+                    <TableRow key={order.id}>
+                        <TableCell className="font-medium">
+                            <p>{order.originalOrderId || order.id}</p>
+                            <p className="text-xs text-muted-foreground">{format(new Date(order.date), 'dd/MM/yyyy')}</p>
+                        </TableCell>
+                        <TableCell>{customerName}</TableCell>
+                        <TableCell>
+                        {assignee ? (
+                            <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger>
+                                    <span>{assignee.name}</span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                <p>{assignee.name}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                            </TooltipProvider>
                         ) : (
-                            <span className="text-muted-foreground text-xs">No updates</span>
+                            <span className="text-muted-foreground">N/A</span>
                         )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={getStatusVariant(order.status)}>
-                        {order.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                       <Badge variant="secondary">{getSourceText(order)}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">{formatPrice(order.total)}</TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem asChild>
-                            <Link href={`/admin/orders/${order.id}`}>View Order</Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          {user?.role === 'admin' && (
-                             <>
-                                <DropdownMenuSub>
-                                  <DropdownMenuSubTrigger>Assign To</DropdownMenuSubTrigger>
-                                  <DropdownMenuSubContent>
-                                    {allStaff.map(staff => (
-                                      <DropdownMenuItem 
-                                        key={staff.id} 
-                                        onClick={() => handleAssignment(order.id, staff.id)}
-                                        disabled={order.assignedTo?.[0] === staff.id}
-                                      >
-                                        {staff.name}
-                                      </DropdownMenuItem>
-                                    ))}
-                                  </DropdownMenuSubContent>
-                                </DropdownMenuSub>
-                                <DropdownMenuSeparator />
-                             </>
-                          )}
-                           <DropdownMenuItem
-                            onClick={() => handleUpdateStatus(order.id, 'Pending Payment')}
-                             disabled={order.status === 'Pending Payment'}
-                          >
-                            Mark as Pending Payment
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleUpdateStatus(order.id, 'Processing')}
-                             disabled={order.status === 'Processing'}
-                          >
-                            Mark as Processing
-                          </DropdownMenuItem>
-                           <DropdownMenuItem
-                            onClick={() => handleUpdateStatus(order.id, 'Completed')}
-                            disabled={order.status === 'Completed'}
-                          >
-                            Mark as Completed
-                          </DropdownMenuItem>
-                           <DropdownMenuItem
-                            onClick={() => handleUpdateStatus(order.id, 'Cancelled')}
-                            className="text-destructive"
-                            disabled={order.status === 'Cancelled'}
-                          >
-                            Cancel Order
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                )})}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+                        </TableCell>
+                        <TableCell className="max-w-[250px] truncate">
+                            {lastNote && lastNoteAuthor ? (
+                                <div className="flex items-start gap-2">
+                                    <MessageSquare className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                                    <div className="text-xs">
+                                        <span className="font-semibold">{lastNoteAuthor.name}:</span>
+                                        <span className="text-muted-foreground ml-1">"{lastNote.subject || lastNote.text}"</span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <span className="text-muted-foreground text-xs">No updates</span>
+                            )}
+                        </TableCell>
+                        <TableCell>
+                        <Badge variant={getStatusVariant(order.status)}>
+                            {order.status}
+                        </Badge>
+                        </TableCell>
+                        <TableCell>
+                        <Badge variant="secondary">{getSourceText(order)}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right">{formatPrice(order.total)}</TableCell>
+                        <TableCell className="text-right">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                                <span className="sr-only">Open menu</span>
+                                <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem asChild>
+                                <Link href={`/admin/orders/${order.id}`}>View Order</Link>
+                            </DropdownMenuItem>
+                            <DialogTrigger asChild>
+                                <DropdownMenuItem onSelect={() => setViewingBackendSummary(order)}>
+                                    Backend Summary
+                                </DropdownMenuItem>
+                            </DialogTrigger>
+                            <DropdownMenuSeparator />
+                            {user?.role === 'admin' && (
+                                <>
+                                    <DropdownMenuSub>
+                                    <DropdownMenuSubTrigger>Assign To</DropdownMenuSubTrigger>
+                                    <DropdownMenuSubContent>
+                                        {allStaff.map(staff => (
+                                        <DropdownMenuItem 
+                                            key={staff.id} 
+                                            onClick={() => handleAssignment(order.id, staff.id)}
+                                            disabled={order.assignedTo?.[0] === staff.id}
+                                        >
+                                            {staff.name}
+                                        </DropdownMenuItem>
+                                        ))}
+                                    </DropdownMenuSubContent>
+                                    </DropdownMenuSub>
+                                    <DropdownMenuSeparator />
+                                </>
+                            )}
+                            <DropdownMenuItem
+                                onClick={() => handleUpdateStatus(order.id, 'Pending Payment')}
+                                disabled={order.status === 'Pending Payment'}
+                            >
+                                Mark as Pending Payment
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onClick={() => handleUpdateStatus(order.id, 'Processing')}
+                                disabled={order.status === 'Processing'}
+                            >
+                                Mark as Processing
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onClick={() => handleUpdateStatus(order.id, 'Completed')}
+                                disabled={order.status === 'Completed'}
+                            >
+                                Mark as Completed
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onClick={() => handleUpdateStatus(order.id, 'Cancelled')}
+                                className="text-destructive"
+                                disabled={order.status === 'Cancelled'}
+                            >
+                                Cancel Order
+                            </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                        </TableCell>
+                    </TableRow>
+                    )})}
+                </TableBody>
+                </Table>
+            )}
+            </CardContent>
+        </Card>
+        </div>
+        {viewingBackendSummary && <BackendSummaryModal order={viewingBackendSummary} />}
+    </Dialog>
   );
 }
