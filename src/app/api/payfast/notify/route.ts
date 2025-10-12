@@ -62,8 +62,6 @@ const processSuccessfulPayment = async (orderId: string) => {
         department: department || null,
     });
     
-    // The email is now sent from the success page to give immediate feedback.
-    // However, the task creation should happen here reliably.
     if (assignedStaff?.id) {
         const taskData: Omit<Task, 'id'> = {
             title: `Process Order: ${orderId}`,
@@ -106,67 +104,45 @@ function rfc3986Encode(str: string) {
 }
 
 function generateSignature(data: { [key: string]: any }, passphrase?: string): string {
-    let pfOutput = '';
-    
-    // Use the exact order from the form submission, not the ITN order
-    const orderedKeys = [
-        'merchant_id', 'merchant_key', 'return_url', 'cancel_url', 'notify_url',
-        'name_first', 'name_last', 'email_address', 'cell_number', 'm_payment_id',
-        'amount', 'item_name', 'item_description', 'payment_method'
-    ];
-    
-    // Create a new object with only the keys relevant for signature generation
-    // from the ITN payload
-    const dataForSignature: {[key: string]: any} = {};
-     orderedKeys.forEach(key => {
-        if(data.hasOwnProperty(key)) {
-            dataForSignature[key] = data[key];
-        }
-    });
+  let pfOutput = '';
 
-    for (const key in data) {
-        if (data.hasOwnProperty(key) && key !== 'signature') {
-            const value = data[key];
-             if (value !== '' && value !== null && value !== undefined) {
-                pfOutput += `${key}=${rfc3986Encode(String(value).trim())}&`;
-            }
-        }
+  for (const key in data) {
+    if (data.hasOwnProperty(key) && key !== 'signature') {
+      const value = data[key];
+      if (value !== '' && value !== null && value !== undefined) {
+        pfOutput += `${key}=${rfc3986Encode(String(value).trim())}&`;
+      }
     }
+  }
 
-    let getString = pfOutput.slice(0, -1);
-    
-    if (passphrase) {
-        getString += `&passphrase=${rfc3986Encode(passphrase.trim())}`;
-    }
+  let getString = pfOutput.slice(0, -1);
 
-    return crypto.createHash('md5').update(getString).digest('hex');
+  if (passphrase) {
+    getString += `&passphrase=${rfc3986Encode(passphrase.trim())}`;
+  }
+
+  return crypto.createHash('md5').update(getString).digest('hex');
 }
 
 export async function POST(req: NextRequest) {
   // Acknowledge receipt of the ITN post from PayFast
   const response = new NextResponse('OK', { status: 200 });
 
-  const body = await req.text();
-  const data: { [key:string]: any } = Object.fromEntries(new URLSearchParams(body));
+  try {
+    const body = await req.text();
+    const data: { [key:string]: any } = Object.fromEntries(new URLSearchParams(body));
 
-  console.log('Received PayFast ITN:', data);
-  
-  // Security Checks
-  // 1. Signature Validation
-  // Note: The signature from ITN uses ALL POSTed fields, not the ordered list from the initial request.
-  const tempParamString = Object.keys(data)
-    .filter(key => key !== 'signature')
-    .map(key => `${key}=${rfc3986Encode(String(data[key]).trim())}`)
-    .join('&');
+    console.log('Received PayFast ITN:', data);
+    
+    const receivedSignature = data.signature;
+    delete data.signature; // Remove signature from data object before generating our own
+    const expectedSignature = generateSignature(data, process.env.PAYFAST_PASSPHRASE);
 
-    const signatureStringWithPassphrase = `${tempParamString}&passphrase=${rfc3986Encode(process.env.PAYFAST_PASSPHRASE || '')}`;
-    const expectedSignature = crypto.createHash('md5').update(signatureStringWithPassphrase).digest('hex');
-
-    if (data.signature !== expectedSignature) {
+    if (receivedSignature !== expectedSignature) {
         console.error('ITN Signature Mismatch');
-        console.error('Received:', data.signature);
+        console.error('Received:', receivedSignature);
         console.error('Expected:', expectedSignature);
-        // Don't process, but still return 200 OK to stop PayFast retries.
+        // Even with mismatch, return 200 OK to stop PayFast retries, but don't process.
         return response;
     }
 
@@ -176,7 +152,6 @@ export async function POST(req: NextRequest) {
         return response;
     }
   
-    // Fetch order from Firestore
     const orderRef = doc(db, 'orders', orderId);
     const orderSnap = await getDoc(orderRef);
     if (!orderSnap.exists()) {
@@ -185,7 +160,6 @@ export async function POST(req: NextRequest) {
     }
     const orderData = orderSnap.data() as Order;
     
-    // 2. Amount Validation
     const amountGross = parseFloat(data.amount_gross);
     const orderTotal = orderData.total;
     if (Math.abs(amountGross - orderTotal) > 0.01) {
@@ -193,17 +167,16 @@ export async function POST(req: NextRequest) {
         return response;
     }
 
-    // 3. Status Check & Update
     if (data.payment_status === 'COMPLETE') {
-        try {
-            await processSuccessfulPayment(orderId);
-            console.log(`Order ${orderId} processing initiated successfully via ITN.`);
-        } catch(error) {
-            console.error(`Error processing order ${orderId} from ITN:`, error);
-        }
+        await processSuccessfulPayment(orderId);
+        console.log(`Order ${orderId} processing initiated successfully via ITN.`);
     } else {
         console.log(`Payment for order ${orderId} not complete. Status: ${data.payment_status}`);
     }
+  } catch (error) {
+    console.error('Error processing ITN:', error);
+    // Still return 200 to prevent retries on server error
+  }
 
-    return response;
+  return response;
 }

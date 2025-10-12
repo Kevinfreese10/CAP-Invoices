@@ -2,15 +2,19 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useParams, notFound } from 'next/navigation';
-import { getFirestore, doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, query, where, getDocs, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service, User } from '@/lib/types';
+import { Order, Service, User, OrderNote } from '@/lib/types';
 import { Loader2, CheckCircle, Clock, ClipboardCheck, User as UserIcon } from 'lucide-react';
 import { services as allServices } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { sendEmail } from '@/lib/email';
+import { render } from '@react-email/components';
+import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
+import { useToast } from '@/hooks/use-toast';
 
 const db = getFirestore(firebaseApp);
 
@@ -20,7 +24,8 @@ export default function PaymentSuccessPage() {
     const [order, setOrder] = useState<Order | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [assignee, setAssignee] = useState<User | null>(null);
-    const [hasProcessed, setHasProcessed] = useState(false);
+    const { toast } = useToast();
+    const [emailSent, setEmailSent] = useState(false);
 
     useEffect(() => {
         if (!orderId) return;
@@ -35,13 +40,41 @@ export default function PaymentSuccessPage() {
                     const orderData = orderSnap.data() as Order;
                     setOrder(orderData);
                     
-                    // Fetch assigned staff member if available
-                    if (orderData.assignedTo && orderData.assignedTo.length > 0) {
-                        const staffQuery = query(collection(db, "users"), where('id', '==', orderData.assignedTo[0]));
-                        const staffSnapshot = await getDocs(staffQuery);
-                        if (!staffSnapshot.empty) {
-                            setAssignee(staffSnapshot.docs[0].data() as User);
+                    if (orderData.status === 'Processing' && !emailSent) {
+                         const itemsWithServices = orderData.items.map(item => {
+                            const service = allServices.find(s => s.id === item.id);
+                            return { ...item, service };
+                        }).filter(item => item.service) as { service: Service }[];
+
+                        const emailHtml = render(<DocumentRequestEmail order={orderData} items={itemsWithServices} replyTo="info@myacc.co.za" />);
+                        
+                         try {
+                            await sendEmail({
+                                to: orderData.customerEmail,
+                                subject: `Action Required for Your Order #${orderId}`,
+                                html: emailHtml,
+                            });
+                             const emailNote: OrderNote = {
+                                text: 'Sent "Request Documents" email to client after payment.',
+                                date: Timestamp.now(),
+                                authorId: 'system', // System-sent
+                                type: 'email',
+                                subject: `Action Required for Your Order #${orderId}`,
+                            };
+                            await updateDoc(orderRef, { notes: arrayUnion(emailNote) });
+                            setEmailSent(true); // Prevent re-sending email
+                        } catch(e) {
+                             console.error("Failed to send document request email:", e);
+                             toast({ title: 'Email Failed', description: 'Could not send document request email.', variant: 'destructive'});
                         }
+                    }
+
+                    if (orderData.assignedTo && orderData.assignedTo.length > 0) {
+                         const staffQuery = query(collection(db, "users"), where('uid', '==', orderData.assignedTo[0]));
+                         const staffSnapshot = await getDocs(staffQuery);
+                         if (!staffSnapshot.empty) {
+                             setAssignee(staffSnapshot.docs[0].data() as User);
+                         }
                     }
                 } else {
                     notFound();
@@ -52,23 +85,24 @@ export default function PaymentSuccessPage() {
                 setIsLoading(false);
             }
         };
-
-        // Poll to check for order status update by ITN
-        const intervalId = setInterval(async () => {
-            const orderRef = doc(db, 'orders', orderId);
-            const orderSnap = await getDoc(orderRef);
-            if (orderSnap.exists() && orderSnap.data().status === 'Processing') {
-                clearInterval(intervalId);
+        
+        let attempts = 0;
+        const interval = setInterval(() => {
+            if (order && order.status === 'Processing') {
+                clearInterval(interval);
                 fetchOrderDetails();
+                return;
             }
-        }, 2000); // Check every 2 seconds
+            fetchOrderDetails();
+            attempts++;
+            if (attempts > 5) {
+                clearInterval(interval);
+            }
+        }, 2000);
 
-        // Initial fetch
-        fetchOrderDetails();
+        return () => clearInterval(interval);
 
-        // Cleanup on unmount
-        return () => clearInterval(intervalId);
-    }, [orderId]);
+    }, [orderId, order?.status, emailSent, toast]);
     
     if (isLoading) {
         return (
