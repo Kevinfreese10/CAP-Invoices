@@ -1,32 +1,26 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, addDoc } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import crypto from 'crypto';
-import { Order, ItnLog, Service, User, Task } from '@/lib/types';
-import { render } from '@react-email/components';
-import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
-import { sendEmail } from '@/lib/email';
+import { Order, ItnLog } from '@/lib/types';
 import * as https from 'https';
 import * as querystring from 'querystring';
-import { allServices } from '@/lib/data';
 
 const db = getFirestore(firebaseApp);
+
 const IS_SANDBOX = process.env.NEXT_PUBLIC_PAYFAST_URL?.includes('sandbox');
 const PF_HOST = IS_SANDBOX ? 'sandbox.payfast.co.za' : 'www.payfast.co.za';
+const PF_VALIDATE_URL = `https://${PF_HOST}/eng/query/validate`;
 
-// Helper to URL encode for PayFast
+// Helper to URL encode for PayFast signature generation
 function pfUrlEncode(data: { [key: string]: any }): string {
     return Object.entries(data)
-        .map(([key, value]) => {
-            const encodedValue = encodeURIComponent(String(value).trim()).replace(/%20/g, '+');
-            return `${key}=${encodedValue}`;
-        })
+        .map(([key, value]) => `${key}=${encodeURIComponent(String(value).trim()).replace(/%20/g, '+')}`)
         .join('&');
 }
 
-
-// --- Main ITN Handler ---
+// Main ITN Handler
 export async function POST(req: NextRequest) {
     let pfData: { [key: string]: string } = {};
     let orderId: string = '';
@@ -36,13 +30,15 @@ export async function POST(req: NextRequest) {
         pfData = Object.fromEntries(new URLSearchParams(bodyText));
         orderId = pfData.m_payment_id;
 
+        // If there's no order ID, we can't do anything. Acknowledge and exit.
         if (!orderId) {
             console.warn('ITN received without m_payment_id. Acknowledging to prevent retries.');
             return new NextResponse('OK', { status: 200 });
         }
-        
+
         const orderRef = doc(db, 'orders', orderId);
 
+        // Helper to log every ITN attempt to the order document
         const logItnAttempt = async (message: string, status: ItnLog['status']) => {
             const logEntry: ItnLog = {
                 receivedAt: Timestamp.now(),
@@ -60,7 +56,7 @@ export async function POST(req: NextRequest) {
         // --- 1. Fetch Order ---
         const orderSnap = await getDoc(orderRef);
         if (!orderSnap.exists()) {
-            await logItnAttempt(`Order ${orderId} not found.`, 'Failed');
+            await logItnAttempt(`Order ${orderId} not found. Acknowledging to stop retries.`, 'Failed');
             return new NextResponse('OK', { status: 200 });
         }
         const orderData = orderSnap.data() as Order;
@@ -71,19 +67,24 @@ export async function POST(req: NextRequest) {
             await logItnAttempt('ITN validation failed: Missing signature.', 'Failed');
             return new NextResponse('OK', { status: 200 });
         }
-        
-        // Create the signature string
+
+        // Create the signature string from sorted keys
         const sigData = { ...pfData };
         delete sigData.signature;
+        
+        // Sort keys alphabetically
         const sortedKeys = Object.keys(sigData).sort();
         let pfParamString = '';
         sortedKeys.forEach(key => {
-            pfParamString += `${key}=${encodeURIComponent(sigData[key].trim()).replace(/%20/g, '+')}&`;
+             if (sigData[key] !== '' && sigData[key] !== null && sigData[key] !== undefined) {
+                pfParamString += `${key}=${encodeURIComponent(String(sigData[key]).trim()).replace(/%20/g, '+')}&`;
+             }
         });
         
         let getString = pfParamString.slice(0, -1);
-        if (process.env.PAYFAST_PASSPHRASE) {
-            getString += `&passphrase=${encodeURIComponent(process.env.PAYFAST_PASSPHRASE.trim()).replace(/%20/g, '+')}`;
+        const passphrase = process.env.PAYFAST_PASSPHRASE;
+        if (passphrase) {
+            getString += `&passphrase=${encodeURIComponent(passphrase.trim()).replace(/%20/g, '+')}`;
         }
         
         const localSignature = crypto.createHash('md5').update(getString).digest('hex');
@@ -94,7 +95,7 @@ export async function POST(req: NextRequest) {
         }
         await logItnAttempt('Check 1/4: Signature validation passed.', 'Success');
 
-        // --- 3. Security Check 2: Data Validation ---
+        // --- 3. Security Check 2: Data Validation (Amount) ---
         const amountGross = parseFloat(pfData.amount_gross);
         if (Math.abs(amountGross - orderData.total) > 0.01) {
             await logItnAttempt(`ITN validation failed: Amount mismatch. Expected ${orderData.total}, got ${amountGross}.`, 'Failed');
@@ -102,19 +103,18 @@ export async function POST(req: NextRequest) {
         }
         await logItnAttempt('Check 2/4: Data validation passed.', 'Success');
         
-        // --- 4. Security Check 3: Server-to-server confirmation ---
+        // --- 4. Security Check 3 & 4: Server-to-server confirmation ---
         const postBody = querystring.stringify(pfData);
-        const url = `https://${PF_HOST}/eng/query/validate`;
-
+        
         const isServerValid: boolean = await new Promise((resolve) => {
-            const req = https.request(url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(postBody) } }, (res) => {
+            const request = https.request(PF_VALIDATE_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(postBody) } }, (res) => {
                 let body = '';
                 res.on('data', (chunk) => body += chunk);
                 res.on('end', () => resolve(body.trim().toUpperCase() === 'VALID'));
             });
-            req.on('error', (e) => { console.error('PayFast validation request error:', e); resolve(false); });
-            req.write(postBody);
-            req.end();
+            request.on('error', (e) => { console.error('PayFast validation request error:', e); resolve(false); });
+            request.write(postBody);
+            request.end();
         });
 
         if (!isServerValid) {
@@ -123,26 +123,25 @@ export async function POST(req: NextRequest) {
         }
         await logItnAttempt('Check 3/4 & 4/4: Server confirmation and IP validation passed.', 'Success');
 
-
-        // --- 5. Process Payment ---
+        // --- 5. Process Payment (Finally!) ---
         if (pfData.payment_status === 'COMPLETE') {
-            // Idempotency check
+            // Idempotency check: if already processed, do nothing more.
             if (orderData.status === 'Processing' || orderData.status === 'Completed') {
                 await logItnAttempt('Duplicate ITN received for already processed order. Ignored.', 'Success');
-                return new NextResponse('OK', { status: 200 });
+            } else {
+                await updateDoc(orderRef, { status: 'Processing' });
+                await logItnAttempt('Payment completed. Order status updated to Processing.', 'Success');
             }
-
-            await updateDoc(orderRef, { status: 'Processing' });
-            await logItnAttempt('Payment completed successfully. Order status updated to Processing.', 'Success');
-
         } else {
             await logItnAttempt(`Payment not complete. Status: ${pfData.payment_status}.`, 'Failed');
         }
 
+        // Always acknowledge PayFast to prevent retries
         return new NextResponse('OK', { status: 200 });
 
     } catch (error: any) {
         console.error('Critical Error in ITN handler:', error);
+        // If we know the orderId, log the critical error to it
         if (orderId) {
             const orderRef = doc(db, 'orders', orderId);
             try {
@@ -151,7 +150,7 @@ export async function POST(req: NextRequest) {
                 // Ignore if logging also fails
             }
         }
+        // Still acknowledge PayFast to prevent retries
         return new NextResponse('OK', { status: 200 });
     }
 }
-    
