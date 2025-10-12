@@ -2,9 +2,10 @@
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { BlogPost } from '@/lib/types';
-import { getFirestore, collection, getDocs, query, where } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { format } from 'date-fns';
+import { Metadata, ResolvingMetadata } from 'next';
 
 const db = getFirestore(firebaseApp);
 
@@ -18,6 +19,7 @@ async function getPost(slug: string): Promise<BlogPost | null> {
     }
     const docData = querySnapshot.docs[0].data();
     
+    // Convert Firestore Timestamp to ISO string if it's a Timestamp object
     const date = docData.date?.toDate ? docData.date.toDate().toISOString() : docData.date;
     
     return {
@@ -25,6 +27,41 @@ async function getPost(slug: string): Promise<BlogPost | null> {
         id: querySnapshot.docs[0].id,
         date: date,
     } as BlogPost;
+}
+
+type Props = {
+  params: { slug: string }
+}
+
+export async function generateMetadata(
+  { params }: Props,
+  parent: ResolvingMetadata
+): Promise<Metadata> {
+  const post = await getPost(params.slug);
+ 
+  if (!post) {
+    return {
+      title: 'Post Not Found'
+    }
+  }
+
+  const previousImages = (await parent).openGraph?.images || []
+ 
+  return {
+    title: post.metaTitle || post.title,
+    description: post.metaDescription || post.excerpt,
+    openGraph: {
+      title: post.metaTitle || post.title,
+      description: post.metaDescription || post.excerpt,
+      images: [post.imageUrl, ...previousImages],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: post.metaTitle || post.title,
+      description: post.metaDescription || post.excerpt,
+      images: [post.imageUrl],
+    },
+  }
 }
 
 export default async function BlogPostPage({ params }: { params: { slug: string } }) {
