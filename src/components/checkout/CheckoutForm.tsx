@@ -1,5 +1,4 @@
 
-
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -27,9 +26,10 @@ import { Separator } from '../ui/separator';
 const db = getFirestore(firebaseApp);
 
 const formSchema = z.object({
-  name: z.string().min(2, 'Name is required.'),
-  email: z.string().email('Invalid email address.'),
-  phone: z.string().min(10, 'A valid phone number is required.'),
+  name_first: z.string().min(1, 'First name is required.'),
+  name_last: z.string().min(1, 'Last name is required.'),
+  email_address: z.string().email('Invalid email address.'),
+  cell_number: z.string().min(10, 'A valid phone number is required.'),
   discountCode: z.string().optional(),
 });
 
@@ -46,9 +46,10 @@ export default function CheckoutForm() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: '',
-      email: '',
-      phone: '',
+      name_first: '',
+      name_last: '',
+      email_address: '',
+      cell_number: '',
       discountCode: '',
     },
   });
@@ -97,8 +98,8 @@ export default function CheckoutForm() {
       
       const orderData: Order = {
         id: orderId,
-        customerName: values.name,
-        customerEmail: values.email,
+        customerName: `${values.name_first} ${values.name_last}`,
+        customerEmail: values.email_address,
         items: cartItems.map(item => ({ 
             id: item.service.id, 
             title: item.service.title, 
@@ -127,8 +128,6 @@ export default function CheckoutForm() {
           });
       }
       
-      // Don't send email here, redirect to confirmation page which handles payment form.
-      
       clearCart();
       setIsLoading(false);
       router.push(`/order-confirmation/${orderId}`);
@@ -152,9 +151,12 @@ export default function CheckoutForm() {
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input placeholder="John Doe" {...field} /></FormControl><FormMessage /></FormItem>)} />
-            <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input placeholder="name@example.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
-            <FormField control={form.control} name="phone" render={({ field }) => ( <FormItem><FormLabel>Phone Number</FormLabel><FormControl><Input placeholder="082 123 4567" {...field} /></FormControl><FormMessage /></FormItem>)} />
+             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField control={form.control} name="name_first" render={({ field }) => ( <FormItem><FormLabel>First Name</FormLabel><FormControl><Input placeholder="John" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                <FormField control={form.control} name="name_last" render={({ field }) => ( <FormItem><FormLabel>Last Name</FormLabel><FormControl><Input placeholder="Doe" {...field} /></FormControl><FormMessage /></FormItem> )} />
+            </div>
+            <FormField control={form.control} name="email_address" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input placeholder="name@example.com" {...field} /></FormControl><FormMessage /></FormItem> )} />
+            <FormField control={form.control} name="cell_number" render={({ field }) => ( <FormItem><FormLabel>Cell Number</FormLabel><FormControl><Input placeholder="082 123 4567" {...field} /></FormControl><FormMessage /></FormItem> )} />
 
             <Separator />
             <div className="space-y-2">
