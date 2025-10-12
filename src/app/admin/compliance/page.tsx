@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getFirestore, collection, getDocs, orderBy, query, addDoc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,19 +38,16 @@ export default function AdminCompliancePage() {
   const [viewingRequest, setViewingRequest] = useState<ComplianceRequest | null>(null);
   const { user } = useAuth();
   const [allStaff, setAllStaff] = useState<User[]>([]);
-  const [staffCounters, setStaffCounters] = useState<{ [key: string]: number }>({});
+  const staffCounters = useRef<{ [key: string]: number }>({});
   
   const getNextAdminStaff = (): User | undefined => {
       const adminStaff = allStaff.filter(u => u.department === 'Administration' && u.role === 'staff');
       if (adminStaff.length === 0) return undefined;
 
-      const currentIndex = staffCounters['Administration'] || 0;
+      const currentIndex = staffCounters.current['Administration'] || 0;
       const nextStaff = adminStaff[currentIndex];
       
-      setStaffCounters(prev => ({
-          ...prev,
-          ['Administration']: (currentIndex + 1) % adminStaff.length
-      }));
+      staffCounters.current['Administration'] = (currentIndex + 1) % adminStaff.length;
       
       return nextStaff;
   }
@@ -81,14 +78,14 @@ export default function AdminCompliancePage() {
   }, []);
 
    const createTask = async (request: ComplianceRequest) => {
-    if (!user || !user.uid) {
-        console.error("Cannot create task: current user or user ID is not available.");
-        return;
-    }
-
     const assignedStaff = getNextAdminStaff();
     if (!assignedStaff || !assignedStaff.uid) {
         console.error("No staff in Administration department to assign task or staff has no UID.");
+        return;
+    }
+    
+    if (!user || !user.uid) {
+        console.error("Cannot create task: current user or user ID is not available.");
         return;
     }
     const dueDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000); // 2 days from now

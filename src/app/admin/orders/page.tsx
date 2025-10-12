@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, arrayUnion, getDoc, Timestamp, addDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -106,20 +106,16 @@ export default function AdminOrdersPage() {
   const [allStaff, setAllStaff] = useState<User[]>([]);
   const [viewingBackendSummary, setViewingBackendSummary] = useState<Order | null>(null);
 
-  // Simple round-robin counter for staff assignment
-  const [staffCounters, setStaffCounters] = useState<{ [key: string]: number }>({});
+  const staffCounters = useRef<{ [key: string]: number }>({});
   
   const getNextStaffMember = (department: 'Accounting and Tax' | 'Administration' | 'CAP'): User | undefined => {
       const staffInDept = allStaff.filter(u => u.role === 'staff' && u.department === department);
       if (staffInDept.length === 0) return undefined;
 
-      const currentIndex = staffCounters[department] || 0;
+      const currentIndex = staffCounters.current[department] || 0;
       const nextStaff = staffInDept[currentIndex];
       
-      setStaffCounters(prev => ({
-          ...prev,
-          [department]: (currentIndex + 1) % staffInDept.length
-      }));
+      staffCounters.current[department] = (currentIndex + 1) % staffInDept.length;
       
       return nextStaff;
   };
@@ -147,7 +143,7 @@ export default function AdminOrdersPage() {
 
         if (user?.role === 'staff') {
           // Staff view: only see orders assigned to them
-          const q = query(ordersRef, where('assignedTo', 'array-contains', user.id), orderBy('date', 'desc'));
+          const q = query(ordersRef, where('assignedTo', 'array-contains', user.uid), orderBy('date', 'desc'));
           const querySnapshot = await getDocs(q);
           filteredOrders = querySnapshot.docs.map(doc => {
             const data = doc.data();
@@ -234,7 +230,7 @@ export default function AdminOrdersPage() {
 
      const emailNote: OrderNote = {
       text: message,
-      subject: subject || null, // Ensure subject is not undefined
+      subject: subject || null,
       authorId: user.uid,
       date: Timestamp.now(),
       type: 'email',
@@ -297,12 +293,12 @@ export default function AdminOrdersPage() {
       });
 
       // Create a task if moving to processing and a staff member is assigned
-      if (newStatus === 'Processing' && assignedStaffIds && assignedStaffIds.length > 0) {
+      if (newStatus === 'Processing' && assignedStaffIds && assignedStaffIds.length > 0 && user.uid) {
           const taskData = {
               title: `Process Order: ${orderToUpdate.id}`,
               description: `Fulfill the services for order ${orderToUpdate.id}. Services include: ${orderToUpdate.items.map(i => i.title).join(', ')}.`,
               assignedTo: assignedStaffIds,
-              createdBy: user.uid, // This is now safe
+              createdBy: user.uid,
               dueDate: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)), // 7 days from now
               priority: 'Medium',
               status: 'To-Do',
@@ -596,3 +592,4 @@ export default function AdminOrdersPage() {
     </Dialog>
   );
 }
+

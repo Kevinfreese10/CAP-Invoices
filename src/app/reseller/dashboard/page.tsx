@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -9,7 +10,7 @@ import { Loader2, ArrowRight, Banknote, Building, Clock, MoreHorizontal, PlusCir
 import Image from 'next/image';
 import { format } from 'date-fns';
 import { Order, Service, User } from '@/lib/types';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, setDoc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -36,7 +37,7 @@ export default function ResellerDashboardPage() {
     const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
     const [outsourcedOrderDetails, setOutsourcedOrderDetails] = useState<Order | null>(null);
     const [allStaff, setAllStaff] = useState<User[]>([]);
-    const [staffCounters, setStaffCounters] = useState<{ [key: string]: number }>({});
+    const staffCounters = useRef<{ [key: string]: number }>({});
     
     const orderStatuses: Order['status'][] = ['Pending Payment', 'Processing', 'Completed', 'Cancelled'];
 
@@ -44,13 +45,10 @@ export default function ResellerDashboardPage() {
       const staffInDept = allStaff.filter(u => u.role === 'staff' && u.department === department);
       if (staffInDept.length === 0) return undefined;
 
-      const currentIndex = staffCounters[department] || 0;
+      const currentIndex = staffCounters.current[department] || 0;
       const nextStaff = staffInDept[currentIndex];
       
-      setStaffCounters(prev => ({
-          ...prev,
-          [department]: (currentIndex + 1) % staffInDept.length
-      }));
+      staffCounters.current[department] = (currentIndex + 1) % staffInDept.length;
       
       return nextStaff;
     };
