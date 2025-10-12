@@ -17,6 +17,7 @@ function generateSignature(data: { [key: string]: any }, passphrase?: string): s
     const sigData = { ...data };
     delete sigData.signature;
 
+    // The PayFast ITN signature is calculated on the URL-encoded, alphabetically sorted key-value pairs
     const sortedKeys = Object.keys(sigData).sort();
 
     let pfOutput = '';
@@ -66,11 +67,14 @@ export async function POST(req: NextRequest) {
             logMessage = 'ITN received without signature.';
             console.error(logMessage, { orderId });
             await logItnAttempt(logMessage, 'Failed');
-            return new NextResponse('OK', { status: 200 });
+            return new NextResponse('OK', { status: 200 }); // Acknowledge to prevent retries
         }
+        
+        // Note: The ITN signature calculation is different from the payment signature.
+        // It's based on the received POST data, not the initial payment data.
         const expectedSignature = generateSignature(data, process.env.PAYFAST_PASSPHRASE);
 
-        if (receivedSignature !== expectedSignature) {
+        if (receivedSignature.toLowerCase() !== expectedSignature.toLowerCase()) {
             logMessage = `Signature mismatch. Received: ${receivedSignature}, Expected: ${expectedSignature}`;
             console.error(logMessage, { orderId });
             await logItnAttempt(logMessage, 'Failed');
@@ -81,7 +85,6 @@ export async function POST(req: NextRequest) {
         if (!orderRef) {
              logMessage = 'No m_payment_id in ITN payload.';
              console.error(logMessage);
-             // Cannot log to order, but we can log it here
              return new NextResponse('OK', { status: 200 });
         }
         
@@ -90,7 +93,6 @@ export async function POST(req: NextRequest) {
         if (!orderSnap.exists()) {
             logMessage = `Order ${orderId} not found in database.`;
             console.error(logMessage);
-            // Cannot log to order as it doesn't exist.
             return new NextResponse('OK', { status: 200 });
         }
         const orderData = orderSnap.data() as Order;
@@ -128,13 +130,18 @@ export async function POST(req: NextRequest) {
         logMessage = `An internal server error occurred: ${error.message}`;
         if(orderId) {
              const orderRef = doc(db, 'orders', orderId);
-             await updateDoc(orderRef, { itnHistory: arrayUnion({
-                receivedAt: Timestamp.now(),
-                status: 'Failed',
-                message: logMessage,
-                payload: data,
-             }) });
+             try {
+                await updateDoc(orderRef, { itnHistory: arrayUnion({
+                    receivedAt: Timestamp.now(),
+                    status: 'Failed',
+                    message: logMessage,
+                    payload: data,
+                 }) });
+             } catch (logError) {
+                 console.error("Failed to even log the error to Firestore:", logError);
+             }
         }
-        return new NextResponse('Internal Server Error', { status: 500 });
+        // Always respond 200 OK to prevent PayFast from retrying a failing request.
+        return new NextResponse('OK', { status: 200 });
     }
 }

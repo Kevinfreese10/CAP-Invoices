@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -343,7 +342,7 @@ export default function AdminOrderDetailsPage() {
             return { ...item, service };
         }).filter(item => item.service) as { service: Service }[];
         
-        emailHtml = render(<DocumentRequestEmail order={orderForEmail} items={itemsWithServices} reseller={reseller} />);
+        emailHtml = render(<DocumentRequestEmail order={orderForEmail} items={itemsWithServices} reseller={reseller} replyTo={currentUser.email || 'info@myacc.co.za'} />);
         subject = `Action Required: Documents needed for your order #${orderForEmail.id}`;
         message = "Sent 'Request Documents' email to client.";
       } else if (type === 'payment') {
@@ -472,7 +471,7 @@ export default function AdminOrderDetailsPage() {
                                         <div key={index} className="flex items-start gap-3">
                                             <div className="p-3 rounded-lg w-full bg-muted">
                                                 <div className="flex justify-between items-center mb-1">
-                                                    <p className="text-xs font-semibold">{author?.name}</p>
+                                                    <p className="text-xs font-semibold">{author?.name || 'System'}</p>
                                                     <p className="text-xs text-muted-foreground">{format(new Date(note.date), 'dd MMM yyyy, HH:mm')}</p>
                                                 </div>
                                                  {isEmail ? (
