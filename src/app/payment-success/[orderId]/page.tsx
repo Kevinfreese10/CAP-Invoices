@@ -5,8 +5,8 @@ import { useParams, notFound } from 'next/navigation';
 import { getFirestore, doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service, User } from '@/lib/types';
-import { Loader2, CheckCircle, User as UserIcon, ShieldCheck } from 'lucide-react';
-import { services as allServices } from '@/lib/data';
+import { Loader2, CheckCircle, User as UserIcon } from 'lucide-react';
+import { allServices } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
@@ -62,7 +62,7 @@ export default function PaymentSuccessPage() {
                 clearInterval(interval);
                 setIsLoading(false); // Stop loading even if status didn't change
             }
-        }, 3000); // Increased polling interval
+        }, 3000);
 
         return () => clearInterval(interval);
 
@@ -78,7 +78,7 @@ export default function PaymentSuccessPage() {
         );
     }
     
-    if (!order) {
+    if (!order || order.status !== 'Processing') {
         return (
              <div className="container mx-auto px-4 py-20 text-center">
                 <h1 className="mt-4 text-2xl font-semibold">Waiting for Payment Confirmation</h1>
@@ -143,7 +143,10 @@ export default function PaymentSuccessPage() {
                                 <CheckCircle className="h-5 w-5 text-green-500 mt-1 flex-shrink-0" />
                                 <div>
                                     <p className="font-semibold">Order Allocated</p>
-                                    <p className="text-sm text-muted-foreground">Your order has been assigned to a consultant who will manage the fulfillment.</p>
+                                    <p className="text-sm text-muted-foreground">
+                                        Your order has been assigned to a consultant who will manage the fulfillment.
+                                        {assignee && <span className="font-bold"> ({assignee.name})</span>}
+                                    </p>
                                 </div>
                             </div>
                              <div className="flex items-start gap-3">
