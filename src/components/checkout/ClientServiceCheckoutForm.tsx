@@ -3,19 +3,62 @@
 
 import { useState, useEffect } from 'react';
 import { Service } from '@/lib/types';
-import ServiceCheckoutForm from '@/components/checkout/ServiceCheckoutForm';
-import { Skeleton } from '../ui/skeleton';
+import { Button } from '../ui/button';
+import { useCart } from '@/contexts/CartContext';
+import { ShoppingCart, Check, ArrowRight } from 'lucide-react';
+import Link from 'next/link';
+
+const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
+      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(price);
+};
 
 export default function ClientServiceCheckoutForm({ service }: { service: Service }) {
-  const [isClient, setIsClient] = useState(false);
+  const { addToCart, cartItems } = useCart();
+  const [isAdded, setIsAdded] = useState(false);
 
   useEffect(() => {
-    setIsClient(true);
-  }, []);
+    const itemInCart = cartItems.some(item => item.service.id === service.id);
+    setIsAdded(itemInCart);
+  }, [cartItems, service.id]);
 
-  if (!isClient) {
-    return <Skeleton className="h-[500px] w-full" />;
-  }
+  const handleAddToCart = () => {
+    addToCart(service);
+    setIsAdded(true);
+  };
 
-  return <ServiceCheckoutForm service={service} />;
+  return (
+    <div className="sticky top-24 space-y-4">
+        <p className="text-3xl font-bold text-primary">{formatPrice(service.price)}</p>
+        <Button 
+            onClick={handleAddToCart} 
+            disabled={isAdded}
+            className="w-full"
+            size="lg"
+        >
+            {isAdded ? (
+                <>
+                    <Check className="mr-2 h-5 w-5" />
+                    Added to Cart
+                </>
+            ) : (
+                <>
+                    <ShoppingCart className="mr-2 h-5 w-5" />
+                    Add to Cart
+                </>
+            )}
+        </Button>
+        {isAdded && (
+            <Button asChild variant="outline" className="w-full" size="lg">
+                <Link href="/cart">
+                    Proceed to Checkout <ArrowRight className="ml-2 h-5 w-5" />
+                </Link>
+            </Button>
+        )}
+    </div>
+  );
 }
