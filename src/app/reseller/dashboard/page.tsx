@@ -691,28 +691,28 @@ export default function ResellerDashboardPage() {
                             <CardTitle>EFT Instructions</CardTitle>
                         </div>
                     </CardHeader>
-                    <CardContent className="space-y-4 text-sm">
-                        <div className="space-y-1">
-                            <p className="font-medium">Bank Name:</p>
-                            <p className="p-2 bg-muted rounded-md">FNB</p>
+                     <CardContent className="space-y-3 text-sm">
+                        <div className="grid grid-cols-[120px_1fr] items-center">
+                            <span className="font-medium text-muted-foreground">Bank Name:</span>
+                            <span className="font-semibold">FNB</span>
                         </div>
-                         <div className="space-y-1">
-                            <p className="font-medium">Account Holder:</p>
-                            <p className="p-2 bg-muted rounded-md">My Accountant (Pty) Ltd</p>
+                         <div className="grid grid-cols-[120px_1fr] items-center">
+                            <span className="font-medium text-muted-foreground">Account Holder:</span>
+                            <span className="font-semibold">My Accountant (Pty) Ltd</span>
                         </div>
-                         <div className="space-y-1">
-                            <p className="font-medium">Account Number:</p>
-                            <p className="p-2 bg-muted rounded-md">6280 123 4567</p>
+                         <div className="grid grid-cols-[120px_1fr] items-center">
+                            <span className="font-medium text-muted-foreground">Account Number:</span>
+                            <span className="font-semibold">63084378223</span>
                         </div>
-                         <div className="space-y-1">
-                            <p className="font-medium">Branch Code:</p>
-                            <p className="p-2 bg-muted rounded-md">250655</p>
+                         <div className="grid grid-cols-[120px_1fr] items-center">
+                            <span className="font-medium text-muted-foreground">Branch Code:</span>
+                            <span className="font-semibold">250655</span>
                         </div>
-                         <div className="space-y-1">
-                            <p className="font-medium">Reference:</p>
-                            <p className="p-2 bg-destructive/10 text-destructive rounded-md font-semibold">{outsourcedOrderDetails?.id}</p>
+                        <div className="grid grid-cols-[120px_1fr] items-center mt-2">
+                            <span className="font-medium text-muted-foreground">Reference:</span>
+                            <span className="font-semibold text-destructive p-1 bg-destructive/10 rounded-sm">{outsourcedOrderDetails?.id}</span>
                         </div>
-                         <Separator className="my-3" />
+                         <Separator className="my-4" />
                          <p className="font-semibold text-foreground">
                             Please send your proof of payment to{' '}
                             <a href="mailto:info@myacc.co.za" className="text-primary underline">

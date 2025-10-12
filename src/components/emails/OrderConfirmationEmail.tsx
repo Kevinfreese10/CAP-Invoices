@@ -125,7 +125,7 @@ export const OrderConfirmationEmail = ({ order, reseller }: OrderConfirmationEma
     const bankingDetails = reseller?.bankingDetails || {
         bankName: 'FNB',
         accountHolder: 'My Accountant (Pty) Ltd',
-        accountNumber: '6280 123 4567',
+        accountNumber: '63084378223',
         branchCode: '250655',
     };
 
