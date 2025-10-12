@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -7,15 +8,6 @@ import { Button } from '../ui/button';
 import { useCart } from '@/contexts/CartContext';
 import { ShoppingCart, Check, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
-
-const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-ZA', {
-      style: 'currency',
-      currency: 'ZAR',
-      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
-      maximumFractionDigits: 2,
-    }).format(price);
-};
 
 export default function ClientServiceCheckoutForm({ service }: { service: Service }) {
   const { addToCart, cartItems } = useCart();
@@ -33,7 +25,6 @@ export default function ClientServiceCheckoutForm({ service }: { service: Servic
 
   return (
     <div className="sticky top-24 space-y-4">
-        <p className="text-3xl font-bold text-primary">{formatPrice(service.price)}</p>
         <Button 
             onClick={handleAddToCart} 
             disabled={isAdded}

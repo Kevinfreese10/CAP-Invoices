@@ -39,6 +39,15 @@ async function getService(slug: string): Promise<Service | null> {
     return serviceData as Service;
 }
 
+const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
+      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(price);
+};
+
 type Props = {
   params: { slug: string }
 }
@@ -93,6 +102,7 @@ export default async function ServiceDetailPage({ params }: Props) {
           <div className="space-y-3">
             <Badge variant="secondary" className="w-fit">{service.category}</Badge>
             <h1 className="text-3xl md:text-4xl font-bold tracking-tight">{service.title}</h1>
+            <p className="text-3xl font-bold text-primary">{formatPrice(service.price)}</p>
             <div className="flex items-center text-muted-foreground">
                 <Clock className="h-4 w-4 mr-1.5" />
                 <span className="text-sm font-medium">{service.turnaroundTime}</span>
