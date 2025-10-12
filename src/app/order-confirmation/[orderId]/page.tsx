@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
@@ -42,7 +43,7 @@ export default function OrderConfirmationRedirectPage() {
                     const dataForSignature: { [key: string]: any } = {
                         merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID,
                         merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY,
-                        return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success`,
+                        return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success/${orderId}`,
                         cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-cancelled`,
                         notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
                         name_first: name_first,

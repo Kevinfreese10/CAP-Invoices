@@ -1,12 +1,19 @@
 
+
 import { NextRequest, NextResponse } from 'next/server';
-import { getFirestore, doc, updateDoc } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import crypto from 'crypto';
+import { Order, Service, User, OrderNote, Task } from '@/lib/types';
+import { services as allServices } from '@/lib/data';
+import { sendEmail } from '@/lib/email';
+import { render } from '@react-email/components';
+import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
+import NewTaskEmail from '@/components/emails/NewTaskEmail';
+import { format } from 'date-fns';
 
 const db = getFirestore(firebaseApp);
 
-// Custom encoder to match PHP's urlencode which uses '+' for spaces
 function rfc3986Encode(str: string) {
     return encodeURIComponent(str).replace(/[!'()*]/g, (c) => {
         return '%' + c.charCodeAt(0).toString(16).toUpperCase();
@@ -17,8 +24,6 @@ function rfc3986Encode(str: string) {
 function generateSignature(data: { [key: string]: any }, passphrase?: string): string {
     let pfOutput = '';
     
-    // The order of properties must be EXACTLY as specified by PayFast for ITN validation.
-    // Note: This order is different from the payment form submission.
     const orderedKeys = [
         'm_payment_id', 'pf_payment_id', 'payment_status', 'item_name', 'item_description',
         'amount_gross', 'amount_fee', 'amount_net', 'custom_str1', 'custom_str2',
@@ -43,7 +48,6 @@ function generateSignature(data: { [key: string]: any }, passphrase?: string): s
     return crypto.createHash('md5').update(getString).digest('hex');
 }
 
-
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
@@ -65,13 +69,52 @@ export async function POST(req: NextRequest) {
     }
     
     const orderId = data.m_payment_id;
+    const orderRef = doc(db, 'orders', orderId);
+    const orderSnap = await getDoc(orderRef);
+
+    if (!orderSnap.exists()) {
+        console.error(`Order ${orderId} not found in database.`);
+        return new NextResponse('Order not found', { status: 404 });
+    }
     
     if (data.payment_status === 'COMPLETE') {
-      const orderRef = doc(db, 'orders', orderId);
       await updateDoc(orderRef, {
         status: 'Processing',
       });
       console.log(`Order ${orderId} updated to Processing.`);
+
+      // Send document request email after successful payment
+      const order = orderSnap.data() as Order;
+      const itemsWithServices = order.items.map(item => {
+        const service = allServices.find(s => s.id === item.id);
+        return { ...item, service };
+      }).filter(item => item.service) as { service: Service }[];
+
+      const emailHtml = render(<DocumentRequestEmail order={order} items={itemsWithServices} replyTo="info@myacc.co.za" />);
+      
+      const attachments = itemsWithServices
+        .filter(item => item.service.attachmentUrl)
+        .map(item => ({
+            filename: `${item.service.title.replace(/\s/g, '_')}.pdf`,
+            path: item.service.attachmentUrl!,
+        }));
+      
+      await sendEmail({
+          to: order.customerEmail,
+          subject: `Action Required for Your Order #${order.id}`,
+          html: emailHtml,
+          attachments: attachments,
+      });
+
+      const emailNote: OrderNote = {
+          text: 'Sent "Request Documents" email to client after payment.',
+          date: Timestamp.now(),
+          authorId: 'system',
+          type: 'email',
+          subject: `Action Required for Your Order #${order.id}`,
+      };
+      await updateDoc(orderRef, { notes: arrayUnion(emailNote) });
+
     } else {
       console.log(`Payment for order ${orderId} not complete. Status: ${data.payment_status}`);
     }
@@ -82,3 +125,4 @@ export async function POST(req: NextRequest) {
     return new NextResponse('Error processing ITN', { status: 500 });
   }
 }
+
