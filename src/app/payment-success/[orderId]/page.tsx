@@ -5,7 +5,7 @@ import { useParams, notFound } from 'next/navigation';
 import { getFirestore, doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service, User } from '@/lib/types';
-import { Loader2, CheckCircle, User as UserIcon } from 'lucide-react';
+import { Loader2, CheckCircle, User as UserIcon, ShieldCheck } from 'lucide-react';
 import { services as allServices } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -130,21 +130,29 @@ export default function PaymentSuccessPage() {
                     </section>
                     
                     <section>
-                        <h3 className="font-semibold text-lg mb-2">Next Steps: Required Documents</h3>
-                         <p className="text-sm text-muted-foreground mb-4">
-                            To get started, please prepare the following documents. You will receive an email shortly with instructions on where to upload them.
-                        </p>
-                        <div className="space-y-4">
-                            {orderedServices.map(service => (
-                                <div key={service.id}>
-                                    <h4 className="font-semibold">{service.title}</h4>
-                                    <ul className="list-disc pl-5 mt-2 space-y-1 text-sm text-muted-foreground">
-                                        {service.clientRequirements.map((req, index) => (
-                                            <li key={index}>{req}</li>
-                                        ))}
-                                    </ul>
+                        <h3 className="font-semibold text-lg mb-2">What Happens Next?</h3>
+                        <div className="space-y-3">
+                            <div className="flex items-start gap-3">
+                                <CheckCircle className="h-5 w-5 text-green-500 mt-1 flex-shrink-0" />
+                                <div>
+                                    <p className="font-semibold">Order Status Updated</p>
+                                    <p className="text-sm text-muted-foreground">Your order status has been set to "Processing".</p>
                                 </div>
-                            ))}
+                            </div>
+                             <div className="flex items-start gap-3">
+                                <CheckCircle className="h-5 w-5 text-green-500 mt-1 flex-shrink-0" />
+                                <div>
+                                    <p className="font-semibold">Order Allocated</p>
+                                    <p className="text-sm text-muted-foreground">Your order has been assigned to a consultant who will manage the fulfillment.</p>
+                                </div>
+                            </div>
+                             <div className="flex items-start gap-3">
+                                <CheckCircle className="h-5 w-5 text-green-500 mt-1 flex-shrink-0" />
+                                <div>
+                                    <p className="font-semibold">Documents Requested</p>
+                                    <p className="text-sm text-muted-foreground">An email has been sent to you with a list of required documents to get started. Please check your inbox (and spam folder).</p>
+                                </div>
+                            </div>
                         </div>
                     </section>
                     
@@ -173,4 +181,3 @@ export default function PaymentSuccessPage() {
         </div>
     );
 }
-
