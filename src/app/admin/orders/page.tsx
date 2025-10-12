@@ -260,7 +260,14 @@ export default function AdminOrdersPage() {
 
   const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
     const orderToUpdate = orders.find(o => o.id === orderId);
-    if (!orderToUpdate || !user) return;
+    if (!orderToUpdate || !user || !user.uid) {
+        toast({
+            title: 'Action Failed',
+            description: 'Cannot update status. User not found or not authenticated.',
+            variant: 'destructive',
+        });
+        return;
+    }
 
     let assignedStaffIds = orderToUpdate.assignedTo;
     let assignedStaffMember = assignedStaffIds?.[0] ? allStaff.find(s => s.id === assignedStaffIds![0]) : undefined;
@@ -290,12 +297,12 @@ export default function AdminOrdersPage() {
       });
 
       // Create a task if moving to processing and a staff member is assigned
-      if (newStatus === 'Processing' && assignedStaffIds && assignedStaffIds.length > 0 && user) {
+      if (newStatus === 'Processing' && assignedStaffIds && assignedStaffIds.length > 0) {
           const taskData = {
               title: `Process Order: ${orderToUpdate.id}`,
               description: `Fulfill the services for order ${orderToUpdate.id}. Services include: ${orderToUpdate.items.map(i => i.title).join(', ')}.`,
               assignedTo: assignedStaffIds,
-              createdBy: user.id,
+              createdBy: user.uid, // <-- This is now safe
               dueDate: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)), // 7 days from now
               priority: 'Medium',
               status: 'To-Do',
