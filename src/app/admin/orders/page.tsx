@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, arrayUnion, getDoc, Timestamp, addDoc } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, arrayUnion, getDoc, Timestamp, addDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, User, Service, OrderNote, Task, ItnLog } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
@@ -135,7 +135,7 @@ export default function AdminOrdersPage() {
       try {
         const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
         const staffSnapshot = await getDocs(staffQuery);
-        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
         setAllStaff(fetchedStaff);
 
         const ordersRef = collection(db, 'orders');
@@ -200,30 +200,44 @@ export default function AdminOrdersPage() {
 
    const handleAssignment = async (orderId: string, staffId: string) => {
     try {
-      const orderRef = doc(db, 'orders', orderId);
-      await updateDoc(orderRef, {
-        assignedTo: [staffId],
-      });
+        const batch = writeBatch(db);
 
-      setOrders(prevOrders =>
-        prevOrders.map(order =>
-          order.id === orderId ? { ...order, assignedTo: [staffId] } : order
-        )
-      );
+        // 1. Update the order
+        const orderRef = doc(db, 'orders', orderId);
+        batch.update(orderRef, { assignedTo: [staffId] });
 
-      toast({
-        title: 'Order Assigned',
-        description: `Order has been successfully assigned.`,
-      });
+        // 2. Find and update the associated task
+        const tasksQuery = query(collection(db, 'tasks'), where('orderId', '==', orderId));
+        const tasksSnapshot = await getDocs(tasksQuery);
+        
+        if (!tasksSnapshot.empty) {
+            const taskDoc = tasksSnapshot.docs[0];
+            batch.update(taskDoc.ref, { assignedTo: [staffId] });
+        }
+
+        await batch.commit();
+
+        // 3. Update local state
+        setOrders(prevOrders =>
+            prevOrders.map(order =>
+                order.id === orderId ? { ...order, assignedTo: [staffId] } : order
+            )
+        );
+
+        toast({
+            title: 'Order Reassigned',
+            description: `Order and its associated task have been assigned.`,
+        });
     } catch (error) {
-      console.error('Error assigning order: ', error);
-      toast({
-        title: 'Assignment Failed',
-        description: 'There was a problem assigning the order.',
-        variant: 'destructive',
-      });
+        console.error('Error reassigning order: ', error);
+        toast({
+            title: 'Assignment Failed',
+            description: 'There was a problem reassigning the order.',
+            variant: 'destructive',
+        });
     }
   };
+
 
   const addEmailToHistory = async (orderId: string, subject: string, message: string) => {
     if (!user?.uid) return;
@@ -266,7 +280,7 @@ export default function AdminOrdersPage() {
     }
 
     let assignedStaffIds = orderToUpdate.assignedTo;
-    let assignedStaffMember = assignedStaffIds?.[0] ? allStaff.find(s => s.id === assignedStaffIds![0]) : undefined;
+    let assignedStaffMember = assignedStaffIds?.[0] ? allStaff.find(s => s.uid === assignedStaffIds![0]) : undefined;
 
 
     // New Logic: Assign staff only when moving to "Processing"
@@ -276,7 +290,7 @@ export default function AdminOrdersPage() {
             const newStaffAssignment = getNextStaffMember(department);
             if (newStaffAssignment) {
                 assignedStaffMember = newStaffAssignment;
-                assignedStaffIds = [newStaffAssignment.id];
+                assignedStaffIds = [newStaffAssignment.uid];
                  toast({
                     title: 'Order Assigned',
                     description: `Order has been assigned to ${assignedStaffMember.name}.`
@@ -324,7 +338,7 @@ export default function AdminOrdersPage() {
         description: `Order ${orderId} has been marked as ${newStatus}.`,
       });
       
-      const reseller = orderToUpdate.resellerId ? allStaff.find(u => u.id === orderToUpdate.resellerId) : undefined;
+      const reseller = orderToUpdate.resellerId ? allStaff.find(u => u.uid === orderToUpdate.resellerId) : undefined;
       const isOutsourced = !!orderToUpdate.resellerId;
       const emailTo = isOutsourced ? orderToUpdate.endCustomerEmail : orderToUpdate.customerEmail;
       const customerName = isOutsourced ? orderToUpdate.endCustomerName : orderToUpdate.customerName;
@@ -399,7 +413,7 @@ export default function AdminOrdersPage() {
 
   const getAssignee = (userId?: string): User | undefined => {
     if (!userId) return undefined;
-    return allStaff.find(u => u.id === userId);
+    return allStaff.find(u => u.uid === userId);
   }
 
   const getStatusVariant = (status: Order['status']) => {
@@ -540,9 +554,9 @@ export default function AdminOrdersPage() {
                                     <DropdownMenuSubContent>
                                         {allStaff.map(staff => (
                                         <DropdownMenuItem 
-                                            key={staff.id} 
-                                            onClick={() => handleAssignment(order.id, staff.id)}
-                                            disabled={order.assignedTo?.[0] === staff.id}
+                                            key={staff.uid} 
+                                            onClick={() => handleAssignment(order.id, staff.uid)}
+                                            disabled={order.assignedTo?.[0] === staff.uid}
                                         >
                                             {staff.name}
                                         </DropdownMenuItem>
@@ -592,4 +606,5 @@ export default function AdminOrdersPage() {
     </Dialog>
   );
 }
+
 
