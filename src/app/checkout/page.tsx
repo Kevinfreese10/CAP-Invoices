@@ -121,9 +121,6 @@ export default function CheckoutPage() {
                     <span>{formatPrice(discountedTotal)}</span>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground mt-4">
-                You will be asked to make a manual EFT payment after placing your order.
-              </p>
             </CardContent>
           </Card>
         </div>
