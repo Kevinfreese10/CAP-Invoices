@@ -34,8 +34,8 @@ export async function sendEmail({ to, subject, html, from, bcc, resellerId, atta
   
   const smtpConfig = await getSmtpConfig();
   
-  // Hardcode the from address to match the SMTP user to prevent rejection.
-  const fromAddress = smtpConfig?.user || 'no_reply@myacc.co.za';
+  // Format the from address to include the sender name.
+  const fromAddress = `"My Accountant" <${smtpConfig?.user || 'no_reply@myacc.co.za'}>`;
   
   if (smtpConfig && smtpConfig.host && smtpConfig.pass) {
     const transporter = nodemailer.createTransport({
