@@ -789,7 +789,10 @@ export default function AdminDashboardPage() {
 
 
     const handleFormSubmit = async (data: Omit<Task, 'id' | 'status' | 'createdBy' | 'comments' | 'priority' | 'createdAt'>) => {
-        if (!user || !user.uid) return;
+        if (!user || !user.uid) {
+            toast({ title: 'Authentication Error', description: 'Could not identify the current user. Please log in again.', variant: 'destructive'});
+            return;
+        };
         setIsLoading(true);
 
         const taskData = {
@@ -1039,6 +1042,7 @@ export default function AdminDashboardPage() {
     
 
     
+
 
 
 
