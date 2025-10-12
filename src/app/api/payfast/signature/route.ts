@@ -1,33 +1,25 @@
 
-
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 
 function generateSignature(data: { [key: string]: any }, passphrase?: string): string {
-    // 1. Filter out signature and any blank fields
-    const filteredData: { [key: string]: any } = {};
+    // 1. Create parameter string
+    let pfOutput = '';
     for (const key in data) {
-        if (key !== 'signature' && data[key] !== '' && data[key] !== null) {
-            filteredData[key] = data[key];
+        if (data.hasOwnProperty(key) && data[key] !== '') {
+            pfOutput += `${key}=${encodeURIComponent(data[key]).replace(/%20/g, '+')}&`;
         }
     }
 
-    // 2. Sort the data alphabetically by key
-    const sortedKeys = Object.keys(filteredData).sort();
-
-    // 3. Create the parameter string
-    let pfOutput = '';
-    sortedKeys.forEach(key => {
-        pfOutput += `${key}=${encodeURIComponent(String(filteredData[key]).trim()).replace(/%20/g, '+')}&`;
-    });
-
-    // 4. Remove the last ampersand and append the passphrase
+    // 2. Remove last ampersand
     let getString = pfOutput.slice(0, -1);
+    
+    // 3. Add passphrase
     if (passphrase) {
-        getString += `&passphrase=${encodeURIComponent(passphrase.trim()).replace(/%20/g, '+')}`;
+        getString += `&passphrase=${encodeURIComponent(passphrase).replace(/%20/g, '+')}`;
     }
 
-    // 5. MD5 hash the final string
+    // 4. MD5 hash the final string
     return crypto.createHash('md5').update(getString).digest('hex');
 }
 
@@ -36,6 +28,9 @@ export async function POST(req: NextRequest) {
         const { data } = await req.json();
         const passphrase = process.env.PAYFAST_PASSPHRASE;
         
+        // IMPORTANT: The order of properties in `dataForSignature` matters for PayFast.
+        // It must match the order in which they are processed.
+        // We receive it pre-ordered from the client, so we generate from that.
         const signature = generateSignature(data, passphrase);
 
         return NextResponse.json({ signature });

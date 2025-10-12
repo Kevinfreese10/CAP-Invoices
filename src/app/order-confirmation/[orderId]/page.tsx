@@ -39,6 +39,7 @@ export default function OrderConfirmationRedirectPage() {
                     const itemName = orderData.items.length === 1 ? orderData.items[0].title : `My Accountant - Order #${orderId}`;
                     const itemDescription = orderData.items.map(item => `${item.title} (x${item.quantity})`).join(', ');
 
+                    // The order of these properties is critical for signature generation.
                     const dataForSignature: { [key: string]: any } = {
                         merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID,
                         merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY,
