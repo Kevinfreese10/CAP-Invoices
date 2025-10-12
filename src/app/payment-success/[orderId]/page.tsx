@@ -11,7 +11,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { processSuccessfulPayment } from '@/app/actions';
 
 const db = getFirestore(firebaseApp);
 
@@ -24,26 +23,21 @@ export default function PaymentSuccessPage() {
     const [hasProcessed, setHasProcessed] = useState(false);
 
     useEffect(() => {
-        const processAndFetchOrder = async () => {
-            if (!orderId || hasProcessed) return;
+        if (!orderId) return;
 
+        const fetchOrderDetails = async () => {
             setIsLoading(true);
-            
             try {
-                // Perform the server-side processing
-                await processSuccessfulPayment(orderId);
-                setHasProcessed(true); // Ensure this runs only once
-
-                // Fetch the updated order details to display
                 const orderRef = doc(db, 'orders', orderId);
                 const orderSnap = await getDoc(orderRef);
 
                 if (orderSnap.exists()) {
                     const orderData = orderSnap.data() as Order;
                     setOrder(orderData);
-
+                    
+                    // Fetch assigned staff member if available
                     if (orderData.assignedTo && orderData.assignedTo.length > 0) {
-                        const staffQuery = query(collection(db, "users"), where('uid', '==', orderData.assignedTo[0]));
+                        const staffQuery = query(collection(db, "users"), where('id', '==', orderData.assignedTo[0]));
                         const staffSnapshot = await getDocs(staffQuery);
                         if (!staffSnapshot.empty) {
                             setAssignee(staffSnapshot.docs[0].data() as User);
@@ -53,23 +47,35 @@ export default function PaymentSuccessPage() {
                     notFound();
                 }
             } catch (error) {
-                console.error("Error processing or fetching order:", error);
-                // Optionally show an error message to the user
+                console.error("Error fetching order details:", error);
             } finally {
                 setIsLoading(false);
             }
         };
-        
-        processAndFetchOrder();
 
-    }, [orderId, hasProcessed]);
+        // Poll to check for order status update by ITN
+        const intervalId = setInterval(async () => {
+            const orderRef = doc(db, 'orders', orderId);
+            const orderSnap = await getDoc(orderRef);
+            if (orderSnap.exists() && orderSnap.data().status === 'Processing') {
+                clearInterval(intervalId);
+                fetchOrderDetails();
+            }
+        }, 2000); // Check every 2 seconds
+
+        // Initial fetch
+        fetchOrderDetails();
+
+        // Cleanup on unmount
+        return () => clearInterval(intervalId);
+    }, [orderId]);
     
     if (isLoading) {
         return (
             <div className="container mx-auto px-4 py-20 text-center">
                 <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
                 <h1 className="mt-4 text-2xl font-semibold">Finalizing your order...</h1>
-                <p className="text-muted-foreground">Please wait while we confirm your payment and send your confirmation email.</p>
+                <p className="text-muted-foreground">Please wait while we confirm your payment.</p>
             </div>
         );
     }
