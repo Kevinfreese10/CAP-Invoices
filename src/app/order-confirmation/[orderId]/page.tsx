@@ -1,5 +1,4 @@
 
-
 'use client';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
@@ -39,22 +38,20 @@ export default function OrderConfirmationRedirectPage() {
                     const itemName = orderData.items.length === 1 ? orderData.items[0].title : `My Accountant - Order #${orderId}`;
                     const itemDescription = orderData.items.map(item => `${item.title} (x${item.quantity})`).join(', ');
 
-                    // The order of these properties is critical for signature generation.
                     const dataForSignature: { [key: string]: any } = {
                         merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID,
                         merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY,
-                        return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success/${orderId}`,
-                        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-cancelled`,
-                        notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
+                        return_url: `https://studio--studio-2604127518-57889.us-central1.hosted.app/payment-success/${orderId}`,
+                        cancel_url: `https://studio--studio-2604127518-57889.us-central1.hosted.app/payment-cancelled`,
+                        notify_url: `https://studio--studio-2604127518-57889.us-central1.hosted.app/api/payfast/notify`,
                         name_first: name_first,
                         name_last: name_last,
                         email_address: orderData.customerEmail,
-                        cell_number: orderData.customerPhone, // Assuming customerPhone is on the order
+                        cell_number: orderData.customerPhone,
                         m_payment_id: orderId,
                         amount: orderData.total.toFixed(2),
                         item_name: itemName,
                         item_description: itemDescription,
-                        payment_method: orderData.paymentMethod || '',
                     };
                     
                     try {
@@ -68,19 +65,11 @@ export default function OrderConfirmationRedirectPage() {
                             throw new Error(`Signature API failed with status: ${response.status}`);
                         }
 
-                        const { signature, signatureString } = await response.json();
-                        
-                        console.log("--- PayFast Signature Debug ---");
-                        console.log("Data Sent for Signature:", dataForSignature);
-                        console.log("String Used for Hashing:", signatureString);
-                        console.log("Generated Signature:", signature);
-                        console.log("-----------------------------");
-
+                        const { signature } = await response.json();
                         setPayfastData({ ...dataForSignature, signature });
                     } catch (error) {
                         console.error("Error fetching signature", error);
                     }
-
                 }
                 setIsLoading(false);
             };
@@ -96,7 +85,6 @@ export default function OrderConfirmationRedirectPage() {
             }
         }
     }, [payfastData]);
-
 
     if (isLoading || !payfastData) {
         return (
