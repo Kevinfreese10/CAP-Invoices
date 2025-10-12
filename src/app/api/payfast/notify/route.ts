@@ -6,22 +6,41 @@ import crypto from 'crypto';
 
 const db = getFirestore(firebaseApp);
 
+// Custom encoder to match PHP's urlencode which uses '+' for spaces
+function rfc3986Encode(str: string) {
+    return encodeURIComponent(str).replace(/[!'()*]/g, (c) => {
+        return '%' + c.charCodeAt(0).toString(16).toUpperCase();
+    }).replace(/%20/g, '+');
+}
+
+
 function generateSignature(data: { [key: string]: any }, passphrase?: string): string {
-  // Create parameter string
-  let pfOutput = '';
-  for (const key in data) {
-    if (data.hasOwnProperty(key) && key !== 'signature') {
-      pfOutput += `${key}=${encodeURIComponent(data[key]).replace(/%20/g, '+')}&`;
+    let pfOutput = '';
+    
+    // The order of properties must be EXACTLY as specified by PayFast for ITN validation.
+    // Note: This order is different from the payment form submission.
+    const orderedKeys = [
+        'm_payment_id', 'pf_payment_id', 'payment_status', 'item_name', 'item_description',
+        'amount_gross', 'amount_fee', 'amount_net', 'custom_str1', 'custom_str2',
+        'custom_str3', 'custom_str4', 'custom_str5', 'custom_int1', 'custom_int2',
+        'custom_int3', 'custom_int4', 'custom_int5', 'name_first', 'name_last',
+        'email_address', 'merchant_id'
+    ];
+
+    orderedKeys.forEach(key => {
+        if (data.hasOwnProperty(key) && data[key] !== '' && data[key] !== null && data[key] !== undefined) {
+             pfOutput += `${key}=${rfc3986Encode(String(data[key]).trim())}&`;
+        }
+    });
+
+    // Remove last ampersand
+    let getString = pfOutput.slice(0, -1);
+    
+    if (passphrase) {
+        getString += `&passphrase=${rfc3986Encode(passphrase.trim())}`;
     }
-  }
 
-  // Remove last ampersand
-  let getString = pfOutput.slice(0, -1);
-  if (passphrase) {
-    getString += `&passphrase=${encodeURIComponent(passphrase).replace(/%20/g, '+')}`;
-  }
-
-  return crypto.createHash('md5').update(getString).digest('hex');
+    return crypto.createHash('md5').update(getString).digest('hex');
 }
 
 
@@ -40,6 +59,8 @@ export async function POST(req: NextRequest) {
 
     if (receivedSignature !== expectedSignature) {
         console.error('Signature mismatch on ITN');
+        console.error('Received:', receivedSignature);
+        console.error('Expected:', expectedSignature);
         return new NextResponse('Signature mismatch', { status: 400 });
     }
     
