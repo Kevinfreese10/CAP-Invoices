@@ -7,7 +7,7 @@ import { services } from '@/lib/data';
 import { blogPosts } from '@/lib/data';
 import { useState, useEffect } from 'react';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
-import { getFirestore, collection, addDoc, getDocs, deleteDoc, query, where, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, query, where, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
