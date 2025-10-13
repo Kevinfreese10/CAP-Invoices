@@ -135,7 +135,7 @@ export default function MediaPage() {
             });
         }
         
-        toast({ title: "Upload Successful", description: `${files.length} image(s) have been added to the library.` });
+        toast({ title: "Upload Successful", description: `${files.length} file(s) have been added to the library.` });
         setIsUploading(false);
         setFiles([]);
         const fileInput = document.getElementById('media-file-input') as HTMLInputElement;
@@ -169,15 +169,15 @@ export default function MediaPage() {
       <h1 className="text-3xl font-bold tracking-tight">Media Database</h1>
         <Card>
             <CardHeader>
-                <CardTitle>Upload New Image(s)</CardTitle>
-                <CardDescription>Add new images to your Firebase Storage library and Firestore database.</CardDescription>
+                <CardTitle>Upload New File(s)</CardTitle>
+                <CardDescription>Add new images or documents to your Firebase Storage library and Firestore database.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
                  <div className="flex flex-col sm:flex-row gap-4">
-                    <Input id="media-file-input" type="file" onChange={handleFileChange} multiple accept="image/*" className="max-w-xs" />
+                    <Input id="media-file-input" type="file" onChange={handleFileChange} multiple accept="image/*,.pdf" className="max-w-xs" />
                     <Button onClick={handleUpload} disabled={isUploading || files.length === 0}>
                         {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                        {isUploading ? `Uploading ${files.length} images...` : `Upload ${files.length} Image(s)`}
+                        {isUploading ? `Uploading ${files.length} files...` : `Upload ${files.length} File(s)`}
                     </Button>
                 </div>
                 {isUploading && <Progress value={uploadProgress} className="w-full" />}
@@ -187,9 +187,9 @@ export default function MediaPage() {
         <CardHeader>
             <div className="flex items-center justify-between">
                 <div>
-                    <CardTitle>Image Library</CardTitle>
+                    <CardTitle>File Library</CardTitle>
                     <CardDescription>
-                        A collection of all images from services, blog posts, and direct uploads.
+                        A collection of all images and documents from services, blog posts, and direct uploads.
                     </CardDescription>
                 </div>
                  <Button variant="outline" size="sm" onClick={fetchUploadedImages} disabled={isLoading}>
@@ -205,16 +205,24 @@ export default function MediaPage() {
             </div>
           ) : uniqueImages.length > 0 ? (
              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                {uniqueImages.map((image) => (
+                {uniqueImages.map((image) => {
+                    const isImage = image.url.includes('.png') || image.url.includes('.jpg') || image.url.includes('.jpeg') || image.url.includes('.gif');
+                    return (
                     <div key={image.id} className="group relative">
                         <div className="aspect-w-1 aspect-h-1 w-full overflow-hidden rounded-lg bg-gray-200 xl:aspect-w-7 xl:aspect-h-8">
-                        <Image
-                            src={image.url}
-                            alt={image.title}
-                            fill
-                            className="object-cover group-hover:opacity-75"
-                            data-ai-hint={image.hint}
-                        />
+                        {isImage ? (
+                            <Image
+                                src={image.url}
+                                alt={image.title}
+                                fill
+                                className="object-cover group-hover:opacity-75"
+                                data-ai-hint={image.hint}
+                            />
+                        ) : (
+                            <div className="flex items-center justify-center h-full bg-muted">
+                                <p className="text-xs text-center p-2">{image.title}</p>
+                            </div>
+                        )}
                         {image.source === 'Uploaded' && (
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
@@ -225,7 +233,7 @@ export default function MediaPage() {
                                  <AlertDialogContent>
                                     <AlertDialogHeader>
                                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                        <AlertDialogDescription>This will permanently delete the image <span className="font-semibold">{image.title}</span> from your storage and database.</AlertDialogDescription>
+                                        <AlertDialogDescription>This will permanently delete the file <span className="font-semibold">{image.title}</span> from your storage and database.</AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
                                         <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -240,10 +248,10 @@ export default function MediaPage() {
                              <p className="text-xs text-muted-foreground">{image.source}</p>
                         </div>
                     </div>
-                ))}
+                )})}
             </div>
           ) : (
-            <p>No images found.</p>
+            <p>No files found.</p>
           )}
         </CardContent>
       </Card>
