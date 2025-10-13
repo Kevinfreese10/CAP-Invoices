@@ -409,7 +409,7 @@ export default function AdminOrderDetailsPage() {
                     <CardHeader>
                         <CardTitle>Order {order.id}</CardTitle>
                         <CardDescription>
-                        Date: {format(new Date(order.date), 'dd MMMM yyyy')} | Status: <Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
+                        Date: {format(new Date(order.date), 'dd/MM/yyyy')} | Status: <Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
                          {order.originalOrderId && <span className="ml-2">| Original Order: <Link href={`/reseller/orders/${order.originalOrderId}`} className="text-primary hover:underline">{order.originalOrderId}</Link></span>}
                         </CardDescription>
                     </CardHeader>
@@ -472,7 +472,7 @@ export default function AdminOrderDetailsPage() {
                                             <div className="p-3 rounded-lg w-full bg-muted">
                                                 <div className="flex justify-between items-center mb-1">
                                                     <p className="text-xs font-semibold">{author?.name || 'System'}</p>
-                                                    <p className="text-xs text-muted-foreground">{format(new Date(note.date), 'dd MMM yyyy, HH:mm')}</p>
+                                                    <p className="text-xs text-muted-foreground">{format(new Date(note.date), 'dd/MM/yyyy, HH:mm')}</p>
                                                 </div>
                                                  {isEmail ? (
                                                     <div>

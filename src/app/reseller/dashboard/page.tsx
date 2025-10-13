@@ -395,7 +395,7 @@ export default function ResellerDashboardPage() {
                                             </div>
                                             <div className="mt-3">
                                                 <p className="text-sm font-semibold group-hover:text-primary">{post.title}</p>
-                                                <p className="text-xs text-muted-foreground">{format(new Date(post.date), 'dd MMMM yyyy')}</p>
+                                                <p className="text-xs text-muted-foreground">{format(new Date(post.date), 'dd/MM/yyyy')}</p>
                                             </div>
                                         </Link>
                                     </div>
@@ -692,23 +692,23 @@ export default function ResellerDashboardPage() {
                         </div>
                     </CardHeader>
                      <CardContent className="space-y-3 text-sm">
-                        <div className="grid grid-cols-[120px_1fr] items-center">
+                         <div className="grid grid-cols-[auto_1fr] items-center gap-x-4">
                             <span className="font-medium text-muted-foreground">Bank Name:</span>
                             <span className="font-semibold">FNB</span>
                         </div>
-                         <div className="grid grid-cols-[120px_1fr] items-center">
+                         <div className="grid grid-cols-[auto_1fr] items-center gap-x-4">
                             <span className="font-medium text-muted-foreground">Account Holder:</span>
                             <span className="font-semibold">My Accountant (Pty) Ltd</span>
                         </div>
-                         <div className="grid grid-cols-[120px_1fr] items-center">
+                         <div className="grid grid-cols-[auto_1fr] items-center gap-x-4">
                             <span className="font-medium text-muted-foreground">Account Number:</span>
                             <span className="font-semibold">63084378223</span>
                         </div>
-                         <div className="grid grid-cols-[120px_1fr] items-center">
+                         <div className="grid grid-cols-[auto_1fr] items-center gap-x-4">
                             <span className="font-medium text-muted-foreground">Branch Code:</span>
                             <span className="font-semibold">250655</span>
                         </div>
-                        <div className="grid grid-cols-[120px_1fr] items-center mt-2">
+                        <div className="grid grid-cols-[auto_1fr] items-center gap-x-4 mt-2">
                             <span className="font-medium text-muted-foreground">Reference:</span>
                             <span className="font-semibold text-destructive p-1 bg-destructive/10 rounded-sm">{outsourcedOrderDetails?.id}</span>
                         </div>

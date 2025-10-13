@@ -2,15 +2,20 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useParams, notFound } from 'next/navigation';
-import { getFirestore, doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, query, where, getDocs, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service, User } from '@/lib/types';
-import { Loader2, CheckCircle, User as UserIcon } from 'lucide-react';
-import { allServices } from '@/lib/data';
+import { Order, Service, User, OrderNote } from '@/lib/types';
+import { Loader2, CheckCircle, Clock, ClipboardCheck, User as UserIcon } from 'lucide-react';
+import { services as allServices } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { sendEmail } from '@/lib/email';
+import { render } from '@react-email/components';
+import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
+import { useToast } from '@/hooks/use-toast';
+import { format } from 'date-fns';
 
 const db = getFirestore(firebaseApp);
 
@@ -20,22 +25,59 @@ export default function PaymentSuccessPage() {
     const [order, setOrder] = useState<Order | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [assignee, setAssignee] = useState<User | null>(null);
+    const { toast } = useToast();
 
     useEffect(() => {
-        if (!orderId) {
-            setIsLoading(false);
-            return;
-        }
+        if (orderId) {
+            const fetchOrderDetails = async () => {
+                setIsLoading(true);
+                const orderRef = doc(db, 'orders', orderId);
+                const orderSnap = await getDoc(orderRef);
 
-        const fetchOrderDetails = async () => {
-            const orderRef = doc(db, 'orders', orderId);
-            const orderSnap = await getDoc(orderRef);
+                if (orderSnap.exists()) {
+                    const orderData = orderSnap.data() as Order;
+                    
+                    if (orderData.status !== 'Processing' && !orderData.notes?.some(n => n.subject === `Action Required for Your Order #${orderId}`)) {
+                        // Order is not yet processed by ITN, or email not sent, let's process it client side
+                        
+                        const itemsWithServices = orderData.items.map(item => {
+                            const service = allServices.find(s => s.id === item.id);
+                            return { ...item, service };
+                        }).filter(item => item.service) as { service: Service }[];
 
-            if (orderSnap.exists()) {
-                const orderData = orderSnap.data() as Order;
-                setOrder(orderData);
+                        const emailHtml = render(<DocumentRequestEmail order={orderData} items={itemsWithServices} replyTo="info@myacc.co.za" />);
+                        
+                        const attachments = itemsWithServices
+                            .filter(item => item.service.attachmentUrl)
+                            .map(item => ({
+                                filename: `${item.service.title.replace(/\s/g, '_')}.pdf`,
+                                path: item.service.attachmentUrl!,
+                            }));
+                        
+                        try {
+                            await sendEmail({
+                                to: orderData.customerEmail,
+                                subject: `Action Required for Your Order #${orderId}`,
+                                html: emailHtml,
+                                attachments: attachments,
+                            });
+                             const emailNote: OrderNote = {
+                                text: 'Sent "Request Documents" email to client after payment.',
+                                date: Timestamp.now(),
+                                authorId: 'system', // System-sent
+                                type: 'email',
+                                subject: `Action Required for Your Order #${orderId}`,
+                            };
+                            await updateDoc(orderRef, { notes: arrayUnion(emailNote) });
+                        } catch(e) {
+                             console.error("Failed to send document request email:", e);
+                             toast({ title: 'Email Failed', description: 'Could not send document request email.', variant: 'destructive'});
+                        }
 
-                if (orderData.status === 'Processing') {
+                    }
+                    
+                    setOrder(orderData);
+
                     if (orderData.assignedTo && orderData.assignedTo.length > 0) {
                          const staffQuery = query(collection(db, "users"), where('uid', '==', orderData.assignedTo[0]));
                          const staffSnapshot = await getDocs(staffQuery);
@@ -43,30 +85,27 @@ export default function PaymentSuccessPage() {
                              setAssignee(staffSnapshot.docs[0].data() as User);
                          }
                     }
-                    setIsLoading(false);
-                    return true; // Stop polling
+                } else {
+                    notFound();
                 }
-            } else {
                 setIsLoading(false);
-                notFound();
-                return true; // Stop polling
-            }
-            return false; // Continue polling
-        };
-        
-        let attempts = 0;
-        const interval = setInterval(async () => {
-            const shouldStop = await fetchOrderDetails();
-            attempts++;
-            if (shouldStop || attempts > 5) {
-                clearInterval(interval);
-                setIsLoading(false); // Stop loading even if status didn't change
-            }
-        }, 3000);
+            };
 
-        return () => clearInterval(interval);
+            // It can take a moment for the ITN to update the order status.
+            // We'll poll a few times to give it a chance to complete.
+            let attempts = 0;
+            const interval = setInterval(() => {
+                fetchOrderDetails();
+                attempts++;
+                if (attempts > 5 || (order && order.status === 'Processing')) {
+                    clearInterval(interval);
+                }
+            }, 2000);
+            
+            return () => clearInterval(interval);
 
-    }, [orderId]);
+        }
+    }, [orderId, order?.status, toast]);
     
     if (isLoading) {
         return (
@@ -112,7 +151,7 @@ export default function PaymentSuccessPage() {
                             </div>
                             <div className="flex justify-between text-sm">
                                 <span className="text-muted-foreground">Order Date:</span>
-                                <span>{new Date(order.date.seconds * 1000).toLocaleDateString()}</span>
+                                <span>{format(new Date(order.date.seconds * 1000), 'dd/MM/yyyy')}</span>
                             </div>
                             <Separator />
                             {order.items.map((item, index) => (
@@ -130,32 +169,21 @@ export default function PaymentSuccessPage() {
                     </section>
                     
                     <section>
-                        <h3 className="font-semibold text-lg mb-2">What Happens Next?</h3>
-                        <div className="space-y-3">
-                            <div className="flex items-start gap-3">
-                                <CheckCircle className="h-5 w-5 text-green-500 mt-1 flex-shrink-0" />
-                                <div>
-                                    <p className="font-semibold">Order Status Updated</p>
-                                    <p className="text-sm text-muted-foreground">Your order status has been set to "Processing".</p>
+                        <h3 className="font-semibold text-lg mb-2">Next Steps: Required Documents</h3>
+                         <p className="text-sm text-muted-foreground mb-4">
+                            To get started, please prepare the following documents. You will receive an email shortly with instructions on where to upload them.
+                        </p>
+                        <div className="space-y-4">
+                            {orderedServices.map(service => (
+                                <div key={service.id}>
+                                    <h4 className="font-semibold">{service.title}</h4>
+                                    <ul className="list-disc pl-5 mt-2 space-y-1 text-sm text-muted-foreground">
+                                        {service.clientRequirements.map((req, index) => (
+                                            <li key={index}>{req}</li>
+                                        ))}
+                                    </ul>
                                 </div>
-                            </div>
-                             <div className="flex items-start gap-3">
-                                <CheckCircle className="h-5 w-5 text-green-500 mt-1 flex-shrink-0" />
-                                <div>
-                                    <p className="font-semibold">Order Allocated</p>
-                                    <p className="text-sm text-muted-foreground">
-                                        Your order has been assigned to a consultant who will manage the fulfillment.
-                                        {assignee && <span className="font-bold"> ({assignee.name})</span>}
-                                    </p>
-                                </div>
-                            </div>
-                             <div className="flex items-start gap-3">
-                                <CheckCircle className="h-5 w-5 text-green-500 mt-1 flex-shrink-0" />
-                                <div>
-                                    <p className="font-semibold">Documents Requested</p>
-                                    <p className="text-sm text-muted-foreground">An email has been sent to you with a list of required documents to get started. Please check your inbox (and spam folder).</p>
-                                </div>
-                            </div>
+                            ))}
                         </div>
                     </section>
                     

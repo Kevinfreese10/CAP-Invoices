@@ -134,7 +134,7 @@ export default function ResellerOutsourcedOrderDetailsPage() {
                     <CardHeader>
                         <CardTitle>Order {order.id}</CardTitle>
                         <CardDescription>
-                        Date: {format(new Date(order.date), 'dd MMMM yyyy')} | Status: <Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
+                        Date: {format(new Date(order.date), 'dd/MM/yyyy')} | Status: <Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -173,7 +173,7 @@ export default function ResellerOutsourcedOrderDetailsPage() {
                                             <div className="bg-muted p-3 rounded-lg w-full">
                                                 <div className="flex justify-between items-center mb-1">
                                                     <p className="text-xs font-semibold">{author?.name}</p>
-                                                    <p className="text-xs text-muted-foreground">{format(new Date(note.date), 'dd MMM yyyy, HH:mm')}</p>
+                                                    <p className="text-xs text-muted-foreground">{format(new Date(note.date), 'dd/MM/yyyy, HH:mm')}</p>
                                                 </div>
                                                  {isEmail ? (
                                                     <div>

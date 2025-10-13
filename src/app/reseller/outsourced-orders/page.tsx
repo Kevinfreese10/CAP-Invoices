@@ -158,7 +158,7 @@ export default function OutsourcedOrdersPage() {
                     return (
                     <TableRow key={order.id}>
                         <TableCell className="font-medium">{order.id}</TableCell>
-                        <TableCell>{format(new Date(order.date), 'dd MMM yyyy')}</TableCell>
+                        <TableCell>{format(new Date(order.date), 'dd/MM/yyyy')}</TableCell>
                         <TableCell>
                             <Button variant="link" asChild className="p-0 h-auto font-semibold">
                                 <Link href={`/reseller/orders/${order.originalOrderId}`}>{order.originalOrderId}</Link>
