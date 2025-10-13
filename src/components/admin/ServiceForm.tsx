@@ -185,7 +185,7 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
 
   const currentImageUrl = form.watch('imageUrl');
   const currentAttachmentUrl = form.watch('attachmentUrl');
-  const attachmentFilename = currentAttachmentUrl ? currentAttachmentUrl.split('/').pop()?.split('?')[0] : '';
+  const attachmentFilename = currentAttachmentUrl ? currentAttachmentUrl.split('/').pop()?.split('?')[0].split('%2F').pop() : '';
 
 
   return (
@@ -378,7 +378,9 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
                            form.setValue('attachmentUrl', url);
                         }
                         setIsMediaLibraryOpen(false);
-                    }} />
+                    }} 
+                    accept={mediaLibraryTarget === 'image' ? 'image/*' : 'application/pdf'}
+                    />
                 </DialogContent>
             </Dialog>
             <h3 className="text-lg font-medium">SEO & Content</h3>
@@ -423,7 +425,7 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
                         <FormLabel>Attachment (Optional)</FormLabel>
                         <FormControl>
                              <div className="flex gap-2 items-center">
-                                {attachmentFilename && <p className="text-sm text-muted-foreground truncate">{attachmentFilename}</p>}
+                                {attachmentFilename && <p className="text-sm text-muted-foreground truncate">{decodeURIComponent(attachmentFilename)}</p>}
                                 <Button type="button" variant="outline" size="sm" onClick={() => { setMediaLibraryTarget('attachment'); setIsMediaLibraryOpen(true); }}>
                                     <Paperclip className="mr-2 h-4 w-4"/>
                                     {attachmentFilename ? 'Change' : 'Select'} Attachment

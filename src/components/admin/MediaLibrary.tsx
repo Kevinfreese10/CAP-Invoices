@@ -6,7 +6,7 @@ import { getStorage, ref, listAll, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import Image from 'next/image';
-import { Loader2 } from 'lucide-react';
+import { Loader2, FileText } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 
 const storage = getStorage(firebaseApp);
@@ -54,10 +54,13 @@ export default function MediaLibrary({ onSelectImage, accept = "image/*" }: Medi
   }, [user]);
 
   const filteredImages = images.filter(image => {
-      if (accept.includes('pdf')) {
+      if (accept === 'application/pdf') {
           return !image.isImage;
       }
-      return image.isImage;
+      if (accept === 'image/*') {
+          return image.isImage;
+      }
+      return true; // if no specific accept is passed, show all
   })
 
   return (
@@ -67,7 +70,7 @@ export default function MediaLibrary({ onSelectImage, accept = "image/*" }: Medi
           <Loader2 className="h-8 w-8 animate-spin" />
         </div>
       ) : filteredImages.length === 0 ? (
-        <p className="text-center text-muted-foreground p-8">No files found in your library.</p>
+        <p className="text-center text-muted-foreground p-8">No compatible files found in your library.</p>
       ) : (
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4 p-4">
           {filteredImages.map((image) => (
@@ -84,8 +87,9 @@ export default function MediaLibrary({ onSelectImage, accept = "image/*" }: Medi
                     className="object-cover transition-transform group-hover:scale-105"
                 />
               ) : (
-                 <div className="flex flex-col items-center justify-center h-full bg-muted">
-                    <p className="text-xs text-center p-2">{image.title}</p>
+                 <div className="flex flex-col items-center justify-center h-full bg-muted p-2">
+                    <FileText className="h-8 w-8 text-muted-foreground" />
+                    <p className="text-xs text-center text-muted-foreground mt-2 break-all">{image.title}</p>
                  </div>
               )}
                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity" />
