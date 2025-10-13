@@ -73,29 +73,32 @@ const paymentInstructionSection = {
     backgroundColor: '#fafafa',
 }
 
-const paymentRow = {
-    marginBottom: '10px'
-}
+const detailItem = {
+    marginBottom: '12px',
+};
 
-const paymentLabel = {
+const detailLabel = {
     fontSize: '14px',
     color: '#525f7f',
-    width: '150px'
-}
+    margin: '0 0 4px 0',
+};
 
-const paymentValue = {
+const detailValue = {
     fontSize: '14px',
     fontWeight: 'bold' as const,
-    color: '#333'
-}
+    color: '#333',
+    margin: 0,
+};
 
 const referenceValue = {
-    ...paymentValue,
+    ...detailValue,
+    display: 'inline-block',
     color: '#c00',
     backgroundColor: '#fff0f0',
     padding: '4px 8px',
     borderRadius: '4px',
 }
+
 
 export const PaymentFollowUpEmail = ({ order, reseller }: PaymentFollowUpEmailProps) => {
     const previewText = `Payment Reminder for Order #${order.id}`;
@@ -107,7 +110,7 @@ export const PaymentFollowUpEmail = ({ order, reseller }: PaymentFollowUpEmailPr
     const bankingDetails = reseller?.bankingDetails || {
         bankName: 'FNB',
         accountHolder: 'My Accountant (Pty) Ltd',
-        accountNumber: '6280 123 4567',
+        accountNumber: '63084378223',
         branchCode: '250655',
     };
 
@@ -127,26 +130,26 @@ export const PaymentFollowUpEmail = ({ order, reseller }: PaymentFollowUpEmailPr
                 </Text>
 
                 <Section style={paymentInstructionSection}>
-                    <Row style={paymentRow}>
-                        <Column style={paymentLabel}>Bank Name:</Column>
-                        <Column style={paymentValue}>{bankingDetails.bankName}</Column>
-                    </Row>
-                     <Row style={paymentRow}>
-                        <Column style={paymentLabel}>Account Holder:</Column>
-                        <Column style={paymentValue}>{bankingDetails.accountHolder}</Column>
-                    </Row>
-                     <Row style={paymentRow}>
-                        <Column style={paymentLabel}>Account Number:</Column>
-                        <Column style={paymentValue}>{bankingDetails.accountNumber}</Column>
-                    </Row>
-                     <Row style={paymentRow}>
-                        <Column style={paymentLabel}>Branch Code:</Column>
-                        <Column style={paymentValue}>{bankingDetails.branchCode}</Column>
-                    </Row>
-                    <Row style={paymentRow}>
-                        <Column style={paymentLabel}>Reference:</Column>
-                        <Column style={referenceValue}>{order.id}</Column>
-                    </Row>
+                    <div style={detailItem}>
+                        <p style={detailLabel}>Bank Name:</p>
+                        <p style={detailValue}>{bankingDetails.bankName}</p>
+                    </div>
+                     <div style={detailItem}>
+                        <p style={detailLabel}>Account Holder:</p>
+                        <p style={detailValue}>{bankingDetails.accountHolder}</p>
+                    </div>
+                     <div style={detailItem}>
+                        <p style={detailLabel}>Account Number:</p>
+                        <p style={detailValue}>{bankingDetails.accountNumber}</p>
+                    </div>
+                     <div style={detailItem}>
+                        <p style={detailLabel}>Branch Code:</p>
+                        <p style={detailValue}>{bankingDetails.branchCode}</p>
+                    </div>
+                    <div style={detailItem}>
+                        <p style={detailLabel}>Reference:</p>
+                        <p style={referenceValue}>{order.id}</p>
+                    </div>
                 </Section>
                 
                  <Text style={{...paragraph, marginTop: '20px'}}>
