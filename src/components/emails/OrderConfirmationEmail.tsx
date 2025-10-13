@@ -84,7 +84,8 @@ const heading = {
   fontSize: '24px',
   fontWeight: 'bold' as const,
   marginBottom: '20px',
-  color: '#333'
+  color: '#333',
+  textAlign: 'left' as const,
 }
 
 const paymentInstructionSection = {
