@@ -875,7 +875,7 @@ const newAccountFormSchema = z.object({
 function CreateAccountDialog({ isOpen, onClose, onSave, client } : {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (account: Omit<ChartOfAccount, 'id'>, andSelect: boolean) => void;
+    onSave: (account: Omit<ChartOfAccount, 'id' >, andSelect: boolean) => void;
     client: User | null;
 }) {
     const form = useForm<z.infer<typeof newAccountFormSchema>>({
@@ -1266,7 +1266,8 @@ export default function BankTransactionsPage() {
             });
 
             if (!response.ok) {
-                throw new Error('Failed to start AI allocation job.');
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to start AI allocation job.');
             }
 
             const { jobId, message } = await response.json();
@@ -1803,6 +1804,7 @@ export default function BankTransactionsPage() {
     </div>
   );
 }
+
 
 
 
