@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -160,7 +159,7 @@ function ImportDialog({
             const sequence = String(dateCounters[dateKey]).padStart(2, '0');
 
             return {
-                id: `import-${Date.now()}-${index}`,
+                id: `import-${Date.now()}-${Math.random()}`,
                 date: date.toISOString().split('T')[0], // YYYY-MM-DD
                 reference: `${dateKey}${sequence}`,
                 description: descriptionStr,
