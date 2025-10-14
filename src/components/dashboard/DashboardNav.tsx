@@ -54,6 +54,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const router = useRouter();
   const { logout } = useAuth();
   const [isSettingsOpen, setIsSettingsOpen] = useState(pathname.startsWith('/admin/settings'));
+  const [isCapSuppliersOpen, setIsCapSuppliersOpen] = useState(pathname.startsWith('/admin/cap-suppliers'));
 
   const handleLogout = () => {
     logout();
@@ -71,7 +72,11 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/community/questions', label: 'Community Q&A', icon: MessageCircleQuestion, roles: ['admin'] },
     { href: '/admin/clients', label: 'Manage Clients', icon: BookUser, roles: ['admin'] },
     { href: '/admin/numera', label: 'Numera', icon: Book, roles: ['admin'] },
-    { href: '/admin/cap-suppliers', label: 'CAP Suppliers', icon: FileText, roles: ['admin', 'staff'], department: 'Accounting and Tax' },
+    { href: '/admin/services', label: 'Manage Services', icon: Briefcase, roles: ['admin'] },
+    { href: '/admin/tools', label: 'Tools', icon: Wrench, roles: ['admin'] },
+  ];
+  
+  const capSupplierItems = [
     { href: '/admin/cap-suppliers/review', label: 'Review', icon: ClipboardCheck, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
     { href: '/admin/cap-suppliers/control-sheet', label: '2nd Review', icon: FileText, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
     { href: '/admin/cap-suppliers/payment-control-sheet', label: 'Payment Control Sheet', icon: FileSpreadsheet, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
@@ -79,10 +84,8 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/cap-suppliers/rejected', label: 'Rejected', icon: FileX2, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
     { href: '/admin/cap-suppliers/chart-of-accounts', label: 'Chart of Accounts', icon: Book, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
     { href: '/admin/cap-suppliers/inbox', label: 'Inbox', icon: Inbox, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
-    { href: '/admin/services', label: 'Manage Services', icon: Briefcase, roles: ['admin'] },
-    { href: '/admin/tools', label: 'Tools', icon: Wrench, roles: ['admin'] },
-  ];
-  
+  ]
+
   const settingsNavItems = [
     { href: '/admin/profile', label: 'My Profile', icon: User, roles: ['admin', 'staff']},
     { href: '/admin/tasks', label: 'Manage Tasks', icon: ClipboardCheck, roles: ['admin', 'staff'] },
@@ -104,11 +107,8 @@ export default function DashboardNav({ user }: { user: UserType }) {
   ];
 
   const visibleNavItems = navItems.filter(item => item.roles.includes(user.role));
-  const visibleAdminNavItems = adminNavItems.filter(item => {
-    if (!item.roles.includes(user.role)) return false;
-    if (item.department && user.department !== item.department) return false;
-    return true;
-  });
+  const visibleAdminNavItems = adminNavItems.filter(item => item.roles.includes(user.role));
+  const visibleCapSupplierItems = capSupplierItems.filter(item => item.roles.includes(user.role) && (!item.department || item.department === user.department));
   const visibleSettingsNavItems = settingsNavItems.filter(item => item.roles.includes(user.role));
   const visibleResellerNavItems = resellerNavItems.filter(item => item.roles.includes(user.role));
 
@@ -143,7 +143,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
             <>
                 {visibleAdminNavItems.map((item) => (
                     <SidebarMenuItem key={item.href}>
-                        <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label} className={item.isSubItem ? 'pl-8' : ''}>
+                        <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
                             <Link href={item.href}>
                                 <item.icon />
                                 <span>{item.label}</span>
@@ -151,6 +151,32 @@ export default function DashboardNav({ user }: { user: UserType }) {
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                 ))}
+                {visibleCapSupplierItems.length > 0 && (
+                    <Collapsible open={isCapSuppliersOpen} onOpenChange={setIsCapSuppliersOpen}>
+                        <SidebarMenuItem>
+                            <CollapsibleTrigger asChild>
+                                <SidebarMenuButton isActive={pathname.startsWith('/admin/cap-suppliers')} tooltip="CAP Suppliers">
+                                    <FileText />
+                                    <span>CAP Suppliers</span>
+                                </SidebarMenuButton>
+                            </CollapsibleTrigger>
+                        </SidebarMenuItem>
+                        <CollapsibleContent asChild>
+                            <SidebarMenu className="pl-4">
+                                {visibleCapSupplierItems.map(item => (
+                                    <SidebarMenuItem key={item.href}>
+                                        <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label} className="h-8">
+                                            <Link href={item.href}>
+                                                <item.icon />
+                                                <span>{item.label}</span>
+                                            </Link>
+                                        </SidebarMenuButton>
+                                    </SidebarMenuItem>
+                                ))}
+                            </SidebarMenu>
+                        </CollapsibleContent>
+                    </Collapsible>
+                )}
                  <Collapsible open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
                     <SidebarMenuItem>
                         <CollapsibleTrigger asChild>
