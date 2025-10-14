@@ -915,12 +915,44 @@ function CreateAccountDialog({ isOpen, onClose, onSave, client } : {
     )
 }
 
+function AIProgressPopup({
+  isOpen,
+  txDescription,
+  confidence,
+}: {
+  isOpen: boolean;
+  txDescription: string;
+  confidence: number | null;
+}) {
+  return (
+    <Dialog open={isOpen}>
+      <DialogContent className="sm:max-w-md" hideCloseButton>
+        <DialogHeader>
+          <DialogTitle className="text-center">AI is Allocating...</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col items-center justify-center space-y-4 py-8">
+          <Loader2 className="h-16 w-16 animate-spin text-primary" />
+          <p className="text-center text-muted-foreground">
+            Processing transaction: <br/>
+            <span className="font-semibold text-foreground">{txDescription}</span>
+          </p>
+          {confidence !== null && (
+            <p className="text-lg font-bold">
+              Confidence: {confidence.toFixed(0)}%
+            </p>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
 export default function BankTransactionsPage() {
   const [client, setClient] = useState<User | null>(null);
   const [bankAccounts, setBankAccounts] = useState<ChartOfAccount[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isAiLoading, setIsAiLoading] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const params = useParams();
   const clientId = params.clientId as string;
@@ -935,6 +967,10 @@ export default function BankTransactionsPage() {
   const [isCreateInlineAccountOpen, setIsCreateInlineAccountOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: keyof ImportedTransaction; direction: 'ascending' | 'descending' } | null>({ key: 'date', direction: 'descending' });
   const [lastSelectedTxId, setLastSelectedTxId] = useState<string | null>(null);
+
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [currentAiTxInfo, setCurrentAiTxInfo] = useState<{ description: string; confidence: number | null; } | null>(null);
+
 
   const isVatRegistered = client?.isVatRegistered || false;
 
@@ -1220,17 +1256,21 @@ export default function BankTransactionsPage() {
         }
 
         setIsAiLoading(true);
+        setCurrentAiTxInfo({ description: `Starting job for ${transactionsToAllocate.length} transactions...`, confidence: null });
         const chartOfAccountsStr = JSON.stringify(client.chartOfAccounts?.map(a => ({ id: a.id, accountNumber: a.accountNumber, description: a.description })));
         let allocatedCount = 0;
 
-        toast({ title: "AI Allocation Started", description: `Processing ${transactionsToAllocate.length} transactions... This may take a moment.` });
-        
         const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
         for (const tx of transactionsToAllocate) {
             try {
-                await delay(2500); // 2.5-second delay to avoid rate limiting
+                setCurrentAiTxInfo({ description: tx.description, confidence: null });
+                await delay(2500);
                 const suggestion = await suggestTransactionAllocation({ description: tx.description, chartOfAccounts: chartOfAccountsStr });
+                
+                setCurrentAiTxInfo({ description: tx.description, confidence: suggestion.confidence });
+                await delay(1000); // Give user time to see confidence
+
                 if (suggestion && suggestion.confidence > 50) {
                     await handleSingleAllocate(tx.id, suggestion.accountId, suggestion.vatType);
                     allocatedCount++;
@@ -1240,15 +1280,16 @@ export default function BankTransactionsPage() {
                  if (aiError.message?.includes('429')) {
                     toast({
                         title: "AI Rate Limit Hit",
-                        description: "Too many requests sent. Please wait a moment and try again with fewer transactions.",
+                        description: "Too many requests sent. Please wait and try again.",
                         variant: "destructive"
                     });
-                    break; // Stop the loop if rate limited
+                    break;
                 }
             }
         }
         
         setIsAiLoading(false);
+        setCurrentAiTxInfo(null);
         setSelectedTransactions([]);
         await fetchClientAndRules();
 
@@ -1780,17 +1821,12 @@ export default function BankTransactionsPage() {
             onSave={handleCreateInlineAccount}
             client={client}
         />
+
+        <AIProgressPopup 
+            isOpen={isAiLoading} 
+            txDescription={currentAiTxInfo?.description || ''} 
+            confidence={currentAiTxInfo?.confidence || null}
+        />
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
