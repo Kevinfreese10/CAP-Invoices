@@ -868,41 +868,26 @@ function RuleForm({ initialData, onSave, onCancel, client } : {
 const newAccountFormSchema = z.object({
   description: z.string().min(3, "Description is required"),
   accountNumber: z.string().min(7, "Account number is required").regex(/^\d{4}\/\d{3}$/, "Format must be XXXX/XXX"),
+  section: z.enum(['Income Statement', 'Balance Sheet']),
 });
 
 function CreateAccountDialog({ isOpen, onClose, onSave, client } : {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (account: Omit<ChartOfAccount, 'id' | 'section'>) => void;
+    onSave: (account: Omit<ChartOfAccount, 'id'>, andSelect: boolean) => void;
     client: User | null;
 }) {
-    const nextAccountNumber = useMemo(() => {
-        if (!client || !client.chartOfAccounts) return '8400/000';
-        const bankAccounts = client.chartOfAccounts
-            .filter(acc => acc.accountNumber.startsWith('8400/'))
-            .map(acc => parseInt(acc.accountNumber.split('/')[1], 10))
-            .sort((a,b) => a - b);
-        
-        const lastNum = bankAccounts[bankAccounts.length - 1];
-        if (lastNum === undefined) return '8400/000';
-        const nextNum = (lastNum + 1).toString().padStart(3, '0');
-        return `8400/${nextNum}`;
-    }, [client]);
-
     const form = useForm<z.infer<typeof newAccountFormSchema>>({
         resolver: zodResolver(newAccountFormSchema),
         defaultValues: {
             description: '',
-            accountNumber: nextAccountNumber,
+            accountNumber: '',
+            section: 'Income Statement',
         }
     });
 
-    useEffect(() => {
-        form.setValue('accountNumber', nextAccountNumber);
-    }, [nextAccountNumber, form]);
-
     const handleSave = (values: z.infer<typeof newAccountFormSchema>) => {
-        onSave(values);
+        onSave(values, true);
         onClose();
     }
     
@@ -910,12 +895,13 @@ function CreateAccountDialog({ isOpen, onClose, onSave, client } : {
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle>Create New Bank Account</DialogTitle>
+                    <DialogTitle>Create New Account</DialogTitle>
                 </DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleSave)} className="space-y-4">
-                         <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Account Description</FormLabel><FormControl><Input {...field} placeholder="e.g., FNB Cheque Account" /></FormControl><FormMessage /></FormItem> )}/>
-                         <FormField control={form.control} name="accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )}/>
+                         <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Account Description</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )}/>
+                         <FormField control={form.control} name="accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} placeholder="e.g., 3800/001" /></FormControl><FormMessage /></FormItem> )}/>
+                          <FormField control={form.control} name="section" render={({ field }) => ( <FormItem><FormLabel>Financial Statement Section</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a section" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Income Statement">Income Statement</SelectItem><SelectItem value="Balance Sheet">Balance Sheet</SelectItem></SelectContent></Select><FormMessage /></FormItem> )}/>
                          <DialogFooter>
                             <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
                             <Button type="submit">Create Account</Button>
@@ -944,7 +930,9 @@ export default function BankTransactionsPage() {
   const [isManageRulesOpen, setIsManageRulesOpen] = useState(false);
   const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
   const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
+  const [isCreateInlineAccountOpen, setIsCreateInlineAccountOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: keyof ImportedTransaction; direction: 'ascending' | 'descending' } | null>({ key: 'date', direction: 'descending' });
+  const [lastSelectedTxId, setLastSelectedTxId] = useState<string | null>(null);
 
   const isVatRegistered = client?.isVatRegistered || false;
 
@@ -1437,6 +1425,76 @@ export default function BankTransactionsPage() {
         console.error(error);
     }
   };
+  
+   const handleCreateInlineAccount = async (account: Omit<ChartOfAccount, 'id' | 'section'>, andSelect?: boolean) => {
+    if (!client) return;
+
+    const newAccount: ChartOfAccount = {
+        id: account.accountNumber, // Use account number as ID
+        ...account,
+    };
+    try {
+        const clientRef = doc(db, 'numeraClients', client.id);
+        const clientSnap = await getDoc(clientRef);
+        const existingClientData = clientSnap.data() as User;
+        const existingAccounts = existingClientData.chartOfAccounts || [];
+
+        if (existingAccounts.some(acc => acc.accountNumber === newAccount.accountNumber)) {
+            toast({ title: 'Account Exists', description: `An account with number ${newAccount.accountNumber} already exists.`, variant: 'destructive' });
+            return;
+        }
+
+        await updateDoc(clientRef, {
+            chartOfAccounts: arrayUnion(newAccount)
+        });
+
+        toast({ title: 'Account Created', description: `Account ${newAccount.description} has been added.` });
+        await fetchClientAndRules();
+
+        if (andSelect && lastSelectedTxId) {
+            handleSingleAllocate(lastSelectedTxId, newAccount.id, 'no_vat');
+        }
+    } catch (error) {
+        toast({ title: 'Creation Failed', description: 'Could not create the new account.', variant: 'destructive' });
+        console.error(error);
+    }
+  };
+  
+  const handleSingleAllocate = async (txId: string, accountId: string, vatType: VatType) => {
+    if (!client) return;
+    
+    if (accountId === 'create-new-inline') {
+        setLastSelectedTxId(txId);
+        setIsCreateInlineAccountOpen(true);
+        return;
+    }
+
+    const transaction = client.importedTransactions?.find(tx => tx.id === txId);
+    if (!transaction) return;
+
+    const remainingImported = client.importedTransactions?.filter(tx => tx.id !== txId) || [];
+    
+    const allocatedTransaction: AllocatedTransaction = {
+      ...transaction,
+      allocatedTo: { value: accountId, type: 'account' as const },
+      vatType: isVatRegistered ? vatType : 'no_vat',
+      vatAmount: calculateVat(transaction.amount, vatType, isVatRegistered), 
+      allocatedAt: new Date(),
+    };
+
+    try {
+      const clientRef = doc(db, 'numeraClients', client.id);
+      await updateDoc(clientRef, {
+        importedTransactions: remainingImported,
+        allocatedTransactions: arrayUnion(allocatedTransaction),
+      });
+      toast({ title: 'Transaction Allocated', description: `Transaction has been allocated and moved to Reviewed.`});
+      await fetchClientAndRules(); // Re-fetch to show new data
+    } catch (error) {
+      toast({ title: 'Allocation Failed', description: 'Could not allocate the transaction.', variant: 'destructive' });
+      console.error(error);
+    }
+  };
 
 
   return (
@@ -1615,11 +1673,13 @@ export default function BankTransactionsPage() {
                                             <TableCell>{tx.reference}</TableCell>
                                             <TableCell>{tx.description}</TableCell>
                                             <TableCell>
-                                                <Select>
+                                                <Select onValueChange={(value) => handleSingleAllocate(tx.id, value, 'no_vat')}>
                                                     <SelectTrigger className="h-8 w-[200px]">
                                                         <SelectValue placeholder="Select account" />
                                                     </SelectTrigger>
                                                     <SelectContent>
+                                                        <SelectItem value="create-new-inline">Create new account...</SelectItem>
+                                                        <Separator />
                                                         {client?.chartOfAccounts?.map(acc => (
                                                             <SelectItem key={acc.id} value={acc.id}>
                                                                 {acc.accountNumber} - {acc.description}
@@ -1728,9 +1788,17 @@ export default function BankTransactionsPage() {
             onSave={handleCreateAccount}
             client={client}
         />
+
+        <CreateAccountDialog
+            isOpen={isCreateInlineAccountOpen}
+            onClose={() => setIsCreateInlineAccountOpen(false)}
+            onSave={handleCreateInlineAccount}
+            client={client}
+        />
     </div>
   );
 }
+
 
 
 
