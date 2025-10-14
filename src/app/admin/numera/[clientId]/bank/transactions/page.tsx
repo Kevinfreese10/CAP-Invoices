@@ -1175,7 +1175,7 @@ export default function BankTransactionsPage() {
     return new Date(latestTransaction.date).toLocaleDateString('en-GB');
   }, [transactions]);
 
-  const handleBulkAllocate = async (accountId: string) => {
+  const handleBulkAllocate = async (accountId: string, vatType: VatType) => {
     if (!client || selectedTransactions.length === 0 || !accountId) return;
 
     const transactionsToAllocate = client.importedTransactions?.filter(tx => selectedTransactions.includes(tx.id)) || [];
@@ -1184,8 +1184,8 @@ export default function BankTransactionsPage() {
     const allocatedTransactions = transactionsToAllocate.map(tx => ({
       ...tx,
       allocatedTo: { value: accountId, type: 'account' as const },
-      vatType: 'no_vat' as VatType,
-      vatAmount: 0, 
+      vatType: isVatRegistered ? vatType : 'no_vat',
+      vatAmount: calculateVat(tx.amount, vatType, isVatRegistered), 
       allocatedAt: new Date(),
     }));
 
@@ -1203,6 +1203,7 @@ export default function BankTransactionsPage() {
       console.error(error);
     }
   };
+
 
   const handleBulkDelete = async () => {
     if (!client || selectedTransactions.length === 0) return;
@@ -1507,10 +1508,17 @@ export default function BankTransactionsPage() {
                                             <DropdownMenuSub>
                                                 <DropdownMenuSubTrigger>Allocate Selected</DropdownMenuSubTrigger>
                                                 <DropdownMenuSubContent className="max-h-[300px] overflow-y-auto">
-                                                    {client?.chartOfAccounts?.map(acc => (
-                                                        <DropdownMenuItem key={acc.id} onSelect={() => handleBulkAllocate(acc.id)}>
-                                                            {acc.accountNumber} - {acc.description}
-                                                        </DropdownMenuItem>
+                                                  {client?.chartOfAccounts?.map(acc => (
+                                                        <DropdownMenuSub key={acc.id}>
+                                                            <DropdownMenuSubTrigger>{acc.accountNumber} - {acc.description}</DropdownMenuSubTrigger>
+                                                            <DropdownMenuSubContent>
+                                                                {allVatTypes.map(vt => (
+                                                                    <DropdownMenuItem key={vt.name} onSelect={() => handleBulkAllocate(acc.id, vt.name)}>
+                                                                        {vt.label}
+                                                                    </DropdownMenuItem>
+                                                                ))}
+                                                            </DropdownMenuSubContent>
+                                                        </DropdownMenuSub>
                                                     ))}
                                                 </DropdownMenuSubContent>
                                             </DropdownMenuSub>
@@ -1723,6 +1731,7 @@ export default function BankTransactionsPage() {
     </div>
   );
 }
+
 
 
 
