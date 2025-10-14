@@ -920,43 +920,61 @@ function AIProgressPopup({
   progress,
   txDescription,
   suggestion,
+  onStop,
 }: {
   isOpen: boolean;
   progress: { current: number; total: number; };
   txDescription: string;
   suggestion: { accountId: string; accountDescription: string; vatType: string; confidence: number; } | null;
+  onStop: () => void;
 }) {
   return (
     <Dialog open={isOpen}>
-      <DialogContent className="sm:max-w-md" hideCloseButton>
+      <DialogContent className="sm:max-w-lg" hideCloseButton>
         <DialogHeader>
           <DialogTitle className="text-center">AI is Allocating...</DialogTitle>
         </DialogHeader>
-        <div className="flex flex-col items-center justify-center space-y-4 py-8">
-          <p className="font-semibold">{progress.current} of {progress.total}</p>
-          <Loader2 className="h-16 w-16 animate-spin text-primary" />
-          <div className="text-center text-muted-foreground w-full">
-            <p>Processing transaction:</p>
-            <p className="font-semibold text-foreground truncate">{txDescription}</p>
-          </div>
-          {suggestion && (
-            <div className="w-full space-y-2 pt-4 border-t text-sm">
-                <p className="font-bold text-center">AI Suggestion</p>
-                 <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                    <span className="text-muted-foreground">Account:</span>
-                    <span className="font-semibold truncate">{suggestion.accountDescription}</span>
-                    <span className="text-muted-foreground">VAT Type:</span>
-                    <span className="font-semibold">{suggestion.vatType}</span>
-                    <span className="text-muted-foreground">Confidence:</span>
-                    <span className="font-semibold">{suggestion.confidence.toFixed(0)}%</span>
+        <div className="space-y-6 py-4">
+            <div className="text-center">
+                <p className="text-sm font-medium text-muted-foreground">Processing Transaction</p>
+                <p className="text-2xl font-bold">{progress.current} of {progress.total}</p>
+                 <Progress value={(progress.current / progress.total) * 100} className="mt-2" />
+            </div>
+
+            <Separator />
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div className="space-y-2 rounded-md border p-4">
+                    <p className="font-semibold">Current Transaction</p>
+                    <p className="text-muted-foreground break-words">{txDescription}</p>
+                </div>
+                 <div className="space-y-2 rounded-md border p-4 flex flex-col justify-center">
+                    <p className="font-semibold">AI Suggestion</p>
+                    {suggestion ? (
+                        <div className="space-y-1">
+                            <p><span className="font-medium text-muted-foreground">Account:</span> {suggestion.accountDescription}</p>
+                            <p><span className="font-medium text-muted-foreground">VAT Type:</span> {suggestion.vatType}</p>
+                            <p><span className="font-medium text-muted-foreground">Confidence:</span> {suggestion.confidence.toFixed(0)}%</p>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin"/>
+                            <span>Awaiting suggestion...</span>
+                        </div>
+                    )}
                 </div>
             </div>
-          )}
         </div>
+         <DialogFooter>
+            <Button variant="destructive" onClick={onStop}>
+                <Ban className="mr-2 h-4 w-4" /> Stop Process
+            </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
+
 
 
 export default function BankTransactionsPage() {
@@ -985,6 +1003,8 @@ export default function BankTransactionsPage() {
       txDescription: string;
       suggestion: { accountId: string; accountDescription: string; vatType: string; confidence: number; } | null;
    } | null>(null);
+  const stopAiAllocation = useRef(false);
+
 
 
   const isVatRegistered = client?.isVatRegistered || false;
@@ -1261,74 +1281,82 @@ export default function BankTransactionsPage() {
     }
   };
   
-    const handleAiAllocate = async () => {
-        if (!client) return;
+  const handleAiAllocate = async () => {
+    if (!client) return;
+    
+    const transactionsToAllocate = filteredAndSortedTransactions.filter(tx => selectedTransactions.includes(tx.id));
+    if (transactionsToAllocate.length === 0) {
+        toast({ title: "No Transactions Selected", description: "Please select one or more transactions to allocate.", variant: "destructive" });
+        return;
+    }
 
-        const transactionsToAllocate = filteredAndSortedTransactions.filter(tx => selectedTransactions.includes(tx.id));
-        if (transactionsToAllocate.length === 0) {
-            toast({ title: "No Transactions Selected", description: "Please select one or more transactions to allocate.", variant: "destructive" });
-            return;
+    setIsAiLoading(true);
+    stopAiAllocation.current = false;
+    const chartOfAccountsStr = JSON.stringify(client.chartOfAccounts?.map(a => ({ id: a.id, accountNumber: a.accountNumber, description: a.description })));
+    let allocatedCount = 0;
+    
+    const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
+
+    for (const [index, tx] of transactionsToAllocate.entries()) {
+        if (stopAiAllocation.current) {
+            toast({ title: "AI Allocation Stopped", description: "The process was stopped by the user.", variant: "destructive" });
+            break;
         }
 
-        setIsAiLoading(true);
-        const chartOfAccountsStr = JSON.stringify(client.chartOfAccounts?.map(a => ({ id: a.id, accountNumber: a.accountNumber, description: a.description })));
-        let allocatedCount = 0;
+        try {
+            setCurrentAiTxInfo({ 
+                progress: { current: index + 1, total: transactionsToAllocate.length },
+                txDescription: tx.description,
+                suggestion: null 
+            });
 
-        const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
+            await delay(1000); // Let user see the "processing" state
+            const suggestion = await suggestTransactionAllocation({ description: tx.description, chartOfAccounts: chartOfAccountsStr });
+            
+            const accountDescription = client.chartOfAccounts?.find(a => a.id === suggestion.accountId)?.description || 'Unknown Account';
+                
+            setCurrentAiTxInfo(prev => ({
+                ...prev!,
+                suggestion: {
+                    accountId: suggestion.accountId,
+                    accountDescription: accountDescription,
+                    vatType: suggestion.vatType,
+                    confidence: suggestion.confidence,
+                }
+            }));
+            
+            await delay(1500); // Give user time to see confidence
 
-        for (const [index, tx] of transactionsToAllocate.entries()) {
-            try {
-                setCurrentAiTxInfo({ 
-                    progress: { current: index + 1, total: transactionsToAllocate.length },
-                    txDescription: tx.description,
-                    suggestion: null 
+            if (suggestion && suggestion.confidence > 50) {
+                await handleSingleAllocate(tx.id, suggestion.accountId, suggestion.vatType);
+                allocatedCount++;
+            }
+        } catch (aiError: any) {
+            console.error(`AI allocation failed for transaction ${tx.id}:`, aiError);
+            if (aiError.message?.includes('429')) {
+                toast({
+                    title: "AI Rate Limit Hit",
+                    description: "Too many requests sent. Please wait and try again.",
+                    variant: "destructive"
                 });
-                
-                await delay(2500); // Wait for user to see the "processing" state
-                const suggestion = await suggestTransactionAllocation({ description: tx.description, chartOfAccounts: chartOfAccountsStr });
-                
-                const accountDescription = client.chartOfAccounts?.find(a => a.id === suggestion.accountId)?.description || 'Unknown Account';
-                
-                 setCurrentAiTxInfo(prev => ({
-                    ...prev!,
-                    suggestion: {
-                        accountId: suggestion.accountId,
-                        accountDescription: accountDescription,
-                        vatType: suggestion.vatType,
-                        confidence: suggestion.confidence,
-                    }
-                }));
-
-                await delay(1000); // Give user time to see confidence
-
-                if (suggestion && suggestion.confidence > 50) {
-                    await handleSingleAllocate(tx.id, suggestion.accountId, suggestion.vatType);
-                    allocatedCount++;
-                }
-            } catch (aiError: any) {
-                console.error(`AI allocation failed for transaction ${tx.id}:`, aiError);
-                 if (aiError.message?.includes('429')) {
-                    toast({
-                        title: "AI Rate Limit Hit",
-                        description: "Too many requests sent. Please wait and try again.",
-                        variant: "destructive"
-                    });
-                    break;
-                }
+                break;
             }
         }
-        
-        setIsAiLoading(false);
-        setCurrentAiTxInfo(null);
-        setSelectedTransactions([]);
-        await fetchClientAndRules();
+    }
+    
+    setIsAiLoading(false);
+    setCurrentAiTxInfo(null);
+    setSelectedTransactions([]);
+    await fetchClientAndRules();
 
+    if (!stopAiAllocation.current) {
         if (allocatedCount > 0) {
             toast({ title: "AI Allocation Complete", description: `${allocatedCount} of ${transactionsToAllocate.length} selected transactions were allocated.` });
         } else {
-             toast({ title: "AI Allocation Finished", description: "The AI did not have high enough confidence to allocate the selected transactions.", variant: "destructive" });
+            toast({ title: "AI Allocation Finished", description: "The AI did not have high enough confidence to allocate the selected transactions.", variant: "destructive" });
         }
-    };
+    }
+  };
 
   const handleUpdateAllocation = async (txId: string, updates: Partial<AllocatedTransaction>) => {
     if (!client) return;
@@ -1857,6 +1885,9 @@ export default function BankTransactionsPage() {
             progress={currentAiTxInfo?.progress || { current: 0, total: 0 }}
             txDescription={currentAiTxInfo?.txDescription || ''} 
             suggestion={currentAiTxInfo?.suggestion || null}
+            onStop={() => {
+                stopAiAllocation.current = true;
+            }}
         />
     </div>
   );
