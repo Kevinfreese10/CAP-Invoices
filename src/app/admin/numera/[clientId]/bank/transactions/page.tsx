@@ -286,7 +286,7 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState<{ key: keyof AllocatedTransaction; direction: 'ascending' | 'descending' } | null>({ key: 'date', direction: 'descending' });
     const { toast } = useToast();
-    const [activeSubTab, setActiveSubTab] = useState<'income' | 'expenses'>('expenses');
+    const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
 
     const isVatRegistered = client?.isVatRegistered || false;
 
@@ -423,8 +423,8 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
             <CardHeader className="p-0 border-b">
                  <Tabs value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'income' | 'expenses')} className="w-full">
                     <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none h-auto">
-                        <TabsTrigger value="income" className="rounded-tl-md">Income ({incomeTransactions.length})</TabsTrigger>
-                        <TabsTrigger value="expenses" className="rounded-tr-md">Expenses ({expenseTransactions.length})</TabsTrigger>
+                        <TabsTrigger value="expenses" className="rounded-tl-md">Expenses ({expenseTransactions.length})</TabsTrigger>
+                        <TabsTrigger value="income" className="rounded-tr-md">Income ({incomeTransactions.length})</TabsTrigger>
                     </TabsList>
                 </Tabs>
                 <div className="p-4">
@@ -887,11 +887,10 @@ function RuleForm({ initialData, onSave, onCancel, client } : {
 
 const newAccountFormSchema = z.object({
   description: z.string().min(3, "Description is required"),
-  accountNumber: z.string().min(7, "Account number is required").regex(/^\d{4}\/\d{3}$/, "Format must be XXXX/XXX"),
-  section: z.enum(['Income Statement', 'Balance Sheet']),
+  accountNumber: z.string().min(7, "Account number must be in format 8400/XXX").regex(/^8400\/\d{3}$/, "Format must be 8400/XXX"),
 });
 
-function CreateAccountDialog({ isOpen, onClose, onSave, client } : {
+function CreateAccountDialog({ isOpen, onClose, onSave, client }: {
     isOpen: boolean;
     onClose: () => void;
     onSave: (account: Omit<ChartOfAccount, 'id' | 'section'>, andSelect: boolean) => void;
@@ -901,13 +900,12 @@ function CreateAccountDialog({ isOpen, onClose, onSave, client } : {
         resolver: zodResolver(newAccountFormSchema),
         defaultValues: {
             description: '',
-            accountNumber: '',
-            section: 'Income Statement',
+            accountNumber: '8400/',
         }
     });
 
     const handleSave = (values: z.infer<typeof newAccountFormSchema>) => {
-        onSave(values, true);
+        onSave({ ...values, section: 'Balance Sheet' }, true);
         onClose();
     }
     
@@ -915,13 +913,12 @@ function CreateAccountDialog({ isOpen, onClose, onSave, client } : {
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle>Create New Account</DialogTitle>
+                    <DialogTitle>Create New Bank Account</DialogTitle>
                 </DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleSave)} className="space-y-4">
-                         <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Account Description</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )}/>
-                         <FormField control={form.control} name="accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} placeholder="e.g., 3800/001" /></FormControl><FormMessage /></FormItem> )}/>
-                          <FormField control={form.control} name="section" render={({ field }) => ( <FormItem><FormLabel>Financial Statement Section</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a section" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Income Statement">Income Statement</SelectItem><SelectItem value="Balance Sheet">Balance Sheet</SelectItem></SelectContent></Select><FormMessage /></FormItem> )}/>
+                         <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Account Description</FormLabel><FormControl><Input {...field} placeholder="e.g., FNB Cheque Account" /></FormControl><FormMessage /></FormItem> )}/>
+                         <FormField control={form.control} name="accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} placeholder="e.g., 8400/001" /></FormControl><FormMessage /></FormItem> )}/>
                          <DialogFooter>
                             <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
                             <Button type="submit">Create Account</Button>
@@ -930,7 +927,7 @@ function CreateAccountDialog({ isOpen, onClose, onSave, client } : {
                 </Form>
             </DialogContent>
         </Dialog>
-    )
+    );
 }
 
 function AIProgressPopup({
@@ -1004,7 +1001,7 @@ export default function BankTransactionsPage() {
   const params = useParams();
   const clientId = params.clientId as string;
   const { toast } = useToast();
-  const [activeSubTab, setActiveSubTab] = useState('expenses');
+  const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
   const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
   const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
   const [ruleTransaction, setRuleTransaction] = useState<ImportedTransaction | AllocatedTransaction | null>(null);
@@ -1494,13 +1491,12 @@ export default function BankTransactionsPage() {
     }
   };
 
-  const handleCreateAccount = async (account: Omit<ChartOfAccount, 'id' | 'section'>) => {
+  const handleCreateAccount = async (account: Omit<ChartOfAccount, 'id'>) => {
     if (!client) return;
     
     const newAccount: ChartOfAccount = {
         ...account,
         id: account.accountNumber,
-        section: 'Balance Sheet',
     };
     try {
         const clientRef = doc(db, 'numeraClients', client.id);
@@ -1614,7 +1610,7 @@ export default function BankTransactionsPage() {
                             <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>
                         ))}
                         <Separator />
-                        <SelectItem value="create-new">Create new account...</SelectItem>
+                        <SelectItem value="create-new">Create new bank account...</SelectItem>
                     </SelectContent>
                 </Select>
             </div>
@@ -1645,13 +1641,13 @@ export default function BankTransactionsPage() {
             <TabsContent value="new" className="mt-0">
                 <Card>
                     <CardHeader className="p-0">
-                       <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="w-full">
+                       <Tabs value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'expenses' | 'income')} className="w-full">
                             <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none h-auto">
-                                <TabsTrigger value="income" className="rounded-tl-md">
-                                    Income ({transactions.filter(t => t.amount >= 0).length})
-                                </TabsTrigger>
-                                <TabsTrigger value="expenses" className="rounded-tr-md">
+                                <TabsTrigger value="expenses" className="rounded-tl-md">
                                      Expenses ({expenseTransactions.length})
+                                </TabsTrigger>
+                                 <TabsTrigger value="income" className="rounded-tr-md">
+                                    Income ({transactions.filter(t => t.amount >= 0).length})
                                 </TabsTrigger>
                             </TabsList>
                         </Tabs>
@@ -1700,7 +1696,7 @@ export default function BankTransactionsPage() {
                                             </AlertDialog>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
-                                    <Button variant="default" size="sm" onClick={() => setIsImportDialogOpen(true)}>Import Bank Statements</Button>
+                                    <Button variant="default" size="sm" onClick={() => setIsImportDialogOpen(true)} disabled={!selectedAccountId}>Import Bank Statements</Button>
                                     <Button variant="outline" size="sm" onClick={() => setIsManageRulesOpen(true)}>
                                         <BookOpen className="mr-2 h-4 w-4" />
                                         Allocation Rules
@@ -1744,8 +1740,7 @@ export default function BankTransactionsPage() {
                                     <SortableHeader sortKey="description">Description</SortableHeader>
                                     <TableHead>Allocate To</TableHead>
                                     {isVatRegistered && <TableHead>VAT Type</TableHead>}
-                                    <SortableHeader sortKey="amount">Spent</SortableHeader>
-                                    <SortableHeader sortKey="amount">Received</SortableHeader>
+                                    <SortableHeader sortKey="amount">{activeSubTab === 'expenses' ? 'Spent' : 'Received'}</SortableHeader>
                                     <TableHead>Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -1806,8 +1801,7 @@ export default function BankTransactionsPage() {
                                                     </Select>
                                                 </TableCell>
                                             )}
-                                            <TableCell className="text-right font-mono">{tx.amount < 0 ? formatPrice(Math.abs(tx.amount)) : ''}</TableCell>
-                                            <TableCell className="text-right font-mono">{tx.amount >= 0 ? formatPrice(tx.amount) : ''}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
                                             <TableCell>
                                                 <Button variant="ghost" size="sm" className="h-8" onClick={() => openRuleDialog(tx)}>
                                                     <Cog className="mr-2 h-4 w-4"/>
@@ -1836,8 +1830,7 @@ export default function BankTransactionsPage() {
                                             </Select>
                                         </TableCell>
                                      )}
-                                    <TableCell><Input className="h-8" placeholder="R" /></TableCell>
-                                    <TableCell><Input className="h-8" placeholder="R" /></TableCell>
+                                    <TableCell><Input className="h-8 text-right font-mono" placeholder="R" /></TableCell>
                                      <TableCell>
                                         <Button variant="ghost" size="sm" className="h-8" disabled>
                                             <Cog className="mr-2 h-4 w-4"/>
@@ -1894,7 +1887,7 @@ export default function BankTransactionsPage() {
         <CreateAccountDialog
             isOpen={isCreateInlineAccountOpen}
             onClose={() => setIsCreateInlineAccountOpen(false)}
-            onSave={handleCreateInlineAccount}
+            onSave={(account: Omit<ChartOfAccount, 'id'>) => handleCreateInlineAccount(account, true)}
             client={client}
         />
 
