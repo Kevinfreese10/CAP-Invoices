@@ -489,12 +489,12 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                                     />
                                 </TableHead>
                                 <SortableHeader sortKey="date">Date</SortableHeader>
-                                <SortableHeader sortKey="reference">Reference</SortableHeader>
                                 <SortableHeader sortKey="description">Description</SortableHeader>
                                 <SortableHeader sortKey="allocatedTo">Allocated To</SortableHeader>
                                 {isVatRegistered && <SortableHeader sortKey="vatType">VAT Type</SortableHeader>}
-                                <SortableHeader sortKey="amount">Amount</SortableHeader>
+                                <SortableHeader sortKey="amount">Exclusive Amount</SortableHeader>
                                 {isVatRegistered && <SortableHeader sortKey="vatAmount">VAT Amount</SortableHeader>}
+                                <SortableHeader sortKey="amount">Total Amount</SortableHeader>
                                 <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -507,6 +507,7 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                                 </TableRow>
                             ) : (
                                 sortedAndFilteredTransactions.map(tx => {
+                                    const exclusiveAmount = tx.amount - tx.vatAmount;
                                     return (
                                         <TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && "selected"}>
                                              <TableCell className="p-2">
@@ -520,7 +521,6 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                                                 />
                                             </TableCell>
                                             <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
-                                            <TableCell>{tx.reference}</TableCell>
                                             <TableCell>{tx.description}</TableCell>
                                             <TableCell className="w-[250px]">
                                                 <Select
@@ -558,8 +558,9 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                                                     </Select>
                                                 </TableCell>
                                             )}
-                                            <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatPrice(exclusiveAmount)}</TableCell>
                                             {isVatRegistered && <TableCell className="text-right font-mono">{formatPrice(tx.vatAmount)}</TableCell>}
+                                            <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
                                             <TableCell className="text-right">
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
