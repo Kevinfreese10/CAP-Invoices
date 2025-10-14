@@ -33,7 +33,7 @@ import { Label } from '@/components/ui/label';
 import { allVatTypes } from '@/lib/vat-types';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Progress } from "@/components/ui/progress";
+import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 
 
 const db = getFirestore(firebaseApp);
@@ -914,56 +914,12 @@ function CreateAccountDialog({ isOpen, onClose, onSave, client } : {
     )
 }
 
-function AIProgressTracker({ jobId, onComplete }: { jobId: string, onComplete: () => void }) {
-    const [progress, setProgress] = useState(0);
-    const [job, setJob] = useState<{ total: number, processed: number, status: 'running' | 'completed' | 'stopped' } | null>(null);
-
-    useEffect(() => {
-        const jobRef = doc(db, 'aiAllocationJobs', jobId);
-        const unsubscribe = onSnapshot(jobRef, (docSnap) => {
-            if (docSnap.exists()) {
-                const jobData = docSnap.data() as any;
-                setJob(jobData);
-                if (jobData.total > 0) {
-                    setProgress((jobData.processed / jobData.total) * 100);
-                }
-                if (jobData.status === 'completed' || jobData.status === 'stopped') {
-                    onComplete();
-                }
-            }
-        });
-        return () => unsubscribe();
-    }, [jobId, onComplete]);
-
-    const handleStopJob = async () => {
-        const jobRef = doc(db, 'aiAllocationJobs', jobId);
-        await updateDoc(jobRef, { status: 'stopped' });
-    }
-
-    if (!job || (job.status !== 'running' && job.status !== 'stopped')) return null;
-
-    return (
-        <div className="p-4 border rounded-lg my-4 space-y-2 bg-muted/50">
-            <div className="flex justify-between items-center">
-                <p className="text-sm font-medium">
-                    {job.status === 'stopped' ? 'AI Allocation Stopped' : 'AI Allocation in Progress...'}
-                </p>
-                 <Button variant="destructive" size="sm" onClick={handleStopJob} disabled={job.status !== 'running'}>
-                    <Ban className="mr-2 h-4 w-4" /> Stop
-                </Button>
-            </div>
-            <Progress value={progress} />
-            <p className="text-xs text-muted-foreground text-center">Processed {job.processed} of {job.total} transactions</p>
-        </div>
-    );
-}
-
-
 export default function BankTransactionsPage() {
   const [client, setClient] = useState<User | null>(null);
   const [bankAccounts, setBankAccounts] = useState<ChartOfAccount[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAiLoading, setIsAiLoading] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const params = useParams();
   const clientId = params.clientId as string;
@@ -1233,7 +1189,6 @@ export default function BankTransactionsPage() {
     }
   };
 
-
   const handleBulkDelete = async () => {
     if (!client || selectedTransactions.length === 0) return;
 
@@ -1256,34 +1211,38 @@ export default function BankTransactionsPage() {
   };
   
     const handleAiAllocate = async () => {
-        if (!client || selectedTransactions.length === 0) return;
-        
-        const transactionsToAllocate = filteredAndSortedTransactions.filter(tx => selectedTransactions.includes(tx.id));
-
-        if(transactionsToAllocate.length === 0) {
+        if (!client || selectedTransactions.length === 0) {
             toast({ title: "No Transactions Selected", description: "Please select one or more transactions to allocate.", variant: "destructive" });
             return;
         }
 
-        try {
-            const response = await fetch('/api/numera/start-ai-allocation', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ clientId: client.id, transactions: transactionsToAllocate }),
-            });
+        setIsAiLoading(true);
+        const transactionsToAllocate = filteredAndSortedTransactions.filter(tx => selectedTransactions.includes(tx.id));
+        const chartOfAccountsStr = JSON.stringify(client.chartOfAccounts?.map(a => ({ id: a.id, accountNumber: a.accountNumber, description: a.description })));
+        let allocatedCount = 0;
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to start AI allocation job.');
+        toast({ title: "AI Allocation Started", description: `Processing ${transactionsToAllocate.length} transactions...` });
+
+        for (const tx of transactionsToAllocate) {
+            try {
+                const suggestion = await suggestTransactionAllocation({ description: tx.description, chartOfAccounts: chartOfAccountsStr });
+                if (suggestion && suggestion.confidence > 50) {
+                    await handleSingleAllocate(tx.id, suggestion.accountId, suggestion.vatType);
+                    allocatedCount++;
+                }
+            } catch (aiError) {
+                console.error(`AI allocation failed for transaction ${tx.id}:`, aiError);
             }
+        }
+        
+        setIsAiLoading(false);
+        setSelectedTransactions([]);
+        await fetchClientAndRules();
 
-            const { jobId, message } = await response.json();
-            setActiveJobId(jobId);
-            toast({ title: "AI Job Started", description: message });
-            setSelectedTransactions([]);
-
-        } catch (error: any) {
-            toast({ title: "Error", description: error.message, variant: "destructive" });
+        if (allocatedCount > 0) {
+            toast({ title: "AI Allocation Complete", description: `${allocatedCount} of ${transactionsToAllocate.length} selected transactions were allocated.` });
+        } else {
+             toast({ title: "AI Allocation Finished", description: "The AI did not have high enough confidence to allocate the selected transactions.", variant: "destructive" });
         }
     };
 
@@ -1617,8 +1576,8 @@ export default function BankTransactionsPage() {
                                         Allocation Rules
                                     </Button>
                                      {activeSubTab === 'expenses' && (
-                                        <Button variant="outline" size="sm" onClick={handleAiAllocate} disabled={!!activeJobId || selectedTransactions.length === 0}>
-                                            {!!activeJobId ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                                        <Button variant="outline" size="sm" onClick={handleAiAllocate} disabled={isAiLoading || selectedTransactions.length === 0}>
+                                            {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                                             AI Allocate Selected
                                         </Button>
                                     )}
@@ -1631,7 +1590,6 @@ export default function BankTransactionsPage() {
                                     <Button variant="ghost" size="icon" className="h-8 w-8"><Settings className="h-4 w-4" /></Button>
                                 </div>
                             </div>
-                            {activeJobId && <AIProgressTracker jobId={activeJobId} onComplete={() => { setActiveJobId(null); fetchClientAndRules(); }} />}
                         </div>
                     </CardHeader>
                     <CardContent className="p-0">
@@ -1812,6 +1770,7 @@ export default function BankTransactionsPage() {
     </div>
   );
 }
+
 
 
 
