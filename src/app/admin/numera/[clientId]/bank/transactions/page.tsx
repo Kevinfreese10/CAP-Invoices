@@ -1256,13 +1256,20 @@ export default function BankTransactionsPage() {
   };
   
     const handleAiAllocate = async () => {
-        if (!client || expenseTransactions.length === 0) return;
+        if (!client || selectedTransactions.length === 0) return;
+        
+        const transactionsToAllocate = filteredAndSortedTransactions.filter(tx => selectedTransactions.includes(tx.id));
+
+        if(transactionsToAllocate.length === 0) {
+            toast({ title: "No Transactions Selected", description: "Please select one or more transactions to allocate.", variant: "destructive" });
+            return;
+        }
 
         try {
             const response = await fetch('/api/numera/start-ai-allocation', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ clientId: client.id, transactions: expenseTransactions }),
+                body: JSON.stringify({ clientId: client.id, transactions: transactionsToAllocate }),
             });
 
             if (!response.ok) {
@@ -1273,6 +1280,7 @@ export default function BankTransactionsPage() {
             const { jobId, message } = await response.json();
             setActiveJobId(jobId);
             toast({ title: "AI Job Started", description: message });
+            setSelectedTransactions([]);
 
         } catch (error: any) {
             toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -1609,9 +1617,9 @@ export default function BankTransactionsPage() {
                                         Allocation Rules
                                     </Button>
                                      {activeSubTab === 'expenses' && (
-                                        <Button variant="outline" size="sm" onClick={handleAiAllocate} disabled={!!activeJobId}>
+                                        <Button variant="outline" size="sm" onClick={handleAiAllocate} disabled={!!activeJobId || selectedTransactions.length === 0}>
                                             {!!activeJobId ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                                            AI Allocate
+                                            AI Allocate Selected
                                         </Button>
                                     )}
                                 </div>
@@ -1804,6 +1812,7 @@ export default function BankTransactionsPage() {
     </div>
   );
 }
+
 
 
 

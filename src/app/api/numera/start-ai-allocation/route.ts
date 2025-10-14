@@ -1,6 +1,7 @@
+
 // /src/app/api/numera/start-ai-allocation/route.ts
 import { NextResponse } from 'next/server';
-import { getFirestore, doc, updateDoc, arrayUnion, writeBatch, collection, addDoc, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, arrayUnion, writeBatch, collection, addDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { ImportedTransaction, AllocatedTransaction, User, VatType } from '@/lib/types';
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
@@ -23,17 +24,14 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Client ID and transactions are required.' }, { status: 400 });
         }
 
-        const jobId = `job_${Date.now()}`;
-        const jobRef = doc(db, 'aiAllocationJobs', jobId);
-
-        await addDoc(collection(db, 'aiAllocationJobs'), {
-            id: jobId,
+        const jobRef = await addDoc(collection(db, 'aiAllocationJobs'), {
             clientId,
             status: 'running',
             total: transactions.length,
             processed: 0,
-            createdAt: new Date(),
+            createdAt: serverTimestamp(),
         });
+        const jobId = jobRef.id;
         
         // Start the background job but don't wait for it
         processTransactionsInBackground(jobId, clientId, transactions);
@@ -47,6 +45,8 @@ export async function POST(req: Request) {
 }
 
 async function processTransactionsInBackground(jobId: string, clientId: string, transactions: ImportedTransaction[]) {
+    const jobRef = doc(db, 'aiAllocationJobs', jobId);
+
     try {
         const clientRef = doc(db, 'numeraClients', clientId);
         const clientSnap = await getDoc(clientRef);
@@ -62,7 +62,6 @@ async function processTransactionsInBackground(jobId: string, clientId: string, 
         let processedCount = 0;
 
         for (const tx of transactions) {
-            const jobRef = doc(db, 'aiAllocationJobs', jobId);
             const jobSnap = await getDoc(jobRef);
             if (jobSnap.exists() && jobSnap.data().status === 'stopped') {
                 console.log(`Job ${jobId} was stopped by the user.`);
@@ -82,8 +81,11 @@ async function processTransactionsInBackground(jobId: string, clientId: string, 
                     };
                     
                     const batch = writeBatch(db);
+                    const currentClientData = (await getDoc(clientRef)).data() as User;
+                    const updatedImported = currentClientData.importedTransactions?.filter(impTx => impTx.id !== tx.id) || [];
+                    
                     batch.update(clientRef, {
-                        importedTransactions: arrayRemove(tx),
+                        importedTransactions: updatedImported,
                         allocatedTransactions: arrayUnion(allocatedTx)
                     });
                     await batch.commit();
@@ -97,14 +99,12 @@ async function processTransactionsInBackground(jobId: string, clientId: string, 
         }
 
         // Mark job as complete
-        const finalJobRef = doc(db, 'aiAllocationJobs', jobId);
-        await updateDoc(finalJobRef, { status: 'completed', completedAt: new Date() });
+        await updateDoc(jobRef, { status: 'completed', completedAt: serverTimestamp() });
 
         console.log(`AI Allocation job ${jobId} completed successfully.`);
 
     } catch (error) {
         console.error(`Error in background job ${jobId}:`, error);
-        const jobRef = doc(db, 'aiAllocationJobs', jobId);
         await updateDoc(jobRef, { status: 'failed', error: String(error) });
     }
 }
