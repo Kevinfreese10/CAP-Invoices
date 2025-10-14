@@ -281,26 +281,172 @@ function ImportDialog({
   );
 }
 
+type Anomaly = {
+    accountId: string;
+    accountDescription: string;
+    conflictingVatTypes: VatType[];
+};
+
+function AiReviewDialog({
+    isOpen,
+    onClose,
+    anomalies,
+    onResolve,
+    client
+}: {
+    isOpen: boolean;
+    onClose: () => void;
+    anomalies: Anomaly[];
+    onResolve: (accountId: string, correctVatType: VatType) => void;
+    client: User | null;
+}) {
+    const [currentAnomalyIndex, setCurrentAnomalyIndex] = useState(0);
+    const [selectedVatType, setSelectedVatType] = useState<VatType | null>(null);
+
+    const currentAnomaly = anomalies[currentAnomalyIndex];
+
+    useEffect(() => {
+        if (currentAnomaly) {
+            setSelectedVatType(currentAnomaly.conflictingVatTypes[0]);
+        }
+    }, [currentAnomaly]);
+
+    if (!isOpen || !currentAnomaly) {
+        return null;
+    }
+
+    const handleSaveAndNext = () => {
+        if (selectedVatType) {
+            onResolve(currentAnomaly.accountId, selectedVatType);
+            if (currentAnomalyIndex < anomalies.length - 1) {
+                setCurrentAnomalyIndex(currentAnomalyIndex + 1);
+            } else {
+                onClose();
+            }
+        }
+    };
+    
+    return (
+         <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                    <DialogTitle>AI Review: VAT Inconsistency</DialogTitle>
+                     <DialogDescription>
+                        Anomaly {currentAnomalyIndex + 1} of {anomalies.length}.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                     <p>
+                        The account <span className="font-semibold">{currentAnomaly.accountDescription}</span> has been allocated with multiple VAT types. Please select the correct one.
+                    </p>
+                    <RadioGroup value={selectedVatType || ''} onValueChange={(value) => setSelectedVatType(value as VatType)}>
+                        {currentAnomaly.conflictingVatTypes.map(vatType => {
+                            const vatLabel = allVatTypes.find(v => v.name === vatType)?.label || vatType;
+                            return (
+                                <div key={vatType} className="flex items-center space-x-2">
+                                    <RadioGroupItem value={vatType} id={vatType} />
+                                    <Label htmlFor={vatType}>{vatLabel}</Label>
+                                </div>
+                            );
+                        })}
+                    </RadioGroup>
+                </div>
+                 <DialogFooter>
+                    <Button variant="ghost" onClick={onClose}>Cancel</Button>
+                    <Button onClick={handleSaveAndNext}>Save and Next</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransaction, onUpdateAllocation }: { client: User | null; fetchClient: () => void; openRuleDialogForTransaction: (tx: AllocatedTransaction) => void; onUpdateAllocation: (txId: string, updates: Partial<AllocatedTransaction>) => void; }) {
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState<{ key: keyof AllocatedTransaction; direction: 'ascending' | 'descending' } | null>({ key: 'date', direction: 'descending' });
     const { toast } = useToast();
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
+    const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
+    const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
 
     const isVatRegistered = client?.isVatRegistered || false;
+    
+    const handleAiReview = () => {
+        if (!client || !client.allocatedTransactions) return;
+
+        const accountsMap = new Map<string, VatType[]>();
+        
+        client.allocatedTransactions.forEach(tx => {
+            const accountId = tx.allocatedTo.value;
+            if (!accountsMap.has(accountId)) {
+                accountsMap.set(accountId, []);
+            }
+            if (!accountsMap.get(accountId)!.includes(tx.vatType)) {
+                accountsMap.get(accountId)!.push(tx.vatType);
+            }
+        });
+
+        const foundAnomalies: Anomaly[] = [];
+        accountsMap.forEach((vatTypes, accountId) => {
+            if (vatTypes.length > 1) {
+                const account = client.chartOfAccounts?.find(acc => acc.id === accountId);
+                foundAnomalies.push({
+                    accountId: accountId,
+                    accountDescription: account ? `${account.accountNumber} - ${account.description}` : 'Unknown Account',
+                    conflictingVatTypes: vatTypes,
+                });
+            }
+        });
+
+        if (foundAnomalies.length > 0) {
+            setAnomalies(foundAnomalies);
+            setIsReviewDialogOpen(true);
+        } else {
+            toast({ title: 'No Inconsistencies Found', description: 'The AI did not find any VAT allocation anomalies.' });
+        }
+    };
+    
+    const handleResolveAnomaly = async (accountId: string, correctVatType: VatType) => {
+        if (!client || !client.allocatedTransactions) return;
+
+        const transactionsToUpdate = client.allocatedTransactions.filter(
+            tx => tx.allocatedTo.value === accountId && tx.vatType !== correctVatType
+        );
+
+        if (transactionsToUpdate.length === 0) return;
+
+        const updatedTransactions = client.allocatedTransactions.map(tx => {
+            if (tx.allocatedTo.value === accountId) {
+                return {
+                    ...tx,
+                    vatType: correctVatType,
+                    vatAmount: calculateVat(tx.amount, correctVatType, isVatRegistered),
+                };
+            }
+            return tx;
+        });
+
+        try {
+            const clientRef = doc(db, 'numeraClients', client.id);
+            await updateDoc(clientRef, { allocatedTransactions: updatedTransactions });
+            toast({ title: 'Anomalies Corrected', description: `${transactionsToUpdate.length} transactions have been updated.`});
+            await fetchClient();
+        } catch (error) {
+            toast({ title: 'Correction Failed', description: 'Could not apply corrections.', variant: 'destructive'});
+        }
+    };
 
     const handleBulkDelete = async () => {
         if (!client || selectedTransactions.length === 0) return;
 
-        const transactionsToDelete = client.allocatedTransactions?.filter(
-            (tx) => selectedTransactions.includes(tx.id)
+        const remainingTransactions = client.allocatedTransactions?.filter(
+            (tx) => !selectedTransactions.includes(tx.id)
         ) || [];
 
         try {
             const clientRef = doc(db, 'numeraClients', client.id);
             await updateDoc(clientRef, {
-                allocatedTransactions: arrayRemove(...transactionsToDelete)
+                allocatedTransactions: remainingTransactions
             });
             toast({ title: 'Transactions Deleted', description: `${selectedTransactions.length} transactions have been removed.`, variant: 'destructive' });
             setSelectedTransactions([]);
@@ -419,6 +565,7 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
 
 
     return (
+        <>
         <Card>
             <CardHeader className="p-0 border-b">
                  <Tabs value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'income' | 'expenses')} className="w-full">
@@ -456,6 +603,10 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                                     </AlertDialog>
                                 </DropdownMenuContent>
                             </DropdownMenu>
+                            <Button variant="outline" size="sm" onClick={handleAiReview} disabled={!client?.allocatedTransactions?.length}>
+                                <Sparkles className="mr-2 h-4 w-4" />
+                                AI Review
+                            </Button>
                         </div>
                         <div className="flex items-center gap-2">
                             <div className="relative">
@@ -580,6 +731,14 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                 </div>
             </CardContent>
         </Card>
+        <AiReviewDialog
+            isOpen={isReviewDialogOpen}
+            onClose={() => setIsReviewDialogOpen(false)}
+            anomalies={anomalies}
+            onResolve={handleResolveAnomaly}
+            client={client}
+        />
+        </>
     )
 }
 
