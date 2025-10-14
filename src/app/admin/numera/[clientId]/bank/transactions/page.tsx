@@ -917,12 +917,14 @@ function CreateAccountDialog({ isOpen, onClose, onSave, client } : {
 
 function AIProgressPopup({
   isOpen,
+  progress,
   txDescription,
-  confidence,
+  suggestion,
 }: {
   isOpen: boolean;
+  progress: { current: number; total: number; };
   txDescription: string;
-  confidence: number | null;
+  suggestion: { accountId: string; accountDescription: string; vatType: string; confidence: number; } | null;
 }) {
   return (
     <Dialog open={isOpen}>
@@ -931,15 +933,24 @@ function AIProgressPopup({
           <DialogTitle className="text-center">AI is Allocating...</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col items-center justify-center space-y-4 py-8">
+          <p className="font-semibold">{progress.current} of {progress.total}</p>
           <Loader2 className="h-16 w-16 animate-spin text-primary" />
-          <p className="text-center text-muted-foreground">
-            Processing transaction: <br/>
-            <span className="font-semibold text-foreground">{txDescription}</span>
-          </p>
-          {confidence !== null && (
-            <p className="text-lg font-bold">
-              Confidence: {confidence.toFixed(0)}%
-            </p>
+          <div className="text-center text-muted-foreground w-full">
+            <p>Processing transaction:</p>
+            <p className="font-semibold text-foreground truncate">{txDescription}</p>
+          </div>
+          {suggestion && (
+            <div className="w-full space-y-2 pt-4 border-t text-sm">
+                <p className="font-bold text-center">AI Suggestion</p>
+                 <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                    <span className="text-muted-foreground">Account:</span>
+                    <span className="font-semibold truncate">{suggestion.accountDescription}</span>
+                    <span className="text-muted-foreground">VAT Type:</span>
+                    <span className="font-semibold">{suggestion.vatType}</span>
+                    <span className="text-muted-foreground">Confidence:</span>
+                    <span className="font-semibold">{suggestion.confidence.toFixed(0)}%</span>
+                </div>
+            </div>
           )}
         </div>
       </DialogContent>
@@ -969,7 +980,11 @@ export default function BankTransactionsPage() {
   const [lastSelectedTxId, setLastSelectedTxId] = useState<string | null>(null);
 
   const [isAiLoading, setIsAiLoading] = useState(false);
-  const [currentAiTxInfo, setCurrentAiTxInfo] = useState<{ description: string; confidence: number | null; } | null>(null);
+  const [currentAiTxInfo, setCurrentAiTxInfo] = useState<{ 
+      progress: { current: number; total: number; },
+      txDescription: string;
+      suggestion: { accountId: string; accountDescription: string; vatType: string; confidence: number; } | null;
+   } | null>(null);
 
 
   const isVatRegistered = client?.isVatRegistered || false;
@@ -1256,19 +1271,34 @@ export default function BankTransactionsPage() {
         }
 
         setIsAiLoading(true);
-        setCurrentAiTxInfo({ description: `Starting job for ${transactionsToAllocate.length} transactions...`, confidence: null });
         const chartOfAccountsStr = JSON.stringify(client.chartOfAccounts?.map(a => ({ id: a.id, accountNumber: a.accountNumber, description: a.description })));
         let allocatedCount = 0;
 
         const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
-        for (const tx of transactionsToAllocate) {
+        for (const [index, tx] of transactionsToAllocate.entries()) {
             try {
-                setCurrentAiTxInfo({ description: tx.description, confidence: null });
-                await delay(2500);
+                setCurrentAiTxInfo({ 
+                    progress: { current: index + 1, total: transactionsToAllocate.length },
+                    txDescription: tx.description,
+                    suggestion: null 
+                });
+                
+                await delay(2500); // Wait for user to see the "processing" state
                 const suggestion = await suggestTransactionAllocation({ description: tx.description, chartOfAccounts: chartOfAccountsStr });
                 
-                setCurrentAiTxInfo({ description: tx.description, confidence: suggestion.confidence });
+                const accountDescription = client.chartOfAccounts?.find(a => a.id === suggestion.accountId)?.description || 'Unknown Account';
+                
+                 setCurrentAiTxInfo(prev => ({
+                    ...prev!,
+                    suggestion: {
+                        accountId: suggestion.accountId,
+                        accountDescription: accountDescription,
+                        vatType: suggestion.vatType,
+                        confidence: suggestion.confidence,
+                    }
+                }));
+
                 await delay(1000); // Give user time to see confidence
 
                 if (suggestion && suggestion.confidence > 50) {
@@ -1824,8 +1854,9 @@ export default function BankTransactionsPage() {
 
         <AIProgressPopup 
             isOpen={isAiLoading} 
-            txDescription={currentAiTxInfo?.description || ''} 
-            confidence={currentAiTxInfo?.confidence || null}
+            progress={currentAiTxInfo?.progress || { current: 0, total: 0 }}
+            txDescription={currentAiTxInfo?.txDescription || ''} 
+            suggestion={currentAiTxInfo?.suggestion || null}
         />
     </div>
   );
