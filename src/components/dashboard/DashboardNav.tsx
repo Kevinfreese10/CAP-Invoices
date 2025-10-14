@@ -29,6 +29,7 @@ import {
   MessageCircleQuestion,
   Wrench,
   PanelLeft,
+  ChevronDown,
 } from 'lucide-react';
 
 import {
@@ -170,6 +171,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
                                 <SidebarMenuButton isActive={pathname.startsWith('/admin/cap-suppliers')} tooltip="CAP Suppliers">
                                     <FileText />
                                     <span>CAP Suppliers</span>
+                                    <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200 group-[[data-state=open]]:rotate-180" />
                                 </SidebarMenuButton>
                             </CollapsibleTrigger>
                         </SidebarMenuItem>
@@ -195,6 +197,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
                             <SidebarMenuButton isActive={pathname.startsWith('/admin/settings')} tooltip="Settings">
                                 <Settings />
                                 <span>Settings</span>
+                                <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200 group-[[data-state=open]]:rotate-180" />
                             </SidebarMenuButton>
                         </CollapsibleTrigger>
                     </SidebarMenuItem>
