@@ -1806,8 +1806,8 @@ export default function BankTransactionsPage() {
                                                     </Select>
                                                 </TableCell>
                                             )}
-                                            <TableCell className="text-right">{tx.amount < 0 ? formatPrice(Math.abs(tx.amount)) : ''}</TableCell>
-                                            <TableCell className="text-right">{tx.amount >= 0 ? formatPrice(tx.amount) : ''}</TableCell>
+                                            <TableCell className="text-right font-mono">{tx.amount < 0 ? formatPrice(Math.abs(tx.amount)) : ''}</TableCell>
+                                            <TableCell className="text-right font-mono">{tx.amount >= 0 ? formatPrice(tx.amount) : ''}</TableCell>
                                             <TableCell>
                                                 <Button variant="ghost" size="sm" className="h-8" onClick={() => openRuleDialog(tx)}>
                                                     <Cog className="mr-2 h-4 w-4"/>
@@ -1910,4 +1910,3 @@ export default function BankTransactionsPage() {
     </div>
   );
 }
-
