@@ -293,16 +293,16 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
     const handleBulkDelete = async () => {
         if (!client || selectedTransactions.length === 0) return;
 
-        const remainingTransactions = client.allocatedTransactions?.filter(
-            (tx) => !selectedTransactions.includes(tx.id)
+        const transactionsToDelete = client.allocatedTransactions?.filter(
+            (tx) => selectedTransactions.includes(tx.id)
         ) || [];
 
         try {
             const clientRef = doc(db, 'numeraClients', client.id);
             await updateDoc(clientRef, {
-                allocatedTransactions: remainingTransactions
+                allocatedTransactions: arrayRemove(...transactionsToDelete)
             });
-            toast({ title: 'Transactions Deleted', description: `${selectedTransactions.length} transactions have been removed.` });
+            toast({ title: 'Transactions Deleted', description: `${selectedTransactions.length} transactions have been removed.`, variant: 'destructive' });
             setSelectedTransactions([]);
             await fetchClient();
         } catch (error) {
