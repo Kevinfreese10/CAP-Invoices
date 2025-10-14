@@ -34,13 +34,12 @@ export async function sendEmail({ to, subject, html, from, bcc, resellerId, atta
   const transporter = nodemailer.createTransport({
     host: smtpConfig.host,
     port: parseInt(smtpConfig.port, 10),
-    secure: true, // Use SSL/TLS
+    secure: parseInt(smtpConfig.port, 10) === 465,
     auth: {
       user: smtpConfig.user,
       pass: smtpConfig.pass,
     },
     tls: {
-      // This is often required for servers with self-signed certificates
       rejectUnauthorized: false,
     },
   });
@@ -58,7 +57,6 @@ export async function sendEmail({ to, subject, html, from, bcc, resellerId, atta
       console.log('Email sent successfully via SMTP:', info.messageId);
       return info;
   } catch (error: any) {
-      // Log the detailed error from nodemailer
       console.error('Nodemailer Error:', error);
       throw new Error(`SMTP Error: ${error.code || 'Unknown'} - ${error.message}`);
   }
