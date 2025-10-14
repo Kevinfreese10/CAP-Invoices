@@ -915,48 +915,6 @@ function CreateAccountDialog({ isOpen, onClose, onSave, client } : {
     )
 }
 
-function AIProgressTracker({ jobId, onStop }: { jobId: string | null; onStop: () => void }) {
-    const [job, setJob] = useState<AIAllocationJob | null>(null);
-
-    useEffect(() => {
-        if (!jobId) {
-            setJob(null);
-            return;
-        };
-
-        const unsubscribe = onSnapshot(doc(db, 'aiAllocationJobs', jobId), (doc) => {
-            if (doc.exists()) {
-                setJob({ id: doc.id, ...doc.data() } as AIAllocationJob);
-            } else {
-                setJob(null);
-            }
-        });
-
-        return () => unsubscribe();
-    }, [jobId]);
-
-    if (!job || job.status === 'completed' || job.status === 'stopped') return null;
-
-    const progress = job.total > 0 ? (job.processed / job.total) * 100 : 0;
-
-    return (
-        <div className="w-full flex items-center gap-4 p-2 border rounded-lg bg-muted/50">
-            <Sparkles className="h-5 w-5 text-primary" />
-            <div className="flex-grow">
-                <div className="flex justify-between items-center mb-1">
-                    <p className="text-sm font-semibold">AI Allocation in Progress...</p>
-                    <p className="text-xs text-muted-foreground">{job.processed} / {job.total} transactions</p>
-                </div>
-                <Progress value={progress} className="h-2" />
-            </div>
-             <Button variant="destructive" size="sm" onClick={onStop}>
-                <Ban className="mr-2 h-4 w-4" />
-                Stop
-            </Button>
-        </div>
-    );
-}
-
 export default function BankTransactionsPage() {
   const [client, setClient] = useState<User | null>(null);
   const [bankAccounts, setBankAccounts] = useState<ChartOfAccount[]>([]);
@@ -977,7 +935,6 @@ export default function BankTransactionsPage() {
   const [isCreateInlineAccountOpen, setIsCreateInlineAccountOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: keyof ImportedTransaction; direction: 'ascending' | 'descending' } | null>({ key: 'date', direction: 'descending' });
   const [lastSelectedTxId, setLastSelectedTxId] = useState<string | null>(null);
-  const [activeJobId, setActiveJobId] = useState<string | null>(null);
 
   const isVatRegistered = client?.isVatRegistered || false;
 
@@ -1272,7 +1229,7 @@ export default function BankTransactionsPage() {
 
         for (const tx of transactionsToAllocate) {
             try {
-                await delay(1000); // 1-second delay to avoid rate limiting
+                await delay(2500); // 2.5-second delay to avoid rate limiting
                 const suggestion = await suggestTransactionAllocation({ description: tx.description, chartOfAccounts: chartOfAccountsStr });
                 if (suggestion && suggestion.confidence > 50) {
                     await handleSingleAllocate(tx.id, suggestion.accountId, suggestion.vatType);
@@ -1454,7 +1411,7 @@ export default function BankTransactionsPage() {
     }
   };
   
-   const handleCreateInlineAccount = async (account: Omit<ChartOfAccount, 'id' | 'section'>, andSelect?: boolean) => {
+   const handleCreateInlineAccount = async (account: Omit<ChartOfAccount, 'id'>, andSelect?: boolean) => {
     if (!client) return;
 
     const newAccount: ChartOfAccount = {
@@ -1826,6 +1783,7 @@ export default function BankTransactionsPage() {
     </div>
   );
 }
+
 
 
 
