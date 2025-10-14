@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1310,7 +1310,7 @@ export default function BankTransactionsPage() {
                 suggestion: null 
             });
 
-            await delay(1000); // Let user see the "processing" state
+            await delay(2500); // Let user see the "processing" state
             const suggestion = await suggestTransactionAllocation({ description: tx.description, chartOfAccounts: chartOfAccountsStr });
             
             const accountDescription = client.chartOfAccounts?.find(a => a.id === suggestion.accountId)?.description || 'Unknown Account';
