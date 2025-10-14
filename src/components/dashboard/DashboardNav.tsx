@@ -28,6 +28,7 @@ import {
   Banknote,
   MessageCircleQuestion,
   Wrench,
+  PanelLeft,
 } from 'lucide-react';
 
 import {
@@ -42,6 +43,8 @@ import {
   SidebarMenuButton,
   SidebarFooter,
   SidebarSeparator,
+  SidebarTrigger,
+  useSidebar,
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/contexts/AuthContext';
 import type { User as UserType } from '@/lib/types';
@@ -53,6 +56,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const pathname = usePathname();
   const router = useRouter();
   const { logout } = useAuth();
+  const { state, toggleSidebar } = useSidebar();
   const [isSettingsOpen, setIsSettingsOpen] = useState(pathname.startsWith('/admin/settings'));
   const [isCapSuppliersOpen, setIsCapSuppliersOpen] = useState(pathname.startsWith('/admin/cap-suppliers'));
 
@@ -115,11 +119,19 @@ export default function DashboardNav({ user }: { user: UserType }) {
   return (
     <>
       <SidebarHeader>
-        <div className="flex items-center gap-3 p-2">
-            <div className="flex flex-col overflow-hidden">
-                <span className="font-semibold text-sm truncate">{user.companyName || user.name}</span>
-                <span className="text-xs text-muted-foreground capitalize truncate">{user.role}</span>
+        <div className={cn("flex items-center gap-3 p-2", state === 'collapsed' && 'p-0')}>
+            <div className={cn("flex-1 overflow-hidden", state === 'collapsed' && 'hidden')}>
+                <p className="font-semibold text-sm truncate">{user.companyName || user.name}</p>
+                <p className="text-xs text-muted-foreground capitalize truncate">{user.role}</p>
             </div>
+             <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={toggleSidebar}
+            >
+                <PanelLeft className={cn("transition-transform", state === 'collapsed' && 'rotate-180')} />
+            </Button>
         </div>
       </SidebarHeader>
 
