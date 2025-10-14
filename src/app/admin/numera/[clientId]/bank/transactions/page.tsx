@@ -15,7 +15,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
-import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule } from '@/lib/types';
+import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, AIAllocationJob } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove, addDoc, collection, getDocs, query, orderBy, where, writeBatch, onSnapshot, Unsubscribe } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -34,6 +34,7 @@ import { allVatTypes } from '@/lib/vat-types';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
+import { Progress } from '@/components/ui/progress';
 
 
 const db = getFirestore(firebaseApp);
@@ -875,7 +876,7 @@ const newAccountFormSchema = z.object({
 function CreateAccountDialog({ isOpen, onClose, onSave, client } : {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (account: Omit<ChartOfAccount, 'id' >, andSelect: boolean) => void;
+    onSave: (account: Omit<ChartOfAccount, 'id' | 'section'>, andSelect: boolean) => void;
     client: User | null;
 }) {
     const form = useForm<z.infer<typeof newAccountFormSchema>>({
@@ -912,6 +913,48 @@ function CreateAccountDialog({ isOpen, onClose, onSave, client } : {
             </DialogContent>
         </Dialog>
     )
+}
+
+function AIProgressTracker({ jobId, onStop }: { jobId: string | null; onStop: () => void }) {
+    const [job, setJob] = useState<AIAllocationJob | null>(null);
+
+    useEffect(() => {
+        if (!jobId) {
+            setJob(null);
+            return;
+        };
+
+        const unsubscribe = onSnapshot(doc(db, 'aiAllocationJobs', jobId), (doc) => {
+            if (doc.exists()) {
+                setJob({ id: doc.id, ...doc.data() } as AIAllocationJob);
+            } else {
+                setJob(null);
+            }
+        });
+
+        return () => unsubscribe();
+    }, [jobId]);
+
+    if (!job || job.status === 'completed' || job.status === 'stopped') return null;
+
+    const progress = job.total > 0 ? (job.processed / job.total) * 100 : 0;
+
+    return (
+        <div className="w-full flex items-center gap-4 p-2 border rounded-lg bg-muted/50">
+            <Sparkles className="h-5 w-5 text-primary" />
+            <div className="flex-grow">
+                <div className="flex justify-between items-center mb-1">
+                    <p className="text-sm font-semibold">AI Allocation in Progress...</p>
+                    <p className="text-xs text-muted-foreground">{job.processed} / {job.total} transactions</p>
+                </div>
+                <Progress value={progress} className="h-2" />
+            </div>
+             <Button variant="destructive" size="sm" onClick={onStop}>
+                <Ban className="mr-2 h-4 w-4" />
+                Stop
+            </Button>
+        </div>
+    );
 }
 
 export default function BankTransactionsPage() {
@@ -1211,27 +1254,40 @@ export default function BankTransactionsPage() {
   };
   
     const handleAiAllocate = async () => {
-        if (!client || selectedTransactions.length === 0) {
+        if (!client) return;
+
+        const transactionsToAllocate = filteredAndSortedTransactions.filter(tx => selectedTransactions.includes(tx.id));
+        if (transactionsToAllocate.length === 0) {
             toast({ title: "No Transactions Selected", description: "Please select one or more transactions to allocate.", variant: "destructive" });
             return;
         }
 
         setIsAiLoading(true);
-        const transactionsToAllocate = filteredAndSortedTransactions.filter(tx => selectedTransactions.includes(tx.id));
         const chartOfAccountsStr = JSON.stringify(client.chartOfAccounts?.map(a => ({ id: a.id, accountNumber: a.accountNumber, description: a.description })));
         let allocatedCount = 0;
 
-        toast({ title: "AI Allocation Started", description: `Processing ${transactionsToAllocate.length} transactions...` });
+        toast({ title: "AI Allocation Started", description: `Processing ${transactionsToAllocate.length} transactions... This may take a moment.` });
+        
+        const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
         for (const tx of transactionsToAllocate) {
             try {
+                await delay(1000); // 1-second delay to avoid rate limiting
                 const suggestion = await suggestTransactionAllocation({ description: tx.description, chartOfAccounts: chartOfAccountsStr });
                 if (suggestion && suggestion.confidence > 50) {
                     await handleSingleAllocate(tx.id, suggestion.accountId, suggestion.vatType);
                     allocatedCount++;
                 }
-            } catch (aiError) {
+            } catch (aiError: any) {
                 console.error(`AI allocation failed for transaction ${tx.id}:`, aiError);
+                 if (aiError.message?.includes('429')) {
+                    toast({
+                        title: "AI Rate Limit Hit",
+                        description: "Too many requests sent. Please wait a moment and try again with fewer transactions.",
+                        variant: "destructive"
+                    });
+                    break; // Stop the loop if rate limited
+                }
             }
         }
         
@@ -1770,6 +1826,7 @@ export default function BankTransactionsPage() {
     </div>
   );
 }
+
 
 
 
