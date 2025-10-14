@@ -1,15 +1,7 @@
 
 'use server';
 
-import { Resend } from 'resend';
 import nodemailer from 'nodemailer';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
-import { firebaseApp } from '@/lib/firebase';
-import { User } from '@/lib/types';
-import { users } from '@/lib/data';
-
-const db = getFirestore(firebaseApp);
-
 
 type EmailPayload = {
     to: string | string[];
@@ -22,80 +14,52 @@ type EmailPayload = {
     replyTo?: string;
 }
 
-async function getSmtpConfig() {
-    // Always use the default system email settings for 'no_reply@myacc.co.za'
-    // The credentials are tied to the kev@thinkestry.co.za user object.
-    const adminUserQuery = (await import('@/lib/data')).users.find(u => u.email === 'kev@thinkestry.co.za');
-    return adminUserQuery?.smtpDetails;
-}
-
-
 export async function sendEmail({ to, subject, html, from, bcc, resellerId, attachments, replyTo }: EmailPayload) {
   
-  const smtpConfig = await getSmtpConfig();
+  // Always use environment variables as the single source of truth.
+  const smtpConfig = {
+      host: process.env.SYSTEM_SMTP_HOST,
+      port: process.env.SYSTEM_SMTP_PORT,
+      user: process.env.SYSTEM_SMTP_USER,
+      pass: process.env.SYSTEM_SMTP_PASS,
+  };
   
-  // Format the from address to include the sender name.
-  const fromAddress = `"My Accountant" <${smtpConfig?.user || 'no_reply@myacc.co.za'}>`;
+  const fromAddress = `"My Accountant" <${smtpConfig.user || 'no_reply@myacc.co.za'}>`;
   
-  if (smtpConfig && smtpConfig.host && smtpConfig.pass) {
-    const transporter = nodemailer.createTransport({
-      host: smtpConfig.host,
-      port: parseInt(smtpConfig.port, 10),
-      secure: true, // Enforce SSL/TLS, crucial for port 465
-      auth: {
-        user: smtpConfig.user,
-        pass: smtpConfig.pass,
-      },
-       tls: {
-        // do not fail on invalid certs
-        rejectUnauthorized: false
-       },
-    });
+  if (!smtpConfig.host || !smtpConfig.port || !smtpConfig.user || !smtpConfig.pass) {
+      console.error('SMTP configuration is missing from environment variables.');
+      throw new Error('Email server is not configured.');
+  }
 
-    try {
-        const info = await transporter.sendMail({
-            from: fromAddress,
-            to: Array.isArray(to) ? to.join(', ') : to,
-            bcc: bcc,
-            subject: subject,
-            html: html,
-            attachments: attachments,
-            replyTo: replyTo,
-        });
-        console.log('Email sent successfully via SMTP:', info.messageId);
-        return info;
-    } catch (error) {
-        // Log the detailed error from nodemailer
-        console.error('Nodemailer Error:', error);
-        throw new Error('Failed to send email via SMTP.');
-    }
-  } else {
-    if (!process.env.RESEND_API_KEY) {
-        console.warn('RESEND_API_KEY is not set. Email sending will likely fail.');
-        throw new Error('Email provider is not configured. Missing RESEND_API_KEY and no SMTP settings found.');
-    }
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    try {
-        const { data, error } = await resend.emails.send({
-        from: fromAddress,
-        to: to,
-        bcc: bcc,
-        subject: subject,
-        html: html,
-        reply_to: replyTo,
-        });
+  const transporter = nodemailer.createTransport({
+    host: smtpConfig.host,
+    port: parseInt(smtpConfig.port, 10),
+    secure: true, // Use SSL/TLS
+    auth: {
+      user: smtpConfig.user,
+      pass: smtpConfig.pass,
+    },
+    tls: {
+      // This is often required for servers with self-signed certificates
+      rejectUnauthorized: false,
+    },
+  });
 
-        if (error) {
-        console.error('Resend Error:', error);
-        throw new Error('Failed to send email via Resend.');
-        }
-
-        console.log('Email sent successfully via Resend:', data);
-        return data;
-    } catch (error) {
-        console.error('Error in sendEmail with Resend:', error);
-        throw error;
-    }
+  try {
+      const info = await transporter.sendMail({
+          from: fromAddress,
+          to: Array.isArray(to) ? to.join(', ') : to,
+          bcc: bcc,
+          subject: subject,
+          html: html,
+          attachments: attachments,
+          replyTo: replyTo,
+      });
+      console.log('Email sent successfully via SMTP:', info.messageId);
+      return info;
+  } catch (error: any) {
+      // Log the detailed error from nodemailer
+      console.error('Nodemailer Error:', error);
+      throw new Error(`SMTP Error: ${error.code || 'Unknown'} - ${error.message}`);
   }
 }
-
