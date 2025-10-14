@@ -286,6 +286,7 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState<{ key: keyof AllocatedTransaction; direction: 'ascending' | 'descending' } | null>({ key: 'date', direction: 'descending' });
     const { toast } = useToast();
+    const [activeSubTab, setActiveSubTab] = useState<'income' | 'expenses'>('expenses');
 
     const isVatRegistered = client?.isVatRegistered || false;
 
@@ -340,7 +341,14 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
     const sortedAndFilteredTransactions = useMemo(() => {
         let transactions = [...(client?.allocatedTransactions || [])];
         
-        // Filtering
+        // Sub-tab filtering
+        if (activeSubTab === 'income') {
+            transactions = transactions.filter(tx => tx.amount >= 0);
+        } else {
+            transactions = transactions.filter(tx => tx.amount < 0);
+        }
+
+        // Search term filtering
         if (searchTerm) {
             const lowercasedFilter = searchTerm.toLowerCase();
             transactions = transactions.filter(tx => {
@@ -387,7 +395,7 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
         }
         
         return transactions;
-    }, [client, searchTerm, sortConfig]);
+    }, [client, searchTerm, sortConfig, activeSubTab]);
 
     const requestSort = (key: keyof AllocatedTransaction) => {
         let direction: 'ascending' | 'descending' = 'ascending';
@@ -406,48 +414,59 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
         </TableHead>
     );
 
+    const incomeTransactions = useMemo(() => client?.allocatedTransactions?.filter(t => t.amount >= 0) || [], [client]);
+    const expenseTransactions = useMemo(() => client?.allocatedTransactions?.filter(t => t.amount < 0) || [], [client]);
+
 
     return (
         <Card>
-            <CardHeader className="p-4 border-b">
-                <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="sm" disabled={selectedTransactions.length === 0}>
-                                    Actions <MoreHorizontal className="ml-2 h-4 w-4" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent>
-                                <DropdownMenuItem onSelect={handleBulkMarkAsNew}>Mark as New</DropdownMenuItem>
-                                <Separator />
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem className="text-destructive" onSelect={(e) => e.preventDefault()}>Delete</DropdownMenuItem>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                            <AlertDialogDescription>This action cannot be undone. This will permanently delete {selectedTransactions.length} transaction(s).</AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={handleBulkDelete}>Delete</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <div className="relative">
-                            <Input 
-                                placeholder="Search..." 
-                                className="h-8 w-64 pr-8"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
-                            <Search className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <CardHeader className="p-0 border-b">
+                 <Tabs value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'income' | 'expenses')} className="w-full">
+                    <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none h-auto">
+                        <TabsTrigger value="income" className="rounded-tl-md">Income ({incomeTransactions.length})</TabsTrigger>
+                        <TabsTrigger value="expenses" className="rounded-tr-md">Expenses ({expenseTransactions.length})</TabsTrigger>
+                    </TabsList>
+                </Tabs>
+                <div className="p-4">
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" size="sm" disabled={selectedTransactions.length === 0}>
+                                        Actions <MoreHorizontal className="ml-2 h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent>
+                                    <DropdownMenuItem onSelect={handleBulkMarkAsNew}>Mark as New</DropdownMenuItem>
+                                    <Separator />
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <DropdownMenuItem className="text-destructive" onSelect={(e) => e.preventDefault()}>Delete</DropdownMenuItem>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                <AlertDialogDescription>This action cannot be undone. This will permanently delete {selectedTransactions.length} transaction(s).</AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction onClick={handleBulkDelete}>Delete</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="relative">
+                                <Input 
+                                    placeholder="Search..." 
+                                    className="h-8 w-64 pr-8"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                                <Search className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1891,3 +1910,4 @@ export default function BankTransactionsPage() {
     </div>
   );
 }
+
