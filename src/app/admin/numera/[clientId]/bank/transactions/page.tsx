@@ -12,12 +12,12 @@ import { Input } from "@/components/ui/input";
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove, addDoc, collection, getDocs, query, orderBy, where, writeBatch } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove, addDoc, collection, getDocs, query, orderBy, where, writeBatch, onSnapshot, Unsubscribe } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -33,7 +33,8 @@ import { Label } from '@/components/ui/label';
 import { allVatTypes } from '@/lib/vat-types';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
+import { Progress } from "@/components/ui/progress";
+
 
 const db = getFirestore(firebaseApp);
 
@@ -913,12 +914,56 @@ function CreateAccountDialog({ isOpen, onClose, onSave, client } : {
     )
 }
 
+function AIProgressTracker({ jobId, onComplete }: { jobId: string, onComplete: () => void }) {
+    const [progress, setProgress] = useState(0);
+    const [job, setJob] = useState<{ total: number, processed: number, status: 'running' | 'completed' | 'stopped' } | null>(null);
+
+    useEffect(() => {
+        const jobRef = doc(db, 'aiAllocationJobs', jobId);
+        const unsubscribe = onSnapshot(jobRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const jobData = docSnap.data() as any;
+                setJob(jobData);
+                if (jobData.total > 0) {
+                    setProgress((jobData.processed / jobData.total) * 100);
+                }
+                if (jobData.status === 'completed' || jobData.status === 'stopped') {
+                    onComplete();
+                }
+            }
+        });
+        return () => unsubscribe();
+    }, [jobId, onComplete]);
+
+    const handleStopJob = async () => {
+        const jobRef = doc(db, 'aiAllocationJobs', jobId);
+        await updateDoc(jobRef, { status: 'stopped' });
+    }
+
+    if (!job || (job.status !== 'running' && job.status !== 'stopped')) return null;
+
+    return (
+        <div className="p-4 border rounded-lg my-4 space-y-2 bg-muted/50">
+            <div className="flex justify-between items-center">
+                <p className="text-sm font-medium">
+                    {job.status === 'stopped' ? 'AI Allocation Stopped' : 'AI Allocation in Progress...'}
+                </p>
+                 <Button variant="destructive" size="sm" onClick={handleStopJob} disabled={job.status !== 'running'}>
+                    <Ban className="mr-2 h-4 w-4" /> Stop
+                </Button>
+            </div>
+            <Progress value={progress} />
+            <p className="text-xs text-muted-foreground text-center">Processed {job.processed} of {job.total} transactions</p>
+        </div>
+    );
+}
+
+
 export default function BankTransactionsPage() {
   const [client, setClient] = useState<User | null>(null);
   const [bankAccounts, setBankAccounts] = useState<ChartOfAccount[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isAiProcessing, setIsAiProcessing] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const params = useParams();
   const clientId = params.clientId as string;
@@ -933,6 +978,7 @@ export default function BankTransactionsPage() {
   const [isCreateInlineAccountOpen, setIsCreateInlineAccountOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: keyof ImportedTransaction; direction: 'ascending' | 'descending' } | null>({ key: 'date', direction: 'descending' });
   const [lastSelectedTxId, setLastSelectedTxId] = useState<string | null>(null);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
 
   const isVatRegistered = client?.isVatRegistered || false;
 
@@ -940,7 +986,6 @@ export default function BankTransactionsPage() {
     if (!clientId) return;
     setIsLoading(true);
     try {
-        // Fetch Client
         const clientRef = doc(db, 'numeraClients', clientId);
         const clientSnap = await getDoc(clientRef);
         if (clientSnap.exists()) {
@@ -953,7 +998,6 @@ export default function BankTransactionsPage() {
             }
         } else { toast({ title: 'Error', description: 'Client not found.', variant: 'destructive'}); }
 
-        // Fetch Global Rules
         const rulesQuery = query(collection(db, "allocationRules"), orderBy("description"));
         const rulesSnapshot = await getDocs(rulesQuery);
         const fetchedRules = rulesSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as AllocationRule));
@@ -1022,7 +1066,7 @@ export default function BankTransactionsPage() {
         }
         
         toast({ title: 'Import Successful', description: toastMessage });
-        await fetchClientAndRules(); // Re-fetch to show new data
+        await fetchClientAndRules();
     } catch (error) {
         toast({ title: 'Import Failed', description: 'Could not save the transactions.', variant: 'destructive' });
         console.error(error);
@@ -1037,7 +1081,6 @@ export default function BankTransactionsPage() {
     const fileName = `${client.companyName || client.name}-Transactions-${today}.xlsx`;
     const allAccounts = client.chartOfAccounts || [];
 
-    // Tab 1: Unallocated Income
     const incomeData = (client.importedTransactions || [])
         .filter(tx => tx.bankAccountId === selectedAccountId && tx.amount >= 0)
         .map(tx => ({
@@ -1049,7 +1092,6 @@ export default function BankTransactionsPage() {
     const wsIncome = XLSX.utils.json_to_sheet(incomeData);
     XLSX.utils.book_append_sheet(wb, wsIncome, "Unallocated Income");
 
-    // Tab 2: Unallocated Expenses
     const expenseData = (client.importedTransactions || [])
         .filter(tx => tx.bankAccountId === selectedAccountId && tx.amount < 0)
         .map(tx => ({
@@ -1061,7 +1103,6 @@ export default function BankTransactionsPage() {
     const wsExpense = XLSX.utils.json_to_sheet(expenseData);
     XLSX.utils.book_append_sheet(wb, wsExpense, "Unallocated Expenses");
 
-    // Tab 3: Reviewed Transactions
     const reviewedData = (client.allocatedTransactions || [])
         .filter(tx => tx.bankAccountId === selectedAccountId)
         .map(tx => {
@@ -1185,7 +1226,7 @@ export default function BankTransactionsPage() {
       });
       toast({ title: 'Transactions Allocated', description: `${selectedTransactions.length} transactions have been allocated and moved to Reviewed.`});
       setSelectedTransactions([]);
-      await fetchClientAndRules(); // Re-fetch to show new data
+      await fetchClientAndRules();
     } catch (error) {
       toast({ title: 'Allocation Failed', description: 'Could not allocate the transactions.', variant: 'destructive' });
       console.error(error);
@@ -1207,7 +1248,7 @@ export default function BankTransactionsPage() {
       });
       toast({ title: 'Transactions Deleted', description: `${selectedTransactions.length} transactions have been removed.` });
       setSelectedTransactions([]);
-      await fetchClientAndRules(); // Re-fetch to show new data
+      await fetchClientAndRules();
     } catch (error) {
       toast({ title: 'Deletion Failed', description: 'Could not delete the transactions.', variant: 'destructive' });
       console.error(error);
@@ -1215,62 +1256,27 @@ export default function BankTransactionsPage() {
   };
   
     const handleAiAllocate = async () => {
-    if (!client || expenseTransactions.length === 0) return;
-    
-    setIsAiProcessing(true);
-    toast({ title: "AI Allocation Started", description: `Processing ${expenseTransactions.length} expense transactions...` });
+        if (!client || expenseTransactions.length === 0) return;
 
-    const chartOfAccountsStr = JSON.stringify(client.chartOfAccounts?.map(a => ({ id: a.id, accountNumber: a.accountNumber, description: a.description })));
-    let allocatedCount = 0;
-    
-    const newAllocated: AllocatedTransaction[] = [];
-    const stillImported: ImportedTransaction[] = [];
-    
-    for (const tx of expenseTransactions) {
-      try {
-        const suggestion = await suggestTransactionAllocation({ description: tx.description, chartOfAccounts: chartOfAccountsStr });
-        
-        if (suggestion && suggestion.confidence > 50) {
-          newAllocated.push({
-            ...tx,
-            allocatedTo: { value: suggestion.accountId, type: 'account' as const },
-            vatType: isVatRegistered ? suggestion.vatType : 'no_vat',
-            vatAmount: calculateVat(tx.amount, suggestion.vatType, isVatRegistered),
-            allocatedAt: new Date(),
-          });
-          allocatedCount++;
-          toast({ title: "AI Allocation", description: `"${tx.description}" allocated to ${suggestion.accountId} with ${suggestion.confidence}% confidence.` });
-        } else {
-            stillImported.push(tx);
-            toast({ title: "AI Allocation Skipped", description: `AI was not confident enough for "${tx.description}".`, variant: "default"});
+        try {
+            const response = await fetch('/api/numera/start-ai-allocation', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clientId: client.id, transactions: expenseTransactions }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to start AI allocation job.');
+            }
+
+            const { jobId, message } = await response.json();
+            setActiveJobId(jobId);
+            toast({ title: "AI Job Started", description: message });
+
+        } catch (error: any) {
+            toast({ title: "Error", description: error.message, variant: "destructive" });
         }
-      } catch (error) {
-          stillImported.push(tx); // Keep transaction if AI fails
-          console.error(`AI allocation failed for "${tx.description}":`, error);
-          toast({ title: "AI Error", description: `Could not process "${tx.description}".`, variant: "destructive" });
-      }
-    }
-    
-    // Update non-expense transactions
-    const nonExpenseTransactions = client.importedTransactions?.filter(t => t.amount >= 0) || [];
-    const finalImportedTransactions = [...nonExpenseTransactions, ...stillImported];
-
-    try {
-        const clientRef = doc(db, 'numeraClients', client.id);
-        await updateDoc(clientRef, {
-            importedTransactions: finalImportedTransactions,
-            allocatedTransactions: arrayUnion(...newAllocated),
-        });
-
-        toast({ title: "AI Allocation Complete", description: `${allocatedCount} out of ${expenseTransactions.length} expenses were automatically allocated.` });
-        fetchClientAndRules();
-    } catch (error) {
-        toast({ title: "Update Failed", description: 'Could not save AI allocations to the database.', variant: 'destructive'});
-        console.error("Firestore update failed after AI allocation:", error);
-    } finally {
-        setIsAiProcessing(false);
-    }
-  };
+    };
 
   const handleUpdateAllocation = async (txId: string, updates: Partial<AllocatedTransaction>) => {
     if (!client) return;
@@ -1300,7 +1306,7 @@ export default function BankTransactionsPage() {
       
     } catch (error) {
       toast({ title: 'Update Failed', description: 'Could not update the transaction.', variant: 'destructive' });
-      fetchClientAndRules(); // Re-fetch on error to revert optimistic update
+      fetchClientAndRules();
       console.error(error);
     }
   };
@@ -1316,7 +1322,7 @@ export default function BankTransactionsPage() {
 
     const newRule: AllocationRule = {
         id: `rule-${Date.now()}`,
-        type: 'hard', // For now, all created rules are hard
+        type: 'hard',
         ...ruleData,
     };
     
@@ -1326,7 +1332,7 @@ export default function BankTransactionsPage() {
             await updateDoc(clientRef, {
                 allocationRules: arrayUnion(newRule)
             });
-        } else { // global
+        } else { 
             const newGlobalRuleRef = await addDoc(collection(db, 'allocationRules'), newRule);
             const newGlobalRuleWithId = { ...newRule, id: newGlobalRuleRef.id };
             
@@ -1345,7 +1351,6 @@ export default function BankTransactionsPage() {
 
         toast({ title: 'Allocation Rule Created', description: `New rule for "${ruleData.description}" has been saved.`});
         
-        // --- Auto-apply and move logic ---
         const transactionsToMove = client.importedTransactions?.filter(tx => 
             newRule.keywords.some(keyword => tx.description.toLowerCase().includes(keyword))
         ) || [];
@@ -1369,9 +1374,8 @@ export default function BankTransactionsPage() {
             
             toast({ title: 'Rule Applied', description: `${transactionsToMove.length} matching transaction(s) have been automatically allocated and moved.`});
         }
-        // --- End of auto-apply logic ---
 
-        await fetchClientAndRules(); // Refresh all data
+        await fetchClientAndRules();
     } catch (error) {
         toast({ title: 'Rule Creation Failed', description: 'Could not save the new rule.', variant: 'destructive'});
         console.error(error);
@@ -1489,7 +1493,7 @@ export default function BankTransactionsPage() {
         allocatedTransactions: arrayUnion(allocatedTransaction),
       });
       toast({ title: 'Transaction Allocated', description: `Transaction has been allocated and moved to Reviewed.`});
-      await fetchClientAndRules(); // Re-fetch to show new data
+      await fetchClientAndRules();
     } catch (error) {
       toast({ title: 'Allocation Failed', description: 'Could not allocate the transaction.', variant: 'destructive' });
       console.error(error);
@@ -1604,8 +1608,8 @@ export default function BankTransactionsPage() {
                                         Allocation Rules
                                     </Button>
                                      {activeSubTab === 'expenses' && (
-                                        <Button variant="outline" size="sm" onClick={handleAiAllocate} disabled={isAiProcessing}>
-                                            {isAiProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                                        <Button variant="outline" size="sm" onClick={handleAiAllocate} disabled={!!activeJobId}>
+                                            {!!activeJobId ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                                             AI Allocate
                                         </Button>
                                     )}
@@ -1618,6 +1622,7 @@ export default function BankTransactionsPage() {
                                     <Button variant="ghost" size="icon" className="h-8 w-8"><Settings className="h-4 w-4" /></Button>
                                 </div>
                             </div>
+                            {activeJobId && <AIProgressTracker jobId={activeJobId} onComplete={() => { setActiveJobId(null); fetchClientAndRules(); }} />}
                         </div>
                     </CardHeader>
                     <CardContent className="p-0">
@@ -1798,6 +1803,7 @@ export default function BankTransactionsPage() {
     </div>
   );
 }
+
 
 
 

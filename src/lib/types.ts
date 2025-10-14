@@ -293,6 +293,17 @@ export type CommunityAnswer = {
     answeredByUserDetails?: { name: string; companyName?: string; }; // Optional: for client-side joining
 };
 
+export type AIAllocationJob = {
+    id: string;
+    clientId: string;
+    status: 'running' | 'completed' | 'stopped' | 'failed';
+    total: number;
+    processed: number;
+    createdAt: any;
+    completedAt?: any;
+    error?: string;
+}
     
 
     
+
