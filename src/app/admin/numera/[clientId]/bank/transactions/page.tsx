@@ -898,11 +898,24 @@ function CreateAccountDialog({ isOpen, onClose, onSave, client }: {
 }) {
     const form = useForm<z.infer<typeof newAccountFormSchema>>({
         resolver: zodResolver(newAccountFormSchema),
-        defaultValues: {
-            description: '',
-            accountNumber: '8400/',
-        }
     });
+
+    useEffect(() => {
+        if (isOpen && client?.chartOfAccounts) {
+            const bankAccounts = client.chartOfAccounts
+                .filter(acc => acc.accountNumber.startsWith('8400/'))
+                .map(acc => parseInt(acc.accountNumber.split('/')[1], 10))
+                .filter(num => !isNaN(num));
+            
+            const nextNumber = bankAccounts.length > 0 ? Math.max(...bankAccounts) + 1 : 1;
+            const nextAccountNumber = `8400/${String(nextNumber).padStart(3, '0')}`;
+            
+            form.reset({
+                description: '',
+                accountNumber: nextAccountNumber,
+            });
+        }
+    }, [isOpen, client, form]);
 
     const handleSave = (values: z.infer<typeof newAccountFormSchema>) => {
         onSave({ ...values, section: 'Balance Sheet' }, true);
@@ -1880,7 +1893,7 @@ export default function BankTransactionsPage() {
         <CreateAccountDialog
             isOpen={isCreateAccountOpen}
             onClose={() => setIsCreateAccountOpen(false)}
-            onSave={handleCreateAccount}
+            onSave={(account) => handleCreateAccount(account)}
             client={client}
         />
 
