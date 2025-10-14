@@ -1755,7 +1755,7 @@ export default function BankTransactionsPage() {
                                     <TableHead>Allocate To</TableHead>
                                     {isVatRegistered && <TableHead>VAT Type</TableHead>}
                                     <SortableHeader sortKey="amount">{activeSubTab === 'expenses' ? 'Spent' : 'Received'}</SortableHeader>
-                                    <TableHead>Actions</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -1816,11 +1816,15 @@ export default function BankTransactionsPage() {
                                                 </TableCell>
                                             )}
                                             <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
-                                            <TableCell>
-                                                <Button variant="ghost" size="sm" className="h-8" onClick={() => openRuleDialog(tx)}>
-                                                    <Cog className="mr-2 h-4 w-4"/>
-                                                    Create Allocation Rule
-                                                </Button>
+                                            <TableCell className="text-right">
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="h-7 w-7"><MoreHorizontal className="h-4 w-4" /></Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent>
+                                                        <DropdownMenuItem onSelect={() => openRuleDialog(tx)}>Create Rule</DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
                                             </TableCell>
                                         </TableRow>
                                     ))
@@ -1846,10 +1850,14 @@ export default function BankTransactionsPage() {
                                      )}
                                     <TableCell><Input className="h-8 text-right font-mono" placeholder="R" /></TableCell>
                                      <TableCell>
-                                        <Button variant="ghost" size="sm" className="h-8" disabled>
-                                            <Cog className="mr-2 h-4 w-4"/>
-                                            Create Allocation Rule
-                                        </Button>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-7 w-7"><MoreHorizontal className="h-4 w-4" /></Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent>
+                                                <DropdownMenuItem disabled>Create Rule</DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
                                     </TableCell>
                                  </TableRow>
                             </TableBody>
