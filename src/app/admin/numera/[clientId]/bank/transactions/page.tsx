@@ -675,14 +675,14 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                                                     }}
                                                 />
                                             </TableCell>
-                                            <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
-                                            <TableCell>{tx.description}</TableCell>
-                                            <TableCell className="w-[250px] text-left">
+                                            <TableCell className="text-sm">{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
+                                            <TableCell className="text-sm">{tx.description}</TableCell>
+                                            <TableCell className="w-[250px]">
                                                 <Select
                                                     value={tx.allocatedTo.value}
                                                     onValueChange={(newValue) => onUpdateAllocation(tx.id, { allocatedTo: { value: newValue, type: 'account' }})}
                                                 >
-                                                    <SelectTrigger className="h-8 justify-start">
+                                                    <SelectTrigger className="h-8 justify-start text-sm">
                                                         <SelectValue>
                                                           {selectedAccount?.description || 'Select account'}
                                                         </SelectValue>
@@ -697,12 +697,12 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                                                 </Select>
                                             </TableCell>
                                             {isVatRegistered && (
-                                                <TableCell className="w-[200px] text-left">
+                                                <TableCell className="w-[200px]">
                                                     <Select
                                                         value={tx.vatType}
                                                         onValueChange={(newValue: VatType) => onUpdateAllocation(tx.id, { vatType: newValue, vatAmount: calculateVat(tx.amount, newValue, isVatRegistered) })}
                                                     >
-                                                        <SelectTrigger className="h-8 justify-start">
+                                                        <SelectTrigger className="h-8 justify-start text-sm">
                                                             <SelectValue />
                                                         </SelectTrigger>
                                                         <SelectContent>
@@ -715,9 +715,9 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                                                     </Select>
                                                 </TableCell>
                                             )}
-                                            <TableCell className="text-right">{formatPrice(exclusiveAmount)}</TableCell>
-                                            {isVatRegistered && <TableCell className="text-right">{formatPrice(tx.vatAmount)}</TableCell>}
-                                            <TableCell className="text-right">{formatPrice(tx.amount)}</TableCell>
+                                            <TableCell className="text-right text-sm">{formatPrice(exclusiveAmount)}</TableCell>
+                                            {isVatRegistered && <TableCell className="text-right text-sm">{formatPrice(tx.vatAmount)}</TableCell>}
+                                            <TableCell className="text-right text-sm">{formatPrice(tx.amount)}</TableCell>
                                             <TableCell className="text-right">
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
@@ -1245,20 +1245,26 @@ export default function BankTransactionsPage() {
     let allocatedCount = 0;
 
     for (const tx of transactionsToProcess) {
-        let matchedRule: AllocationRule | undefined;
+        let bestMatch: { rule: AllocationRule; score: number } | null = null;
+        const txDescriptionLower = tx.description.toLowerCase();
+
         for (const rule of allRules) {
-            if (rule.keywords.some(keyword => tx.description.toLowerCase().includes(keyword))) {
-                matchedRule = rule;
-                break;
+            for (const keyword of rule.keywords) {
+                if (txDescriptionLower.includes(keyword.toLowerCase())) {
+                    const score = keyword.length; // Simple scoring: longer keyword is better
+                    if (!bestMatch || score > bestMatch.score) {
+                        bestMatch = { rule, score };
+                    }
+                }
             }
         }
 
-        if (matchedRule) {
+        if (bestMatch) {
             allocated.push({
                 ...tx,
-                allocatedTo: { value: matchedRule.accountId, type: 'account' as const },
-                vatType: isVatRegistered ? matchedRule.vatType : 'no_vat',
-                vatAmount: calculateVat(tx.amount, matchedRule.vatType, isVatRegistered),
+                allocatedTo: { value: bestMatch.rule.accountId, type: 'account' as const },
+                vatType: isVatRegistered ? bestMatch.rule.vatType : 'no_vat',
+                vatAmount: calculateVat(tx.amount, bestMatch.rule.vatType, isVatRegistered),
                 allocatedAt: new Date(),
             });
             allocatedCount++;
@@ -1947,9 +1953,9 @@ export default function BankTransactionsPage() {
                                                     }}
                                                 />
                                             </TableCell>
-                                            <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
-                                            <TableCell>{tx.reference}</TableCell>
-                                            <TableCell>{tx.description}</TableCell>
+                                            <TableCell className="text-sm">{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
+                                            <TableCell className="text-sm">{tx.reference}</TableCell>
+                                            <TableCell className="text-sm">{tx.description}</TableCell>
                                             <TableCell>
                                                 <Select onValueChange={(value) => handleSingleAllocate(tx.id, value, 'no_vat')}>
                                                     <SelectTrigger className="h-8 w-[200px] justify-start">
@@ -1982,7 +1988,7 @@ export default function BankTransactionsPage() {
                                                     </Select>
                                                 </TableCell>
                                             )}
-                                            <TableCell className="text-right">{formatPrice(tx.amount)}</TableCell>
+                                            <TableCell className="text-right text-sm">{formatPrice(tx.amount)}</TableCell>
                                             <TableCell className="text-right">
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
