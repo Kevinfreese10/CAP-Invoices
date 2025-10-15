@@ -39,7 +39,10 @@ import { Progress } from '@/components/ui/progress';
 const db = getFirestore(firebaseApp);
 
 const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(price);
+    return new Intl.NumberFormat('en-ZA', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(price);
 };
 
 const calculateVat = (amount: number, vatType: VatType, isVatRegistered: boolean): number => {
@@ -659,6 +662,7 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                             ) : (
                                 sortedAndFilteredTransactions.map(tx => {
                                     const exclusiveAmount = tx.amount - tx.vatAmount;
+                                    const selectedAccount = client?.chartOfAccounts?.find(acc => acc.id === tx.allocatedTo.value);
                                     return (
                                         <TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && "selected"}>
                                              <TableCell className="p-2">
@@ -673,30 +677,32 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                                             </TableCell>
                                             <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                             <TableCell>{tx.description}</TableCell>
-                                            <TableCell className="w-[250px]">
+                                            <TableCell className="w-[250px] text-left">
                                                 <Select
                                                     value={tx.allocatedTo.value}
                                                     onValueChange={(newValue) => onUpdateAllocation(tx.id, { allocatedTo: { value: newValue, type: 'account' }})}
                                                 >
-                                                    <SelectTrigger className="h-8">
-                                                        <SelectValue />
+                                                    <SelectTrigger className="h-8 justify-start">
+                                                        <SelectValue>
+                                                          {selectedAccount?.description || 'Select account'}
+                                                        </SelectValue>
                                                     </SelectTrigger>
                                                     <SelectContent>
                                                         {client?.chartOfAccounts?.map(acc => (
                                                             <SelectItem key={acc.id} value={acc.id}>
-                                                                {acc.accountNumber} - {acc.description}
+                                                                {acc.description}
                                                             </SelectItem>
                                                         ))}
                                                     </SelectContent>
                                                 </Select>
                                             </TableCell>
                                             {isVatRegistered && (
-                                                <TableCell className="w-[200px]">
+                                                <TableCell className="w-[200px] text-left">
                                                     <Select
                                                         value={tx.vatType}
                                                         onValueChange={(newValue: VatType) => onUpdateAllocation(tx.id, { vatType: newValue, vatAmount: calculateVat(tx.amount, newValue, isVatRegistered) })}
                                                     >
-                                                        <SelectTrigger className="h-8">
+                                                        <SelectTrigger className="h-8 justify-start">
                                                             <SelectValue />
                                                         </SelectTrigger>
                                                         <SelectContent>
@@ -709,9 +715,9 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                                                     </Select>
                                                 </TableCell>
                                             )}
-                                            <TableCell className="text-right font-mono">{formatPrice(exclusiveAmount)}</TableCell>
-                                            {isVatRegistered && <TableCell className="text-right font-mono">{formatPrice(tx.vatAmount)}</TableCell>}
-                                            <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
+                                            <TableCell className="text-right">{formatPrice(exclusiveAmount)}</TableCell>
+                                            {isVatRegistered && <TableCell className="text-right">{formatPrice(tx.vatAmount)}</TableCell>}
+                                            <TableCell className="text-right">{formatPrice(tx.amount)}</TableCell>
                                             <TableCell className="text-right">
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
@@ -1664,7 +1670,7 @@ export default function BankTransactionsPage() {
     }
   };
 
-  const handleCreateAccount = async (account: Omit<ChartOfAccount, 'id'>) => {
+  const handleCreateAccount = async (account: Omit<ChartOfAccount, 'id'>, andSelect: boolean = false) => {
     if (!client) return;
     
     const newAccount: ChartOfAccount = {
@@ -1690,7 +1696,9 @@ export default function BankTransactionsPage() {
 
         toast({ title: 'Bank Account Created', description: `Account ${newAccount.description} has been added.` });
         await fetchClientAndRules();
-        setSelectedAccountId(newAccount.id);
+        if (andSelect) {
+            setSelectedAccountId(newAccount.id);
+        }
     } catch (error) {
         toast({ title: 'Creation Failed', description: 'Could not create the new account.', variant: 'destructive'});
         console.error(error);
@@ -1944,7 +1952,7 @@ export default function BankTransactionsPage() {
                                             <TableCell>{tx.description}</TableCell>
                                             <TableCell>
                                                 <Select onValueChange={(value) => handleSingleAllocate(tx.id, value, 'no_vat')}>
-                                                    <SelectTrigger className="h-8 w-[200px]">
+                                                    <SelectTrigger className="h-8 w-[200px] justify-start">
                                                         <SelectValue placeholder="Select account" />
                                                     </SelectTrigger>
                                                     <SelectContent>
@@ -1961,7 +1969,7 @@ export default function BankTransactionsPage() {
                                             {isVatRegistered && (
                                                  <TableCell>
                                                     <Select>
-                                                        <SelectTrigger className="h-8 w-[180px]">
+                                                        <SelectTrigger className="h-8 w-[180px] justify-start">
                                                             <SelectValue placeholder="Select VAT type" />
                                                         </SelectTrigger>
                                                         <SelectContent>
@@ -1974,7 +1982,7 @@ export default function BankTransactionsPage() {
                                                     </Select>
                                                 </TableCell>
                                             )}
-                                            <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
+                                            <TableCell className="text-right">{formatPrice(tx.amount)}</TableCell>
                                             <TableCell className="text-right">
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
@@ -2007,7 +2015,7 @@ export default function BankTransactionsPage() {
                                             </Select>
                                         </TableCell>
                                      )}
-                                    <TableCell><Input className="h-8 text-right font-mono" placeholder="R" /></TableCell>
+                                    <TableCell><Input className="h-8 text-right" placeholder="0.00" /></TableCell>
                                      <TableCell>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
@@ -2061,7 +2069,7 @@ export default function BankTransactionsPage() {
         <CreateAccountDialog
             isOpen={isCreateAccountOpen}
             onClose={() => setIsCreateAccountOpen(false)}
-            onSave={(account) => handleCreateAccount(account)}
+            onSave={(account, andSelect) => handleCreateAccount(account, andSelect)}
             client={client}
         />
 
