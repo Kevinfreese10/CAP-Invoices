@@ -366,7 +366,7 @@ function AiReviewDialog({
 function ReviewedTransactionsTab({ client, onUpdateAllocation }: { client: User | null; onUpdateAllocation: (txId: string, updates: Partial<AllocatedTransaction>) => void; }) {
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
-    const [sortConfig, setSortConfig = useState<{ key: keyof AllocatedTransaction; direction: 'ascending' | 'descending' } | null>({ key: 'date', direction: 'descending' });
+    const [sortConfig, setSortConfig] = useState<{ key: keyof AllocatedTransaction; direction: 'ascending' | 'descending' } | null>({ key: 'date', direction: 'descending' });
     const { toast } = useToast();
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
@@ -1218,7 +1218,7 @@ export default function BankTransactionsPage() {
   const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
   const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
   const [isCreateInlineAccountOpen, setIsCreateInlineAccountOpen] = useState(false);
-  const [sortConfig, setSortConfig = useState<{ key: keyof ImportedTransaction; direction: 'ascending' | 'descending' } | null>({ key: 'date', direction: 'descending' });
+  const [sortConfig, setSortConfig] = useState<{ key: keyof ImportedTransaction; direction: 'ascending' | 'descending' } | null>({ key: 'date', direction: 'descending' });
   const [lastSelectedTxId, setLastSelectedTxId] = useState<string | null>(null);
 
   const [isAiLoading, setIsAiLoading] = useState(false);
