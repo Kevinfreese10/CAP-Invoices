@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -363,7 +363,7 @@ function AiReviewDialog({
     );
 }
 
-function ReviewedTransactionsTab({ client, onUpdateAllocation }: { client: User | null; onUpdateAllocation: (txId: string, updates: Partial<AllocatedTransaction>) => void; }) {
+function ReviewedTransactionsTab({ client, allocatedTransactions, onUpdateAllocation }: { client: User | null; allocatedTransactions: AllocatedTransaction[]; onUpdateAllocation: (txId: string, updates: Partial<AllocatedTransaction>) => void; }) {
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState<{ key: keyof AllocatedTransaction; direction: 'ascending' | 'descending' } | null>({ key: 'date', direction: 'descending' });
@@ -441,7 +441,7 @@ function ReviewedTransactionsTab({ client, onUpdateAllocation }: { client: User 
     const handleBulkReallocate = async (accountId: string, vatType: VatType) => {
         if (!client || !client.id || selectedTransactions.length === 0) return;
 
-        const updatedTransactions = client.allocatedTransactions?.map(tx => {
+        const updatedTransactions = allocatedTransactions?.map(tx => {
             if (selectedTransactions.includes(tx.id)) {
                 return {
                     ...tx,
@@ -468,7 +468,7 @@ function ReviewedTransactionsTab({ client, onUpdateAllocation }: { client: User 
     const handleBulkDelete = async () => {
         if (!client || !client.id || selectedTransactions.length === 0) return;
 
-        const remainingTransactions = client.allocatedTransactions?.filter(
+        const remainingTransactions = allocatedTransactions?.filter(
             (tx) => !selectedTransactions.includes(tx.id)
         ) || [];
 
@@ -488,13 +488,13 @@ function ReviewedTransactionsTab({ client, onUpdateAllocation }: { client: User 
     const handleBulkMarkAsNew = async () => {
         if (!client || !client.id || selectedTransactions.length === 0) return;
         
-        const transactionsToMove = client.allocatedTransactions?.filter(tx => selectedTransactions.includes(tx.id)) || [];
+        const transactionsToMove = allocatedTransactions?.filter(tx => selectedTransactions.includes(tx.id)) || [];
         const importedToMove = transactionsToMove.map(({ allocatedTo, allocatedAt, vatType, vatAmount, ...rest}) => ({
             ...rest,
             id: `import-${Date.now()}-${Math.random()}`
         }));
 
-        const remainingAllocated = client.allocatedTransactions?.filter(tx => !selectedTransactions.includes(tx.id)) || [];
+        const remainingAllocated = allocatedTransactions?.filter(tx => !selectedTransactions.includes(tx.id)) || [];
         
         try {
             const clientRef = doc(db, 'numeraClients', client.id);
@@ -516,7 +516,7 @@ function ReviewedTransactionsTab({ client, onUpdateAllocation }: { client: User 
     };
 
     const sortedAndFilteredTransactions = useMemo(() => {
-        let transactions = [...(client?.allocatedTransactions || [])];
+        let transactions = [...(allocatedTransactions || [])];
         
         if (activeSubTab === 'income') {
             transactions = transactions.filter(tx => tx.amount >= 0);
@@ -569,7 +569,7 @@ function ReviewedTransactionsTab({ client, onUpdateAllocation }: { client: User 
         }
         
         return transactions;
-    }, [client, searchTerm, sortConfig, activeSubTab]);
+    }, [client, searchTerm, sortConfig, activeSubTab, allocatedTransactions]);
 
     const requestSort = (key: keyof AllocatedTransaction) => {
         let direction: 'ascending' | 'descending' = 'ascending';
@@ -588,8 +588,8 @@ function ReviewedTransactionsTab({ client, onUpdateAllocation }: { client: User 
         </TableHead>
     );
 
-    const incomeTransactions = useMemo(() => client?.allocatedTransactions?.filter(t => t.amount >= 0) || [], [client]);
-    const expenseTransactions = useMemo(() => client?.allocatedTransactions?.filter(t => t.amount < 0) || [], [client]);
+    const incomeTransactions = useMemo(() => allocatedTransactions.filter(t => t.amount >= 0) || [], [allocatedTransactions]);
+    const expenseTransactions = useMemo(() => allocatedTransactions.filter(t => t.amount < 0) || [], [allocatedTransactions]);
 
 
     return (
@@ -648,7 +648,7 @@ function ReviewedTransactionsTab({ client, onUpdateAllocation }: { client: User 
                                     </AlertDialog>
                                 </DropdownMenuContent>
                             </DropdownMenu>
-                            <Button variant="outline" size="sm" onClick={handleAiReview} disabled={!client?.allocatedTransactions?.length}>
+                            <Button variant="outline" size="sm" onClick={handleAiReview} disabled={!allocatedTransactions?.length}>
                                 <Sparkles className="mr-2 h-4 w-4" />
                                 AI Review
                             </Button>
@@ -868,6 +868,42 @@ function CreateRuleDialog({ isOpen, onClose, onSave, transaction, client }: {
     );
 }
 
+function RuleList({ rules, scope, onEdit, onDelete }: { rules: AllocationRule[], scope: 'client' | 'global', onEdit: (rule: Partial<AllocationRule> & {scope: 'client' | 'global'}) => void, onDelete: (id: string, scope: 'client' | 'global') => void }) {
+    if (rules.length === 0) {
+        return <p className="text-sm text-center text-muted-foreground p-8">No {scope} rules found.</p>
+    }
+    return (
+        <div className="space-y-2">
+            {rules.map((rule, index) => (
+                <Card key={rule.id || index}>
+                    <CardContent className="p-3 flex justify-between items-center">
+                        <div className="text-sm">
+                            <p className="font-semibold">{rule.description}</p>
+                            <p className="text-xs text-muted-foreground">Keywords: {rule.keywords.join(', ')}</p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit({...rule, scope})}>
+                                <Edit className="h-4 w-4" />
+                            </Button>
+                             <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive">
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone. This will permanently delete the rule: "{rule.description}".</AlertDialogDescription></AlertDialogHeader>
+                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => onDelete(rule.id, scope)}>Delete</AlertDialogAction></AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </div>
+                    </CardContent>
+                </Card>
+            ))}
+        </div>
+    )
+}
+
 function ManageRulesDialog({ 
     isOpen,
     onClose,
@@ -913,7 +949,7 @@ function ManageRulesDialog({
                     const clientRef = doc(db, 'numeraClients', client.id);
                     await updateDoc(clientRef, { allocationRules: arrayUnion(newRule) });
                 } else { // global
-                    const newGlobalRuleRef = await addDoc(collection(db, 'allocationRules'), newRule);
+                    await addDoc(collection(db, 'allocationRules'), newRule);
                 }
                 toast({ title: 'Rule Created' });
             }
@@ -1041,42 +1077,6 @@ function RuleForm({ initialData, onSave, onCancel, client } : {
                 </DialogFooter>
             </form>
         </Form>
-    )
-}
-
-function RuleList({ rules, scope, onEdit, onDelete }: { rules: AllocationRule[], scope: 'client' | 'global', onEdit: (rule: Partial<AllocationRule> & {scope: 'client' | 'global'}) => void, onDelete: (id: string, scope: 'client' | 'global') => void }) {
-    if (rules.length === 0) {
-        return <p className="text-sm text-center text-muted-foreground p-8">No {scope} rules found.</p>
-    }
-    return (
-        <div className="space-y-2">
-            {rules.map((rule, index) => (
-                <Card key={rule.id || index}>
-                    <CardContent className="p-3 flex justify-between items-center">
-                        <div className="text-sm">
-                            <p className="font-semibold">{rule.description}</p>
-                            <p className="text-xs text-muted-foreground">Keywords: {rule.keywords.join(', ')}</p>
-                        </div>
-                        <div className="flex items-center gap-1">
-                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit({...rule, scope})}>
-                                <Edit className="h-4 w-4" />
-                            </Button>
-                             <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive">
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone. This will permanently delete the rule: "{rule.description}".</AlertDialogDescription></AlertDialogHeader>
-                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => onDelete(rule.id, scope)}>Delete</AlertDialogAction></AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                        </div>
-                    </CardContent>
-                </Card>
-            ))}
-        </div>
     )
 }
 
@@ -1231,41 +1231,68 @@ export default function BankTransactionsPage() {
 
   const isVatRegistered = client?.isVatRegistered || false;
   
-  useEffect(() => {
+  const fetchClientAndRules = useCallback(async () => {
     if (!clientId) return;
-
-    const clientRef = doc(db, 'numeraClients', clientId);
-    const unsubscribe = onSnapshot(clientRef, (docSnap) => {
-      setIsLoading(true);
-      if (docSnap.exists()) {
-        const clientData = { id: docSnap.id, ...docSnap.data() } as User;
-        setClient(clientData);
-        const cashbookAccounts = clientData.chartOfAccounts?.filter(acc => acc.accountNumber.startsWith('8400/')) || [];
-        setBankAccounts(cashbookAccounts);
-        if (cashbookAccounts.length > 0 && !selectedAccountId) {
-            setSelectedAccountId(cashbookAccounts[0].id);
+    setIsLoading(true);
+    try {
+        const clientRef = doc(db, 'numeraClients', clientId);
+        const clientSnap = await getDoc(clientRef);
+        if (clientSnap.exists()) {
+            const clientData = { id: clientSnap.id, ...clientSnap.data() } as User;
+            setClient(clientData);
+            const cashbookAccounts = clientData.chartOfAccounts?.filter(acc => acc.accountNumber.startsWith('8400/')) || [];
+            setBankAccounts(cashbookAccounts);
+            if (cashbookAccounts.length > 0 && !selectedAccountId) {
+                setSelectedAccountId(cashbookAccounts[0].id);
+            }
+        } else {
+            toast({ title: 'Error', description: 'Client not found.', variant: 'destructive'});
         }
-      } else {
-        toast({ title: 'Error', description: 'Client not found.', variant: 'destructive'});
-      }
-      setIsLoading(false);
-    }, (error) => {
-        toast({ title: 'Error', description: 'Failed to fetch client data in real-time.', variant: 'destructive'});
-        console.error(error);
-        setIsLoading(false);
-    });
 
-    const rulesQuery = query(collection(db, "allocationRules"), orderBy("description"));
-    const rulesUnsubscribe = onSnapshot(rulesQuery, (snapshot) => {
-        const fetchedRules = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as AllocationRule));
+        const rulesQuery = query(collection(db, "allocationRules"), orderBy("description"));
+        const rulesSnapshot = await getDocs(rulesQuery);
+        const fetchedRules = rulesSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as AllocationRule));
         setGlobalRules(fetchedRules);
-    });
+    } catch (error) {
+        toast({ title: 'Error', description: 'Failed to fetch initial data.', variant: 'destructive'});
+        console.error(error);
+    } finally {
+        setIsLoading(false);
+    }
+}, [clientId, toast, selectedAccountId]);
 
-    return () => {
-        unsubscribe();
-        rulesUnsubscribe();
-    };
-  }, [clientId, toast]);
+  useEffect(() => {
+    fetchClientAndRules();
+  }, [fetchClientAndRules]);
+
+  // New state for reviewed transactions
+  const [reviewedTransactions, setReviewedTransactions] = useState<AllocatedTransaction[]>([]);
+  const [hasFetchedReviewed, setHasFetchedReviewed] = useState(false);
+
+  const fetchReviewedTransactions = useCallback(async () => {
+      if (!clientId || hasFetchedReviewed) return;
+      setIsLoading(true);
+      try {
+          const clientRef = doc(db, 'numeraClients', clientId);
+          const clientSnap = await getDoc(clientRef);
+          if (clientSnap.exists()) {
+              const clientData = clientSnap.data() as User;
+              setReviewedTransactions(clientData.allocatedTransactions || []);
+              setHasFetchedReviewed(true);
+          }
+      } catch (error) {
+          toast({ title: 'Error', description: 'Failed to fetch reviewed transactions.', variant: 'destructive'});
+      } finally {
+          setIsLoading(false);
+      }
+  }, [clientId, hasFetchedReviewed, toast]);
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab as 'new' | 'reviewed');
+    if (tab === 'reviewed') {
+      fetchReviewedTransactions();
+    }
+  };
 
 
   const handleSaveTransactions = async (newTransactions: Omit<ImportedTransaction, 'clientId' | 'bankAccountId'>[]) => {
@@ -1337,6 +1364,7 @@ export default function BankTransactionsPage() {
         }
         
         toast({ title: 'Import Successful', description: toastMessage });
+        fetchClientAndRules(); // Refetch all data to update UI
     } catch (error) {
         toast({ title: 'Import Failed', description: 'Could not save the transactions.', variant: 'destructive' });
         console.error(error);
@@ -1496,6 +1524,7 @@ export default function BankTransactionsPage() {
       });
       toast({ title: 'Transactions Allocated', description: `${selectedTransactions.length} transactions have been allocated and moved to Reviewed.`});
       setSelectedTransactions([]);
+      fetchClientAndRules(); // Refetch
     } catch (error) {
       toast({ title: 'Allocation Failed', description: 'Could not allocate the transactions.', variant: 'destructive' });
       console.error(error);
@@ -1516,6 +1545,7 @@ export default function BankTransactionsPage() {
       });
       toast({ title: 'Transactions Deleted', description: `${selectedTransactions.length} transactions have been removed.` });
       setSelectedTransactions([]);
+      fetchClientAndRules();
     } catch (error) {
       toast({ title: 'Deletion Failed', description: 'Could not delete the transactions.', variant: 'destructive' });
       console.error(error);
@@ -1610,6 +1640,7 @@ export default function BankTransactionsPage() {
       setIsAiLoading(false);
       setCurrentAiTxInfo(null);
       setSelectedTransactions([]);
+      fetchClientAndRules();
   };
 
 
@@ -1627,7 +1658,7 @@ export default function BankTransactionsPage() {
 
       await updateDoc(clientRef, { allocatedTransactions: updatedAllocatedTransactions });
       toast({ title: 'Transaction Updated', description: 'The allocation has been changed.' });
-      
+      fetchClientAndRules();
     } catch (error) {
       toast({ title: 'Update Failed', description: 'Could not update the transaction.', variant: 'destructive' });
       console.error(error);
@@ -1656,10 +1687,11 @@ export default function BankTransactionsPage() {
                 allocationRules: arrayUnion(newRule)
             });
         } else { 
-            const newGlobalRuleRef = await addDoc(collection(db, 'allocationRules'), newRule);
+            await addDoc(collection(db, 'allocationRules'), newRule);
         }
 
         toast({ title: 'Allocation Rule Created', description: `New rule for "${ruleData.description}" has been saved.`});
+        fetchClientAndRules();
         
         const transactionsToMove = client.importedTransactions?.filter(tx => 
             newRule.keywords.some(keyword => tx.description.toLowerCase().includes(keyword))
@@ -1683,6 +1715,7 @@ export default function BankTransactionsPage() {
             });
             
             toast({ title: 'Rule Applied', description: `${transactionsToMove.length} matching transaction(s) have been automatically allocated and moved.`});
+            fetchClientAndRules();
         }
 
     } catch (error) {
@@ -1714,25 +1747,16 @@ export default function BankTransactionsPage() {
     };
     try {
         const clientRef = doc(db, 'numeraClients', client.id);
-        const clientSnap = await getDoc(clientRef);
-        const existingClientData = clientSnap.data() as User;
-        const existingAccounts = existingClientData.chartOfAccounts || [];
         
-        if (existingAccounts.some(acc => acc.accountNumber === newAccount.accountNumber)) {
-            toast({ title: 'Account Exists', description: `An account with number ${newAccount.accountNumber} already exists.`, variant: 'destructive'});
-            return;
-        }
-        
-        const updatedAccounts = [...existingAccounts, newAccount];
-
         await updateDoc(clientRef, {
-            chartOfAccounts: updatedAccounts
+            chartOfAccounts: arrayUnion(newAccount)
         });
 
         toast({ title: 'Bank Account Created', description: `Account ${newAccount.description} has been added.` });
         if (andSelect) {
             setSelectedAccountId(newAccount.id);
         }
+        fetchClientAndRules();
     } catch (error) {
         toast({ title: 'Creation Failed', description: 'Could not create the new account.', variant: 'destructive'});
         console.error(error);
@@ -1743,7 +1767,7 @@ export default function BankTransactionsPage() {
     if (!client || !client.id) return;
 
     const newAccount: ChartOfAccount = {
-        id: account.accountNumber.replace('/', '-'), // Ensure ID is valid
+        id: account.accountNumber.replace('/', '-'),
         ...account,
     };
     try {
@@ -1754,6 +1778,7 @@ export default function BankTransactionsPage() {
         });
 
         toast({ title: 'Account Created', description: `Account ${newAccount.description} has been added.` });
+        fetchClientAndRules();
 
         if (andSelect && lastSelectedTxId) {
             handleSingleAllocate(lastSelectedTxId, newAccount.id, 'no_vat');
@@ -1793,6 +1818,7 @@ export default function BankTransactionsPage() {
         allocatedTransactions: arrayUnion(allocatedTransaction),
       });
       toast({ title: 'Transaction Allocated', description: `Transaction has been allocated and moved to Reviewed.`});
+      fetchClientAndRules();
     } catch (error) {
       toast({ title: 'Allocation Failed', description: 'Could not allocate the transaction.', variant: 'destructive' });
       console.error(error);
@@ -1838,7 +1864,7 @@ export default function BankTransactionsPage() {
             </div>
         </div>
 
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'new' | 'reviewed')}>
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
             <TabsList>
                 <TabsTrigger value="new">New Transactions</TabsTrigger>
                 <TabsTrigger value="reviewed">Reviewed Transactions</TabsTrigger>
@@ -2058,10 +2084,13 @@ export default function BankTransactionsPage() {
                 </Card>
             </TabsContent>
             <TabsContent value="reviewed">
-                {activeTab === 'reviewed' && <ReviewedTransactionsTab 
-                    client={client} 
-                    onUpdateAllocation={handleUpdateAllocation}
-                />}
+                {activeTab === 'reviewed' && (
+                    <ReviewedTransactionsTab 
+                        client={client} 
+                        allocatedTransactions={reviewedTransactions}
+                        onUpdateAllocation={handleUpdateAllocation}
+                    />
+                )}
             </TabsContent>
         </Tabs>
         
@@ -2085,9 +2114,7 @@ export default function BankTransactionsPage() {
             onClose={() => setIsManageRulesOpen(false)}
             client={client}
             globalRules={globalRules}
-            fetchClientAndRules={() => {
-                // This is a placeholder. The onSnapshot will handle UI updates.
-            }}
+            fetchClientAndRules={fetchClientAndRules}
         />
         
         <CreateAccountDialog
