@@ -1141,14 +1141,12 @@ function CreateAccountDialog({ isOpen, onClose, onSave, client }: {
 function AIProgressPopup({
   isOpen,
   progress,
-  txDescription,
-  suggestion,
+  total,
   onStop,
 }: {
   isOpen: boolean;
-  progress: { current: number; total: number; };
-  txDescription: string;
-  suggestion: { accountId: string; accountDescription: string; vatType: string; confidence: number; } | null;
+  progress: number;
+  total: number;
   onStop: () => void;
 }) {
   return (
@@ -1159,33 +1157,13 @@ function AIProgressPopup({
         </DialogHeader>
         <div className="space-y-6 py-4">
             <div className="text-center">
-                <p className="text-sm font-medium text-muted-foreground">Processing Transaction</p>
-                <p className="text-2xl font-bold">{progress.current} of {progress.total}</p>
-                 <Progress value={(progress.current / progress.total) * 100} className="mt-2" />
+                <p className="text-sm font-medium text-muted-foreground">Processing Transactions</p>
+                <p className="text-2xl font-bold">{progress} of {total}</p>
+                 <Progress value={(progress / total) * 100} className="mt-2" />
             </div>
-
-            <Separator />
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                <div className="space-y-2 rounded-md border p-4">
-                    <p className="font-semibold">Current Transaction</p>
-                    <p className="text-muted-foreground break-words">{txDescription}</p>
-                </div>
-                 <div className="space-y-2 rounded-md border p-4 flex flex-col justify-center">
-                    <p className="font-semibold">AI Suggestion</p>
-                    {suggestion ? (
-                        <div className="space-y-1">
-                            <p><span className="font-medium text-muted-foreground">Account:</span> {suggestion.accountDescription}</p>
-                            <p><span className="font-medium text-muted-foreground">VAT Type:</span> {suggestion.vatType}</p>
-                            <p><span className="font-medium text-muted-foreground">Confidence:</span> {suggestion.confidence.toFixed(0)}%</p>
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                            <Loader2 className="h-4 w-4 animate-spin"/>
-                            <span>Awaiting suggestion...</span>
-                        </div>
-                    )}
-                </div>
+            <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin"/>
+                <span>This may take a few moments...</span>
             </div>
         </div>
          <DialogFooter>
@@ -1222,11 +1200,8 @@ export default function BankTransactionsPage() {
   const [lastSelectedTxId, setLastSelectedTxId] = useState<string | null>(null);
 
   const [isAiLoading, setIsAiLoading] = useState(false);
-  const [currentAiTxInfo, setCurrentAiTxInfo] = useState<{ 
-      progress: { current: number; total: number; },
-      txDescription: string;
-      suggestion: { accountId: string; accountDescription: string; vatType: string; confidence: number; } | null;
-   } | null>(null);
+  const [aiProgress, setAiProgress] = useState(0);
+  const [totalAiItems, setTotalAiItems] = useState(0);
   const stopAiAllocation = useRef(false);
 
   const isVatRegistered = client?.isVatRegistered || false;
@@ -1289,7 +1264,7 @@ export default function BankTransactionsPage() {
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab as 'new' | 'reviewed');
-    if (tab === 'reviewed') {
+    if (tab === 'reviewed' && !hasFetchedReviewed) {
       fetchReviewedTransactions();
     }
   };
@@ -1552,96 +1527,81 @@ export default function BankTransactionsPage() {
     }
   };
   
-  const handleAiAllocate = async () => {
-      if (!client || !client.chartOfAccounts || !client.id) return;
-      const transactionsToAllocate = filteredAndSortedTransactions.filter(tx => selectedTransactions.includes(tx.id));
-      if (transactionsToAllocate.length === 0) {
-          toast({ title: "No Transactions Selected", description: "Please select one or more transactions to allocate.", variant: "destructive" });
-          return;
-      }
+    const handleAiAllocate = async () => {
+        if (!client || !client.chartOfAccounts || !client.id) return;
+        const transactionsToAllocate = filteredAndSortedTransactions.filter(tx => selectedTransactions.includes(tx.id));
+        if (transactionsToAllocate.length === 0) {
+            toast({ title: "No Transactions Selected", description: "Please select one or more transactions to allocate.", variant: "destructive" });
+            return;
+        }
 
-      setIsAiLoading(true);
-      stopAiAllocation.current = false;
-      const chartOfAccountsStr = JSON.stringify(client.chartOfAccounts?.map(a => ({ id: a.id, accountNumber: a.accountNumber, description: a.description })));
-      const successfullyAllocated: AllocatedTransaction[] = [];
-      
-      const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
+        setIsAiLoading(true);
+        setTotalAiItems(transactionsToAllocate.length);
+        setAiProgress(0);
+        stopAiAllocation.current = false;
+        
+        const chartOfAccountsStr = JSON.stringify(client.chartOfAccounts?.map(a => ({ id: a.id, accountNumber: a.accountNumber, description: a.description })));
+        const CONCURRENT_BATCH_SIZE = 5;
+        let allSuggestions: { tx: ImportedTransaction; suggestion: any }[] = [];
 
-      for (const [index, tx] of transactionsToAllocate.entries()) {
-          if (stopAiAllocation.current) {
-              toast({ title: "AI Allocation Stopped", description: "The process was stopped by the user.", variant: "destructive" });
-              break;
-          }
+        for (let i = 0; i < transactionsToAllocate.length; i += CONCURRENT_BATCH_SIZE) {
+            if (stopAiAllocation.current) break;
+            
+            const batch = transactionsToAllocate.slice(i, i + CONCURRENT_BATCH_SIZE);
+            const promises = batch.map(tx => 
+                suggestTransactionAllocation({ description: tx.description, chartOfAccounts: chartOfAccountsStr })
+                    .then(suggestion => ({ tx, suggestion }))
+                    .catch(error => {
+                        console.error(`AI allocation failed for transaction ${tx.id}:`, error);
+                        return { tx, suggestion: null }; // Return null suggestion on error
+                    })
+            );
+            
+            const results = await Promise.all(promises);
+            allSuggestions = [...allSuggestions, ...results.filter(r => r.suggestion)];
+            
+            setAiProgress(prev => prev + batch.length);
+        }
 
-          setCurrentAiTxInfo({ 
-              progress: { current: index + 1, total: transactionsToAllocate.length },
-              txDescription: tx.description,
-              suggestion: null 
-          });
+        const successfullyAllocated = allSuggestions
+            .filter(({ suggestion }) => suggestion && suggestion.confidence > 50)
+            .map(({ tx, suggestion }) => ({
+                ...tx,
+                allocatedTo: { value: suggestion.accountId, type: 'account' as const },
+                vatType: isVatRegistered ? suggestion.vatType : 'no_vat',
+                vatAmount: calculateVat(tx.amount, suggestion.vatType, isVatRegistered),
+                allocatedAt: new Date(),
+            }));
 
-          await delay(500);
+        if (successfullyAllocated.length > 0 && client.importedTransactions) {
+            const remainingImported = client.importedTransactions.filter(tx => !successfullyAllocated.some(a => a.id === tx.id));
+            
+            try {
+                const clientRef = doc(db, 'numeraClients', client.id);
+                await updateDoc(clientRef, {
+                    importedTransactions: remainingImported,
+                    allocatedTransactions: arrayUnion(...successfullyAllocated),
+                });
+                toast({ title: "AI Allocation Complete", description: `${successfullyAllocated.length} of ${transactionsToAllocate.length} selected transactions were allocated.` });
+            } catch (dbError) {
+                console.error("Firestore update failed after AI allocation:", dbError);
+                toast({ title: "Database Update Failed", description: "AI allocation finished, but saving the results failed. Please try again.", variant: "destructive" });
+            }
+        } else if (!stopAiAllocation.current) {
+            toast({ title: "AI Allocation Finished", description: "The AI did not have high enough confidence to allocate any of the selected transactions.", variant: "destructive" });
+        }
 
-          try {
-              const suggestion = await suggestTransactionAllocation({ description: tx.description, chartOfAccounts: chartOfAccountsStr });
-              const accountDescription = client.chartOfAccounts?.find(a => a.id === suggestion.accountId)?.description || 'Unknown Account';
-                  
-              setCurrentAiTxInfo(prev => ({
-                  ...prev!,
-                  suggestion: {
-                      accountId: suggestion.accountId,
-                      accountDescription: accountDescription,
-                      vatType: suggestion.vatType,
-                      confidence: suggestion.confidence,
-                  }
-              }));
-              
-              await delay(500);
+        if (stopAiAllocation.current) {
+             toast({ title: "AI Allocation Stopped", description: "The process was stopped by the user.", variant: "destructive" });
+        }
 
-              if (suggestion && suggestion.confidence > 50) {
-                  successfullyAllocated.push({
-                      ...tx,
-                      allocatedTo: { value: suggestion.accountId, type: 'account' as const },
-                      vatType: isVatRegistered ? suggestion.vatType : 'no_vat',
-                      vatAmount: calculateVat(tx.amount, suggestion.vatType, isVatRegistered),
-                      allocatedAt: new Date(),
-                  });
-              }
-          } catch (aiError: any) {
-              console.error(`AI allocation failed for transaction ${tx.id}:`, aiError);
-              if (aiError.message?.includes('429')) {
-                  toast({
-                      title: "AI Rate Limit Hit",
-                      description: "Too many requests sent. Please wait and try again.",
-                      variant: "destructive"
-                  });
-                  break; 
-              }
-          }
-      }
+        setIsAiLoading(false);
+        setAiProgress(0);
+        setTotalAiItems(0);
+        setSelectedTransactions([]);
+        fetchClientAndRules();
+    };
 
-      if (!stopAiAllocation.current && successfullyAllocated.length > 0 && client.importedTransactions) {
-          const remainingImported = client.importedTransactions.filter(tx => !successfullyAllocated.some(a => a.id === tx.id));
-          
-          try {
-              const clientRef = doc(db, 'numeraClients', client.id);
-              await updateDoc(clientRef, {
-                  importedTransactions: remainingImported,
-                  allocatedTransactions: arrayUnion(...successfullyAllocated),
-              });
-              toast({ title: "AI Allocation Complete", description: `${successfullyAllocated.length} of ${transactionsToAllocate.length} selected transactions were allocated.` });
-          } catch (dbError) {
-              console.error("Firestore update failed after AI allocation:", dbError);
-              toast({ title: "Database Update Failed", description: "AI allocation finished, but saving the results failed. Please try again.", variant: "destructive" });
-          }
-      } else if (!stopAiAllocation.current && successfullyAllocated.length === 0) {
-          toast({ title: "AI Allocation Finished", description: "The AI did not have high enough confidence to allocate the selected transactions.", variant: "destructive" });
-      }
-
-      setIsAiLoading(false);
-      setCurrentAiTxInfo(null);
-      setSelectedTransactions([]);
-      fetchClientAndRules();
-  };
 
 
   const handleUpdateAllocation = async (txId: string, updates: Partial<AllocatedTransaction>) => {
@@ -2133,9 +2093,8 @@ export default function BankTransactionsPage() {
 
         <AIProgressPopup 
             isOpen={isAiLoading} 
-            progress={currentAiTxInfo?.progress || { current: 0, total: 0 }}
-            txDescription={currentAiTxInfo?.txDescription || ''} 
-            suggestion={currentAiTxInfo?.suggestion || null}
+            progress={aiProgress}
+            total={totalAiItems}
             onStop={() => {
                 stopAiAllocation.current = true;
             }}
@@ -2143,5 +2102,7 @@ export default function BankTransactionsPage() {
     </div>
   );
 }
+
+    
 
     
