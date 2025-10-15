@@ -438,6 +438,33 @@ function ReviewedTransactionsTab({ client, onUpdateAllocation }: { client: User 
             toast({ title: 'Correction Failed', description: 'Could not apply corrections.', variant: 'destructive'});
         }
     };
+    
+    const handleBulkReallocate = async (accountId: string, vatType: VatType) => {
+        if (!client || !client.id || selectedTransactions.length === 0) return;
+
+        const updatedTransactions = client.allocatedTransactions?.map(tx => {
+            if (selectedTransactions.includes(tx.id)) {
+                return {
+                    ...tx,
+                    allocatedTo: { value: accountId, type: 'account' as const },
+                    vatType: isVatRegistered ? vatType : 'no_vat',
+                    vatAmount: calculateVat(tx.amount, vatType, isVatRegistered),
+                };
+            }
+            return tx;
+        }) || [];
+
+        try {
+            const clientRef = doc(db, 'numeraClients', client.id);
+            await updateDoc(clientRef, { allocatedTransactions: updatedTransactions });
+            toast({ title: 'Transactions Reallocated', description: `${selectedTransactions.length} transactions have been updated.` });
+            setSelectedTransactions([]);
+        } catch (error) {
+            toast({ title: 'Reallocation Failed', description: 'Could not reallocate the transactions.', variant: 'destructive' });
+            console.error(error);
+        }
+    };
+
 
     const handleBulkDelete = async () => {
         if (!client || !client.id || selectedTransactions.length === 0) return;
@@ -586,6 +613,23 @@ function ReviewedTransactionsTab({ client, onUpdateAllocation }: { client: User 
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent>
+                                     <DropdownMenuSub>
+                                        <DropdownMenuSubTrigger>Reallocate Selected</DropdownMenuSubTrigger>
+                                        <DropdownMenuSubContent className="max-h-[300px] overflow-y-auto">
+                                            {client?.chartOfAccounts?.map(acc => (
+                                                <DropdownMenuSub key={acc.id}>
+                                                    <DropdownMenuSubTrigger>{acc.description}</DropdownMenuSubTrigger>
+                                                    <DropdownMenuSubContent>
+                                                        {allVatTypes.map(vt => (
+                                                            <DropdownMenuItem key={vt.name} onSelect={() => handleBulkReallocate(acc.id, vt.name)}>
+                                                                {vt.label}
+                                                            </DropdownMenuItem>
+                                                        ))}
+                                                    </DropdownMenuSubContent>
+                                                </DropdownMenuSub>
+                                            ))}
+                                        </DropdownMenuSubContent>
+                                    </DropdownMenuSub>
                                     <DropdownMenuItem onSelect={handleBulkMarkAsNew}>Mark as New</DropdownMenuItem>
                                     <Separator />
                                     <AlertDialog>
