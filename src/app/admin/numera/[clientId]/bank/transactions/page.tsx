@@ -366,7 +366,7 @@ function AiReviewDialog({
 function ReviewedTransactionsTab({ client, onUpdateAllocation }: { client: User | null; onUpdateAllocation: (txId: string, updates: Partial<AllocatedTransaction>) => void; }) {
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
-    const [sortConfig, setSortConfig] = useState<{ key: keyof AllocatedTransaction; direction: 'ascending' | 'descending' } | null>({ key: 'date', direction: 'descending' });
+    const [sortConfig, setSortConfig = useState<{ key: keyof AllocatedTransaction; direction: 'ascending' | 'descending' } | null>({ key: 'date', direction: 'descending' });
     const { toast } = useToast();
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
@@ -433,7 +433,6 @@ function ReviewedTransactionsTab({ client, onUpdateAllocation }: { client: User 
             const clientRef = doc(db, 'numeraClients', client.id);
             await updateDoc(clientRef, { allocatedTransactions: updatedTransactions });
             toast({ title: 'Anomalies Corrected', description: `${transactionsToUpdate.length} transactions have been updated.`});
-            // The onSnapshot listener will handle the UI update automatically
         } catch (error) {
             toast({ title: 'Correction Failed', description: 'Could not apply corrections.', variant: 'destructive'});
         }
@@ -915,24 +914,12 @@ function ManageRulesDialog({
                     await updateDoc(clientRef, { allocationRules: arrayUnion(newRule) });
                 } else { // global
                     const newGlobalRuleRef = await addDoc(collection(db, 'allocationRules'), newRule);
-                    const newGlobalRuleWithId = { ...newRule, id: newGlobalRuleRef.id };
-                    
-                    const clientsQuery = query(collection(db, 'numeraClients'));
-                    const clientsSnapshot = await getDocs(clientsQuery);
-                    
-                    const batch = writeBatch(db);
-                    clientsSnapshot.forEach(clientDoc => {
-                        const clientRef = doc(db, 'numeraClients', clientDoc.id);
-                        batch.update(clientRef, {
-                            allocationRules: arrayUnion(newGlobalRuleWithId)
-                        });
-                    });
-                    await batch.commit();
                 }
                 toast({ title: 'Rule Created' });
             }
 
             setEditingRule(null);
+            fetchClientAndRules();
         } catch (error) {
             toast({ title: 'Save Failed', description: 'Could not save the rule.', variant: 'destructive'});
             console.error(error);
@@ -952,6 +939,7 @@ function ManageRulesDialog({
                 await deleteDoc(doc(db, 'allocationRules', ruleId));
             }
             toast({ title: 'Rule Deleted', variant: 'destructive' });
+            fetchClientAndRules();
         } catch (error) {
             toast({ title: 'Delete Failed', description: 'Could not delete the rule.', variant: 'destructive'});
             console.error(error);
@@ -1014,42 +1002,6 @@ function ManageRulesDialog({
     )
 }
 
-function RuleList({ rules, scope, onEdit, onDelete }: { rules: AllocationRule[], scope: 'client' | 'global', onEdit: (rule: Partial<AllocationRule> & {scope: 'client' | 'global'}) => void, onDelete: (id: string, scope: 'client' | 'global') => void }) {
-    if (rules.length === 0) {
-        return <p className="text-sm text-center text-muted-foreground p-8">No {scope} rules found.</p>
-    }
-    return (
-        <div className="space-y-2">
-            {rules.map((rule, index) => (
-                <Card key={rule.id || index}>
-                    <CardContent className="p-3 flex justify-between items-center">
-                        <div className="text-sm">
-                            <p className="font-semibold">{rule.description}</p>
-                            <p className="text-xs text-muted-foreground">Keywords: {rule.keywords.join(', ')}</p>
-                        </div>
-                        <div className="flex items-center gap-1">
-                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit({...rule, scope})}>
-                                <Edit className="h-4 w-4" />
-                            </Button>
-                             <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive">
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone. This will permanently delete the rule: "{rule.description}".</AlertDialogDescription></AlertDialogHeader>
-                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => onDelete(rule.id, scope)}>Delete</AlertDialogAction></AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                        </div>
-                    </CardContent>
-                </Card>
-            ))}
-        </div>
-    )
-}
-
 function RuleForm({ initialData, onSave, onCancel, client } : {
     initialData: Partial<AllocationRule> & { scope?: 'client' | 'global' };
     onSave: (values: z.infer<typeof ruleFormSchema>) => void;
@@ -1089,6 +1041,42 @@ function RuleForm({ initialData, onSave, onCancel, client } : {
                 </DialogFooter>
             </form>
         </Form>
+    )
+}
+
+function RuleList({ rules, scope, onEdit, onDelete }: { rules: AllocationRule[], scope: 'client' | 'global', onEdit: (rule: Partial<AllocationRule> & {scope: 'client' | 'global'}) => void, onDelete: (id: string, scope: 'client' | 'global') => void }) {
+    if (rules.length === 0) {
+        return <p className="text-sm text-center text-muted-foreground p-8">No {scope} rules found.</p>
+    }
+    return (
+        <div className="space-y-2">
+            {rules.map((rule, index) => (
+                <Card key={rule.id || index}>
+                    <CardContent className="p-3 flex justify-between items-center">
+                        <div className="text-sm">
+                            <p className="font-semibold">{rule.description}</p>
+                            <p className="text-xs text-muted-foreground">Keywords: {rule.keywords.join(', ')}</p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit({...rule, scope})}>
+                                <Edit className="h-4 w-4" />
+                            </Button>
+                             <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive">
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone. This will permanently delete the rule: "{rule.description}".</AlertDialogDescription></AlertDialogHeader>
+                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => onDelete(rule.id, scope)}>Delete</AlertDialogAction></AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </div>
+                    </CardContent>
+                </Card>
+            ))}
+        </div>
     )
 }
 
@@ -1221,6 +1209,7 @@ export default function BankTransactionsPage() {
   const params = useParams();
   const clientId = params.clientId as string;
   const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState<'new' | 'reviewed'>('new');
   const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
   const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
   const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
@@ -1229,7 +1218,7 @@ export default function BankTransactionsPage() {
   const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
   const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
   const [isCreateInlineAccountOpen, setIsCreateInlineAccountOpen] = useState(false);
-  const [sortConfig, setSortConfig] = useState<{ key: keyof ImportedTransaction; direction: 'ascending' | 'descending' } | null>({ key: 'date', direction: 'descending' });
+  const [sortConfig, setSortConfig = useState<{ key: keyof ImportedTransaction; direction: 'ascending' | 'descending' } | null>({ key: 'date', direction: 'descending' });
   const [lastSelectedTxId, setLastSelectedTxId] = useState<string | null>(null);
 
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -1668,19 +1657,6 @@ export default function BankTransactionsPage() {
             });
         } else { 
             const newGlobalRuleRef = await addDoc(collection(db, 'allocationRules'), newRule);
-            const newGlobalRuleWithId = { ...newRule, id: newGlobalRuleRef.id };
-            
-            const clientsQuery = query(collection(db, 'numeraClients'));
-            const clientsSnapshot = await getDocs(clientsQuery);
-            
-            const batch = writeBatch(db);
-            clientsSnapshot.forEach(clientDoc => {
-                const clientRef = doc(db, 'numeraClients', clientDoc.id);
-                batch.update(clientRef, {
-                    allocationRules: arrayUnion(newGlobalRuleWithId)
-                });
-            });
-            await batch.commit();
         }
 
         toast({ title: 'Allocation Rule Created', description: `New rule for "${ruleData.description}" has been saved.`});
@@ -1734,7 +1710,7 @@ export default function BankTransactionsPage() {
     
     const newAccount: ChartOfAccount = {
         ...account,
-        id: account.accountNumber,
+        id: account.accountNumber.replace('/', '-'), // Ensure ID is valid
     };
     try {
         const clientRef = doc(db, 'numeraClients', client.id);
@@ -1767,7 +1743,7 @@ export default function BankTransactionsPage() {
     if (!client || !client.id) return;
 
     const newAccount: ChartOfAccount = {
-        id: account.accountNumber, // Use account number as ID
+        id: account.accountNumber.replace('/', '-'), // Ensure ID is valid
         ...account,
     };
     try {
@@ -1862,7 +1838,7 @@ export default function BankTransactionsPage() {
             </div>
         </div>
 
-        <Tabs defaultValue="new">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'new' | 'reviewed')}>
             <TabsList>
                 <TabsTrigger value="new">New Transactions</TabsTrigger>
                 <TabsTrigger value="reviewed">Reviewed Transactions</TabsTrigger>
@@ -2082,10 +2058,10 @@ export default function BankTransactionsPage() {
                 </Card>
             </TabsContent>
             <TabsContent value="reviewed">
-                <ReviewedTransactionsTab 
+                {activeTab === 'reviewed' && <ReviewedTransactionsTab 
                     client={client} 
                     onUpdateAllocation={handleUpdateAllocation}
-                />
+                />}
             </TabsContent>
         </Tabs>
         
@@ -2109,7 +2085,9 @@ export default function BankTransactionsPage() {
             onClose={() => setIsManageRulesOpen(false)}
             client={client}
             globalRules={globalRules}
-            fetchClientAndRules={() => {}}
+            fetchClientAndRules={() => {
+                // This is a placeholder. The onSnapshot will handle UI updates.
+            }}
         />
         
         <CreateAccountDialog
@@ -2138,3 +2116,5 @@ export default function BankTransactionsPage() {
     </div>
   );
 }
+
+    
