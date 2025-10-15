@@ -675,14 +675,14 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                                                     }}
                                                 />
                                             </TableCell>
-                                            <TableCell className="font-mono text-sm">{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
+                                            <TableCell className="text-sm">{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                             <TableCell className="text-sm">{tx.description}</TableCell>
                                             <TableCell className="w-[250px]">
                                                 <Select
                                                     value={tx.allocatedTo.value}
                                                     onValueChange={(newValue) => onUpdateAllocation(tx.id, { allocatedTo: { value: newValue, type: 'account' }})}
                                                 >
-                                                    <SelectTrigger className="h-8 justify-start text-sm">
+                                                    <SelectTrigger className="h-8 text-sm">
                                                         <SelectValue>
                                                           {selectedAccount?.description || 'Select account'}
                                                         </SelectValue>
@@ -702,7 +702,7 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                                                         value={tx.vatType}
                                                         onValueChange={(newValue: VatType) => onUpdateAllocation(tx.id, { vatType: newValue, vatAmount: calculateVat(tx.amount, newValue, isVatRegistered) })}
                                                     >
-                                                        <SelectTrigger className="h-8 justify-start text-sm">
+                                                        <SelectTrigger className="h-8 text-sm">
                                                             <SelectValue />
                                                         </SelectTrigger>
                                                         <SelectContent>
@@ -715,9 +715,9 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                                                     </Select>
                                                 </TableCell>
                                             )}
-                                            <TableCell className="text-right font-mono text-sm">{formatPrice(exclusiveAmount)}</TableCell>
-                                            {isVatRegistered && <TableCell className="text-right font-mono text-sm">{formatPrice(tx.vatAmount)}</TableCell>}
-                                            <TableCell className="text-right font-mono text-sm">{formatPrice(tx.amount)}</TableCell>
+                                            <TableCell className="text-right text-sm">{formatPrice(exclusiveAmount)}</TableCell>
+                                            {isVatRegistered && <TableCell className="text-right text-sm">{formatPrice(tx.vatAmount)}</TableCell>}
+                                            <TableCell className="text-right text-sm">{formatPrice(tx.amount)}</TableCell>
                                             <TableCell className="text-right">
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
@@ -1482,7 +1482,7 @@ export default function BankTransactionsPage() {
   };
   
   const handleAiAllocate = async () => {
-      if (!client) return;
+      if (!client || !client.chartOfAccounts) return;
       const transactionsToAllocate = filteredAndSortedTransactions.filter(tx => selectedTransactions.includes(tx.id));
       if (transactionsToAllocate.length === 0) {
           toast({ title: "No Transactions Selected", description: "Please select one or more transactions to allocate.", variant: "destructive" });
@@ -1492,7 +1492,6 @@ export default function BankTransactionsPage() {
       setIsAiLoading(true);
       stopAiAllocation.current = false;
       const chartOfAccountsStr = JSON.stringify(client.chartOfAccounts?.map(a => ({ id: a.id, accountNumber: a.accountNumber, description: a.description })));
-      let allocatedCount = 0;
       const successfullyAllocated: AllocatedTransaction[] = [];
       const failedToAllocateIds = new Set(transactionsToAllocate.map(tx => tx.id));
       
@@ -1537,7 +1536,6 @@ export default function BankTransactionsPage() {
                       allocatedAt: new Date(),
                   });
                   failedToAllocateIds.delete(tx.id);
-                  allocatedCount++;
               }
           } catch (aiError: any) {
               console.error(`AI allocation failed for transaction ${tx.id}:`, aiError);
@@ -1553,7 +1551,7 @@ export default function BankTransactionsPage() {
       }
 
       // Final batch update
-      if (!stopAiAllocation.current && allocatedCount > 0 && client.importedTransactions) {
+      if (!stopAiAllocation.current && successfullyAllocated.length > 0 && client.importedTransactions) {
           const remainingImported = client.importedTransactions.filter(tx => !successfullyAllocated.some(a => a.id === tx.id));
           
           try {
@@ -1562,12 +1560,12 @@ export default function BankTransactionsPage() {
                   importedTransactions: remainingImported,
                   allocatedTransactions: arrayUnion(...successfullyAllocated),
               });
-              toast({ title: "AI Allocation Complete", description: `${allocatedCount} of ${transactionsToAllocate.length} selected transactions were allocated.` });
+              toast({ title: "AI Allocation Complete", description: `${successfullyAllocated.length} of ${transactionsToAllocate.length} selected transactions were allocated.` });
           } catch (dbError) {
               console.error("Firestore update failed after AI allocation:", dbError);
               toast({ title: "Database Update Failed", description: "AI allocation finished, but saving the results failed. Please try again.", variant: "destructive" });
           }
-      } else if (!stopAiAllocation.current && allocatedCount === 0) {
+      } else if (!stopAiAllocation.current && successfullyAllocated.length === 0) {
           toast({ title: "AI Allocation Finished", description: "The AI did not have high enough confidence to allocate the selected transactions.", variant: "destructive" });
       }
 
@@ -1882,6 +1880,7 @@ export default function BankTransactionsPage() {
                                                                 ))}
                                                             </DropdownMenuSubContent>
                                                         </DropdownMenuSub>
+                                                ))}
                                                 </DropdownMenuSubContent>
                                             </DropdownMenuSub>
                                             <Separator />
@@ -1972,12 +1971,12 @@ export default function BankTransactionsPage() {
                                                     }}
                                                 />
                                             </TableCell>
-                                            <TableCell className="font-mono text-sm">{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
+                                            <TableCell className="text-sm">{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                             <TableCell className="text-sm">{tx.reference}</TableCell>
                                             <TableCell className="text-sm">{tx.description}</TableCell>
                                             <TableCell>
                                                 <Select onValueChange={(value) => handleSingleAllocate(tx.id, value, 'no_vat')}>
-                                                    <SelectTrigger className="h-8 w-[200px] justify-start">
+                                                    <SelectTrigger className="h-8 w-[200px]">
                                                         <SelectValue placeholder="Select account" />
                                                     </SelectTrigger>
                                                     <SelectContent>
@@ -1994,7 +1993,7 @@ export default function BankTransactionsPage() {
                                             {isVatRegistered && (
                                                  <TableCell>
                                                     <Select>
-                                                        <SelectTrigger className="h-8 w-[180px] justify-start">
+                                                        <SelectTrigger className="h-8 w-[180px]">
                                                             <SelectValue placeholder="Select VAT type" />
                                                         </SelectTrigger>
                                                         <SelectContent>
@@ -2007,7 +2006,7 @@ export default function BankTransactionsPage() {
                                                     </Select>
                                                 </TableCell>
                                             )}
-                                            <TableCell className="text-right font-mono text-sm">{formatPrice(tx.amount)}</TableCell>
+                                            <TableCell className="text-right text-sm">{formatPrice(tx.amount)}</TableCell>
                                             <TableCell className="text-right">
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
@@ -2117,4 +2116,3 @@ export default function BankTransactionsPage() {
     </div>
   );
 }
-
