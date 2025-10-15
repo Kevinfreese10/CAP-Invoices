@@ -86,3 +86,6 @@ export let chartOfAccounts: ChartOfAccount[] = [
     { id: '9990/002', accountNumber: '9990/002', description: 'Unpaid Suspense', section: 'Balance Sheet' },
 ];
 
+export function setMasterChartOfAccounts(newAccounts: ChartOfAccount[]) {
+    chartOfAccounts = newAccounts;
+}

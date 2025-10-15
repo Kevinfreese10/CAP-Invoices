@@ -2,7 +2,7 @@
 'use client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { chartOfAccounts as masterChartOfAccounts } from "@/lib/chart-of-accounts";
+import { chartOfAccounts as masterChartOfAccounts, setMasterChartOfAccounts } from "@/lib/chart-of-accounts";
 import { Input } from "@/components/ui/input";
 import { useState, useMemo, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getFirestore, collection, getDocs, query, orderBy, doc, setDoc, addDoc, deleteDoc, updateDoc } from "firebase/firestore";
 import { firebaseApp } from "@/lib/firebase";
-import { AllocationRule } from "@/lib/types";
+import { AllocationRule, ChartOfAccount } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -34,11 +34,45 @@ const ruleFormSchema = z.object({
   vatType: z.enum(allVatTypes.map(v => v.name) as [string, ...string[]]),
 });
 
-function RuleForm({ rule, onSave, onCancel }: {
+const accountFormSchema = z.object({
+  accountNumber: z.string().min(1, "Account number is required."),
+  description: z.string().min(3, "Description is required."),
+  section: z.enum(['Income Statement', 'Balance Sheet']),
+});
+type AccountFormValues = z.infer<typeof accountFormSchema>;
+
+function AccountForm({ onSave, onCancel }: { onSave: (data: AccountFormValues) => void, onCancel: () => void }) {
+    const form = useForm<AccountFormValues>({
+        resolver: zodResolver(accountFormSchema),
+        defaultValues: {
+            accountNumber: '',
+            description: '',
+            section: 'Income Statement',
+        },
+    });
+
+    return (
+        <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSave)} className="space-y-4">
+                <FormField control={form.control} name="accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                <FormField control={form.control} name="section" render={({ field }) => ( <FormItem><FormLabel>Section</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a section" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Income Statement">Income Statement</SelectItem><SelectItem value="Balance Sheet">Balance Sheet</SelectItem></SelectContent></Select><FormMessage /></FormItem> )} />
+                <DialogFooter>
+                    <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
+                    <Button type="submit">Create Account</Button>
+                </DialogFooter>
+            </form>
+        </Form>
+    );
+}
+
+function RuleForm({ rule, onSave, onCancel, onCreateAccount }: {
     rule: Partial<AllocationRule> | null;
     onSave: (values: z.infer<typeof ruleFormSchema>) => void;
     onCancel: () => void;
+    onCreateAccount: (account: ChartOfAccount) => void;
 }) {
+    const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
     const form = useForm<z.infer<typeof ruleFormSchema>>({
         resolver: zodResolver(ruleFormSchema),
         defaultValues: {
@@ -49,20 +83,59 @@ function RuleForm({ rule, onSave, onCancel }: {
             vatType: rule?.vatType || 'no_vat',
         }
     });
+    
+    const handleAccountSelect = (value: string) => {
+        if (value === 'create-new') {
+            setIsCreateAccountOpen(true);
+        } else {
+            form.setValue('accountId', value);
+        }
+    }
+
+    const handleCreateAccount = (values: AccountFormValues) => {
+        const newAccount = { ...values, id: values.accountNumber };
+        onCreateAccount(newAccount);
+        form.setValue('accountId', newAccount.id);
+        setIsCreateAccountOpen(false);
+    }
 
     return (
-        <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSave)} className="space-y-4">
-                <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Rule Description</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )}/>
-                <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords (comma-separated)</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem> )}/>
-                <FormField control={form.control} name="accountId" render={({ field }) => ( <FormItem><FormLabel>Allocate To Account</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl><SelectContent>{masterChartOfAccounts?.map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.accountNumber} - {acc.description}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="vatType" render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
-                <DialogFooter>
-                    <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
-                    <Button type="submit">Save Rule</Button>
-                </DialogFooter>
-            </form>
-        </Form>
+        <>
+            <Dialog open={isCreateAccountOpen} onOpenChange={setIsCreateAccountOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Create New Master Account</DialogTitle>
+                    </DialogHeader>
+                    <AccountForm onSave={handleCreateAccount} onCancel={() => setIsCreateAccountOpen(false)} />
+                </DialogContent>
+            </Dialog>
+
+            <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSave)} className="space-y-4">
+                    <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Rule Description</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )}/>
+                    <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords (comma-separated)</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem> )}/>
+                    <FormField control={form.control} name="accountId" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Allocate To Account</FormLabel>
+                            <Select onValueChange={handleAccountSelect} value={field.value}>
+                                <FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl>
+                                <SelectContent>
+                                    <SelectItem value="create-new" className="text-primary font-semibold">Create new account...</SelectItem>
+                                    <Separator />
+                                    {masterChartOfAccounts.map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.accountNumber} - {acc.description}</SelectItem>))}
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )}/>
+                    <FormField control={form.control} name="vatType" render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                    <DialogFooter>
+                        <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
+                        <Button type="submit">Save Rule</Button>
+                    </DialogFooter>
+                </form>
+            </Form>
+        </>
     )
 }
 
@@ -150,6 +223,11 @@ export default function NumeraSettingsPage() {
         }
     }
 
+    const handleCreateMasterAccount = (newAccount: ChartOfAccount) => {
+        setMasterChartOfAccounts([...masterChartOfAccounts, newAccount].sort((a,b) => a.accountNumber.localeCompare(b.accountNumber)));
+        toast({ title: "Account Created", description: `Account ${newAccount.description} has been added to the master list.`})
+    }
+
     return (
         <div className="space-y-8">
              <div className="flex items-center justify-between">
@@ -175,6 +253,7 @@ export default function NumeraSettingsPage() {
                         rule={editingRule} 
                         onSave={handleSaveRule}
                         onCancel={() => setIsRuleFormOpen(false)} 
+                        onCreateAccount={handleCreateMasterAccount}
                     />
                 </DialogContent>
             </Dialog>
