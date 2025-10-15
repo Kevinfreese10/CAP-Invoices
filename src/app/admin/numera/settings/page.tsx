@@ -23,6 +23,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { allVatTypes } from "@/lib/vat-types";
+import { Separator } from "@/components/ui/separator";
 
 const db = getFirestore(firebaseApp);
 
