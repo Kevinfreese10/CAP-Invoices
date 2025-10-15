@@ -675,7 +675,7 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                                                     }}
                                                 />
                                             </TableCell>
-                                            <TableCell className="text-sm">{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
+                                            <TableCell className="font-mono text-sm">{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                             <TableCell className="text-sm">{tx.description}</TableCell>
                                             <TableCell className="w-[250px]">
                                                 <Select
@@ -715,9 +715,9 @@ function ReviewedTransactionsTab({ client, fetchClient, openRuleDialogForTransac
                                                     </Select>
                                                 </TableCell>
                                             )}
-                                            <TableCell className="text-right text-sm">{formatPrice(exclusiveAmount)}</TableCell>
-                                            {isVatRegistered && <TableCell className="text-right text-sm">{formatPrice(tx.vatAmount)}</TableCell>}
-                                            <TableCell className="text-right text-sm">{formatPrice(tx.amount)}</TableCell>
+                                            <TableCell className="text-right font-mono text-sm">{formatPrice(exclusiveAmount)}</TableCell>
+                                            {isVatRegistered && <TableCell className="text-right font-mono text-sm">{formatPrice(tx.vatAmount)}</TableCell>}
+                                            <TableCell className="text-right font-mono text-sm">{formatPrice(tx.amount)}</TableCell>
                                             <TableCell className="text-right">
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
@@ -1482,81 +1482,101 @@ export default function BankTransactionsPage() {
   };
   
   const handleAiAllocate = async () => {
-    if (!client) return;
-    
-    const transactionsToAllocate = filteredAndSortedTransactions.filter(tx => selectedTransactions.includes(tx.id));
-    if (transactionsToAllocate.length === 0) {
-        toast({ title: "No Transactions Selected", description: "Please select one or more transactions to allocate.", variant: "destructive" });
-        return;
-    }
+      if (!client) return;
+      const transactionsToAllocate = filteredAndSortedTransactions.filter(tx => selectedTransactions.includes(tx.id));
+      if (transactionsToAllocate.length === 0) {
+          toast({ title: "No Transactions Selected", description: "Please select one or more transactions to allocate.", variant: "destructive" });
+          return;
+      }
 
-    setIsAiLoading(true);
-    stopAiAllocation.current = false;
-    const chartOfAccountsStr = JSON.stringify(client.chartOfAccounts?.map(a => ({ id: a.id, accountNumber: a.accountNumber, description: a.description })));
-    let allocatedCount = 0;
-    
-    const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
+      setIsAiLoading(true);
+      stopAiAllocation.current = false;
+      const chartOfAccountsStr = JSON.stringify(client.chartOfAccounts?.map(a => ({ id: a.id, accountNumber: a.accountNumber, description: a.description })));
+      let allocatedCount = 0;
+      const successfullyAllocated: AllocatedTransaction[] = [];
+      const failedToAllocateIds = new Set(transactionsToAllocate.map(tx => tx.id));
+      
+      const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
-    for (const [index, tx] of transactionsToAllocate.entries()) {
-        if (stopAiAllocation.current) {
-            toast({ title: "AI Allocation Stopped", description: "The process was stopped by the user.", variant: "destructive" });
-            break;
-        }
+      for (const [index, tx] of transactionsToAllocate.entries()) {
+          if (stopAiAllocation.current) {
+              toast({ title: "AI Allocation Stopped", description: "The process was stopped by the user.", variant: "destructive" });
+              break;
+          }
 
-        try {
-            setCurrentAiTxInfo({ 
-                progress: { current: index + 1, total: transactionsToAllocate.length },
-                txDescription: tx.description,
-                suggestion: null 
-            });
+          setCurrentAiTxInfo({ 
+              progress: { current: index + 1, total: transactionsToAllocate.length },
+              txDescription: tx.description,
+              suggestion: null 
+          });
 
-            await delay(2500); // Let user see the "processing" state
-            const suggestion = await suggestTransactionAllocation({ description: tx.description, chartOfAccounts: chartOfAccountsStr });
-            
-            const accountDescription = client.chartOfAccounts?.find(a => a.id === suggestion.accountId)?.description || 'Unknown Account';
-                
-            setCurrentAiTxInfo(prev => ({
-                ...prev!,
-                suggestion: {
-                    accountId: suggestion.accountId,
-                    accountDescription: accountDescription,
-                    vatType: suggestion.vatType,
-                    confidence: suggestion.confidence,
-                }
-            }));
-            
-            await delay(1500); // Give user time to see confidence
+          await delay(500); // Let user see the "processing" state
 
-            if (suggestion && suggestion.confidence > 50) {
-                await handleSingleAllocate(tx.id, suggestion.accountId, suggestion.vatType);
-                allocatedCount++;
-            }
-        } catch (aiError: any) {
-            console.error(`AI allocation failed for transaction ${tx.id}:`, aiError);
-            if (aiError.message?.includes('429')) {
-                toast({
-                    title: "AI Rate Limit Hit",
-                    description: "Too many requests sent. Please wait and try again.",
-                    variant: "destructive"
-                });
-                break;
-            }
-        }
-    }
-    
-    setIsAiLoading(false);
-    setCurrentAiTxInfo(null);
-    setSelectedTransactions([]);
-    await fetchClientAndRules();
+          try {
+              const suggestion = await suggestTransactionAllocation({ description: tx.description, chartOfAccounts: chartOfAccountsStr });
+              const accountDescription = client.chartOfAccounts?.find(a => a.id === suggestion.accountId)?.description || 'Unknown Account';
+                  
+              setCurrentAiTxInfo(prev => ({
+                  ...prev!,
+                  suggestion: {
+                      accountId: suggestion.accountId,
+                      accountDescription: accountDescription,
+                      vatType: suggestion.vatType,
+                      confidence: suggestion.confidence,
+                  }
+              }));
+              
+              await delay(500); // Give user time to see confidence
 
-    if (!stopAiAllocation.current) {
-        if (allocatedCount > 0) {
-            toast({ title: "AI Allocation Complete", description: `${allocatedCount} of ${transactionsToAllocate.length} selected transactions were allocated.` });
-        } else {
-            toast({ title: "AI Allocation Finished", description: "The AI did not have high enough confidence to allocate the selected transactions.", variant: "destructive" });
-        }
-    }
+              if (suggestion && suggestion.confidence > 50) {
+                  successfullyAllocated.push({
+                      ...tx,
+                      allocatedTo: { value: suggestion.accountId, type: 'account' as const },
+                      vatType: isVatRegistered ? suggestion.vatType : 'no_vat',
+                      vatAmount: calculateVat(tx.amount, suggestion.vatType, isVatRegistered),
+                      allocatedAt: new Date(),
+                  });
+                  failedToAllocateIds.delete(tx.id);
+                  allocatedCount++;
+              }
+          } catch (aiError: any) {
+              console.error(`AI allocation failed for transaction ${tx.id}:`, aiError);
+              if (aiError.message?.includes('429')) {
+                  toast({
+                      title: "AI Rate Limit Hit",
+                      description: "Too many requests sent. Please wait and try again.",
+                      variant: "destructive"
+                  });
+                  break; 
+              }
+          }
+      }
+
+      // Final batch update
+      if (!stopAiAllocation.current && allocatedCount > 0 && client.importedTransactions) {
+          const remainingImported = client.importedTransactions.filter(tx => !successfullyAllocated.some(a => a.id === tx.id));
+          
+          try {
+              const clientRef = doc(db, 'numeraClients', client.id);
+              await updateDoc(clientRef, {
+                  importedTransactions: remainingImported,
+                  allocatedTransactions: arrayUnion(...successfullyAllocated),
+              });
+              toast({ title: "AI Allocation Complete", description: `${allocatedCount} of ${transactionsToAllocate.length} selected transactions were allocated.` });
+          } catch (dbError) {
+              console.error("Firestore update failed after AI allocation:", dbError);
+              toast({ title: "Database Update Failed", description: "AI allocation finished, but saving the results failed. Please try again.", variant: "destructive" });
+          }
+      } else if (!stopAiAllocation.current && allocatedCount === 0) {
+          toast({ title: "AI Allocation Finished", description: "The AI did not have high enough confidence to allocate the selected transactions.", variant: "destructive" });
+      }
+
+      setIsAiLoading(false);
+      setCurrentAiTxInfo(null);
+      setSelectedTransactions([]);
+      await fetchClientAndRules();
   };
+
 
   const handleUpdateAllocation = async (txId: string, updates: Partial<AllocatedTransaction>) => {
     if (!client) return;
@@ -1862,7 +1882,6 @@ export default function BankTransactionsPage() {
                                                                 ))}
                                                             </DropdownMenuSubContent>
                                                         </DropdownMenuSub>
-                                                    ))}
                                                 </DropdownMenuSubContent>
                                             </DropdownMenuSub>
                                             <Separator />
@@ -1953,7 +1972,7 @@ export default function BankTransactionsPage() {
                                                     }}
                                                 />
                                             </TableCell>
-                                            <TableCell className="text-sm">{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
+                                            <TableCell className="font-mono text-sm">{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                             <TableCell className="text-sm">{tx.reference}</TableCell>
                                             <TableCell className="text-sm">{tx.description}</TableCell>
                                             <TableCell>
@@ -1966,7 +1985,7 @@ export default function BankTransactionsPage() {
                                                         <Separator />
                                                         {client?.chartOfAccounts?.map(acc => (
                                                             <SelectItem key={acc.id} value={acc.id}>
-                                                                {acc.accountNumber} - {acc.description}
+                                                                {acc.description}
                                                             </SelectItem>
                                                         ))}
                                                     </SelectContent>
@@ -1988,7 +2007,7 @@ export default function BankTransactionsPage() {
                                                     </Select>
                                                 </TableCell>
                                             )}
-                                            <TableCell className="text-right text-sm">{formatPrice(tx.amount)}</TableCell>
+                                            <TableCell className="text-right font-mono text-sm">{formatPrice(tx.amount)}</TableCell>
                                             <TableCell className="text-right">
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
@@ -2010,7 +2029,7 @@ export default function BankTransactionsPage() {
                                     <TableCell>
                                         <Select>
                                             <SelectTrigger className="h-8 w-[200px]"><SelectValue placeholder="Select account" /></SelectTrigger>
-                                            <SelectContent>{client?.chartOfAccounts?.map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.accountNumber} - {acc.description}</SelectItem>))}</SelectContent>
+                                            <SelectContent>{client?.chartOfAccounts?.map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>))}</SelectContent>
                                         </Select>
                                     </TableCell>
                                      {isVatRegistered && (
@@ -2098,3 +2117,4 @@ export default function BankTransactionsPage() {
     </div>
   );
 }
+
