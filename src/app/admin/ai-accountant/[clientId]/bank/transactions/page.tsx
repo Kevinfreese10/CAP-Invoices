@@ -367,8 +367,7 @@ const ruleFormSchema = z.object({
   vatType: z.enum(allVatTypes.map(v => v.name) as [string, ...string[]]),
 });
 
-function CreateRuleDialog({ client, onRuleCreated, trigger, defaultValues }: { client: User | null; onRuleCreated: () => void; trigger: React.ReactNode; defaultValues?: Partial<z.infer<typeof ruleFormSchema>> }) {
-  const [isOpen, setIsOpen] = useState(false);
+function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultValues }: { client: User | null; onRuleCreated: () => void; open: boolean; onOpenChange: (open: boolean) => void; defaultValues?: Partial<z.infer<typeof ruleFormSchema>> }) {
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
   const form = useForm<z.infer<typeof ruleFormSchema>>({
@@ -382,10 +381,10 @@ function CreateRuleDialog({ client, onRuleCreated, trigger, defaultValues }: { c
   });
   
   useEffect(() => {
-    if(isOpen && defaultValues) {
+    if(open && defaultValues) {
         form.reset(defaultValues);
     }
-  }, [isOpen, defaultValues, form]);
+  }, [open, defaultValues, form]);
 
   const handleSaveRule = async (values: z.infer<typeof ruleFormSchema>) => {
     if (!client) return;
@@ -407,7 +406,7 @@ function CreateRuleDialog({ client, onRuleCreated, trigger, defaultValues }: { c
 
       toast({ title: "Rule Created", description: `The rule "${values.description}" has been added to this client.`});
       form.reset();
-      setIsOpen(false);
+      onOpenChange(false);
       onRuleCreated(); // Callback to refetch client data
     } catch (error) {
       console.error("Error creating rule:", error);
@@ -418,8 +417,7 @@ function CreateRuleDialog({ client, onRuleCreated, trigger, defaultValues }: { c
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create New Allocation Rule</DialogTitle>
@@ -434,7 +432,7 @@ function CreateRuleDialog({ client, onRuleCreated, trigger, defaultValues }: { c
             <FormField control={form.control} name="accountId" render={({ field }) => ( <FormItem><FormLabel>Allocate To Account</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl><SelectContent>{client?.chartOfAccounts?.map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.accountNumber} - {acc.description}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem> )}/>
             <FormField control={form.control} name="vatType" render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
             <DialogFooter>
-              <Button type="button" variant="ghost" onClick={() => setIsOpen(false)}>Cancel</Button>
+              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
               <Button type="submit" disabled={isSaving}>
                 {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Save Rule
@@ -653,6 +651,8 @@ const NewTransactionsTab = React.forwardRef<
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     const [allocations, setAllocations] = useState<{ [txId: string]: { accountId?: string, vatType?: VatType } }>({});
     const [searchAccountTerm, setSearchAccountTerm] = useState('');
+    const [isCreateRuleOpen, setIsCreateRuleOpen] = useState(false);
+    const [ruleDefaultValues, setRuleDefaultValues] = useState<Partial<z.infer<typeof ruleFormSchema>> | undefined>();
     
     const newTransactionsQuery = useMemo(() => {
         if (!client?.id || !bankAccountId) return null;
@@ -759,6 +759,13 @@ const NewTransactionsTab = React.forwardRef<
     
     return (
         <Card>
+            <CreateRuleDialog
+                client={client}
+                onRuleCreated={fetchClientData}
+                open={isCreateRuleOpen}
+                onOpenChange={setIsCreateRuleOpen}
+                defaultValues={ruleDefaultValues}
+            />
             <CardHeader className="p-0">
                 <Tabs value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'expenses' | 'income')} className="w-full">
                     <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none h-auto">
@@ -798,11 +805,12 @@ const NewTransactionsTab = React.forwardRef<
                                 </DropdownMenuSubContent>
                             </DropdownMenuSub>
                             <DropdownMenuSeparator />
-                             <CreateRuleDialog 
-                                client={client} 
-                                onRuleCreated={fetchClientData} 
-                                trigger={<DropdownMenuItem onSelect={(e) => e.preventDefault()}>Create Allocation Rule</DropdownMenuItem>}
-                             />
+                             <DropdownMenuItem onSelect={() => {
+                                setRuleDefaultValues({});
+                                setIsCreateRuleOpen(true);
+                            }}>
+                                Create Allocation Rule
+                            </DropdownMenuItem>
                              <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                     <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive" disabled={selectedTransactions.length === 0}>
@@ -909,12 +917,12 @@ const NewTransactionsTab = React.forwardRef<
                                                     <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent>
-                                                    <CreateRuleDialog
-                                                        client={client}
-                                                        onRuleCreated={fetchClientData}
-                                                        trigger={<DropdownMenuItem onSelect={(e) => e.preventDefault()}>Create Rule from Transaction</DropdownMenuItem>}
-                                                        defaultValues={{keywords: tx.description.split(" ")[0] || ''}}
-                                                    />
+                                                     <DropdownMenuItem onSelect={() => {
+                                                        setRuleDefaultValues({ keywords: tx.description.split(" ")[0] || '' });
+                                                        setIsCreateRuleOpen(true);
+                                                    }}>
+                                                        Create Rule from Transaction
+                                                    </DropdownMenuItem>
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
                                         </TableCell>
