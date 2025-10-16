@@ -1,12 +1,11 @@
 
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -17,7 +16,7 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, AIAllocationJob } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove, addDoc, collection, getDocs, query, orderBy, where, writeBatch, onSnapshot, Unsubscribe, QueryConstraint, collectionGroup, limit } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove, addDoc, collection, getDocs, query, orderBy, where, writeBatch, onSnapshot, Unsubscribe, Query, DocumentData, QueryDocumentSnapshot, limit, startAfter, QueryConstraint } from 'firebase/firestore';
 import { firebaseApp } from '@/firebase/config';
 import { useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -37,14 +36,9 @@ import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-all
 import { Progress } from '@/components/ui/progress';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
 
-
 const db = getFirestore(firebaseApp);
 const PAGE_SIZE = 50;
 
-// (Keep all dialogs and helper functions as they are)
-// ... ImportDialog, AiReviewDialog, CreateRuleDialog, ManageRulesDialog, CreateAccountDialog, AIProgressPopup, etc.
-
-// #region Helper Functions (formatPrice, calculateVat, etc.)
 const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', {
       minimumFractionDigits: 2,
@@ -52,18 +46,95 @@ const formatPrice = (price: number) => {
     }).format(price);
 };
 
-const calculateVat = (amount: number, vatType: VatType, isVatRegistered: boolean): number => {
-    if (!isVatRegistered) return 0;
-    const isStandardVat = vatType === 'standard_rated_purchases' || vatType === 'standard_rated_sales' || vatType === 'capital_goods_purchases';
-    if (isStandardVat) {
-        return amount * (15 / 115);
-    }
-    return 0;
-};
-// #endregion
+// #region Create Account Dialog
+const createAccountSchema = z.object({
+  name: z.string().min(3, "Bank account name is required."),
+});
 
-// #region Dialog Components (ImportDialog, AiReviewDialog, etc.)
-// No changes needed to these components for pagination
+function CreateAccountDialog({ client, onAccountCreated, onOpenChange, open }: { client: User, onAccountCreated: () => void, open: boolean, onOpenChange: (open: boolean) => void }) {
+    const { toast } = useToast();
+    const [isSaving, setIsSaving] = useState(false);
+    const form = useForm<z.infer<typeof createAccountSchema>>({
+        resolver: zodResolver(createAccountSchema),
+        defaultValues: { name: '' },
+    });
+
+    const handleCreateAccount = async (values: z.infer<typeof createAccountSchema>) => {
+        setIsSaving(true);
+        try {
+            const existingBankAccounts = client.chartOfAccounts?.filter(
+                acc => acc.accountNumber.startsWith('8400-')
+            ) || [];
+
+            const existingNumbers = existingBankAccounts.map(acc => {
+                const parts = acc.accountNumber.split('-');
+                return parts.length > 1 ? parseInt(parts[1], 10) : 0;
+            });
+
+            const nextNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1;
+            const newAccountNumber = `8400-${String(nextNumber).padStart(3, '0')}`;
+
+            const newAccount: ChartOfAccount = {
+                id: newAccountNumber,
+                accountNumber: newAccountNumber,
+                description: values.name,
+                section: 'Balance Sheet',
+            };
+
+            const clientRef = doc(db, 'numeraClients', client.id);
+            await updateDoc(clientRef, {
+                chartOfAccounts: arrayUnion(newAccount)
+            });
+
+            toast({ title: 'Bank Account Created', description: `Account ${newAccount.description} (${newAccount.accountNumber}) has been added.` });
+            onAccountCreated();
+            form.reset();
+            onOpenChange(false);
+        } catch (error) {
+            console.error("Error creating bank account:", error);
+            toast({ title: 'Error', description: 'Could not create the bank account.', variant: 'destructive' });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Create New Bank Account</DialogTitle>
+                    <DialogDescription>
+                        This will add a new cashbook account to this client's chart of accounts.
+                    </DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleCreateAccount)} className="space-y-4">
+                        <FormField
+                            control={form.control}
+                            name="name"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Bank Account Name</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="e.g., FNB Cheque Account" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <DialogFooter>
+                            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+                            <Button type="submit" disabled={isSaving}>
+                                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Create Account
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
+            </DialogContent>
+        </Dialog>
+    );
+}
 // #endregion
 
 function NewTransactionsTab({ 
@@ -86,7 +157,6 @@ function NewTransactionsTab({
         const constraints: QueryConstraint[] = [
             where('bankAccountId', '==', bankAccountId),
             where('status', '==', 'new'),
-            orderBy('date', 'desc')
         ];
         
         if (activeSubTab === 'expenses') {
@@ -94,6 +164,10 @@ function NewTransactionsTab({
         } else {
             constraints.push(where('amount', '>=', 0));
         }
+
+        constraints.push(orderBy('amount', activeSubTab === 'expenses' ? 'asc' : 'desc'));
+        constraints.push(orderBy('date', 'desc'));
+        
 
         return query(collection(db, 'numeraClients', client.id, 'transactions'), ...constraints);
     }, [client?.id, bankAccountId, activeSubTab]);
@@ -104,10 +178,13 @@ function NewTransactionsTab({
         loadMore,
         hasMore,
         isLoadingMore,
+        refetch,
     } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: newTransactionsQuery, pageSize: PAGE_SIZE });
 
-    // Other handlers (handleBulkAllocate, handleBulkDelete, handleAiAllocate) remain largely the same,
-    // but they will operate on the `selectedTransactions` state. They need refetching logic.
+     useEffect(() => {
+        refetch();
+    }, [activeSubTab, refetch]);
+
 
     const handleBulkDelete = async () => {
         if (!client || !client.id || selectedTransactions.length === 0) return;
@@ -122,14 +199,12 @@ function NewTransactionsTab({
             await batch.commit();
             toast({ title: 'Transactions Deleted', description: `${selectedTransactions.length} transactions have been removed.`, variant: 'destructive' });
             setSelectedTransactions([]);
-            fetchClientAndRules(); // Refetch to update UI
+            refetch();
         } catch (error) {
             toast({ title: 'Deletion Failed', variant: 'destructive' });
             console.error(error);
         }
     };
-
-    // Other bulk handlers would follow a similar pattern, committing changes and then refetching.
     
     return (
         <Card>
@@ -141,14 +216,50 @@ function NewTransactionsTab({
                     </TabsList>
                 </Tabs>
                  <div className="p-4 border-b">
-                    {/* Action Buttons Here: Use handlers like handleBulkDelete */}
+                    {/* Action Buttons Here */}
+                     <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="destructive" disabled={selectedTransactions.length === 0}>
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete ({selectedTransactions.length})
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This action will permanently delete {selectedTransactions.length} selected transaction(s). This cannot be undone.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleBulkDelete}>Yes, Delete</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                 </div>
             </CardHeader>
             <CardContent className="p-0">
                 <div className="overflow-x-auto">
                     <Table>
                         <TableHeader>
-                            {/* Table Headers */}
+                            <TableRow>
+                                <TableCell className="w-12 p-2">
+                                     <Checkbox
+                                        checked={selectedTransactions.length > 0 && selectedTransactions.length === transactions.length}
+                                        onCheckedChange={(checked) => {
+                                            setSelectedTransactions(checked ? transactions.map(tx => tx.id) : []);
+                                        }}
+                                    />
+                                </TableCell>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Reference</TableHead>
+                                <TableHead>Description</TableHead>
+                                <TableHead className="w-[250px]">Allocate To</TableHead>
+                                {client?.isVatRegistered && <TableHead className="w-[180px]">VAT Type</TableHead>}
+                                <TableHead className="text-right">Amount</TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
+                            </TableRow>
                         </TableHeader>
                         <TableBody>
                             {isLoading ? (
@@ -158,7 +269,7 @@ function NewTransactionsTab({
                             ) : (
                                 transactions.map(tx => (
                                     <TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && "selected"}>
-                                        <TableCell>
+                                        <TableCell className="p-2">
                                             <Checkbox
                                                 checked={selectedTransactions.includes(tx.id)}
                                                 onCheckedChange={(checked) => {
@@ -168,18 +279,13 @@ function NewTransactionsTab({
                                                 }}
                                             />
                                         </TableCell>
-                                        {/* Other Table Cells */}
                                         <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
-                                        <TableCell>{tx.reference}</TableCell>
-                                        <TableCell>{tx.description}</TableCell>
-                                        <TableCell>
-                                            {/* Allocation Select */}
-                                        </TableCell>
+                                        <TableCell className="max-w-[150px] truncate">{tx.reference}</TableCell>
+                                        <TableCell className="max-w-[250px] truncate">{tx.description}</TableCell>
+                                        <TableCell>{/* Allocation Select */}</TableCell>
                                         {client?.isVatRegistered && <TableCell>{/* VAT Select */}</TableCell>}
-                                        <TableCell className="text-right">{formatPrice(tx.amount)}</TableCell>
-                                        <TableCell className="text-right">
-                                            {/* Actions Dropdown */}
-                                        </TableCell>
+                                        <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
+                                        <TableCell className="text-right">{/* Actions Dropdown */}</TableCell>
                                     </TableRow>
                                 ))
                             )}
@@ -199,8 +305,6 @@ function NewTransactionsTab({
     )
 }
 
-// Add similar components for ForReviewTab and ReviewedTab, each with its own usePaginatedFirestore hook
-
 export default function BankTransactionsPage() {
     const [client, setClient] = useState<User | null>(null);
     const [bankAccounts, setBankAccounts] = useState<ChartOfAccount[]>([]);
@@ -210,6 +314,7 @@ export default function BankTransactionsPage() {
     const clientId = params.clientId as string;
     const { toast } = useToast();
     const [activeTab, setActiveTab] = useState<'new' | 'review' | 'reviewed'>('new');
+    const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
     
     const fetchClientAndRules = useCallback(async () => {
         if (!clientId) return;
@@ -222,12 +327,14 @@ export default function BankTransactionsPage() {
                 setClient(clientData);
 
                 const cashbookAccounts = clientData.chartOfAccounts?.filter(
-                    acc => (acc.description.toLowerCase().includes('bank') || acc.description.toLowerCase().includes('credit card') || acc.description.toLowerCase().includes('cashbook')) && !acc.description.toLowerCase().includes('charges')
+                    acc => acc.accountNumber.startsWith('8400-')
                 ) || [];
                 setBankAccounts(cashbookAccounts);
 
                 if (cashbookAccounts.length > 0 && !selectedAccountId) {
                     setSelectedAccountId(cashbookAccounts[0].id);
+                } else if (cashbookAccounts.length === 0) {
+                    setSelectedAccountId(null);
                 }
             } else {
                 toast({ title: 'Error', description: 'Client not found.', variant: 'destructive' });
@@ -248,7 +355,6 @@ export default function BankTransactionsPage() {
     return (
         <div className="space-y-4">
             <h1 className="text-2xl font-bold tracking-tight">Banking</h1>
-            {/* Header section with bank account selector and balance */}
             <div className="flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-8 p-4 bg-card border rounded-lg">
                 <div className="grid gap-2 w-full md:w-auto md:min-w-64">
                     <Label htmlFor="bank-account-selector">Bank Account</Label>
@@ -269,11 +375,9 @@ export default function BankTransactionsPage() {
                                 ))}
                             </SelectContent>
                         </Select>
-                         <Button variant="outline" asChild>
-                            <Link href={`/admin/numera/${clientId}/chart-of-accounts`}>
-                                <PlusCircle className="mr-2 h-4 w-4" />
-                                Create Account
-                            </Link>
+                        <Button variant="outline" onClick={() => setIsCreateAccountOpen(true)}>
+                            <PlusCircle className="mr-2 h-4 w-4" />
+                            Create Account
                         </Button>
                     </div>
                 </div>
@@ -299,7 +403,7 @@ export default function BankTransactionsPage() {
                     {/* <ReviewedTab client={client} bankAccountId={selectedAccountId} /> */}
                 </TabsContent>
             </Tabs>
-            {/* All Dialog components remain here */}
+            {client && <CreateAccountDialog client={client} onAccountCreated={fetchClientAndRules} open={isCreateAccountOpen} onOpenChange={setIsCreateAccountOpen}/>}
         </div>
     );
 }
@@ -307,7 +411,5 @@ export default function BankTransactionsPage() {
 // NOTE: ForReviewTab and ReviewedTab would need to be created following the pattern of NewTransactionsTab,
 // each with their own `usePaginatedFirestore` hook and appropriate base query.
 // I have stubbed them out here for brevity but will create them in subsequent steps if requested.
-
-
 
     
