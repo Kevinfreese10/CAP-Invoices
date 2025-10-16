@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowRight, Settings, PlusCircle, MoreHorizontal, Trash2, Edit } from 'lucide-react';
-import { getFirestore, collection, query, getDocs, doc, deleteDoc, addDoc, writeBatch, setDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, query, getDocs, doc, deleteDoc, addDoc, writeBatch, setDoc, serverTimestamp, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User, Task, ImportedTransaction, AllocationRule } from '@/lib/types';
 import Link from 'next/link';
@@ -86,8 +86,6 @@ export default function AIAccountantPage() {
 
                 clientData.chartOfAccounts = initialChartOfAccounts;
                 clientData.allocationRules = globalRules;
-                clientData.importedTransactions = [];
-                clientData.allocatedTransactions = [];
             } catch (error) {
                 toast({ title: 'Error', description: 'Could not fetch global allocation rules for new client.', variant: 'destructive'});
                 return; // Stop client creation if rules can't be fetched
