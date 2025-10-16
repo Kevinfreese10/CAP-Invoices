@@ -392,12 +392,9 @@ function NewTransactionsTab({
         refetch
     } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: newTransactionsQuery, pageSize: PAGE_SIZE });
     
-    const importCompleteRef = useRef(onImportComplete);
-    importCompleteRef.current = onImportComplete;
-    
     useEffect(() => {
         // This makes sure the refetch from parent is passed down
-        importCompleteRef.current = refetch;
+        onImportComplete = refetch;
     }, [refetch]);
 
     useEffect(() => {
@@ -498,8 +495,30 @@ function NewTransactionsTab({
                                         </TableCell>
                                         <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                         <TableCell className="max-w-[250px] truncate">{tx.description}</TableCell>
-                                        <TableCell>{/* Allocation Select */}</TableCell>
-                                        {client?.isVatRegistered && <TableCell>{/* VAT Select */}</TableCell>}
+                                        <TableCell>
+                                            <Select>
+                                                <SelectTrigger><SelectValue placeholder="Select account" /></SelectTrigger>
+                                                <SelectContent>
+                                                    {client?.chartOfAccounts?.map(acc => (
+                                                        <SelectItem key={acc.id} value={acc.id}>
+                                                            {acc.accountNumber} - {acc.description}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </TableCell>
+                                        {client?.isVatRegistered && (
+                                            <TableCell>
+                                                <Select>
+                                                    <SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger>
+                                                    <SelectContent>
+                                                        {allVatTypes.map(vat => (
+                                                            <SelectItem key={vat.name} value={vat.name}>{vat.label}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </TableCell>
+                                        )}
                                         <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
                                         <TableCell className="text-right">{/* Actions Dropdown */}</TableCell>
                                     </TableRow>
@@ -689,9 +708,7 @@ export default function BankTransactionsPage() {
 
                          {selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={() => {
                              fetchClientAndRules();
-                             if (newTransactionsTabRef.current) {
-                                newTransactionsTabRef.current.refetch();
-                            }
+                             newTransactionsTabRef.current?.refetch();
                          }} currentBalance={bankBalance} />}
                     </div>
                 </div>
@@ -712,11 +729,8 @@ export default function BankTransactionsPage() {
                         client={client} 
                         bankAccountId={selectedAccountId} 
                         onImportComplete={() => {
-                            if (newTransactionsTabRef.current) {
-                                newTransactionsTabRef.current.refetch();
-                            }
+                            newTransactionsTabRef.current?.refetch();
                         }}
-                        ref={newTransactionsTabRef as any}
                     />
                 </TabsContent>
                 <TabsContent value="review" className="mt-0">
