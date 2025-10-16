@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, ArrowRight, Settings, PlusCircle, MoreHorizontal, Trash2, Edit } from 'lucide-react';
 import { getFirestore, collection, query, getDocs, doc, deleteDoc, addDoc, writeBatch, setDoc, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { User, Task, ImportedTransaction } from '@/lib/types';
+import { User, Task, ImportedTransaction, AllocationRule } from '@/lib/types';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -17,7 +17,6 @@ import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
 import ClientForm from '@/components/admin/ClientForm';
 import { useAuth } from '@/contexts/AuthContext';
 import { chartOfAccounts as initialChartOfAccounts } from '@/lib/chart-of-accounts';
-import { allocationRules as initialAllocationRules } from '@/lib/allocation-rules';
 
 const db = getFirestore(firebaseApp);
 
@@ -80,10 +79,19 @@ export default function AIAccountantPage() {
         const isNewClient = !selectedClient;
 
         if (isNewClient) {
-            clientData.chartOfAccounts = initialChartOfAccounts;
-            clientData.allocationRules = initialAllocationRules;
-            clientData.importedTransactions = [];
-            clientData.allocatedTransactions = [];
+            try {
+                const rulesQuery = query(collection(db, 'allocationRules'), orderBy('description'));
+                const rulesSnapshot = await getDocs(rulesQuery);
+                const globalRules = rulesSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as AllocationRule));
+
+                clientData.chartOfAccounts = initialChartOfAccounts;
+                clientData.allocationRules = globalRules;
+                clientData.importedTransactions = [];
+                clientData.allocatedTransactions = [];
+            } catch (error) {
+                toast({ title: 'Error', description: 'Could not fetch global allocation rules for new client.', variant: 'destructive'});
+                return; // Stop client creation if rules can't be fetched
+            }
         }
 
         try {
