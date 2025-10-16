@@ -98,7 +98,7 @@ export default function AdminClientsPage() {
   const handleFormSubmit = async (data: any) => {
     if (!currentUser) return;
     
-    const { createNumeraProfile, ...clientFormData } = data;
+    const { createAIProfile, ...clientFormData } = data;
 
     const clientData: Partial<Client> = {
         ...clientFormData,
@@ -109,9 +109,9 @@ export default function AdminClientsPage() {
         role: 'client',
     };
     
-    if (createNumeraProfile) {
+    if (createAIProfile) {
         clientData.hasNumeraProfile = true;
-        clientData.source = 'Numera';
+        clientData.source = 'AI Accountant';
         clientData.chartOfAccounts = initialChartOfAccounts;
         clientData.allocationRules = initialAllocationRules;
     } else {

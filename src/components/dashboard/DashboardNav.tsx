@@ -1,4 +1,5 @@
 
+
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -76,7 +77,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/compliance', label: 'Compliance', icon: ShieldCheck, roles: ['admin'] },
     { href: '/admin/community/questions', label: 'Community Q&A', icon: MessageCircleQuestion, roles: ['admin'] },
     { href: '/admin/clients', label: 'Manage Clients', icon: BookUser, roles: ['admin'] },
-    { href: '/admin/numera', label: 'Numera', icon: Book, roles: ['admin'] },
+    { href: '/admin/ai-accountant', label: 'AI Accountant', icon: Book, roles: ['admin'] },
     { href: '/admin/services', label: 'Manage Services', icon: Briefcase, roles: ['admin'] },
     { href: '/admin/tools', label: 'Tools', icon: Wrench, roles: ['admin'] },
   ];

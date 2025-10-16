@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -20,7 +21,7 @@ const formSchema = z.object({
   name: z.string().min(2, 'Client/Company name is required.'),
   yearEnd: z.string().optional(),
   isVatRegistered: z.boolean().default(false),
-  // The following fields are kept for schema compatibility but will be hidden for Numera
+  // The following fields are kept for schema compatibility but will be hidden for AI Accountant
   contactPerson: z.string().optional(),
   email: z.string().optional(),
   cellNumber: z.string().optional(),
@@ -31,12 +32,12 @@ export default function ClientForm({
     client, 
     onSubmit, 
     onCancel, 
-    isNumeraClient = false 
+    isAIClient = false 
 }: { 
     client: User | null, 
     onSubmit: (data: any) => void, 
     onCancel: () => void, 
-    isNumeraClient?: boolean 
+    isAIClient?: boolean 
 }) {
     
     const form = useForm<z.infer<typeof formSchema>>({
@@ -46,7 +47,7 @@ export default function ClientForm({
             name: client?.name || client?.companyName || '',
             yearEnd: client?.yearEnd || undefined,
             isVatRegistered: client?.isVatRegistered || false,
-            // Non-Numera fields
+            // Non-AI Accountant fields
             contactPerson: client?.contactPerson || '',
             email: client?.email || '',
             cellNumber: client?.contactNumber || '',
@@ -72,7 +73,7 @@ export default function ClientForm({
                     <h3 className="text-lg font-medium">Client Details</h3>
                     <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Client / Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                     
-                    {!isNumeraClient && (
+                    {!isAIClient && (
                          <>
                             <FormField control={form.control} name="contactPerson" render={({ field }) => ( <FormItem><FormLabel>Contact Person Name (Optional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                             <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />

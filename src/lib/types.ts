@@ -134,10 +134,10 @@ export type User = {
   email: string;
   role: 'client' | 'admin' | 'staff' | 'reseller';
   password?: string;
-  source?: 'Numera' | 'Client Management';
+  source?: 'AI Accountant' | 'Client Management';
   department?: 'Accounting and Tax' | 'Administration' | 'CAP';
   status?: 'Active' | 'Inactive';
-  // Reseller specific fields or contact person for Numera
+  // Reseller specific fields or contact person for AI Accountant
   companyName?: string;
   contactPerson?: string;
   contactEmail?: string;
@@ -164,7 +164,7 @@ export type User = {
   cvUrl?: string;
   certificateUrl?: string;
   capableServices?: string[];
-  // Client specific fields for task automation & Numera
+  // Client specific fields for task automation & AI Accountant
   yearEnd?: any;
   preparesFinancials?: boolean;
   financialsDueDate?: any;
@@ -181,7 +181,7 @@ export type User = {
   submitsEmp501?: boolean;
   chartOfAccounts?: ChartOfAccount[];
   allocationRules?: AllocationRule[];
-  hasNumeraProfile?: boolean;
+  hasAIAccountantProfile?: boolean;
   importedTransactions?: ImportedTransaction[];
   allocatedTransactions?: AllocatedTransaction[];
 };
@@ -228,6 +228,7 @@ export type ImportedTransaction = {
     description: string;
     amount: number;
     bankAccountId: string;
+    status: 'new' | 'allocated' | 'review' | 'reviewed';
 };
 
 export type AllocatedTransaction = {
