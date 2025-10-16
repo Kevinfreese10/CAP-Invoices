@@ -61,9 +61,7 @@ export function usePaginatedFirestore<T>({
             setDocuments(newDocuments);
             setFirstDoc(documentSnapshots.docs[0]);
             setLastDoc(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
-            if (direction !== 'initial') {
-                setCurrentPage(page);
-            }
+            setCurrentPage(page);
         } else {
              if(direction === 'next') {
                 setPageCount(currentPage); // Lock the page count
@@ -91,12 +89,12 @@ export function usePaginatedFirestore<T>({
 
   const goToNextPage = () => {
       if (!lastDoc) return;
-      fetchPage(currentPage + 1, 'next').then(() => setCurrentPage(prev => prev + 1));
+      fetchPage(currentPage + 1, 'next');
   }
   
   const goToPreviousPage = () => {
       if (!firstDoc || currentPage === 1) return;
-      fetchPage(currentPage - 1, 'prev').then(() => setCurrentPage(prev => prev - 1));
+      fetchPage(currentPage - 1, 'prev');
   }
   
   const refetch = useCallback(() => {
