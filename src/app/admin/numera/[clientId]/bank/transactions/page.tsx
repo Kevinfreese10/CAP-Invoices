@@ -35,6 +35,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 import { Progress } from '@/components/ui/progress';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
+import { Command, CommandInput, CommandList, CommandEmpty, CommandItem } from '@/components/ui/command';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const PAGE_SIZE = 50;
 
@@ -354,6 +356,8 @@ const NewTransactionsTab = React.forwardRef<
     const { toast } = useToast();
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
+    const [allocations, setAllocations] = useState<{ [txId: string]: { accountId?: string, vatType?: VatType } }>({});
+    const [searchAccountTerm, setSearchAccountTerm] = useState('');
     
     const newTransactionsQuery = useMemo(() => {
         if (!client?.id || !bankAccountId) return null;
@@ -425,17 +429,16 @@ const NewTransactionsTab = React.forwardRef<
         for (const tx of transactionsToAllocate) {
             const { id, ...originalTxData } = tx;
 
-            const allocatedTx: Omit<AllocatedTransaction, 'id'> = {
+            const allocatedTx: Omit<AllocatedTransaction, 'id' | 'status'> = {
                 ...originalTxData,
                 allocatedTo: { value: accountId, type: 'account' },
                 vatType: vatType,
                 vatAmount: 0, // Simplified for now
                 allocatedAt: new Date(),
-                status: 'allocated',
             };
 
             const newAllocatedRef = doc(collection(db, 'numeraClients', client.id, 'transactions'));
-            batch.set(newAllocatedRef, allocatedTx);
+            batch.set(newAllocatedRef, { ...allocatedTx, status: 'allocated' });
             
             const originalTxRef = doc(db, 'numeraClients', client.id, 'transactions', id);
             batch.delete(originalTxRef);
@@ -451,6 +454,13 @@ const NewTransactionsTab = React.forwardRef<
             toast({ title: "Allocation Failed", variant: "destructive" });
         }
     };
+
+    const filteredAccounts = useMemo(() => {
+        if (!client?.chartOfAccounts) return [];
+        return client.chartOfAccounts.filter(acc =>
+            acc.description.toLowerCase().includes(searchAccountTerm.toLowerCase())
+        ).sort((a,b) => a.description.localeCompare(b.description));
+    }, [client?.chartOfAccounts, searchAccountTerm]);
     
     return (
         <Card>
@@ -469,19 +479,27 @@ const NewTransactionsTab = React.forwardRef<
                         <DropdownMenuContent>
                             <DropdownMenuSub>
                                 <DropdownMenuSubTrigger disabled={selectedTransactions.length === 0}>Allocate Selected</DropdownMenuSubTrigger>
-                                <DropdownMenuSubContent>
-                                    {client?.chartOfAccounts?.map(acc => (
-                                        <DropdownMenuSub key={acc.id}>
-                                            <DropdownMenuSubTrigger>{acc.accountNumber} - {acc.description}</DropdownMenuSubTrigger>
-                                            <DropdownMenuSubContent>
-                                                {allVatTypes.map(vat => (
-                                                    <DropdownMenuItem key={vat.name} onSelect={() => handleBulkAllocate(acc.id, vat.name)}>
-                                                        {vat.label}
-                                                    </DropdownMenuItem>
+                                <DropdownMenuSubContent className="p-0">
+                                     <Command>
+                                        <CommandInput placeholder="Search account..." value={searchAccountTerm} onValueChange={setSearchAccountTerm} />
+                                        <CommandList>
+                                             <ScrollArea className="h-72">
+                                                <CommandEmpty>No account found.</CommandEmpty>
+                                                {filteredAccounts.map(acc => (
+                                                    <DropdownMenuSub key={acc.id}>
+                                                        <DropdownMenuSubTrigger>{acc.description}</DropdownMenuSubTrigger>
+                                                        <DropdownMenuSubContent>
+                                                            {allVatTypes.map(vat => (
+                                                                <DropdownMenuItem key={vat.name} onSelect={() => handleBulkAllocate(acc.id, vat.name)}>
+                                                                    {vat.label}
+                                                                </DropdownMenuItem>
+                                                            ))}
+                                                        </DropdownMenuSubContent>
+                                                    </DropdownMenuSub>
                                                 ))}
-                                            </DropdownMenuSubContent>
-                                        </DropdownMenuSub>
-                                    ))}
+                                             </ScrollArea>
+                                        </CommandList>
+                                    </Command>
                                 </DropdownMenuSubContent>
                             </DropdownMenuSub>
                             <DropdownMenuSeparator />
@@ -553,7 +571,10 @@ const NewTransactionsTab = React.forwardRef<
                                         <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                         <TableCell className="max-w-[250px] truncate">{tx.description}</TableCell>
                                         <TableCell>
-                                            <Select>
+                                            <Select
+                                              value={allocations[tx.id]?.accountId}
+                                              onValueChange={(value) => setAllocations(prev => ({...prev, [tx.id]: {...prev[tx.id], accountId: value}}))}
+                                            >
                                                 <SelectTrigger><SelectValue placeholder="Select account" /></SelectTrigger>
                                                 <SelectContent>
                                                     {client?.chartOfAccounts?.map(acc => (
@@ -566,7 +587,10 @@ const NewTransactionsTab = React.forwardRef<
                                         </TableCell>
                                         {client?.isVatRegistered && (
                                             <TableCell>
-                                                <Select>
+                                                <Select
+                                                   value={allocations[tx.id]?.vatType}
+                                                   onValueChange={(value) => setAllocations(prev => ({...prev, [tx.id]: {...prev[tx.id], vatType: value as VatType}}))}
+                                                >
                                                     <SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger>
                                                     <SelectContent>
                                                         {allVatTypes.map(vat => (
@@ -664,12 +688,11 @@ export default function BankTransactionsPage() {
     }, [fetchClientAndRules]);
 
     const bankBalance = useMemo(() => {
-        if (!client || !selectedAccountId) return 0;
+        if (!client?.importedTransactions) return 0;
         
-        const q = query(collection(db, 'numeraClients', client.id, 'transactions'), where('bankAccountId', '==', selectedAccountId));
-        // This is a simplified balance for display. A real app would use a running balance field.
-        // For now, we are not fetching all transactions, so this balance is indicative.
-        return 0;
+        return client.importedTransactions
+            .filter(tx => tx.bankAccountId === selectedAccountId)
+            .reduce((sum, tx) => sum + tx.amount, 0);
 
     }, [client, selectedAccountId]);
     
@@ -713,7 +736,7 @@ export default function BankTransactionsPage() {
     return (
         <div className="space-y-4">
             <h1 className="text-2xl font-bold tracking-tight">Banking</h1>
-             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 md:gap-8 p-4 bg-card border rounded-lg">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 md:gap-8 p-4 bg-card border rounded-lg">
                 <div className="grid gap-2 flex-grow">
                     <Label htmlFor="bank-account-selector">Bank Account</Label>
                     <div className="flex gap-2">
@@ -802,3 +825,4 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
+
