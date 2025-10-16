@@ -775,7 +775,7 @@ export default function BankTransactionsPage() {
     const params = useParams();
     const clientId = params.clientId as string;
     const { toast } = useToast();
-    const [activeTab, setActiveTab] = useState<'new' | 'review' | 'reviewed'>('new');
+    const [activeTab, setActiveTab] = useState<'new' | 'reviewed'>('new');
     const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
     const [isEditAccountOpen, setIsEditAccountOpen] = useState(false);
     const newTransactionsTabRef = useRef<{ refetch: () => void }>(null);
@@ -957,7 +957,6 @@ export default function BankTransactionsPage() {
             <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)}>
                 <TabsList>
                     <TabsTrigger value="new">New</TabsTrigger>
-                    <TabsTrigger value="review">For Review</TabsTrigger>
                     <TabsTrigger value="reviewed">Reviewed</TabsTrigger>
                 </TabsList>
                 <TabsContent value="new" className="mt-0">
@@ -966,9 +965,6 @@ export default function BankTransactionsPage() {
                         client={client} 
                         bankAccountId={selectedAccountId} 
                     />
-                </TabsContent>
-                <TabsContent value="review" className="mt-0">
-                   {/* <ForReviewTab client={client} bankAccountId={selectedAccountId} fetchClientAndRules={fetchClientAndRules} /> */}
                 </TabsContent>
                 <TabsContent value="reviewed">
                     {/* <ReviewedTab client={client} bankAccountId={selectedAccountId} /> */}
@@ -979,7 +975,3 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
-
-    
-
-    
