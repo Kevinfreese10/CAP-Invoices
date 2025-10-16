@@ -9,8 +9,7 @@
     "build": "next build --debug",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit",
-    "postinstall": "rm -f package-lock.json"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "1.19.1",
