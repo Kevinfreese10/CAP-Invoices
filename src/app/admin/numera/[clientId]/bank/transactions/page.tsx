@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -221,7 +222,7 @@ export default function BankTransactionsPage() {
                 setClient(clientData);
 
                 const cashbookAccounts = clientData.chartOfAccounts?.filter(
-                    acc => acc.description.toLowerCase().includes('bank') || acc.description.toLowerCase().includes('credit card')
+                    acc => (acc.description.toLowerCase().includes('bank') || acc.description.toLowerCase().includes('credit card') || acc.description.toLowerCase().includes('cashbook')) && !acc.description.toLowerCase().includes('charges')
                 ) || [];
                 setBankAccounts(cashbookAccounts);
 
@@ -251,22 +252,30 @@ export default function BankTransactionsPage() {
             <div className="flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-8 p-4 bg-card border rounded-lg">
                 <div className="grid gap-2 w-full md:w-auto md:min-w-64">
                     <Label htmlFor="bank-account-selector">Bank Account</Label>
-                    <Select
-                        value={selectedAccountId || ''}
-                        onValueChange={setSelectedAccountId}
-                        disabled={bankAccounts.length === 0}
-                    >
-                        <SelectTrigger id="bank-account-selector">
-                            <SelectValue placeholder={bankAccounts.length > 0 ? "Select a bank account" : "No bank accounts found"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {bankAccounts.map(account => (
-                                <SelectItem key={account.id} value={account.id}>
-                                    {account.description}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <div className="flex gap-2">
+                        <Select
+                            value={selectedAccountId || ''}
+                            onValueChange={setSelectedAccountId}
+                            disabled={bankAccounts.length === 0}
+                        >
+                            <SelectTrigger id="bank-account-selector">
+                                <SelectValue placeholder={bankAccounts.length > 0 ? "Select a bank account" : "No bank accounts found"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {bankAccounts.map(account => (
+                                    <SelectItem key={account.id} value={account.id}>
+                                        {account.description}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                         <Button variant="outline" asChild>
+                            <Link href={`/admin/numera/${clientId}/chart-of-accounts`}>
+                                <PlusCircle className="mr-2 h-4 w-4" />
+                                Create Account
+                            </Link>
+                        </Button>
+                    </div>
                 </div>
                  <div className="grid gap-2">
                     <Label>Current Balance</Label>
@@ -299,3 +308,6 @@ export default function BankTransactionsPage() {
 // each with their own `usePaginatedFirestore` hook and appropriate base query.
 // I have stubbed them out here for brevity but will create them in subsequent steps if requested.
 
+
+
+    
