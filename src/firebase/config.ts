@@ -19,35 +19,36 @@ type FirebaseServices = {
 };
 
 let firebaseServices: FirebaseServices | null = null;
-let persistenceEnabled = false;
 
 function initializeFirebase(): FirebaseServices {
-  if (!firebaseServices) {
-    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    
-    if (!persistenceEnabled) {
-      try {
-        enableIndexedDbPersistence(db)
-          .then(() => {
-            persistenceEnabled = true;
-            console.log("Firestore persistence enabled.");
-          })
-          .catch((err) => {
-            if (err.code == 'failed-precondition') {
-              console.warn("Firestore persistence failed: Multiple tabs open.");
-            } else if (err.code == 'unimplemented') {
-              console.warn("Firestore persistence failed: Browser does not support it.");
-            }
-          });
-      } catch (error) {
-          console.error("Error enabling Firestore persistence:", error);
-      }
-    }
-
-    firebaseServices = { app, auth, db };
+  if (firebaseServices) {
+    return firebaseServices;
   }
+
+  const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  // Enable persistence. This can only be done once per app instance.
+  // We'll try to enable it, but gracefully handle cases where it might fail
+  // (e.g., multiple tabs open, lack of browser support).
+  try {
+    enableIndexedDbPersistence(db).catch((err) => {
+      if (err.code === 'failed-precondition') {
+        // Multiple tabs open, persistence can only be enabled in one.
+        // Silently fail for other tabs.
+        console.warn('Firestore persistence not enabled: multiple tabs open.');
+      } else if (err.code === 'unimplemented') {
+        // The current browser does not support all of the
+        // features required to enable persistence.
+        console.warn('Firestore persistence not supported in this browser.');
+      }
+    });
+  } catch (error) {
+      console.error("Error enabling Firestore persistence:", error);
+  }
+
+  firebaseServices = { app, auth, db };
   return firebaseServices;
 }
 
