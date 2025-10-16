@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileOverview An AI agent for answering questions based on website content.
+ * @fileOverview An AI agent for answering questions based on website content and general knowledge.
  * 
  * - websiteQAndA - A function that answers questions using website data as a knowledge base.
  * - WebsiteQAndAInput - The input type for the websiteQAndA function.
@@ -28,8 +28,8 @@ const WebsiteQAndAInputSchema = z.object({
 export type WebsiteQAndAInput = z.infer<typeof WebsiteQAndAInputSchema>;
 
 const WebsiteQAndAOutputSchema = z.object({
-  answer: z.string().describe('A concise and helpful answer to the user\'s question, based *only* on the provided context. If the answer is not in the context, state that you cannot answer.'),
-  confidence: z.number().min(0).max(100).describe('A confidence score (0-100) of how certain you are about the answer based on the provided context. If the answer is directly stated in the context, confidence should be high (90-100). If it is inferred, it should be medium (60-80). If you cannot answer, it should be very low (0-10).'),
+  answer: z.string().describe('A concise and helpful answer to the user\'s question. Prioritize information from the provided context, but use general knowledge if the answer is not available there. If you cannot answer, state that.'),
+  confidence: z.number().min(0).max(100).describe('A confidence score (0-100) of how certain you are about the answer. If the answer is directly stated in the context, confidence should be high (90-100). If it is inferred from the context, it should be medium (60-80). If using general knowledge, confidence should be lower (40-60). If you cannot answer, it should be very low (0-10).'),
   serviceUrl: z.string().optional().describe("If the user's question is about a specific service, provide the URL for that service page. The URL should be in the format '/services/service-id'."),
 });
 export type WebsiteQAndAOutput = z.infer<typeof WebsiteQAndAOutputSchema>;
@@ -67,22 +67,25 @@ export async function websiteQAndA(
     
     Your personality is friendly, professional, and very helpful. Start your responses with a warm, welcoming tone.
     
-    Your task is to answer user questions based *only* on the information provided in the context below. The Knowledge Base section is the highest source of truth.
+    Your task is to answer user questions. You should ALWAYS prioritize using the information provided in the 'CONTEXT' section below to answer questions about the company's services, pricing, and policies. The Knowledge Base section is the highest source of truth.
 
     If the user's question is about a specific service mentioned in the context, you MUST provide the 'serviceUrl' for that service in your response.
     
-    CRITICAL INSTRUCTION: When answering a question about a service, you MUST ALWAYS include the following details in your answer:
+    CRITICAL INSTRUCTION: When answering a question about a service using the provided context, you MUST ALWAYS include the following details in your answer:
     1.  The price.
     2.  The completion time (turnaround time).
     3.  A summary of the prerequisites (client requirements).
-    
-    If the answer is not found in the context, you MUST state that you do not have that information and suggest they contact support. For example, say "That's an excellent question! I don't have that specific information right now, but our expert team would be happy to help. You can call us on 010 109 1625 during office hours or email us at info@myacc.co.za for assistance."
-    
-    Do not make up answers. Your knowledge is strictly limited to the content provided in the 'CONTEXT' section.
 
-    After providing the answer, you must also provide a confidence score (from 0 to 100) based on how directly the information was found in the context.
-    - If the answer is explicitly stated, confidence should be 90-100.
-    - If the answer is inferred from multiple pieces of information, confidence should be 60-80.
+    If the answer cannot be found in the provided context, you may use your general knowledge to answer the question.
+    
+    If you are completely unable to answer, you MUST state that you do not have that information and suggest they contact support. For example, say "That's an excellent question! I don't have that specific information right now, but our expert team would be happy to help. You can call us on 010 109 1625 during office hours or email us at info@myacc.co.za for assistance."
+    
+    Do not make up answers that are not in the context or your general knowledge.
+
+    After providing the answer, you must also provide a confidence score (from 0 to 100) based on how you answered:
+    - If the answer is explicitly stated in the context, confidence should be 90-100.
+    - If the answer is inferred from multiple pieces of information in the context, confidence should be 60-80.
+    - If you use your general knowledge from the internet, confidence should be 40-60.
     - If you cannot answer the question at all, confidence should be 0-10.
     
     Use the conversation history to understand the context of the question.
