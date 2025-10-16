@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -10,6 +11,7 @@ import { useParams } from 'next/navigation';
 import { Loader2, ArrowRight, Banknote, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const db = getFirestore(firebaseApp);
 
@@ -119,42 +121,42 @@ export default function NumeraClientDashboardPage() {
                             </Button>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {accountSummaries.map(acc => (
-                                <Card key={acc.id} className="flex flex-col">
-                                    <CardHeader>
-                                        <CardTitle className="text-lg">{acc.description}</CardTitle>
-                                        <CardDescription>{acc.accountNumber}</CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="flex-grow space-y-4">
-                                        <div>
-                                            <p className="text-sm text-muted-foreground">Current Balance</p>
-                                            <p className="text-2xl font-bold">{formatPrice(acc.balance)}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-sm text-muted-foreground">Unallocated Transactions</p>
-                                            <p className="text-lg font-semibold flex items-center gap-2">
-                                                {acc.unallocatedCount > 0 && <AlertCircle className="h-4 w-4 text-destructive" />}
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Bank Account</TableHead>
+                                    <TableHead className="text-right">Current Balance</TableHead>
+                                    <TableHead className="text-center">Unallocated</TableHead>
+                                    <TableHead>Last Import</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {accountSummaries.map(acc => (
+                                    <TableRow key={acc.id}>
+                                        <TableCell>
+                                            <p className="font-semibold">{acc.description}</p>
+                                            <p className="text-xs text-muted-foreground font-mono">{acc.accountNumber}</p>
+                                        </TableCell>
+                                        <TableCell className="text-right font-mono">{formatPrice(acc.balance)}</TableCell>
+                                        <TableCell className="text-center">
+                                            <div className="flex items-center justify-center gap-2">
+                                                 {acc.unallocatedCount > 0 && <AlertCircle className="h-4 w-4 text-destructive" />}
                                                 {acc.unallocatedCount}
-                                            </p>
-                                        </div>
-                                        <div>
-                                            <p className="text-sm text-muted-foreground">Last Import Date</p>
-                                            <p className="text-sm font-medium">
-                                                {acc.lastImportDate ? format(acc.lastImportDate, 'dd MMMM yyyy') : 'N/A'}
-                                            </p>
-                                        </div>
-                                    </CardContent>
-                                    <CardFooter>
-                                        <Button asChild variant="secondary" className="w-full">
-                                            <Link href={`/admin/numera/${clientId}/bank/transactions`}>
-                                                View Account <ArrowRight className="ml-2 h-4 w-4" />
-                                            </Link>
-                                        </Button>
-                                    </CardFooter>
-                                </Card>
-                            ))}
-                        </div>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>{acc.lastImportDate ? format(acc.lastImportDate, 'dd MMMM yyyy') : 'N/A'}</TableCell>
+                                        <TableCell className="text-right">
+                                             <Button asChild variant="outline" size="sm">
+                                                <Link href={`/admin/numera/${clientId}/bank/transactions`}>
+                                                    View Account <ArrowRight className="ml-2 h-4 w-4" />
+                                                </Link>
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
                     )}
                 </CardContent>
             </Card>
