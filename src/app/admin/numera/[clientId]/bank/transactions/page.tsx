@@ -48,90 +48,72 @@ const formatPrice = (price: number) => {
 
 // #region Import Dialog
 const importFormSchema = z.object({
-    dateColumn: z.string().min(1, 'Please select the date column.'),
-    referenceColumn: z.string().optional(),
-    descriptionColumn: z.string().min(1, 'Please select the description column.'),
-    amountType: z.enum(['single', 'double']),
-    amountColumn: z.string().optional(),
-    debitColumn: z.string().optional(),
-    creditColumn: z.string().optional(),
-}).refine(data => {
-    if (data.amountType === 'single') return !!data.amountColumn;
-    if (data.amountType === 'double') return !!data.debitColumn && !!data.creditColumn;
-    return false;
-}, {
-    message: 'Please select the correct amount columns.',
-    path: ['amountType'],
+  file: z.any().refine(file => file instanceof File, "A CSV or Excel file is required."),
 });
+
+type ParsedTransaction = {
+    Date: string;
+    Description: string;
+    Amount: number;
+}
 
 function ImportDialog({ client, bankAccountId, onImportComplete }: { client: User | null, bankAccountId: string, onImportComplete: () => void }) {
     const [isOpen, setIsOpen] = useState(false);
     const [file, setFile] = useState<File | null>(null);
-    const [headers, setHeaders] = useState<string[]>([]);
+    const [parsedTransactions, setParsedTransactions] = useState<ParsedTransaction[]>([]);
     const [isParsing, setIsParsing] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const { toast } = useToast();
-
-    const form = useForm<z.infer<typeof importFormSchema>>({
-        resolver: zodResolver(importFormSchema),
-        defaultValues: {
-            amountType: 'single',
-        }
-    });
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = e.target.files?.[0];
         if (selectedFile) {
             setIsParsing(true);
             setFile(selectedFile);
-            Papa.parse(selectedFile, {
-                header: true,
-                skipEmptyLines: true,
-                preview: 1,
-                complete: (results) => {
-                    if (results.meta.fields) {
-                        setHeaders(results.meta.fields);
-                    }
+            setParsedTransactions([]);
+            
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const fileContent = event.target?.result;
+                if (!fileContent) {
                     setIsParsing(false);
+                    return;
                 }
-            });
+
+                Papa.parse(fileContent as string, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: (results) => {
+                        const data = results.data as any[];
+                        const transactions: ParsedTransaction[] = data.map(row => ({
+                            Date: row.Date,
+                            Description: row.Description,
+                            Amount: parseFloat(row.Amount)
+                        })).filter(tx => tx.Date && tx.Description && !isNaN(tx.Amount));
+                        
+                        setParsedTransactions(transactions);
+                        setIsParsing(false);
+                    }
+                });
+            };
+            reader.readAsText(selectedFile);
         }
     };
     
-    const handleImport = async (values: z.infer<typeof importFormSchema>) => {
-        if (!file || !client || !bankAccountId) return;
+    const handleImport = async () => {
+        if (!file || !client || !bankAccountId || parsedTransactions.length === 0) return;
         setIsUploading(true);
-        toast({ title: "Importing...", description: "Processing your CSV file."});
+        toast({ title: "Importing...", description: "Processing your file."});
 
         try {
-            const results = await new Promise<any[]>((resolve, reject) => {
-                Papa.parse(file, {
-                    header: true,
-                    skipEmptyLines: true,
-                    complete: (res) => resolve(res.data),
-                    error: (err) => reject(err),
-                });
-            });
-
             const batch = writeBatch(db);
             let importedCount = 0;
 
-            results.forEach((row, index) => {
-                let amount = 0;
-                if (values.amountType === 'single') {
-                    amount = parseFloat(row[values.amountColumn!]);
-                } else {
-                    const debit = parseFloat(row[values.debitColumn!]) || 0;
-                    const credit = parseFloat(row[values.creditColumn!]) || 0;
-                    amount = credit - debit;
-                }
+            parsedTransactions.forEach((row, index) => {
+                const parsedDate = new Date(row.Date.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1'));
 
-                const dateStr = row[values.dateColumn!];
-                // Attempt to parse multiple common date formats
-                const parsedDate = new Date(dateStr.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1'));
-
-                if (isNaN(amount) || isNaN(parsedDate.getTime())) {
-                    console.warn(`Skipping row ${index + 2}: Invalid date or amount.`);
+                if (isNaN(parsedDate.getTime())) {
+                    console.warn(`Skipping row ${index + 2}: Invalid date format.`);
                     return;
                 }
                 
@@ -140,10 +122,10 @@ function ImportDialog({ client, bankAccountId, onImportComplete }: { client: Use
                     clientId: client.id,
                     bankAccountId,
                     date: parsedDate.toISOString(),
-                    reference: values.referenceColumn ? row[values.referenceColumn] : '',
-                    description: row[values.descriptionColumn!],
-                    amount,
-                    status: 'new', // new status
+                    reference: '',
+                    description: row.Description,
+                    amount: row.Amount,
+                    status: 'new',
                 };
                 batch.set(newTransactionRef, transaction);
                 importedCount++;
@@ -155,8 +137,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete }: { client: Use
             onImportComplete();
             setIsOpen(false);
             setFile(null);
-            setHeaders([]);
-            form.reset();
+            setParsedTransactions([]);
         } catch (error) {
             console.error("Error importing transactions:", error);
             toast({ title: "Import Failed", description: "An error occurred during the import process.", variant: "destructive"});
@@ -164,7 +145,17 @@ function ImportDialog({ client, bankAccountId, onImportComplete }: { client: Use
             setIsUploading(false);
         }
     };
-
+    
+    const handleDownloadExample = () => {
+        const csvContent = "Date,Description,Amount\nDD/MM/YYYY,Example Payment,-150.00\nDD/MM/YYYY,Example Income,1000.50";
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.setAttribute('download', 'example-statement.csv');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -173,67 +164,89 @@ function ImportDialog({ client, bankAccountId, onImportComplete }: { client: Use
             </DialogTrigger>
             <DialogContent className="sm:max-w-xl">
                 <DialogHeader>
-                    <DialogTitle>Import Bank Transactions</DialogTitle>
+                    <DialogTitle>Import Bank Statement</DialogTitle>
                     <DialogDescription>
-                        Select a CSV file and map the columns to import your transactions.
+                        Upload a CSV file to import transactions.
                     </DialogDescription>
                 </DialogHeader>
-                {!file ? (
-                    <div className="py-8">
-                        <Input type="file" accept=".csv" onChange={handleFileChange} />
-                    </div>
-                ) : isParsing ? (
-                    <div className="py-8 flex justify-center items-center"><Loader2 className="animate-spin" /></div>
-                ) : (
-                    <Form {...form}>
-                        <form onSubmit={form.handleSubmit(handleImport)} className="space-y-4">
-                            <h4 className="font-medium text-sm">Map Columns</h4>
-                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <FormField control={form.control} name="dateColumn" render={({ field }) => ( <FormItem><FormLabel>Date</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select date column" /></SelectTrigger></FormControl><SelectContent>{headers.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
-                                <FormField control={form.control} name="descriptionColumn" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select description column" /></SelectTrigger></FormControl><SelectContent>{headers.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
-                                <FormField control={form.control} name="referenceColumn" render={({ field }) => ( <FormItem><FormLabel>Reference (Optional)</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select reference column" /></SelectTrigger></FormControl><SelectContent>{headers.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
-                             </div>
-                             
-                             <Separator />
-
-                             <FormField control={form.control} name="amountType" render={({ field }) => (
-                                <FormItem className="space-y-3">
-                                <FormLabel>Amount Format</FormLabel>
-                                <FormControl>
-                                    <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex space-x-4">
-                                        <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="single" /></FormControl><FormLabel className="font-normal">Single Amount Column</FormLabel></FormItem>
-                                        <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="double" /></FormControl><FormLabel className="font-normal">Debit/Credit Columns</FormLabel></FormItem>
-                                    </RadioGroup>
-                                </FormControl>
-                                <FormMessage />
-                                </FormItem>
-                            )} />
-                            {form.watch('amountType') === 'single' ? (
-                                 <FormField control={form.control} name="amountColumn" render={({ field }) => ( <FormItem><FormLabel>Amount</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select amount column" /></SelectTrigger></FormControl><SelectContent>{headers.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
-                            ) : (
-                                <div className="grid grid-cols-2 gap-4">
-                                    <FormField control={form.control} name="debitColumn" render={({ field }) => ( <FormItem><FormLabel>Debit</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select debit column" /></SelectTrigger></FormControl><SelectContent>{headers.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
-                                    <FormField control={form.control} name="creditColumn" render={({ field }) => ( <FormItem><FormLabel>Credit</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select credit column" /></SelectTrigger></FormControl><SelectContent>{headers.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
-                                </div>
-                            )}
-
-                            <DialogFooter>
-                                <Button type="button" variant="ghost" onClick={() => setIsOpen(false)}>Cancel</Button>
-                                <Button type="submit" disabled={isUploading}>
-                                    {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                    Import
-                                </Button>
-                            </DialogFooter>
-                        </form>
-                    </Form>
-                )}
+                <div className="space-y-4 py-4">
+                     <div className="flex items-center justify-between">
+                         <Label htmlFor="statement-file">Statement File</Label>
+                         <Button variant="outline" size="sm" onClick={handleDownloadExample}><Download className="mr-2 h-4 w-4"/> Download Example</Button>
+                     </div>
+                     <Input id="statement-file" type="file" accept=".csv" onChange={handleFileChange} />
+                     {isParsing && <p className="text-sm text-muted-foreground flex items-center"><Loader2 className="mr-2 animate-spin"/> Parsing file...</p>}
+                     {parsedTransactions.length > 0 && <p className="text-sm text-green-600">{parsedTransactions.length} transactions found in file.</p>}
+                </div>
+                <DialogFooter>
+                    <Button type="button" variant="ghost" onClick={() => setIsOpen(false)}>Cancel</Button>
+                    <Button type="button" onClick={handleImport} disabled={isUploading || isParsing || parsedTransactions.length === 0}>
+                        {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Save {parsedTransactions.length > 0 ? parsedTransactions.length : ''} Transactions
+                    </Button>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     )
 }
 // #endregion
 
-// #region Create Account Dialog
+// #region Bank Account Management Dialogs
+
+const editAccountSchema = z.object({
+  id: z.string(),
+  name: z.string().min(3, "Bank account name is required."),
+});
+
+function EditAccountDialog({ account, client, onAccountUpdated, onOpenChange, open }: { account: ChartOfAccount, client: User, onAccountUpdated: () => void, open: boolean, onOpenChange: (open: boolean) => void }) {
+    const { toast } = useToast();
+    const [isSaving, setIsSaving] = useState(false);
+    const form = useForm<z.infer<typeof editAccountSchema>>({
+        resolver: zodResolver(editAccountSchema),
+        defaultValues: { id: account.id, name: account.description },
+    });
+
+    const handleEditAccount = async (values: z.infer<typeof editAccountSchema>) => {
+        setIsSaving(true);
+        try {
+            const updatedAccounts = client.chartOfAccounts?.map(acc =>
+                acc.id === values.id ? { ...acc, description: values.name } : acc
+            ) || [];
+
+            const clientRef = doc(db, 'numeraClients', client.id);
+            await updateDoc(clientRef, { chartOfAccounts: updatedAccounts });
+
+            toast({ title: 'Bank Account Updated', description: `The account name has been changed to ${values.name}.` });
+            onAccountUpdated();
+            onOpenChange(false);
+        } catch (error) {
+            console.error("Error updating bank account:", error);
+            toast({ title: 'Error', description: 'Could not update the bank account.', variant: 'destructive' });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Edit Bank Account</DialogTitle>
+                </DialogHeader>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleEditAccount)} className="space-y-4">
+                        <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Bank Account Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <DialogFooter>
+                            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+                            <Button type="submit" disabled={isSaving}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save Changes</Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 const createAccountSchema = z.object({
   name: z.string().min(3, "Bank account name is required."),
 });
@@ -296,25 +309,10 @@ function CreateAccountDialog({ client, onAccountCreated, onOpenChange, open }: {
                 </DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleCreateAccount)} className="space-y-4">
-                        <FormField
-                            control={form.control}
-                            name="name"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Bank Account Name</FormLabel>
-                                    <FormControl>
-                                        <Input placeholder="e.g., FNB Cheque Account" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
+                        <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Bank Account Name</FormLabel><FormControl><Input placeholder="e.g., FNB Cheque Account" {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <DialogFooter>
                             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-                            <Button type="submit" disabled={isSaving}>
-                                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Create Account
-                            </Button>
+                            <Button type="submit" disabled={isSaving}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Create Account</Button>
                         </DialogFooter>
                     </form>
                 </Form>
@@ -322,6 +320,7 @@ function CreateAccountDialog({ client, onAccountCreated, onOpenChange, open }: {
         </Dialog>
     );
 }
+
 // #endregion
 
 function NewTransactionsTab({ 
@@ -347,10 +346,8 @@ function NewTransactionsTab({
         
         if (activeSubTab === 'expenses') {
             constraints.push(where('amount', '<', 0));
-            constraints.push(orderBy('amount', 'asc'));
         } else {
             constraints.push(where('amount', '>=', 0));
-            constraints.push(orderBy('amount', 'desc'));
         }
 
         constraints.push(orderBy('date', 'desc'));
@@ -438,7 +435,6 @@ function NewTransactionsTab({
                                     />
                                 </TableCell>
                                 <TableHead>Date</TableHead>
-                                <TableHead>Reference</TableHead>
                                 <TableHead>Description</TableHead>
                                 <TableHead className="w-[250px]">Allocate To</TableHead>
                                 {client?.isVatRegistered && <TableHead className="w-[180px]">VAT Type</TableHead>}
@@ -465,7 +461,6 @@ function NewTransactionsTab({
                                             />
                                         </TableCell>
                                         <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
-                                        <TableCell className="max-w-[150px] truncate">{tx.reference}</TableCell>
                                         <TableCell className="max-w-[250px] truncate">{tx.description}</TableCell>
                                         <TableCell>{/* Allocation Select */}</TableCell>
                                         {client?.isVatRegistered && <TableCell>{/* VAT Select */}</TableCell>}
@@ -500,6 +495,7 @@ export default function BankTransactionsPage() {
     const { toast } = useToast();
     const [activeTab, setActiveTab] = useState<'new' | 'review' | 'reviewed'>('new');
     const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
+    const [isEditAccountOpen, setIsEditAccountOpen] = useState(false);
     
     const fetchClientAndRules = useCallback(async () => {
         if (!clientId) return;
@@ -537,6 +533,46 @@ export default function BankTransactionsPage() {
 
     const bankBalance = 0; // This would need to be calculated separately, perhaps from an aggregate
     
+    const selectedAccount = useMemo(() => {
+        return bankAccounts.find(acc => acc.id === selectedAccountId);
+    }, [bankAccounts, selectedAccountId]);
+    
+    const handleDeleteBankAccount = async () => {
+        if (!client || !selectedAccountId) return;
+        
+        setIsLoading(true);
+        toast({ title: "Deleting Account...", description: "Removing the bank account and all its transactions."});
+
+        try {
+            const batch = writeBatch(db);
+
+            // 1. Remove account from Chart of Accounts
+            const updatedAccounts = client.chartOfAccounts?.filter(acc => acc.id !== selectedAccountId) || [];
+            const clientRef = doc(db, 'numeraClients', client.id);
+            batch.update(clientRef, { chartOfAccounts: updatedAccounts });
+
+            // 2. Delete all transactions associated with this bank account
+            const transactionsQuery = query(collection(db, 'numeraClients', client.id, 'transactions'), where('bankAccountId', '==', selectedAccountId));
+            const transactionsSnapshot = await getDocs(transactionsQuery);
+            transactionsSnapshot.forEach(doc => {
+                batch.delete(doc.ref);
+            });
+            
+            await batch.commit();
+
+            toast({ title: "Bank Account Deleted", description: `Account and its ${transactionsSnapshot.size} transactions have been permanently removed.`});
+            
+            // Reset selection
+            setSelectedAccountId(null);
+            fetchClientAndRules();
+
+        } catch (error) {
+            console.error("Error deleting bank account:", error);
+            toast({ title: "Deletion Failed", variant: 'destructive'});
+            setIsLoading(false);
+        }
+    };
+    
     return (
         <div className="space-y-4">
             <h1 className="text-2xl font-bold tracking-tight">Banking</h1>
@@ -560,11 +596,36 @@ export default function BankTransactionsPage() {
                                 ))}
                             </SelectContent>
                         </Select>
-                         <Button variant="outline" onClick={() => setIsCreateAccountOpen(true)}>
-                            <PlusCircle className="mr-2 h-4 w-4" />
-                            Create Account
-                        </Button>
-                        {selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={fetchClientAndRules} />}
+                        
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="icon"><Settings className="h-4 w-4" /></Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                                <DropdownMenuItem onSelect={() => setIsCreateAccountOpen(true)}><PlusCircle className="mr-2 h-4 w-4"/>Create New Account</DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onSelect={() => setIsEditAccountOpen(true)} disabled={!selectedAccount}><Edit className="mr-2 h-4 w-4"/>Edit Selected Account</DropdownMenuItem>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive" disabled={!selectedAccount}>
+                                            <Trash2 className="mr-2 h-4 w-4"/>Delete Selected Account
+                                        </DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                            <AlertDialogDescription>This will permanently delete the account "{selectedAccount?.description}" and ALL of its associated transactions. This action cannot be undone.</AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleDeleteBankAccount}>Yes, Delete Everything</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+
+                         {selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={fetchClientAndRules} />}
 
                     </div>
                 </div>
@@ -591,6 +652,7 @@ export default function BankTransactionsPage() {
                 </TabsContent>
             </Tabs>
             {client && <CreateAccountDialog client={client} onAccountCreated={fetchClientAndRules} open={isCreateAccountOpen} onOpenChange={setIsCreateAccountOpen}/>}
+            {client && selectedAccount && <EditAccountDialog client={client} account={selectedAccount} onAccountUpdated={fetchClientAndRules} open={isEditAccountOpen} onOpenChange={setIsEditAccountOpen}/>}
         </div>
     );
 }
