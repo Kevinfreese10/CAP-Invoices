@@ -129,12 +129,6 @@ export default function AIAccountantClientDashboardPage() {
                 console.error("Client not found");
             }
 
-            // Fetch transactions
-            const transactionsQuery = query(collection(db, 'aiAccountantClients', clientId, 'transactions'), orderBy('date', 'desc'), where('status', '==', 'new'), limit(10));
-            const transactionsSnapshot = await getDocs(transactionsQuery);
-            const fetchedTransactions = transactionsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as ImportedTransaction));
-            setTransactions(fetchedTransactions);
-
         } catch (error) {
             console.error("Error fetching dashboard data:", error);
         } finally {
@@ -247,50 +241,6 @@ export default function AIAccountantClientDashboardPage() {
                         </Table>
                     )}
                 </CardContent>
-            </Card>
-
-             <Card>
-                <CardHeader>
-                    <CardTitle>Recent Transactions</CardTitle>
-                    <CardDescription>
-                        A quick look at the latest unallocated transactions across all accounts.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                     {transactions.length === 0 ? (
-                        <p className="text-center text-muted-foreground py-10">No recent transactions to display.</p>
-                    ) : (
-                        <Table>
-                             <TableHeader>
-                                <TableRow>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead>Description</TableHead>
-                                    <TableHead>Bank Account</TableHead>
-                                    <TableHead className="text-right">Amount</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {transactions.map(tx => {
-                                    const bankAccount = bankAccounts.find(ba => ba.id === tx.bankAccountId);
-                                    return (
-                                    <TableRow key={tx.id}>
-                                        <TableCell>{format(new Date(tx.date), 'dd MMMM yyyy')}</TableCell>
-                                        <TableCell className="font-medium max-w-sm truncate">{tx.description}</TableCell>
-                                        <TableCell className="text-xs text-muted-foreground">{bankAccount?.description}</TableCell>
-                                        <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
-                                    </TableRow>
-                                )})}
-                            </TableBody>
-                        </Table>
-                    )}
-                </CardContent>
-                {transactions.length > 0 && (
-                    <CardFooter>
-                        <Button asChild className="ml-auto">
-                            <Link href={`/admin/ai-accountant/${clientId}/bank/transactions`}>View All Transactions</Link>
-                        </Button>
-                    </CardFooter>
-                )}
             </Card>
         </div>
     );
