@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, AIAllocationJob } from '@/lib/types';
@@ -364,7 +364,7 @@ function NewTransactionsTab({
     const newTransactionsQuery = useMemo(() => {
         if (!client?.id || !bankAccountId) return null;
         
-        const constraints: QueryConstraint[] = [
+        let constraints: QueryConstraint[] = [
             where('bankAccountId', '==', bankAccountId),
             where('status', '==', 'new'),
         ];
@@ -375,8 +375,8 @@ function NewTransactionsTab({
             constraints.push(where('amount', '>=', 0));
         }
         
-        constraints.push(orderBy('date', 'desc'));
         constraints.push(orderBy('amount', 'asc'));
+        constraints.push(orderBy('date', 'desc'));
         
         return query(collection(db, 'numeraClients', client.id, 'transactions'), ...constraints);
     }, [client?.id, bankAccountId, activeSubTab]);
@@ -384,15 +384,21 @@ function NewTransactionsTab({
     const {
         documents: transactions,
         isLoading,
-        loadMore,
-        hasMore,
-        isLoadingMore,
-        refetch,
+        goToNextPage,
+        goToPreviousPage,
+        canGoNext,
+        canGoPrev,
+        currentPage,
+        refetch
     } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: newTransactionsQuery, pageSize: PAGE_SIZE });
     
+    const importCompleteRef = useRef(onImportComplete);
+    importCompleteRef.current = onImportComplete;
+    
     useEffect(() => {
-        onImportComplete(); // This will call refetch in the parent component
-    }, []);
+        // This makes sure the refetch from parent is passed down
+        importCompleteRef.current = refetch;
+    }, [refetch]);
 
     useEffect(() => {
         refetch();
@@ -503,14 +509,31 @@ function NewTransactionsTab({
                     </Table>
                 </div>
             </CardContent>
-            {hasMore && (
-                <CardFooter className="p-4 justify-center">
-                    <Button onClick={loadMore} disabled={isLoadingMore}>
-                        {isLoadingMore ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        Load More
+            <CardFooter className="flex items-center justify-center p-4">
+                <div className="flex items-center space-x-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={goToPreviousPage}
+                        disabled={!canGoPrev || isLoading}
+                    >
+                        <ChevronLeft className="h-4 w-4" />
+                        Previous
                     </Button>
-                </CardFooter>
-            )}
+                    <span className="text-sm font-medium">
+                        Page {currentPage}
+                    </span>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={goToNextPage}
+                        disabled={!canGoNext || isLoading}
+                    >
+                        Next
+                        <ChevronRight className="h-4 w-4" />
+                    </Button>
+                </div>
+            </CardFooter>
         </Card>
     )
 }
@@ -526,7 +549,7 @@ export default function BankTransactionsPage() {
     const [activeTab, setActiveTab] = useState<'new' | 'review' | 'reviewed'>('new');
     const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
     const [isEditAccountOpen, setIsEditAccountOpen] = useState(false);
-    const newTransactionsTabRef = useRef<{ refetch: () => void }>(null);
+    const newTransactionsTabRef = useRef<{ refetch: () => void }>();
     
     const fetchClientAndRules = useCallback(async () => {
         if (!clientId) return;
@@ -565,9 +588,12 @@ export default function BankTransactionsPage() {
     const bankBalance = useMemo(() => {
         if (!client || !selectedAccountId) return 0;
         
-        const clientTransactions = (client as any).transactions || [];
-        
-        return clientTransactions
+        let allTransactions = [
+            ...(client.importedTransactions || []),
+            ...(client.allocatedTransactions || [])
+        ];
+
+        return allTransactions
             .filter((tx: any) => tx.bankAccountId === selectedAccountId)
             .reduce((sum: number, tx: any) => sum + tx.amount, 0);
     }, [client, selectedAccountId]);
@@ -663,7 +689,9 @@ export default function BankTransactionsPage() {
 
                          {selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={() => {
                              fetchClientAndRules();
-                             newTransactionsTabRef.current?.refetch();
+                             if (newTransactionsTabRef.current) {
+                                newTransactionsTabRef.current.refetch();
+                            }
                          }} currentBalance={bankBalance} />}
                     </div>
                 </div>
@@ -680,7 +708,16 @@ export default function BankTransactionsPage() {
                     <TabsTrigger value="reviewed">Reviewed</TabsTrigger>
                 </TabsList>
                 <TabsContent value="new" className="mt-0">
-                   <NewTransactionsTab client={client} bankAccountId={selectedAccountId} onImportComplete={() => newTransactionsTabRef.current?.refetch()} />
+                   <NewTransactionsTab 
+                        client={client} 
+                        bankAccountId={selectedAccountId} 
+                        onImportComplete={() => {
+                            if (newTransactionsTabRef.current) {
+                                newTransactionsTabRef.current.refetch();
+                            }
+                        }}
+                        ref={newTransactionsTabRef as any}
+                    />
                 </TabsContent>
                 <TabsContent value="review" className="mt-0">
                    {/* <ForReviewTab client={client} bankAccountId={selectedAccountId} fetchClientAndRules={fetchClientAndRules} /> */}
