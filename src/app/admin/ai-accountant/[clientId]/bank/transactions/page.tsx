@@ -367,13 +367,13 @@ const ruleFormSchema = z.object({
   vatType: z.enum(allVatTypes.map(v => v.name) as [string, ...string[]]),
 });
 
-function CreateRuleDialog({ client, onRuleCreated }: { client: User | null; onRuleCreated: () => void; }) {
+function CreateRuleDialog({ client, onRuleCreated, trigger, defaultValues }: { client: User | null; onRuleCreated: () => void; trigger: React.ReactNode; defaultValues?: Partial<z.infer<typeof ruleFormSchema>> }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
   const form = useForm<z.infer<typeof ruleFormSchema>>({
     resolver: zodResolver(ruleFormSchema),
-    defaultValues: {
+    defaultValues: defaultValues || {
       description: "",
       keywords: "",
       accountId: "",
@@ -381,6 +381,12 @@ function CreateRuleDialog({ client, onRuleCreated }: { client: User | null; onRu
     },
   });
   
+  useEffect(() => {
+    if(isOpen && defaultValues) {
+        form.reset(defaultValues);
+    }
+  }, [isOpen, defaultValues, form]);
+
   const handleSaveRule = async (values: z.infer<typeof ruleFormSchema>) => {
     if (!client) return;
     setIsSaving(true);
@@ -413,11 +419,7 @@ function CreateRuleDialog({ client, onRuleCreated }: { client: User | null; onRu
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-          Create Allocation Rule
-        </DropdownMenuItem>
-      </DialogTrigger>
+      <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create New Allocation Rule</DialogTitle>
@@ -796,7 +798,11 @@ const NewTransactionsTab = React.forwardRef<
                                 </DropdownMenuSubContent>
                             </DropdownMenuSub>
                             <DropdownMenuSeparator />
-                             <CreateRuleDialog client={client} onRuleCreated={fetchClientData} />
+                             <CreateRuleDialog 
+                                client={client} 
+                                onRuleCreated={fetchClientData} 
+                                trigger={<DropdownMenuItem onSelect={(e) => e.preventDefault()}>Create Allocation Rule</DropdownMenuItem>}
+                             />
                              <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                     <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive" disabled={selectedTransactions.length === 0}>
@@ -897,7 +903,21 @@ const NewTransactionsTab = React.forwardRef<
                                             </TableCell>
                                         )}
                                         <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
-                                        <TableCell className="text-right">{/* Actions Dropdown */}</TableCell>
+                                        <TableCell className="text-right">
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent>
+                                                    <CreateRuleDialog
+                                                        client={client}
+                                                        onRuleCreated={fetchClientData}
+                                                        trigger={<DropdownMenuItem onSelect={(e) => e.preventDefault()}>Create Rule from Transaction</DropdownMenuItem>}
+                                                        defaultValues={{keywords: tx.description.split(" ")[0] || ''}}
+                                                    />
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </TableCell>
                                     </TableRow>
                                 ))
                             )}
@@ -1113,13 +1133,13 @@ export default function BankTransactionsPage() {
                             }
                         }} currentBalance={bankBalance} />}
                      </div>
-                     <div className="grid gap-1 text-right">
+                     <div className="text-right">
                         <Label>Current Balance</Label>
-                        <div className="text-2xl font-bold">R {formatPrice(bankBalance)}</div>
+                        <p className="text-2xl font-bold">R {formatPrice(bankBalance)}</p>
                     </div>
-                    <div className="grid gap-1 text-right">
+                    <div className="text-right">
                         <Label>Last Import</Label>
-                        <div className="text-2xl font-bold">{lastImportDate ? format(lastImportDate, 'dd MMM yyyy') : 'N/A'}</div>
+                        <p className="text-2xl font-bold">{lastImportDate ? format(lastImportDate, 'dd MMM yyyy') : 'N/A'}</p>
                     </div>
                 </div>
             </div>
