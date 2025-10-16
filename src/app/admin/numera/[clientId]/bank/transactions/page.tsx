@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -351,11 +351,11 @@ function CreateAccountDialog({ client, onAccountCreated, onOpenChange, open }: {
 function NewTransactionsTab({ 
     client,
     bankAccountId,
-    fetchClientAndRules
+    onImportComplete,
 }: { 
     client: User | null;
     bankAccountId: string | null;
-    fetchClientAndRules: () => void;
+    onImportComplete: () => void;
 }) {
     const { toast } = useToast();
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
@@ -374,9 +374,9 @@ function NewTransactionsTab({
         } else {
             constraints.push(where('amount', '>=', 0));
         }
-
-        constraints.push(orderBy('amount', 'asc'));
+        
         constraints.push(orderBy('date', 'desc'));
+        constraints.push(orderBy('amount', 'asc'));
         
         return query(collection(db, 'numeraClients', client.id, 'transactions'), ...constraints);
     }, [client?.id, bankAccountId, activeSubTab]);
@@ -389,8 +389,12 @@ function NewTransactionsTab({
         isLoadingMore,
         refetch,
     } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: newTransactionsQuery, pageSize: PAGE_SIZE });
+    
+    useEffect(() => {
+        onImportComplete(); // This will call refetch in the parent component
+    }, []);
 
-     useEffect(() => {
+    useEffect(() => {
         refetch();
     }, [activeSubTab, refetch]);
 
@@ -522,6 +526,7 @@ export default function BankTransactionsPage() {
     const [activeTab, setActiveTab] = useState<'new' | 'review' | 'reviewed'>('new');
     const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
     const [isEditAccountOpen, setIsEditAccountOpen] = useState(false);
+    const newTransactionsTabRef = useRef<{ refetch: () => void }>(null);
     
     const fetchClientAndRules = useCallback(async () => {
         if (!clientId) return;
@@ -560,11 +565,8 @@ export default function BankTransactionsPage() {
     const bankBalance = useMemo(() => {
         if (!client || !selectedAccountId) return 0;
         
-        // Correctly filter transactions from the client object if they exist
         const clientTransactions = (client as any).transactions || [];
         
-        // This is a temporary calculation based on potentially incomplete client-side data.
-        // For a real balance, you would typically use an aggregated value from Firestore.
         return clientTransactions
             .filter((tx: any) => tx.bankAccountId === selectedAccountId)
             .reduce((sum: number, tx: any) => sum + tx.amount, 0);
@@ -583,12 +585,10 @@ export default function BankTransactionsPage() {
         try {
             const batch = writeBatch(db);
 
-            // 1. Remove account from Chart of Accounts
             const updatedAccounts = client.chartOfAccounts?.filter(acc => acc.id !== selectedAccountId) || [];
             const clientRef = doc(db, 'numeraClients', client.id);
             batch.update(clientRef, { chartOfAccounts: updatedAccounts });
 
-            // 2. Delete all transactions associated with this bank account
             const transactionsQuery = query(collection(db, 'numeraClients', client.id, 'transactions'), where('bankAccountId', '==', selectedAccountId));
             const transactionsSnapshot = await getDocs(transactionsQuery);
             transactionsSnapshot.forEach(doc => {
@@ -599,7 +599,6 @@ export default function BankTransactionsPage() {
 
             toast({ title: "Bank Account Deleted", description: `Account and its ${transactionsSnapshot.size} transactions have been permanently removed.`});
             
-            // Reset selection
             setSelectedAccountId(null);
             fetchClientAndRules();
 
@@ -662,7 +661,10 @@ export default function BankTransactionsPage() {
                             </DropdownMenuContent>
                         </DropdownMenu>
 
-                         {selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={fetchClientAndRules} currentBalance={bankBalance} />}
+                         {selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={() => {
+                             fetchClientAndRules();
+                             newTransactionsTabRef.current?.refetch();
+                         }} currentBalance={bankBalance} />}
                     </div>
                 </div>
                  <div className="grid gap-2 text-left md:text-right w-full md:w-auto">
@@ -678,7 +680,7 @@ export default function BankTransactionsPage() {
                     <TabsTrigger value="reviewed">Reviewed</TabsTrigger>
                 </TabsList>
                 <TabsContent value="new" className="mt-0">
-                   <NewTransactionsTab client={client} bankAccountId={selectedAccountId} fetchClientAndRules={fetchClientAndRules} />
+                   <NewTransactionsTab client={client} bankAccountId={selectedAccountId} onImportComplete={() => newTransactionsTabRef.current?.refetch()} />
                 </TabsContent>
                 <TabsContent value="review" className="mt-0">
                    {/* <ForReviewTab client={client} bankAccountId={selectedAccountId} fetchClientAndRules={fetchClientAndRules} /> */}
@@ -696,3 +698,5 @@ export default function BankTransactionsPage() {
 // NOTE: ForReviewTab and ReviewedTab would need to be created following the pattern of NewTransactionsTab,
 // each with their own `usePaginatedFirestore` hook and appropriate base query.
 // I have stubbed them out here for brevity but will create them in subsequent steps if requested.
+
+    
