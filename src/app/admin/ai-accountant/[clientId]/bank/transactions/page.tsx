@@ -957,7 +957,6 @@ export default function BankTransactionsPage() {
             <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)}>
                 <TabsList>
                     <TabsTrigger value="new">New</TabsTrigger>
-                    <TabsTrigger value="ai">AI Accountant</TabsTrigger>
                     <TabsTrigger value="review">For Review</TabsTrigger>
                     <TabsTrigger value="reviewed">Reviewed</TabsTrigger>
                 </TabsList>
@@ -967,9 +966,6 @@ export default function BankTransactionsPage() {
                         client={client} 
                         bankAccountId={selectedAccountId} 
                     />
-                </TabsContent>
-                <TabsContent value="ai" className="mt-0">
-                   {/* <AIAccountantTab client={client} bankAccountId={selectedAccountId} /> */}
                 </TabsContent>
                 <TabsContent value="review" className="mt-0">
                    {/* <ForReviewTab client={client} bankAccountId={selectedAccountId} fetchClientAndRules={fetchClientAndRules} /> */}
