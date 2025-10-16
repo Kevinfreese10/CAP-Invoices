@@ -358,6 +358,96 @@ function CreateAccountDialog({ client, onAccountCreated, onOpenChange, open }: {
 
 // #endregion
 
+// #region Rule Creation Dialog
+
+const ruleFormSchema = z.object({
+  description: z.string().min(3, "Rule description is required."),
+  keywords: z.string().min(2, "At least one keyword is required."),
+  accountId: z.string().min(1, "Account is required."),
+  vatType: z.enum(allVatTypes.map(v => v.name) as [string, ...string[]]),
+});
+
+function CreateRuleDialog({ client, onRuleCreated }: { client: User | null; onRuleCreated: () => void; }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const { toast } = useToast();
+  const form = useForm<z.infer<typeof ruleFormSchema>>({
+    resolver: zodResolver(ruleFormSchema),
+    defaultValues: {
+      description: "",
+      keywords: "",
+      accountId: "",
+      vatType: "standard_rated_purchases",
+    },
+  });
+  
+  const handleSaveRule = async (values: z.infer<typeof ruleFormSchema>) => {
+    if (!client) return;
+    setIsSaving(true);
+    
+    const newRule: Partial<AllocationRule> = {
+      description: values.description,
+      keywords: values.keywords.split(',').map(k => k.trim().toLowerCase()),
+      accountId: values.accountId,
+      vatType: values.vatType,
+      type: 'hard', // All client-level rules are 'hard' rules
+    };
+
+    try {
+      const clientRef = doc(db, 'aiAccountantClients', client.id);
+      await updateDoc(clientRef, {
+        allocationRules: arrayUnion(newRule),
+      });
+
+      toast({ title: "Rule Created", description: `The rule "${values.description}" has been added to this client.`});
+      form.reset();
+      setIsOpen(false);
+      onRuleCreated(); // Callback to refetch client data
+    } catch (error) {
+      console.error("Error creating rule:", error);
+      toast({ title: 'Error', description: 'Could not create the allocation rule.', variant: 'destructive'});
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+          Create Allocation Rule
+        </DropdownMenuItem>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create New Allocation Rule</DialogTitle>
+          <DialogDescription>
+            This rule will be applied to this client's transactions.
+          </DialogDescription>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSaveRule)} className="space-y-4">
+            <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Rule Description</FormLabel><FormControl><Input placeholder="e.g., Monthly bank charges" {...field} /></FormControl><FormMessage /></FormItem> )} />
+            <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords (comma-separated)</FormLabel><FormControl><Input placeholder="e.g., monthly account fee, service fee" {...field} /></FormControl><FormMessage /></FormItem> )} />
+            <FormField control={form.control} name="accountId" render={({ field }) => ( <FormItem><FormLabel>Allocate To Account</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl><SelectContent>{client?.chartOfAccounts?.map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.accountNumber} - {acc.description}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem> )}/>
+            <FormField control={form.control} name="vatType" render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setIsOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save Rule
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// #endregion
+
+
 // #region AI Accountant Dialog
 const chatFormSchema = z.object({
   question: z.string().min(1, 'Cannot send an empty message.'),
@@ -554,8 +644,8 @@ function AIAccountantDialog({ client, bankAccountId }: { client: User | null; ba
 
 const NewTransactionsTab = React.forwardRef<
     { refetch: () => void },
-    { client: User | null; bankAccountId: string | null; }
->(({ client, bankAccountId }, ref) => {
+    { client: User | null; bankAccountId: string | null; fetchClientData: () => void; }
+>(({ client, bankAccountId, fetchClientData }, ref) => {
     const { toast } = useToast();
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
@@ -706,6 +796,7 @@ const NewTransactionsTab = React.forwardRef<
                                 </DropdownMenuSubContent>
                             </DropdownMenuSub>
                             <DropdownMenuSeparator />
+                             <CreateRuleDialog client={client} onRuleCreated={fetchClientData} />
                              <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                     <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive" disabled={selectedTransactions.length === 0}>
@@ -728,7 +819,7 @@ const NewTransactionsTab = React.forwardRef<
                         </DropdownMenuContent>
                      </DropdownMenu>
 
-                     <Button variant="outline">Allocation Rules</Button>
+                     <Button variant="outline" asChild><Link href={`/admin/ai-accountant/${client?.id}/allocation-rules`}>Allocation Rules</Link></Button>
                      <Button variant="outline">AI Allocate Selected <Sparkles className="ml-2 h-4 w-4"/></Button>
                 </div>
             </CardHeader>
@@ -856,7 +947,7 @@ export default function BankTransactionsPage() {
     const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
     const [isEditAccountOpen, setIsEditAccountOpen] = useState(false);
     const newTransactionsTabRef = useRef<{ refetch: () => void }>(null);
-    const [allTransactions, setAllTransactions] = useState<ImportedTransaction[]>([]);
+    const [allTransactions, setAllTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
     
     const fetchClientAndRules = useCallback(async () => {
         if (!clientId) return;
@@ -897,7 +988,7 @@ export default function BankTransactionsPage() {
         if (!clientId) return;
         const q = query(collection(db, "aiAccountantClients", clientId, "transactions"));
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
-            const transactions = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ImportedTransaction));
+            const transactions = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as (ImportedTransaction | AllocatedTransaction)));
             setAllTransactions(transactions);
         });
         return () => unsubscribe();
@@ -1013,7 +1104,7 @@ export default function BankTransactionsPage() {
                     </div>
                 </div>
 
-                <div className="flex items-start gap-8">
+                <div className="flex items-center gap-8">
                      <div className="flex items-center gap-4">
                         {client && <AIAccountantDialog client={client} bankAccountId={selectedAccountId} />}
                         {client && selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={() => {
@@ -1043,6 +1134,7 @@ export default function BankTransactionsPage() {
                         ref={newTransactionsTabRef}
                         client={client} 
                         bankAccountId={selectedAccountId} 
+                        fetchClientData={fetchClientAndRules}
                     />
                 </TabsContent>
                 <TabsContent value="reviewed">
