@@ -109,7 +109,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
             let importedCount = 0;
 
             parsedTransactions.forEach((row, index) => {
-                const parsedDate = new Date(row.Date.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1'));
+                const parsedDate = new Date(row.Date.replace(/(\\d{2})\\/(\\d{2})\\/(\\d{4})/, '$3-$2-$1'));
 
                 if (isNaN(parsedDate.getTime())) {
                     console.warn(`Skipping row ${index + 2}: Invalid date format.`);
@@ -347,15 +347,10 @@ function CreateAccountDialog({ client, onAccountCreated, onOpenChange, open }: {
 
 // #endregion
 
-function NewTransactionsTab({ 
-    client,
-    bankAccountId,
-    onImportComplete,
-}: { 
-    client: User | null;
-    bankAccountId: string | null;
-    onImportComplete: () => void;
-}) {
+const NewTransactionsTab = React.forwardRef<
+    { refetch: () => void },
+    { client: User | null; bankAccountId: string | null; }
+>(({ client, bankAccountId }, ref) => {
     const { toast } = useToast();
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
@@ -391,15 +386,9 @@ function NewTransactionsTab({
         refetch
     } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: newTransactionsQuery, pageSize: PAGE_SIZE });
     
-    const onImportCompleteRef = useRef(onImportComplete);
-    onImportCompleteRef.current = onImportComplete;
-    
-    const refetchRef = useRef(refetch);
-    refetchRef.current = refetch;
-
-    useEffect(() => {
-        onImportCompleteRef.current = refetchRef.current;
-    }, []);
+    React.useImperativeHandle(ref, () => ({
+        refetch,
+    }));
 
     useEffect(() => {
         refetch();
@@ -623,7 +612,8 @@ function NewTransactionsTab({
             </CardFooter>
         </Card>
     )
-}
+});
+NewTransactionsTab.displayName = 'NewTransactionsTab';
 
 export default function BankTransactionsPage() {
     const [client, setClient] = useState<User | null>(null);
@@ -636,7 +626,7 @@ export default function BankTransactionsPage() {
     const [activeTab, setActiveTab] = useState<'new' | 'review' | 'reviewed'>('new');
     const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
     const [isEditAccountOpen, setIsEditAccountOpen] = useState(false);
-    const newTransactionsTabRef = useRef<{ refetch: () => void } | null>(null);
+    const newTransactionsTabRef = useRef<{ refetch: () => void }>(null);
     
     const fetchClientAndRules = useCallback(async () => {
         if (!clientId) return;
@@ -723,7 +713,7 @@ export default function BankTransactionsPage() {
     return (
         <div className="space-y-4">
             <h1 className="text-2xl font-bold tracking-tight">Banking</h1>
-            <div className="flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-8 p-4 bg-card border rounded-lg">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 md:gap-8 p-4 bg-card border rounded-lg">
                 <div className="grid gap-2 flex-grow">
                     <Label htmlFor="bank-account-selector">Bank Account</Label>
                     <div className="flex gap-2">
@@ -771,17 +761,19 @@ export default function BankTransactionsPage() {
                                 </AlertDialog>
                             </DropdownMenuContent>
                         </DropdownMenu>
-
-                         {client && selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={() => {
-                             if(newTransactionsTabRef.current) {
-                                 newTransactionsTabRef.current.refetch();
-                             }
-                         }} currentBalance={bankBalance} />}
                     </div>
                 </div>
-                 <div className="grid gap-2 text-left md:text-right w-full md:w-auto">
-                    <Label>Current Balance</Label>
-                    <div className="text-2xl font-bold">R {formatPrice(bankBalance)}</div>
+
+                <div className="flex items-center gap-4">
+                     {client && selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={() => {
+                         if(newTransactionsTabRef.current) {
+                             newTransactionsTabRef.current.refetch();
+                         }
+                     }} currentBalance={bankBalance} />}
+                     <div className="grid gap-1 text-left md:text-right">
+                        <Label>Current Balance</Label>
+                        <div className="text-2xl font-bold">R {formatPrice(bankBalance)}</div>
+                    </div>
                 </div>
             </div>
 
@@ -796,11 +788,6 @@ export default function BankTransactionsPage() {
                         ref={newTransactionsTabRef}
                         client={client} 
                         bankAccountId={selectedAccountId} 
-                        onImportComplete={() => {
-                            if(newTransactionsTabRef.current) {
-                                newTransactionsTabRef.current.refetch();
-                            }
-                        }}
                     />
                 </TabsContent>
                 <TabsContent value="review" className="mt-0">
