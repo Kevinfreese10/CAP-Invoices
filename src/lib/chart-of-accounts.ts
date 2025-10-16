@@ -120,6 +120,9 @@ export let chartOfAccounts: ChartOfAccount[] = [
     { id: '8000-001', accountNumber: '8000-001', description: 'Customer Control Account', section: 'Balance Sheet' },
     { id: '8000-002', accountNumber: '8000-002', description: 'Sundry Customers', section: 'Balance Sheet' },
     { id: '8000-003', accountNumber: '8000-003', description: 'Provisional Tax Payments', section: 'Balance Sheet' },
+    { id: '8000-004', accountNumber: '8000-004', description: 'Bank - Current Account', section: 'Balance Sheet' },
+    { id: '8000-005', accountNumber: '8000-005', description: 'Bank - Savings Account', section: 'Balance Sheet' },
+    { id: '8000-006', accountNumber: '8000-006', description: 'Petty Cash', section: 'Balance Sheet' },
     { id: '9000-000', accountNumber: '9000-000', description: 'Share Capital', section: 'Balance Sheet' },
     { id: '9000-001', accountNumber: '9000-001', description: 'Shareholder Loan Account', section: 'Balance Sheet' },
     { id: '9000-002', accountNumber: '9000-002', description: 'Drawings / Dividends Paid', section: 'Balance Sheet' },
@@ -134,5 +137,3 @@ export let chartOfAccounts: ChartOfAccount[] = [
 export function setMasterChartOfAccounts(newAccounts: ChartOfAccount[]) {
     chartOfAccounts = newAccounts;
 }
-
-    
