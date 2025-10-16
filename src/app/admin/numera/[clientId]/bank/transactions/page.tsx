@@ -577,7 +577,7 @@ export default function BankTransactionsPage() {
         <div className="space-y-4">
             <h1 className="text-2xl font-bold tracking-tight">Banking</h1>
             <div className="flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-8 p-4 bg-card border rounded-lg">
-                <div className="grid gap-2 w-full md:w-auto md:min-w-64">
+                <div className="grid gap-2 flex-grow">
                     <Label htmlFor="bank-account-selector">Bank Account</Label>
                     <div className="flex gap-2">
                         <Select
@@ -585,7 +585,7 @@ export default function BankTransactionsPage() {
                             onValueChange={setSelectedAccountId}
                             disabled={bankAccounts.length === 0}
                         >
-                            <SelectTrigger id="bank-account-selector">
+                            <SelectTrigger id="bank-account-selector" className="w-full md:w-[250px]">
                                 <SelectValue placeholder={bankAccounts.length > 0 ? "Select a bank account" : "No bank accounts found"} />
                             </SelectTrigger>
                             <SelectContent>
@@ -626,10 +626,9 @@ export default function BankTransactionsPage() {
                         </DropdownMenu>
 
                          {selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={fetchClientAndRules} />}
-
                     </div>
                 </div>
-                 <div className="grid gap-2">
+                 <div className="grid gap-2 text-right md:text-left">
                     <Label>Current Balance</Label>
                     <div className="text-2xl font-bold">{formatPrice(bankBalance)}</div>
                 </div>
