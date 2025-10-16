@@ -93,33 +93,6 @@ export default function AIAccountantPage() {
             } else {
                 const newDocRef = await addDoc(collection(db, "aiAccountantClients"), clientData);
                 toast({ title: 'Client Created', description: 'The new client has been added to AI Accountant.'});
-
-                 // Seed with dummy data only for new clients
-                const batch = writeBatch(db);
-                const bankAccountId = '8400-001'; // FNB Cheque Account
-                const dummyTransactions: Omit<ImportedTransaction, 'id' | 'clientId' | 'status' | 'reference'>[] = [
-                    { date: '2024-07-01T10:00:00Z', description: 'PICK N PAY RETAILERS', amount: -250.75, bankAccountId },
-                    { date: '2024-07-01T14:30:00Z', description: 'DISCHEM PHARM', amount: -150.00, bankAccountId },
-                    { date: '2024-07-02T09:00:00Z', description: 'SALARY PAYMENT', amount: 25000, bankAccountId },
-                    { date: '2024-07-03T11:45:00Z', description: 'CHECKERS', amount: -560.20, bankAccountId },
-                    { date: '2024-07-04T08:00:00Z', description: 'MTN DEBIT ORDER', amount: -499.00, bankAccountId },
-                ];
-                
-                let dailyCounters: { [key: string]: number } = {};
-                
-                dummyTransactions.forEach(tx => {
-                    const parsedDate = new Date(tx.date);
-                    const dateString = parsedDate.toISOString().split('T')[0].replace(/-/g, '');
-                    dailyCounters[dateString] = (dailyCounters[dateString] || 0) + 1;
-                    const dailyIndex = String(dailyCounters[dateString]).padStart(2, '0');
-                    const reference = `${dateString}${dailyIndex}`;
-                    
-                    const newTransactionRef = doc(collection(db, 'aiAccountantClients', newDocRef.id, 'transactions'));
-                    batch.set(newTransactionRef, { ...tx, status: 'new', reference });
-                });
-
-                await batch.commit();
-                toast({ title: 'Dummy Data Added', description: 'Sample transactions have been added for the new client.' });
             }
 
             fetchClients();
