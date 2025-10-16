@@ -31,7 +31,7 @@ import Link from 'next/link';
 import { Label } from '@/components/ui/label';
 import { allVatTypes } from '@/lib/vat-types';
 import { Textarea } from '@/components/ui/textarea';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 import { Progress } from '@/components/ui/progress';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
@@ -211,8 +211,32 @@ export default function BankTransactionsPage() {
     const [activeTab, setActiveTab] = useState<'new' | 'review' | 'reviewed'>('new');
     
     const fetchClientAndRules = useCallback(async () => {
-        // ... (existing fetch logic)
-    }, [clientId, toast]);
+        if (!clientId) return;
+        setIsLoading(true);
+        try {
+            const clientRef = doc(db, 'numeraClients', clientId);
+            const clientSnap = await getDoc(clientRef);
+            if (clientSnap.exists()) {
+                const clientData = { id: clientSnap.id, ...clientSnap.data() } as User;
+                setClient(clientData);
+
+                const cashbookAccounts = clientData.chartOfAccounts?.filter(
+                    acc => acc.description.toLowerCase().includes('bank') || acc.description.toLowerCase().includes('credit card')
+                ) || [];
+                setBankAccounts(cashbookAccounts);
+
+                if (cashbookAccounts.length > 0 && !selectedAccountId) {
+                    setSelectedAccountId(cashbookAccounts[0].id);
+                }
+            } else {
+                toast({ title: 'Error', description: 'Client not found.', variant: 'destructive' });
+            }
+        } catch (e) {
+            toast({ title: 'Error', description: 'Failed to fetch client data.', variant: 'destructive' });
+        } finally {
+            setIsLoading(false);
+        }
+    }, [clientId, toast, selectedAccountId]);
 
     useEffect(() => {
         fetchClientAndRules();
@@ -225,8 +249,29 @@ export default function BankTransactionsPage() {
             <h1 className="text-2xl font-bold tracking-tight">Banking</h1>
             {/* Header section with bank account selector and balance */}
             <div className="flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-8 p-4 bg-card border rounded-lg">
-                {/* Bank Account Selector */}
-                {/* Bank Balance Display */}
+                <div className="grid gap-2 w-full md:w-auto md:min-w-64">
+                    <Label htmlFor="bank-account-selector">Bank Account</Label>
+                    <Select
+                        value={selectedAccountId || ''}
+                        onValueChange={setSelectedAccountId}
+                        disabled={bankAccounts.length === 0}
+                    >
+                        <SelectTrigger id="bank-account-selector">
+                            <SelectValue placeholder={bankAccounts.length > 0 ? "Select a bank account" : "No bank accounts found"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {bankAccounts.map(account => (
+                                <SelectItem key={account.id} value={account.id}>
+                                    {account.description}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                 <div className="grid gap-2">
+                    <Label>Current Balance</Label>
+                    <div className="text-2xl font-bold">{formatPrice(bankBalance)}</div>
+                </div>
             </div>
 
             <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)}>
@@ -253,3 +298,4 @@ export default function BankTransactionsPage() {
 // NOTE: ForReviewTab and ReviewedTab would need to be created following the pattern of NewTransactionsTab,
 // each with their own `usePaginatedFirestore` hook and appropriate base query.
 // I have stubbed them out here for brevity but will create them in subsequent steps if requested.
+
