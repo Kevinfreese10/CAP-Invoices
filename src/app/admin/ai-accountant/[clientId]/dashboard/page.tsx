@@ -4,14 +4,21 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
-import { getFirestore, doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, getDocs, query, where, updateDoc, arrayUnion } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User, ChartOfAccount, ImportedTransaction } from '@/lib/types';
 import { useParams } from 'next/navigation';
-import { Loader2, ArrowRight, Banknote, AlertCircle } from 'lucide-react';
+import { Loader2, ArrowRight, Banknote, AlertCircle, PlusCircle } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
 
 const db = getFirestore(firebaseApp);
 
@@ -22,6 +29,85 @@ const formatPrice = (price: number) => {
     }).format(price);
 };
 
+const createAccountSchema = z.object({
+  name: z.string().min(3, "Bank account name is required."),
+});
+
+function CreateAccountDialog({ client, onAccountCreated }: { client: User, onAccountCreated: () => void }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const { toast } = useToast();
+    const [isSaving, setIsSaving] = useState(false);
+    const form = useForm<z.infer<typeof createAccountSchema>>({
+        resolver: zodResolver(createAccountSchema),
+        defaultValues: { name: '' },
+    });
+
+    const handleCreateAccount = async (values: z.infer<typeof createAccountSchema>) => {
+        setIsSaving(true);
+        try {
+            const existingBankAccounts = client.chartOfAccounts?.filter(
+                acc => acc.accountNumber.startsWith('8400-')
+            ) || [];
+
+            const existingNumbers = existingBankAccounts.map(acc => {
+                const parts = acc.accountNumber.split('-');
+                return parts.length > 1 ? parseInt(parts[1], 10) : 0;
+            });
+
+            const nextNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1;
+            const newAccountNumber = `8400-${String(nextNumber).padStart(3, '0')}`;
+
+            const newAccount: ChartOfAccount = {
+                id: newAccountNumber,
+                accountNumber: newAccountNumber,
+                description: values.name,
+                section: 'Balance Sheet',
+            };
+
+            const clientRef = doc(db, 'aiAccountantClients', client.id);
+            await updateDoc(clientRef, {
+                chartOfAccounts: arrayUnion(newAccount)
+            });
+
+            toast({ title: 'Bank Account Created', description: `Account ${newAccount.description} (${newAccount.accountNumber}) has been added.` });
+            onAccountCreated();
+            form.reset();
+            setIsOpen(false);
+        } catch (error) {
+            console.error("Error creating bank account:", error);
+            toast({ title: 'Error', description: 'Could not create the bank account.', variant: 'destructive' });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button size="sm" variant="outline"><PlusCircle className="mr-2 h-4 w-4" />Create New Account</Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Create New Bank Account</DialogTitle>
+                    <DialogDescription>
+                        This will add a new cashbook account to this client's chart of accounts.
+                    </DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleCreateAccount)} className="space-y-4">
+                        <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Bank Account Name</FormLabel><FormControl><Input placeholder="e.g., FNB Cheque Account" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <DialogFooter>
+                            <Button type="button" variant="ghost" onClick={() => setIsOpen(false)}>Cancel</Button>
+                            <Button type="submit" disabled={isSaving}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Create Account</Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+
 export default function AIAccountantClientDashboardPage() {
     const [client, setClient] = useState<User | null>(null);
     const [transactions, setTransactions] = useState<ImportedTransaction[]>([]);
@@ -29,36 +115,35 @@ export default function AIAccountantClientDashboardPage() {
     const params = useParams();
     const clientId = params.clientId as string;
 
-    useEffect(() => {
+    const fetchDashboardData = async () => {
         if (!clientId) return;
-
-        const fetchData = async () => {
-            setIsLoading(true);
-            try {
-                // Fetch client data
-                const clientRef = doc(db, 'aiAccountantClients', clientId);
-                const clientSnap = await getDoc(clientRef);
-                
-                if (clientSnap.exists()) {
-                    setClient({ id: clientSnap.id, ...clientSnap.data() } as User);
-                } else {
-                    console.error("Client not found");
-                }
-
-                // Fetch transactions
-                const transactionsQuery = query(collection(db, 'aiAccountantClients', clientId, 'transactions'));
-                const transactionsSnapshot = await getDocs(transactionsQuery);
-                const fetchedTransactions = transactionsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as ImportedTransaction));
-                setTransactions(fetchedTransactions);
-
-            } catch (error) {
-                console.error("Error fetching dashboard data:", error);
-            } finally {
-                setIsLoading(false);
+        setIsLoading(true);
+        try {
+            // Fetch client data
+            const clientRef = doc(db, 'aiAccountantClients', clientId);
+            const clientSnap = await getDoc(clientRef);
+            
+            if (clientSnap.exists()) {
+                setClient({ id: clientSnap.id, ...clientSnap.data() } as User);
+            } else {
+                console.error("Client not found");
             }
-        };
 
-        fetchData();
+            // Fetch transactions
+            const transactionsQuery = query(collection(db, 'aiAccountantClients', clientId, 'transactions'));
+            const transactionsSnapshot = await getDocs(transactionsQuery);
+            const fetchedTransactions = transactionsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as ImportedTransaction));
+            setTransactions(fetchedTransactions);
+
+        } catch (error) {
+            console.error("Error fetching dashboard data:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    
+    useEffect(() => {
+        fetchDashboardData();
     }, [clientId]);
 
     const bankAccounts = useMemo(() => {
@@ -102,11 +187,14 @@ export default function AIAccountantClientDashboardPage() {
     return (
         <div className="space-y-6">
             <Card>
-                <CardHeader>
-                    <CardTitle>Bank Accounts Overview</CardTitle>
-                    <CardDescription>
-                        A summary of all linked bank accounts for {client.companyName || client.name}.
-                    </CardDescription>
+                <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle>Bank Accounts Overview</CardTitle>
+                        <CardDescription>
+                            A summary of all linked bank accounts for {client.companyName || client.name}.
+                        </CardDescription>
+                    </div>
+                    {client && <CreateAccountDialog client={client} onAccountCreated={fetchDashboardData} />}
                 </CardHeader>
                 <CardContent>
                     {accountSummaries.length === 0 ? (
@@ -114,11 +202,8 @@ export default function AIAccountantClientDashboardPage() {
                             <Banknote className="mx-auto h-12 w-12 text-muted-foreground" />
                             <h3 className="mt-4 text-lg font-medium">No Bank Accounts Found</h3>
                             <p className="mt-2 text-sm text-muted-foreground">
-                                You need to create a bank account before you can import transactions.
+                                Use the 'Create New Account' button to add a bank account.
                             </p>
-                            <Button asChild className="mt-4">
-                                <Link href={`/admin/ai-accountant/${clientId}/bank/transactions`}>Go to Banking</Link>
-                            </Button>
                         </div>
                     ) : (
                         <Table>
