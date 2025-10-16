@@ -61,11 +61,19 @@ export function usePaginatedFirestore<T>({
             setDocuments(newDocuments);
             setFirstDoc(documentSnapshots.docs[0]);
             setLastDoc(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
-            setCurrentPage(page);
+            if (direction !== 'initial') {
+                setCurrentPage(page);
+            }
         } else {
-            // If we're going forward and get no results, we're at the end.
-            if(direction === 'next') {
+             if(direction === 'next') {
                 setPageCount(currentPage); // Lock the page count
+            } else if (direction === 'prev') {
+                // If we go back and get nothing, something is wrong, or we are at the start
+                // Do nothing, stay on the current page
+            } else { // initial fetch returned no docs
+                setDocuments([]);
+                setFirstDoc(null);
+                setLastDoc(null);
             }
         }
     } catch (error) {
@@ -83,29 +91,58 @@ export function usePaginatedFirestore<T>({
 
   const goToNextPage = () => {
       if (!lastDoc) return;
-      fetchPage(currentPage + 1, 'next');
+      fetchPage(currentPage + 1, 'next').then(() => setCurrentPage(prev => prev + 1));
   }
   
   const goToPreviousPage = () => {
       if (!firstDoc || currentPage === 1) return;
-      fetchPage(currentPage - 1, 'prev');
+      fetchPage(currentPage - 1, 'prev').then(() => setCurrentPage(prev => prev - 1));
   }
-
-  // Initial fetch
-  useEffect(() => {
-    fetchPage(1, 'initial');
-  }, [baseQuery]); // Re-run only when baseQuery changes
   
-  // Simplified hook return
+  const refetch = useCallback(() => {
+    setCurrentPage(1);
+    setLastDoc(null);
+    setFirstDoc(null);
+    if (baseQuery) {
+        const initialQuery = query(baseQuery, limit(pageSize));
+        setIsLoading(true);
+        getDocs(initialQuery).then(documentSnapshots => {
+            const newDocuments = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as T));
+            setDocuments(newDocuments);
+            if (!documentSnapshots.empty) {
+                setFirstDoc(documentSnapshots.docs[0]);
+                setLastDoc(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
+            } else {
+                setFirstDoc(null);
+                setLastDoc(null);
+            }
+            setIsLoading(false);
+        }).catch(error => {
+            console.error("Error refetching documents:", error);
+            toast({
+                title: "Error",
+                description: "Could not refresh data.",
+                variant: "destructive",
+            });
+            setIsLoading(false);
+        });
+    }
+  }, [baseQuery, pageSize, toast]);
+
+
+  // Initial fetch effect
+  useEffect(() => {
+    refetch();
+  }, [baseQuery]);
+  
   return { 
       documents, 
       isLoading,
       goToNextPage,
       goToPreviousPage,
       currentPage,
-      // A simple way to know if there could be a next/prev page
       canGoNext: documents.length === pageSize,
       canGoPrev: currentPage > 1,
-      refetch: () => fetchPage(1, 'initial') 
+      refetch
     };
 }
