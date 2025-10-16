@@ -37,6 +37,7 @@ import { Progress } from '@/components/ui/progress';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandItem } from '@/components/ui/command';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { format } from 'date-fns';
 
 const PAGE_SIZE = 50;
 
@@ -112,7 +113,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
             const dailyCounters: { [key: string]: number } = {};
 
             parsedTransactions.forEach((row, index) => {
-                 const parsedDate = new Date(row.Date.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1'));
+                 const parsedDate = new Date(row.Date.replace(/(\\d{2})\/(\\d{2})\/(\\d{4})/, '$3-$2-$1'));
 
                 if (isNaN(parsedDate.getTime())) {
                     console.warn(`Skipping row ${index + 2}: Invalid date format.`);
@@ -131,6 +132,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
                     reference: reference,
                     description: row.Description,
                     amount: row.Amount,
+                    bankAccountId: bankAccountId,
                 };
                 batch.set(newTransactionRef, { ...transaction, status: 'new' });
                 importedCount++;
@@ -152,7 +154,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
     };
     
     const handleDownloadExample = () => {
-        const csvContent = "Date,Description,Amount\nDD/MM/YYYY,Example Payment,-150.00\nDD/MM/YYYY,Example Income,1000.50";
+        const csvContent = "Date,Description,Amount\\nDD/MM/YYYY,Example Payment,-150.00\\nDD/MM/YYYY,Example Income,1000.50";
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
@@ -712,6 +714,17 @@ export default function BankTransactionsPage() {
             .filter(tx => tx.bankAccountId === selectedAccountId)
             .reduce((sum, tx) => sum + tx.amount, 0);
     }, [allTransactions, selectedAccountId]);
+
+    const lastImportDate = useMemo(() => {
+        if (!selectedAccountId) return null;
+        const accountTransactions = allTransactions.filter(tx => tx.bankAccountId === selectedAccountId);
+        if (accountTransactions.length === 0) return null;
+
+        const latestDate = new Date(
+            Math.max(...accountTransactions.map(tx => new Date(tx.date).getTime()))
+        );
+        return latestDate;
+    }, [allTransactions, selectedAccountId]);
     
     const selectedAccount = useMemo(() => {
         return bankAccounts.find(acc => acc.id === selectedAccountId);
@@ -813,6 +826,10 @@ export default function BankTransactionsPage() {
                      <div className="grid gap-1 text-left md:text-right">
                         <Label>Current Balance</Label>
                         <div className="text-2xl font-bold">R {formatPrice(bankBalance)}</div>
+                    </div>
+                    <div className="grid gap-1 text-left md:text-right">
+                        <Label>Last Import</Label>
+                        <div className="text-2xl font-bold">{lastImportDate ? format(lastImportDate, 'dd MMM yyyy') : 'N/A'}</div>
                     </div>
                 </div>
             </div>
