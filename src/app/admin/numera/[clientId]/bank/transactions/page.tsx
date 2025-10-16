@@ -112,7 +112,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
             const dailyCounters: { [key: string]: number } = {};
 
             parsedTransactions.forEach((row, index) => {
-                const parsedDate = new Date(row.Date.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1'));
+                 const parsedDate = new Date(row.Date.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1'));
 
                 if (isNaN(parsedDate.getTime())) {
                     console.warn(`Skipping row ${index + 2}: Invalid date format.`);
@@ -127,7 +127,6 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
                 const newTransactionRef = doc(collection(db, 'numeraClients', client.id, 'transactions'));
                 const transaction: Omit<ImportedTransaction, 'id' | 'status'> = {
                     clientId: client.id,
-                    bankAccountId,
                     date: parsedDate.toISOString(),
                     reference: reference,
                     description: row.Description,
@@ -659,6 +658,7 @@ export default function BankTransactionsPage() {
     const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
     const [isEditAccountOpen, setIsEditAccountOpen] = useState(false);
     const newTransactionsTabRef = useRef<{ refetch: () => void }>(null);
+    const [allTransactions, setAllTransactions] = useState<ImportedTransaction[]>([]);
     
     const fetchClientAndRules = useCallback(async () => {
         if (!clientId) return;
@@ -694,31 +694,24 @@ export default function BankTransactionsPage() {
     useEffect(() => {
         fetchClientAndRules();
     }, [fetchClientAndRules]);
+    
+    useEffect(() => {
+        if (!clientId) return;
+        const q = query(collection(db, "numeraClients", clientId, "transactions"));
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+            const transactions = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ImportedTransaction));
+            setAllTransactions(transactions);
+        });
+        return () => unsubscribe();
+    }, [clientId]);
+
 
     const bankBalance = useMemo(() => {
-        if (!client) return 0;
-        
-        let total = 0;
-        
-        // Sum up allocated transactions for the selected bank account
-        const allocated = client.allocatedTransactions || [];
-        allocated.forEach(tx => {
-            if (tx.bankAccountId === selectedAccountId) {
-                total += tx.amount;
-            }
-        });
-
-        // Sum up imported (unallocated) transactions for the selected bank account
-        const imported = client.importedTransactions || [];
-        imported.forEach(tx => {
-            if (tx.bankAccountId === selectedAccountId) {
-                total += tx.amount;
-            }
-        });
-        
-        return total;
-
-    }, [client, selectedAccountId]);
+        if (!selectedAccountId) return 0;
+        return allTransactions
+            .filter(tx => tx.bankAccountId === selectedAccountId)
+            .reduce((sum, tx) => sum + tx.amount, 0);
+    }, [allTransactions, selectedAccountId]);
     
     const selectedAccount = useMemo(() => {
         return bankAccounts.find(acc => acc.id === selectedAccountId);
