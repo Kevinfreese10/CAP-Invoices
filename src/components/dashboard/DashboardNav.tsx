@@ -61,6 +61,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const { state, toggleSidebar } = useSidebar();
   const [isSettingsOpen, setIsSettingsOpen] = useState(pathname.startsWith('/admin/settings'));
   const [isCapSuppliersOpen, setIsCapSuppliersOpen] = useState(pathname.startsWith('/admin/cap-suppliers'));
+  const [isAiAccountantOpen, setIsAiAccountantOpen] = useState(pathname.startsWith('/admin/ai-accountant'));
 
   const handleLogout = () => {
     logout();
@@ -77,11 +78,16 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/compliance', label: 'Compliance', icon: ShieldCheck, roles: ['admin'] },
     { href: '/admin/community/questions', label: 'Community Q&A', icon: MessageCircleQuestion, roles: ['admin'] },
     { href: '/admin/clients', label: 'Manage Clients', icon: BookUser, roles: ['admin'] },
-    { href: '/admin/ai-accountant', label: 'AI Accountant', icon: Book, roles: ['admin'] },
     { href: '/admin/services', label: 'Manage Services', icon: Briefcase, roles: ['admin'] },
     { href: '/admin/tools', label: 'Tools', icon: Wrench, roles: ['admin'] },
   ];
   
+  const aiAccountantItems = [
+     { href: '/admin/ai-accountant', label: 'Client Profiles', icon: Users, roles: ['admin'] },
+     { href: '/admin/ai-accountant/chart-of-accounts', label: 'Chart of Accounts', icon: Book, roles: ['admin'] },
+     { href: '/admin/ai-accountant/allocation-rules', label: 'Allocation Rules', icon: ArrowRightLeft, roles: ['admin'] },
+  ];
+
   const capSupplierItems = [
     { href: '/admin/cap-suppliers/review', label: 'Review', icon: ClipboardCheck, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
     { href: '/admin/cap-suppliers/control-sheet', label: '2nd Review', icon: FileText, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
@@ -114,6 +120,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
 
   const visibleNavItems = navItems.filter(item => item.roles.includes(user.role));
   const visibleAdminNavItems = adminNavItems.filter(item => item.roles.includes(user.role));
+  const visibleAiAccountantItems = aiAccountantItems.filter(item => item.roles.includes(user.role));
   const visibleCapSupplierItems = capSupplierItems.filter(item => item.roles.includes(user.role) && (!item.department || item.department === user.department));
   const visibleSettingsNavItems = settingsNavItems.filter(item => item.roles.includes(user.role));
   const visibleResellerNavItems = resellerNavItems.filter(item => item.roles.includes(user.role));
@@ -165,6 +172,33 @@ export default function DashboardNav({ user }: { user: UserType }) {
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                 ))}
+
+                 <Collapsible open={isAiAccountantOpen} onOpenChange={setIsAiAccountantOpen}>
+                    <SidebarMenuItem>
+                        <CollapsibleTrigger asChild>
+                            <SidebarMenuButton isActive={pathname.startsWith('/admin/ai-accountant')} tooltip="AI Accountant">
+                                <Book />
+                                <span>AI Accountant</span>
+                                <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200 group-[[data-state=open]]:rotate-180" />
+                            </SidebarMenuButton>
+                        </CollapsibleTrigger>
+                    </SidebarMenuItem>
+                     <CollapsibleContent asChild>
+                        <SidebarMenu className="pl-4">
+                            {visibleAiAccountantItems.map(item => (
+                                <SidebarMenuItem key={item.href}>
+                                    <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label} className="h-8">
+                                        <Link href={item.href}>
+                                            <item.icon />
+                                            <span>{item.label}</span>
+                                        </Link>
+                                    </SidebarMenuButton>
+                                </SidebarMenuItem>
+                            ))}
+                        </SidebarMenu>
+                    </CollapsibleContent>
+                 </Collapsible>
+
                 {visibleCapSupplierItems.length > 0 && (
                     <Collapsible open={isCapSuppliersOpen} onOpenChange={setIsCapSuppliersOpen}>
                         <SidebarMenuItem>

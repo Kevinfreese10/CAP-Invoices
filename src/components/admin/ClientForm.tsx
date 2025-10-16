@@ -37,7 +37,8 @@ export default function ClientForm({
     client: User | null, 
     onSubmit: (data: any) => void, 
     onCancel: () => void, 
-    isAIClient?: boolean 
+    isAIClient?: boolean,
+    isNumeraClient?: boolean,
 }) {
     
     const form = useForm<z.infer<typeof formSchema>>({
