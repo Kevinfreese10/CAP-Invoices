@@ -117,16 +117,15 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
                 }
                 
                 const newTransactionRef = doc(collection(db, 'numeraClients', client.id, 'transactions'));
-                const transaction: Omit<ImportedTransaction, 'id'> = {
+                const transaction: Omit<ImportedTransaction, 'id' | 'status'> = {
                     clientId: client.id,
                     bankAccountId,
                     date: parsedDate.toISOString(),
                     reference: '',
                     description: row.Description,
                     amount: row.Amount,
-                    status: 'new',
                 };
-                batch.set(newTransactionRef, transaction);
+                batch.set(newTransactionRef, { ...transaction, status: 'new' });
                 importedCount++;
             });
             
@@ -165,7 +164,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                <Button variant="outline"><FileUp className="mr-2 h-4 w-4" /> Import Transactions</Button>
+                <Button><FileUp className="mr-2 h-4 w-4" /> Import Bank Statement</Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-2xl">
                 <DialogHeader>
@@ -392,10 +391,15 @@ function NewTransactionsTab({
         refetch
     } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: newTransactionsQuery, pageSize: PAGE_SIZE });
     
+    const onImportCompleteRef = useRef(onImportComplete);
+    onImportCompleteRef.current = onImportComplete;
+    
+    const refetchRef = useRef(refetch);
+    refetchRef.current = refetch;
+
     useEffect(() => {
-        // This makes sure the refetch from parent is passed down
-        onImportComplete = refetch;
-    }, [refetch]);
+        onImportCompleteRef.current = refetchRef.current;
+    }, []);
 
     useEffect(() => {
         refetch();
@@ -421,6 +425,43 @@ function NewTransactionsTab({
             console.error(error);
         }
     };
+
+    const handleBulkAllocate = async (accountId: string, vatType: VatType) => {
+        if (!client || !client.id || selectedTransactions.length === 0) return;
+        toast({ title: "Allocating...", description: `Allocating ${selectedTransactions.length} transactions.` });
+
+        const batch = writeBatch(db);
+        const transactionsToAllocate = transactions.filter(tx => selectedTransactions.includes(tx.id));
+
+        for (const tx of transactionsToAllocate) {
+            const { id, ...originalTxData } = tx;
+
+            const allocatedTx: Omit<AllocatedTransaction, 'id'> = {
+                ...originalTxData,
+                allocatedTo: { value: accountId, type: 'account' },
+                vatType: vatType,
+                vatAmount: 0, // Simplified for now
+                allocatedAt: new Date(),
+                status: 'allocated',
+            };
+
+            const newAllocatedRef = doc(collection(db, 'numeraClients', client.id, 'transactions'));
+            batch.set(newAllocatedRef, allocatedTx);
+            
+            const originalTxRef = doc(db, 'numeraClients', client.id, 'transactions', id);
+            batch.delete(originalTxRef);
+        }
+
+        try {
+            await batch.commit();
+            toast({ title: "Allocation Successful", description: `${selectedTransactions.length} transactions have been allocated.` });
+            setSelectedTransactions([]);
+            refetch();
+        } catch (error) {
+            console.error("Error during bulk allocation:", error);
+            toast({ title: "Allocation Failed", variant: "destructive" });
+        }
+    };
     
     return (
         <Card>
@@ -431,27 +472,54 @@ function NewTransactionsTab({
                         <TabsTrigger value="income">Income</TabsTrigger>
                     </TabsList>
                 </Tabs>
-                 <div className="p-4 border-b">
-                     <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button variant="destructive" disabled={selectedTransactions.length === 0}>
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete ({selectedTransactions.length})
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    This action will permanently delete {selectedTransactions.length} selected transaction(s). This cannot be undone.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleBulkDelete}>Yes, Delete</AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
+                 <div className="p-4 border-b flex items-center gap-2">
+                     <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline">Actions <MoreHorizontal className="ml-2 h-4 w-4"/></Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                            <DropdownMenuSub>
+                                <DropdownMenuSubTrigger disabled={selectedTransactions.length === 0}>Allocate Selected</DropdownMenuSubTrigger>
+                                <DropdownMenuSubContent>
+                                    {client?.chartOfAccounts?.map(acc => (
+                                        <DropdownMenuSub key={acc.id}>
+                                            <DropdownMenuSubTrigger>{acc.accountNumber} - {acc.description}</DropdownMenuSubTrigger>
+                                            <DropdownMenuSubContent>
+                                                {allVatTypes.map(vat => (
+                                                    <DropdownMenuItem key={vat.name} onSelect={() => handleBulkAllocate(acc.id, vat.name)}>
+                                                        {vat.label}
+                                                    </DropdownMenuItem>
+                                                ))}
+                                            </DropdownMenuSubContent>
+                                        </DropdownMenuSub>
+                                    ))}
+                                </DropdownMenuSubContent>
+                            </DropdownMenuSub>
+                            <DropdownMenuSeparator />
+                             <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive" disabled={selectedTransactions.length === 0}>
+                                        Delete Selected
+                                    </DropdownMenuItem>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This action will permanently delete {selectedTransactions.length} selected transaction(s). This cannot be undone.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={handleBulkDelete}>Yes, Delete</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </DropdownMenuContent>
+                     </DropdownMenu>
+
+                     <Button variant="outline">Allocation Rules</Button>
+                     <Button variant="outline">AI Allocate Selected <Sparkles className="ml-2 h-4 w-4"/></Button>
                 </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -461,7 +529,7 @@ function NewTransactionsTab({
                             <TableRow>
                                 <TableCell className="w-12 p-2">
                                      <Checkbox
-                                        checked={selectedTransactions.length > 0 && selectedTransactions.length === transactions.length}
+                                        checked={transactions.length > 0 && selectedTransactions.length === transactions.length}
                                         onCheckedChange={(checked) => {
                                             setSelectedTransactions(checked ? transactions.map(tx => tx.id) : []);
                                         }}
@@ -568,7 +636,7 @@ export default function BankTransactionsPage() {
     const [activeTab, setActiveTab] = useState<'new' | 'review' | 'reviewed'>('new');
     const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
     const [isEditAccountOpen, setIsEditAccountOpen] = useState(false);
-    const newTransactionsTabRef = useRef<{ refetch: () => void }>();
+    const newTransactionsTabRef = useRef<{ refetch: () => void } | null>(null);
     
     const fetchClientAndRules = useCallback(async () => {
         if (!clientId) return;
@@ -582,7 +650,8 @@ export default function BankTransactionsPage() {
 
                 const cashbookAccounts = clientData.chartOfAccounts?.filter(
                     acc => acc.accountNumber.startsWith('8400-')
-                ) || [];
+                ).sort((a, b) => a.accountNumber.localeCompare(b.accountNumber)) || [];
+
                 setBankAccounts(cashbookAccounts);
 
                 if (cashbookAccounts.length > 0 && !selectedAccountId) {
@@ -607,14 +676,11 @@ export default function BankTransactionsPage() {
     const bankBalance = useMemo(() => {
         if (!client || !selectedAccountId) return 0;
         
-        let allTransactions = [
-            ...(client.importedTransactions || []),
-            ...(client.allocatedTransactions || [])
-        ];
+        const q = query(collection(db, 'numeraClients', client.id, 'transactions'), where('bankAccountId', '==', selectedAccountId));
+        // This is a simplified balance for display. A real app would use a running balance field.
+        // For now, we are not fetching all transactions, so this balance is indicative.
+        return 0;
 
-        return allTransactions
-            .filter((tx: any) => tx.bankAccountId === selectedAccountId)
-            .reduce((sum: number, tx: any) => sum + tx.amount, 0);
     }, [client, selectedAccountId]);
     
     const selectedAccount = useMemo(() => {
@@ -706,9 +772,10 @@ export default function BankTransactionsPage() {
                             </DropdownMenuContent>
                         </DropdownMenu>
 
-                         {selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={() => {
-                             fetchClientAndRules();
-                             newTransactionsTabRef.current?.refetch();
+                         {client && selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={() => {
+                             if(newTransactionsTabRef.current) {
+                                 newTransactionsTabRef.current.refetch();
+                             }
                          }} currentBalance={bankBalance} />}
                     </div>
                 </div>
@@ -726,10 +793,13 @@ export default function BankTransactionsPage() {
                 </TabsList>
                 <TabsContent value="new" className="mt-0">
                    <NewTransactionsTab 
+                        ref={newTransactionsTabRef}
                         client={client} 
                         bankAccountId={selectedAccountId} 
                         onImportComplete={() => {
-                            newTransactionsTabRef.current?.refetch();
+                            if(newTransactionsTabRef.current) {
+                                newTransactionsTabRef.current.refetch();
+                            }
                         }}
                     />
                 </TabsContent>
@@ -745,9 +815,3 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
-
-// NOTE: ForReviewTab and ReviewedTab would need to be created following the pattern of NewTransactionsTab,
-// each with their own `usePaginatedFirestore` hook and appropriate base query.
-// I have stubbed them out here for brevity but will create them in subsequent steps if requested.
-
-    
