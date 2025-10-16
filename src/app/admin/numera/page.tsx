@@ -103,12 +103,24 @@ export default function NumeraPage() {
 
     const handleDelete = async (clientId: string) => {
         try {
+            const batch = writeBatch(db);
+
+            // Delete all transactions in the subcollection first
+            const transactionsRef = collection(db, 'numeraClients', clientId, 'transactions');
+            const transactionsSnapshot = await getDocs(transactionsRef);
+            transactionsSnapshot.forEach((transactionDoc) => {
+                batch.delete(transactionDoc.ref);
+            });
+
+            // Then delete the main client document
             const clientRef = doc(db, "numeraClients", clientId);
-            await deleteDoc(clientRef);
+            batch.delete(clientRef);
+            
+            await batch.commit();
             
             toast({
                 title: 'Client Deleted',
-                description: `The Numera client has been removed.`,
+                description: `The Numera client and all their data have been removed.`,
                 variant: 'destructive',
             });
             fetchClients();
