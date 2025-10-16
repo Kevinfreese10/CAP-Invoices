@@ -46,6 +46,193 @@ const formatPrice = (price: number) => {
     }).format(price);
 };
 
+// #region Import Dialog
+const importFormSchema = z.object({
+    dateColumn: z.string().min(1, 'Please select the date column.'),
+    referenceColumn: z.string().optional(),
+    descriptionColumn: z.string().min(1, 'Please select the description column.'),
+    amountType: z.enum(['single', 'double']),
+    amountColumn: z.string().optional(),
+    debitColumn: z.string().optional(),
+    creditColumn: z.string().optional(),
+}).refine(data => {
+    if (data.amountType === 'single') return !!data.amountColumn;
+    if (data.amountType === 'double') return !!data.debitColumn && !!data.creditColumn;
+    return false;
+}, {
+    message: 'Please select the correct amount columns.',
+    path: ['amountType'],
+});
+
+function ImportDialog({ client, bankAccountId, onImportComplete }: { client: User | null, bankAccountId: string, onImportComplete: () => void }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [file, setFile] = useState<File | null>(null);
+    const [headers, setHeaders] = useState<string[]>([]);
+    const [isParsing, setIsParsing] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const { toast } = useToast();
+
+    const form = useForm<z.infer<typeof importFormSchema>>({
+        resolver: zodResolver(importFormSchema),
+        defaultValues: {
+            amountType: 'single',
+        }
+    });
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const selectedFile = e.target.files?.[0];
+        if (selectedFile) {
+            setIsParsing(true);
+            setFile(selectedFile);
+            Papa.parse(selectedFile, {
+                header: true,
+                skipEmptyLines: true,
+                preview: 1,
+                complete: (results) => {
+                    if (results.meta.fields) {
+                        setHeaders(results.meta.fields);
+                    }
+                    setIsParsing(false);
+                }
+            });
+        }
+    };
+    
+    const handleImport = async (values: z.infer<typeof importFormSchema>) => {
+        if (!file || !client || !bankAccountId) return;
+        setIsUploading(true);
+        toast({ title: "Importing...", description: "Processing your CSV file."});
+
+        try {
+            const results = await new Promise<any[]>((resolve, reject) => {
+                Papa.parse(file, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: (res) => resolve(res.data),
+                    error: (err) => reject(err),
+                });
+            });
+
+            const batch = writeBatch(db);
+            let importedCount = 0;
+
+            results.forEach((row, index) => {
+                let amount = 0;
+                if (values.amountType === 'single') {
+                    amount = parseFloat(row[values.amountColumn!]);
+                } else {
+                    const debit = parseFloat(row[values.debitColumn!]) || 0;
+                    const credit = parseFloat(row[values.creditColumn!]) || 0;
+                    amount = credit - debit;
+                }
+
+                const dateStr = row[values.dateColumn!];
+                // Attempt to parse multiple common date formats
+                const parsedDate = new Date(dateStr.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1'));
+
+                if (isNaN(amount) || isNaN(parsedDate.getTime())) {
+                    console.warn(`Skipping row ${index + 2}: Invalid date or amount.`);
+                    return;
+                }
+                
+                const newTransactionRef = doc(collection(db, 'numeraClients', client.id, 'transactions'));
+                const transaction: Omit<ImportedTransaction, 'id'> = {
+                    clientId: client.id,
+                    bankAccountId,
+                    date: parsedDate.toISOString(),
+                    reference: values.referenceColumn ? row[values.referenceColumn] : '',
+                    description: row[values.descriptionColumn!],
+                    amount,
+                    status: 'new', // new status
+                };
+                batch.set(newTransactionRef, transaction);
+                importedCount++;
+            });
+            
+            await batch.commit();
+
+            toast({ title: "Import Successful", description: `${importedCount} transactions have been imported.`});
+            onImportComplete();
+            setIsOpen(false);
+            setFile(null);
+            setHeaders([]);
+            form.reset();
+        } catch (error) {
+            console.error("Error importing transactions:", error);
+            toast({ title: "Import Failed", description: "An error occurred during the import process.", variant: "destructive"});
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline"><FileUp className="mr-2 h-4 w-4" /> Import Transactions</Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-xl">
+                <DialogHeader>
+                    <DialogTitle>Import Bank Transactions</DialogTitle>
+                    <DialogDescription>
+                        Select a CSV file and map the columns to import your transactions.
+                    </DialogDescription>
+                </DialogHeader>
+                {!file ? (
+                    <div className="py-8">
+                        <Input type="file" accept=".csv" onChange={handleFileChange} />
+                    </div>
+                ) : isParsing ? (
+                    <div className="py-8 flex justify-center items-center"><Loader2 className="animate-spin" /></div>
+                ) : (
+                    <Form {...form}>
+                        <form onSubmit={form.handleSubmit(handleImport)} className="space-y-4">
+                            <h4 className="font-medium text-sm">Map Columns</h4>
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <FormField control={form.control} name="dateColumn" render={({ field }) => ( <FormItem><FormLabel>Date</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select date column" /></SelectTrigger></FormControl><SelectContent>{headers.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
+                                <FormField control={form.control} name="descriptionColumn" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select description column" /></SelectTrigger></FormControl><SelectContent>{headers.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
+                                <FormField control={form.control} name="referenceColumn" render={({ field }) => ( <FormItem><FormLabel>Reference (Optional)</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select reference column" /></SelectTrigger></FormControl><SelectContent>{headers.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
+                             </div>
+                             
+                             <Separator />
+
+                             <FormField control={form.control} name="amountType" render={({ field }) => (
+                                <FormItem className="space-y-3">
+                                <FormLabel>Amount Format</FormLabel>
+                                <FormControl>
+                                    <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex space-x-4">
+                                        <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="single" /></FormControl><FormLabel className="font-normal">Single Amount Column</FormLabel></FormItem>
+                                        <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="double" /></FormControl><FormLabel className="font-normal">Debit/Credit Columns</FormLabel></FormItem>
+                                    </RadioGroup>
+                                </FormControl>
+                                <FormMessage />
+                                </FormItem>
+                            )} />
+                            {form.watch('amountType') === 'single' ? (
+                                 <FormField control={form.control} name="amountColumn" render={({ field }) => ( <FormItem><FormLabel>Amount</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select amount column" /></SelectTrigger></FormControl><SelectContent>{headers.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
+                            ) : (
+                                <div className="grid grid-cols-2 gap-4">
+                                    <FormField control={form.control} name="debitColumn" render={({ field }) => ( <FormItem><FormLabel>Debit</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select debit column" /></SelectTrigger></FormControl><SelectContent>{headers.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
+                                    <FormField control={form.control} name="creditColumn" render={({ field }) => ( <FormItem><FormLabel>Credit</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select credit column" /></SelectTrigger></FormControl><SelectContent>{headers.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )} />
+                                </div>
+                            )}
+
+                            <DialogFooter>
+                                <Button type="button" variant="ghost" onClick={() => setIsOpen(false)}>Cancel</Button>
+                                <Button type="submit" disabled={isUploading}>
+                                    {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    Import
+                                </Button>
+                            </DialogFooter>
+                        </form>
+                    </Form>
+                )}
+            </DialogContent>
+        </Dialog>
+    )
+}
+// #endregion
+
 // #region Create Account Dialog
 const createAccountSchema = z.object({
   name: z.string().min(3, "Bank account name is required."),
@@ -150,7 +337,6 @@ function NewTransactionsTab({
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     
-    // Create the base query for new transactions, which will be paginated by the hook.
     const newTransactionsQuery = useMemo(() => {
         if (!client?.id || !bankAccountId) return null;
         
@@ -161,14 +347,14 @@ function NewTransactionsTab({
         
         if (activeSubTab === 'expenses') {
             constraints.push(where('amount', '<', 0));
+            constraints.push(orderBy('amount', 'asc'));
         } else {
             constraints.push(where('amount', '>=', 0));
+            constraints.push(orderBy('amount', 'desc'));
         }
 
-        constraints.push(orderBy('amount', activeSubTab === 'expenses' ? 'asc' : 'desc'));
         constraints.push(orderBy('date', 'desc'));
         
-
         return query(collection(db, 'numeraClients', client.id, 'transactions'), ...constraints);
     }, [client?.id, bankAccountId, activeSubTab]);
 
@@ -216,7 +402,6 @@ function NewTransactionsTab({
                     </TabsList>
                 </Tabs>
                  <div className="p-4 border-b">
-                    {/* Action Buttons Here */}
                      <AlertDialog>
                         <AlertDialogTrigger asChild>
                             <Button variant="destructive" disabled={selectedTransactions.length === 0}>
@@ -375,10 +560,12 @@ export default function BankTransactionsPage() {
                                 ))}
                             </SelectContent>
                         </Select>
-                        <Button variant="outline" onClick={() => setIsCreateAccountOpen(true)}>
+                         <Button variant="outline" onClick={() => setIsCreateAccountOpen(true)}>
                             <PlusCircle className="mr-2 h-4 w-4" />
                             Create Account
                         </Button>
+                        {selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={fetchClientAndRules} />}
+
                     </div>
                 </div>
                  <div className="grid gap-2">
@@ -411,5 +598,7 @@ export default function BankTransactionsPage() {
 // NOTE: ForReviewTab and ReviewedTab would need to be created following the pattern of NewTransactionsTab,
 // each with their own `usePaginatedFirestore` hook and appropriate base query.
 // I have stubbed them out here for brevity but will create them in subsequent steps if requested.
+
+    
 
     
