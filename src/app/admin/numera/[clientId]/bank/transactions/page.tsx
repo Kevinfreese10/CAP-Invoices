@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight, Bot, User as UserIcon, Send } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, AIAllocationJob } from '@/lib/types';
@@ -33,6 +33,7 @@ import { allVatTypes } from '@/lib/vat-types';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
+import { websiteQAndA } from '@/ai/dev';
 import { Progress } from '@/components/ui/progress';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandItem } from '@/components/ui/command';
@@ -113,7 +114,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
             const dailyCounters: { [key: string]: number } = {};
 
             parsedTransactions.forEach((row, index) => {
-                 const parsedDate = new Date(row.Date.replace(/(\\d{2})\/(\\d{2})\/(\\d{4})/, '$3-$2-$1'));
+                const parsedDate = new Date(row.Date.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1'));
 
                 if (isNaN(parsedDate.getTime())) {
                     console.warn(`Skipping row ${index + 2}: Invalid date format.`);
@@ -154,7 +155,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
     };
     
     const handleDownloadExample = () => {
-        const csvContent = "Date,Description,Amount\\nDD/MM/YYYY,Example Payment,-150.00\\nDD/MM/YYYY,Example Income,1000.50";
+        const csvContent = "Date,Description,Amount\nDD/MM/YYYY,Example Payment,-150.00\nDD/MM/YYYY,Example Income,1000.50";
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
@@ -354,6 +355,124 @@ function CreateAccountDialog({ client, onAccountCreated, onOpenChange, open }: {
     );
 }
 
+// #endregion
+
+// #region AI Accountant Dialog
+const chatFormSchema = z.object({
+  question: z.string().min(1, 'Cannot send an empty message.'),
+});
+type ChatMessage = {
+  role: 'user' | 'bot';
+  text: string;
+}
+
+function AIAccountantDialog() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+
+  const form = useForm<z.infer<typeof chatFormSchema>>({
+    resolver: zodResolver(chatFormSchema),
+    defaultValues: { question: '' },
+  });
+  
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [chatHistory]);
+
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open);
+    if(open && chatHistory.length === 0) {
+        setChatHistory([{ role: 'bot', text: 'Hello! I am your AI Accountant. How can I help you with your allocations today?' }]);
+    }
+  }
+  
+  async function onChatSubmit(values: z.infer<typeof chatFormSchema>) {
+    const userMessage: ChatMessage = { role: 'user', text: values.question };
+    setChatHistory(prev => [...prev, userMessage]);
+    setIsAiLoading(true);
+    form.reset();
+
+    try {
+      // Using websiteQAndA as a placeholder AI flow
+      const response = await websiteQAndA({ 
+        question: values.question,
+        history: chatHistory.map(m => ({ role: m.role, content: m.text }))
+       });
+      const botMessage: ChatMessage = { role: 'bot', text: response.answer };
+      setChatHistory(prev => [...prev, botMessage]);
+    } catch (e) {
+      const errorMessage: ChatMessage = { role: 'bot', text: 'Sorry, I am having trouble connecting. Please try again later.' };
+      setChatHistory(prev => [...prev, errorMessage]);
+      console.error(e);
+    } finally {
+      setIsAiLoading(false);
+    }
+  }
+
+
+  return (
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        <Button variant="outline"><Sparkles className="mr-2 h-4 w-4" /> AI Accountant</Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md p-0 flex flex-col h-[70vh]">
+          <DialogHeader className="p-4 border-b flex flex-row items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Bot className="h-6 w-6 text-primary" />
+                <DialogTitle>AI Accountant</DialogTitle>
+              </div>
+          </DialogHeader>
+           <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+              {chatHistory.map((message, index) => (
+                <div key={index} className={cn("flex items-end gap-2", message.role === 'user' ? 'justify-end' : 'justify-start')}>
+                  {message.role === 'bot' && <Bot className="h-6 w-6 text-primary flex-shrink-0" />}
+                   <div className={cn(
+                        "p-3 rounded-lg max-w-[80%]",
+                        message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                    )}>
+                        <p className="text-sm">{message.text}</p>
+                    </div>
+                   {message.role === 'user' && <UserIcon className="h-6 w-6 text-primary flex-shrink-0" />}
+                </div>
+              ))}
+              {isAiLoading && (
+                 <div className="flex items-end gap-2 justify-start">
+                    <Bot className="h-6 w-6 text-primary flex-shrink-0" />
+                    <div className="p-3 rounded-lg bg-muted flex items-center">
+                       <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                    </div>
+                </div>
+              )}
+            </div>
+           <DialogFooter className="p-2 border-t">
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onChatSubmit)} className="w-full flex items-center gap-2">
+                  <FormField
+                    control={form.control}
+                    name="question"
+                    render={({ field }) => (
+                      <FormItem className="flex-grow">
+                        <FormControl>
+                          <Input placeholder="Ask a question..." {...field} autoComplete="off" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Button type="submit" size="icon" disabled={isAiLoading}>
+                    <Send className="h-5 w-5" />
+                  </Button>
+                </form>
+              </Form>
+            </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 // #endregion
 
 const NewTransactionsTab = React.forwardRef<
@@ -818,6 +937,7 @@ export default function BankTransactionsPage() {
                 </div>
 
                 <div className="flex items-center gap-4">
+                     {client && <AIAccountantDialog />}
                      {client && selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={() => {
                          if(newTransactionsTabRef.current) {
                              newTransactionsTabRef.current.refetch();
@@ -860,3 +980,4 @@ export default function BankTransactionsPage() {
     );
 }
 
+    
