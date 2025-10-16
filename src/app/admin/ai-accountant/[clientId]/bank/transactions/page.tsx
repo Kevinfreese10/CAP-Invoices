@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -936,18 +937,20 @@ export default function BankTransactionsPage() {
                     </div>
                 </div>
 
-                <div className="flex items-center gap-4">
-                     {client && <AIAccountantDialog />}
-                     {client && selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={() => {
-                         if(newTransactionsTabRef.current) {
-                             newTransactionsTabRef.current.refetch();
-                         }
-                     }} currentBalance={bankBalance} />}
-                     <div className="grid gap-1 text-left md:text-right">
+                <div className="flex items-start gap-8">
+                     <div className="flex items-center gap-4">
+                        {client && <AIAccountantDialog />}
+                        {client && selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={() => {
+                            if(newTransactionsTabRef.current) {
+                                newTransactionsTabRef.current.refetch();
+                            }
+                        }} currentBalance={bankBalance} />}
+                     </div>
+                     <div className="grid gap-1 text-right">
                         <Label>Current Balance</Label>
                         <div className="text-2xl font-bold">R {formatPrice(bankBalance)}</div>
                     </div>
-                    <div className="grid gap-1 text-left md:text-right">
+                    <div className="grid gap-1 text-right">
                         <Label>Last Import</Label>
                         <div className="text-2xl font-bold">{lastImportDate ? format(lastImportDate, 'dd MMM yyyy') : 'N/A'}</div>
                     </div>
@@ -975,3 +978,4 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
+
