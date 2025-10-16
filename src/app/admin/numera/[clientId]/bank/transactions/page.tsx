@@ -17,7 +17,7 @@ import * as XLSX from 'xlsx';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, AIAllocationJob } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove, addDoc, collection, getDocs, query, orderBy, where, writeBatch, onSnapshot, Unsubscribe, Query, DocumentData, QueryDocumentSnapshot, limit, startAfter, QueryConstraint } from 'firebase/firestore';
-import { firebaseApp } from '@/firebase/config';
+import { db } from '@/firebase/config';
 import { useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
@@ -36,7 +36,6 @@ import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-all
 import { Progress } from '@/components/ui/progress';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
 
-const db = getFirestore(firebaseApp);
 const PAGE_SIZE = 50;
 
 const formatPrice = (price: number) => {
@@ -531,7 +530,16 @@ export default function BankTransactionsPage() {
         fetchClientAndRules();
     }, [fetchClientAndRules]);
 
-    const bankBalance = 0; // This would need to be calculated separately, perhaps from an aggregate
+    const bankBalance = useMemo(() => {
+        if (!client || !selectedAccountId) return 0;
+        const allTransactions = [
+            ...(client.importedTransactions || []),
+            ...(client.allocatedTransactions || [])
+        ];
+        return allTransactions
+            .filter(tx => tx.bankAccountId === selectedAccountId)
+            .reduce((sum, tx) => sum + tx.amount, 0);
+    }, [client, selectedAccountId]);
     
     const selectedAccount = useMemo(() => {
         return bankAccounts.find(acc => acc.id === selectedAccountId);
@@ -659,7 +667,5 @@ export default function BankTransactionsPage() {
 // NOTE: ForReviewTab and ReviewedTab would need to be created following the pattern of NewTransactionsTab,
 // each with their own `usePaginatedFirestore` hook and appropriate base query.
 // I have stubbed them out here for brevity but will create them in subsequent steps if requested.
-
-    
 
     
