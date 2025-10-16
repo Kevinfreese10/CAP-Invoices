@@ -368,7 +368,7 @@ type ChatMessage = {
   options?: { label: string; action: 'allocate_rules' | 'allocate_ai' }[];
 }
 
-function AIAccountantDialog() {
+function AIAccountantDialog({ client, bankAccountId }: { client: User | null; bankAccountId: string | null; }) {
   const [isOpen, setIsOpen] = useState(false);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -422,18 +422,45 @@ function AIAccountantDialog() {
     }
   }
 
-  const handleOptionClick = (action: 'allocate_rules' | 'allocate_ai') => {
+  const handleOptionClick = async (action: 'allocate_rules' | 'allocate_ai') => {
+    setIsAiLoading(true);
+    const userChoiceMessage: ChatMessage = { role: 'user', text: action.replace('_', ' ') };
+    setChatHistory(prev => [...prev.map(p => ({ ...p, options: undefined })), userChoiceMessage]);
+    
     let responseText = '';
     if (action === 'allocate_rules') {
-      responseText = "Okay, I will start allocating transactions based on your existing rules.";
-      // Trigger rule-based allocation logic here
+      if (client && bankAccountId) {
+        const rules = client.allocationRules || [];
+        const q = query(
+            collection(db, 'aiAccountantClients', client.id, 'transactions'), 
+            where('status', '==', 'new'),
+            where('bankAccountId', '==', bankAccountId)
+        );
+        const snapshot = await getDocs(q);
+        const transactions = snapshot.docs.map(doc => doc.data() as ImportedTransaction);
+
+        let matchCount = 0;
+        transactions.forEach(tx => {
+            for (const rule of rules) {
+                if (rule.keywords.some(kw => tx.description.toLowerCase().includes(kw))) {
+                    matchCount++;
+                    break;
+                }
+            }
+        });
+        
+        responseText = `I found ${matchCount} transactions that can be allocated using your ${rules.length} existing rules. Would you like me to proceed?`;
+      } else {
+        responseText = "I can't seem to access the client or bank account information right now.";
+      }
     } else if (action === 'allocate_ai') {
       responseText = "Right, I'll use AI to suggest allocations for your transactions.";
-      // Trigger AI-based allocation logic here
+      // AI allocation logic would be triggered here
     }
-    const userChoiceMessage: ChatMessage = { role: 'user', text: action.replace('_', ' ') };
+    
     const botResponseMessage: ChatMessage = { role: 'bot', text: responseText };
-    setChatHistory(prev => [...prev.map(p => ({ ...p, options: undefined })), userChoiceMessage, botResponseMessage]);
+    setChatHistory(prev => [...prev, botResponseMessage]);
+    setIsAiLoading(false);
   };
 
 
@@ -465,7 +492,7 @@ function AIAccountantDialog() {
                      {message.options && (
                         <div className="flex flex-col gap-2 mt-2 items-start pl-8">
                             {message.options.map(option => (
-                                <Button key={option.action} size="sm" variant="outline" onClick={() => handleOptionClick(option.action)}>
+                                <Button key={option.action} size="sm" variant="outline" onClick={() => handleOptionClick(option.action)} disabled={isAiLoading}>
                                     {option.label}
                                 </Button>
                             ))}
@@ -972,7 +999,7 @@ export default function BankTransactionsPage() {
 
                 <div className="flex items-start gap-8">
                      <div className="flex items-center gap-4">
-                        {client && <AIAccountantDialog />}
+                        {client && <AIAccountantDialog client={client} bankAccountId={selectedAccountId} />}
                         {client && selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={() => {
                             if(newTransactionsTabRef.current) {
                                 newTransactionsTabRef.current.refetch();
@@ -1012,3 +1039,6 @@ export default function BankTransactionsPage() {
     );
 }
 
+
+
+    
