@@ -365,6 +365,7 @@ const chatFormSchema = z.object({
 type ChatMessage = {
   role: 'user' | 'bot';
   text: string;
+  options?: { label: string; action: 'allocate_rules' | 'allocate_ai' }[];
 }
 
 function AIAccountantDialog() {
@@ -386,10 +387,18 @@ function AIAccountantDialog() {
 
   const handleOpenChange = (open: boolean) => {
     setIsOpen(open);
-    if(open && chatHistory.length === 0) {
-        setChatHistory([{ role: 'bot', text: 'Hello! I am your AI Accountant. How can I help you with your allocations today?' }]);
+    if (open && chatHistory.length === 0) {
+      const welcomeMessage: ChatMessage = {
+        role: 'bot',
+        text: 'Hello! I am your AI Accountant, Khai. How can I help you with your allocations today?',
+        options: [
+          { label: 'Allocate using allocation rules', action: 'allocate_rules' },
+          { label: 'Allocate using AI', action: 'allocate_ai' },
+        ],
+      };
+      setChatHistory([welcomeMessage]);
     }
-  }
+  };
   
   async function onChatSubmit(values: z.infer<typeof chatFormSchema>) {
     const userMessage: ChatMessage = { role: 'user', text: values.question };
@@ -398,7 +407,6 @@ function AIAccountantDialog() {
     form.reset();
 
     try {
-      // Using websiteQAndA as a placeholder AI flow
       const response = await websiteQAndA({ 
         question: values.question,
         history: chatHistory.map(m => ({ role: m.role, content: m.text }))
@@ -413,6 +421,20 @@ function AIAccountantDialog() {
       setIsAiLoading(false);
     }
   }
+
+  const handleOptionClick = (action: 'allocate_rules' | 'allocate_ai') => {
+    let responseText = '';
+    if (action === 'allocate_rules') {
+      responseText = "Okay, I will start allocating transactions based on your existing rules.";
+      // Trigger rule-based allocation logic here
+    } else if (action === 'allocate_ai') {
+      responseText = "Right, I'll use AI to suggest allocations for your transactions.";
+      // Trigger AI-based allocation logic here
+    }
+    const userChoiceMessage: ChatMessage = { role: 'user', text: action.replace('_', ' ') };
+    const botResponseMessage: ChatMessage = { role: 'bot', text: responseText };
+    setChatHistory(prev => [...prev.map(p => ({ ...p, options: undefined })), userChoiceMessage, botResponseMessage]);
+  };
 
 
   return (
@@ -429,15 +451,26 @@ function AIAccountantDialog() {
           </DialogHeader>
            <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
               {chatHistory.map((message, index) => (
-                <div key={index} className={cn("flex items-end gap-2", message.role === 'user' ? 'justify-end' : 'justify-start')}>
-                  {message.role === 'bot' && <Bot className="h-6 w-6 text-primary flex-shrink-0" />}
-                   <div className={cn(
-                        "p-3 rounded-lg max-w-[80%]",
-                        message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'
-                    )}>
-                        <p className="text-sm">{message.text}</p>
+                <div key={index}>
+                    <div className={cn("flex items-end gap-2", message.role === 'user' ? 'justify-end' : 'justify-start')}>
+                    {message.role === 'bot' && <Bot className="h-6 w-6 text-primary flex-shrink-0" />}
+                    <div className={cn(
+                            "p-3 rounded-lg max-w-[80%]",
+                            message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                        )}>
+                            <p className="text-sm">{message.text}</p>
+                        </div>
+                    {message.role === 'user' && <UserIcon className="h-6 w-6 text-primary flex-shrink-0" />}
                     </div>
-                   {message.role === 'user' && <UserIcon className="h-6 w-6 text-primary flex-shrink-0" />}
+                     {message.options && (
+                        <div className="flex flex-col gap-2 mt-2 items-start pl-8">
+                            {message.options.map(option => (
+                                <Button key={option.action} size="sm" variant="outline" onClick={() => handleOptionClick(option.action)}>
+                                    {option.label}
+                                </Button>
+                            ))}
+                        </div>
+                    )}
                 </div>
               ))}
               {isAiLoading && (
@@ -978,3 +1011,4 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
+
