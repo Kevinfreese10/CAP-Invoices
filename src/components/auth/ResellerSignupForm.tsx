@@ -61,8 +61,7 @@ export default function ResellerSignupForm() {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const { reauthenticate, login } = useAuth();
-  const adminUser = auth.currentUser;
+  const { reauthenticate, login, user: adminUser } = useAuth();
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [isServicesLoading, setIsServicesLoading] = useState(true);

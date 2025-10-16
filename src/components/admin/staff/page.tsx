@@ -19,7 +19,7 @@ import { User } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc, query, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
+import { getAuth, createUserWithEmailAndPassword, User as FirebaseUser } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
 
 const db = getFirestore(firebaseApp);
@@ -157,8 +157,9 @@ export default function AdminStaffPage() {
              await setDoc(docRef, staffData, { merge: true });
              toast({ title: 'Staff Member Updated', description: 'The staff details have been saved.' });
         } else { // Creating new user
-            if (!adminUser) {
-                toast({ title: 'Error', description: 'Admin user not found.', variant: 'destructive'});
+            const currentAuthUser = auth.currentUser;
+            if (!currentAuthUser) {
+                toast({ title: 'Error', description: 'Admin user not found. Please log in again.', variant: 'destructive'});
                 return;
             }
             // 1. Create user in Firebase Auth
@@ -173,10 +174,8 @@ export default function AdminStaffPage() {
             });
 
             // 3. Re-authenticate the admin user to restore their session
-            if(adminUser) {
-              await reauthenticate(adminUser);
-            }
-
+            await reauthenticate(currentAuthUser);
+            
             toast({ title: 'Staff Member Created', description: 'The new staff member has been added.' });
         }
         fetchStaff();
