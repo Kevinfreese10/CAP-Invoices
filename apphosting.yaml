@@ -16,10 +16,3 @@ env:
     availability:
       - BUILD
       - RUNTIME
-
-  - variable: API_KEY
-    secret: myApiKeySecret
-
-  # Example of a secret with a pinned version
-  - variable: PINNED_API_KEY
-    secret: myApiKeySecret@5
