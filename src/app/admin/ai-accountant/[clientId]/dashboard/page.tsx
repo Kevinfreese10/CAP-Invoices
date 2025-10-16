@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
-import { getFirestore, doc, getDoc, collection, getDocs, query, where, updateDoc, arrayUnion } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, getDocs, query, where, updateDoc, arrayUnion, orderBy, limit } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User, ChartOfAccount, ImportedTransaction } from '@/lib/types';
 import { useParams } from 'next/navigation';
@@ -295,4 +295,3 @@ export default function AIAccountantClientDashboardPage() {
         </div>
     );
 }
-
