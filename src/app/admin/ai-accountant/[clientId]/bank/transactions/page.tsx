@@ -365,7 +365,7 @@ const chatFormSchema = z.object({
 type ChatMessage = {
   role: 'user' | 'bot';
   text: string;
-  options?: { label: string; action: 'allocate_rules' | 'allocate_ai' }[];
+  options?: { label: string; action: string }[];
 }
 
 function AIAccountantDialog({ client, bankAccountId }: { client: User | null; bankAccountId: string | null; }) {
@@ -422,12 +422,13 @@ function AIAccountantDialog({ client, bankAccountId }: { client: User | null; ba
     }
   }
 
-  const handleOptionClick = async (action: 'allocate_rules' | 'allocate_ai') => {
+  const handleOptionClick = async (action: string) => {
     setIsAiLoading(true);
-    const userChoiceMessage: ChatMessage = { role: 'user', text: action.replace('_', ' ') };
+    const userChoiceMessage: ChatMessage = { role: 'user', text: action.replace(/_/g, ' ') };
     setChatHistory(prev => [...prev.map(p => ({ ...p, options: undefined })), userChoiceMessage]);
     
-    let responseText = '';
+    let botResponseMessage: ChatMessage;
+
     if (action === 'allocate_rules') {
       if (client && bankAccountId) {
         const rules = client.allocationRules || [];
@@ -449,16 +450,31 @@ function AIAccountantDialog({ client, bankAccountId }: { client: User | null; ba
             }
         });
         
-        responseText = `I found ${matchCount} transactions that can be allocated using your ${rules.length} existing rules. Would you like me to proceed?`;
+        botResponseMessage = {
+            role: 'bot',
+            text: `I found ${matchCount} transactions that can be allocated using your ${rules.length} existing rules. Would you like me to proceed?`,
+            options: [
+                { label: 'Yes', action: 'proceed_allocation' },
+                { label: 'No', action: 'cancel_allocation' },
+                { label: 'See Rules', action: 'view_rules' },
+            ],
+        };
+
       } else {
-        responseText = "I can't seem to access the client or bank account information right now.";
+        botResponseMessage = { role: 'bot', text: "I can't seem to access the client or bank account information right now." };
       }
     } else if (action === 'allocate_ai') {
-      responseText = "Right, I'll use AI to suggest allocations for your transactions.";
-      // AI allocation logic would be triggered here
+        botResponseMessage = { role: 'bot', text: "Right, I'll use AI to suggest allocations for your transactions. This feature is coming soon!" };
+    } else if (action === 'proceed_allocation') {
+        botResponseMessage = { role: 'bot', text: "Great! I'm starting the allocation process now. This feature is under development." };
+    } else if (action === 'cancel_allocation') {
+        botResponseMessage = { role: 'bot', text: "No problem. Let me know if there's anything else." };
+    } else if (action === 'view_rules') {
+        botResponseMessage = { role: 'bot', text: "Showing allocation rules is not yet implemented." };
+    } else {
+        botResponseMessage = { role: 'bot', text: "I'm not sure how to handle that action yet." };
     }
     
-    const botResponseMessage: ChatMessage = { role: 'bot', text: responseText };
     setChatHistory(prev => [...prev, botResponseMessage]);
     setIsAiLoading(false);
   };
