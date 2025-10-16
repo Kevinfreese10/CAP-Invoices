@@ -3,138 +3,60 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper functions
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    function isStaff() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['staff', 'admin'];
-    }
-
-    function isReseller() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'reseller';
-    }
-
-    // AUTHENTICATION
-    // Only authenticated users with the correct role can read/write user data.
-    // Users can only read/write their own data.
     match /users/{userId} {
-      allow read, update: if isOwner(userId) || isStaff();
-      allow create, delete: if isStaff();
-      allow list: if isStaff();
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
-
-    // SERVICES & CATEGORIES - Publicly readable
+    match /clients/{clientId} {
+      allow read, write: if request.auth != null; // Allow authenticated users to manage clients
+    }
     match /services/{serviceId} {
       allow read: if true;
-      allow write: if isStaff();
+      allow write: if request.auth != null; // Allow authenticated users to manage services
     }
-     match /categories/{categoryId} {
-      allow read: if true;
-      allow write: if isStaff();
-    }
-    
-    // BLOG POSTS - Publicly readable
-    match /blogPosts/{postId} {
-        allow read: if true;
-        allow write: if isStaff();
-    }
-
-    // ORDERS
-    // Users can create their own orders. Resellers can create orders.
-    // Staff/admins can manage all orders.
     match /orders/{orderId} {
-        allow read: if isOwner(resource.data.userId) || isStaff() || isReseller();
-        allow create: if request.auth != null;
-        allow update: if isStaff() || isReseller();
+      allow read, write: if request.auth != null;
     }
-    
-    // SEQUENCES (for order IDs)
-    match /sequences/{sequenceId} {
-        allow read, write: if request.auth != null; // Allow any authenticated user to increment
-    }
-
-    // DISCOUNTS
-    match /discounts/{discountId} {
-        allow read, write: if true; // Public for validation, updatable by system
-    }
-    
-    // COMPLIANCE REQUESTS
-    match /complianceRequests/{reqId} {
-        allow create: if true;
-        allow read, write: if isStaff();
-    }
-    
-    // TASKS - Only accessible by staff/admins
-    match /tasks/{taskId} {
-        allow read, write, list: if isStaff();
-    }
-    
-    // COMMUNITY QUESTIONS
-    match /communityQuestions/{questionId} {
-      allow read: if resource.data.status == 'approved' || isStaff();
-      allow create: if isReseller();
-      allow update: if isStaff();
-      
-      match /answers/{answerId} {
-        allow read: if true;
-        allow create: if isReseller() || isStaff();
-        
-        match /likes/{userId} {
-            allow create: if isOwner(userId);
-        }
-      }
-    }
-
-    match /unansweredQuestions/{uqId} {
-        allow read, write: if request.auth != null; // Writable by system, readable by staff
-    }
-    
-    // MEDIA
-    match /media/{mediaId} {
+    match /blogPosts/{postId} {
       allow read: if true;
-      allow create, delete: if request.auth != null;
+      allow write: if request.auth != null;
     }
-    
-    // PROCESSED EMAILS
-    match /processedEmails/{emailId} {
-      allow read, write: if true;
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if request.auth != null;
     }
-    
-    // EXTRACTED INVOICES (CAP Suppliers)
+    match /tasks/{taskId} {
+      allow read, write: if request.auth != null;
+    }
+    match /sequences/{sequenceId} {
+      allow read, write: if request.auth != null;
+    }
+     match /discounts/{discountId} {
+      allow read, write: if request.auth != null;
+    }
+     match /complianceRequests/{requestId} {
+      allow read, write: if request.auth != null;
+    }
+    match /aiAccountantClients/{clientId}/{document=**} {
+      allow read, write: if request.auth != null;
+    }
+     match /numeraClients/{clientId}/{document=**} {
+      allow read, write: if request.auth != null;
+    }
     match /extractedInvoices/{invoiceId} {
-      allow read, write: if isStaff();
-      allow create: if true; // Allow system/API to create
+      allow read, write: if request.auth != null;
     }
-    
-    // ALLOCATION RULES (GLOBAL)
+     match /processedEmails/{emailId} {
+      allow read, write: if request.auth != null;
+    }
     match /allocationRules/{ruleId} {
       allow read: if request.auth != null;
-      allow write: if isStaff();
+      allow write: if request.auth != null; // Assuming admins should be able to write
     }
-    
-    // CLIENT DATA FOR AI ACCOUNTANT & NUMERA
-    // These collections should only be accessible by staff/admins.
-    function isClientOwnerOrStaff(clientId) {
-      return isOwner(clientId) || isStaff();
+    match /unansweredQuestions/{questionId} {
+      allow read, write: if request.auth != null;
     }
-    
-    match /aiAccountantClients/{clientId} {
-       allow read, write: if isStaff();
-       
-       match /transactions/{transactionId} {
-          allow read, write, list: if isStaff();
-       }
-    }
-    
-     match /numeraClients/{clientId} {
-       allow read, write: if isStaff();
-       
-       match /transactions/{transactionId} {
-          allow read, write, list: if isStaff();
-       }
+     match /communityQuestions/{questionId}/{document=**} {
+      allow read, write: if request.auth != null;
     }
   }
 }
