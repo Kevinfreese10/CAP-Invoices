@@ -109,6 +109,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
         try {
             const batch = writeBatch(db);
             let importedCount = 0;
+            const dailyCounters: { [key: string]: number } = {};
 
             parsedTransactions.forEach((row, index) => {
                 const parsedDate = new Date(row.Date.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1'));
@@ -118,12 +119,17 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
                     return;
                 }
                 
+                const dateString = parsedDate.toISOString().split('T')[0].replace(/-/g, '');
+                dailyCounters[dateString] = (dailyCounters[dateString] || 0) + 1;
+                const dailyIndex = String(dailyCounters[dateString]).padStart(2, '0');
+                const reference = `${dateString}${dailyIndex}`;
+                
                 const newTransactionRef = doc(collection(db, 'numeraClients', client.id, 'transactions'));
                 const transaction: Omit<ImportedTransaction, 'id' | 'status'> = {
                     clientId: client.id,
                     bankAccountId,
                     date: parsedDate.toISOString(),
-                    reference: '',
+                    reference: reference,
                     description: row.Description,
                     amount: row.Amount,
                 };
@@ -544,6 +550,7 @@ const NewTransactionsTab = React.forwardRef<
                                 </TableCell>
                                 <TableHead>Date</TableHead>
                                 <TableHead>Description</TableHead>
+                                <TableHead>Reference</TableHead>
                                 <TableHead className="w-[250px]">Allocate To</TableHead>
                                 {client?.isVatRegistered && <TableHead className="w-[180px]">VAT Type</TableHead>}
                                 <TableHead className="text-right">Amount</TableHead>
@@ -570,6 +577,7 @@ const NewTransactionsTab = React.forwardRef<
                                         </TableCell>
                                         <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                         <TableCell className="max-w-[250px] truncate">{tx.description}</TableCell>
+                                        <TableCell className="font-mono">{tx.reference}</TableCell>
                                         <TableCell>
                                             <Select
                                               value={allocations[tx.id]?.accountId}
@@ -688,11 +696,27 @@ export default function BankTransactionsPage() {
     }, [fetchClientAndRules]);
 
     const bankBalance = useMemo(() => {
-        if (!client?.importedTransactions) return 0;
+        if (!client) return 0;
         
-        return client.importedTransactions
-            .filter(tx => tx.bankAccountId === selectedAccountId)
-            .reduce((sum, tx) => sum + tx.amount, 0);
+        let total = 0;
+        
+        // Sum up allocated transactions for the selected bank account
+        const allocated = client.allocatedTransactions || [];
+        allocated.forEach(tx => {
+            if (tx.bankAccountId === selectedAccountId) {
+                total += tx.amount;
+            }
+        });
+
+        // Sum up imported (unallocated) transactions for the selected bank account
+        const imported = client.importedTransactions || [];
+        imported.forEach(tx => {
+            if (tx.bankAccountId === selectedAccountId) {
+                total += tx.amount;
+            }
+        });
+        
+        return total;
 
     }, [client, selectedAccountId]);
     
