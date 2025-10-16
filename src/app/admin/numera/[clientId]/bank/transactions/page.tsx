@@ -56,7 +56,7 @@ type ParsedTransaction = {
     Amount: number;
 }
 
-function ImportDialog({ client, bankAccountId, onImportComplete }: { client: User | null, bankAccountId: string, onImportComplete: () => void }) {
+function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance }: { client: User | null, bankAccountId: string, onImportComplete: () => void, currentBalance: number }) {
     const [isOpen, setIsOpen] = useState(false);
     const [file, setFile] = useState<File | null>(null);
     const [parsedTransactions, setParsedTransactions] = useState<ParsedTransaction[]>([]);
@@ -155,13 +155,19 @@ function ImportDialog({ client, bankAccountId, onImportComplete }: { client: Use
         link.click();
         document.body.removeChild(link);
     }
+    
+    const importTotal = useMemo(() => {
+        return parsedTransactions.reduce((sum, tx) => sum + tx.Amount, 0);
+    }, [parsedTransactions]);
+
+    const newBalance = currentBalance + importTotal;
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
                 <Button variant="outline"><FileUp className="mr-2 h-4 w-4" /> Import Transactions</Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-xl">
+            <DialogContent className="sm:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>Import Bank Statement</DialogTitle>
                     <DialogDescription>
@@ -175,7 +181,27 @@ function ImportDialog({ client, bankAccountId, onImportComplete }: { client: Use
                      </div>
                      <Input id="statement-file" type="file" accept=".csv" onChange={handleFileChange} />
                      {isParsing && <p className="text-sm text-muted-foreground flex items-center"><Loader2 className="mr-2 animate-spin"/> Parsing file...</p>}
-                     {parsedTransactions.length > 0 && <p className="text-sm text-green-600">{parsedTransactions.length} transactions found in file.</p>}
+                     {parsedTransactions.length > 0 && 
+                        <div className="pt-4 space-y-4">
+                            <p className="text-sm text-green-600">{parsedTransactions.length} transactions found in file.</p>
+                            <Card className="bg-muted/50">
+                                <CardContent className="p-4 grid grid-cols-3 gap-4 text-center">
+                                    <div>
+                                        <p className="text-xs text-muted-foreground">Current Balance</p>
+                                        <p className="font-semibold">R {formatPrice(currentBalance)}</p>
+                                    </div>
+                                     <div>
+                                        <p className="text-xs text-muted-foreground">Import Amount</p>
+                                        <p className={cn("font-semibold", importTotal >= 0 ? "text-green-600" : "text-destructive")}>R {formatPrice(importTotal)}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-muted-foreground">New Balance</p>
+                                        <p className="font-semibold">R {formatPrice(newBalance)}</p>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+                     }
                 </div>
                 <DialogFooter>
                     <Button type="button" variant="ghost" onClick={() => setIsOpen(false)}>Cancel</Button>
@@ -349,6 +375,7 @@ function NewTransactionsTab({
             constraints.push(where('amount', '>=', 0));
         }
 
+        constraints.push(orderBy('amount', 'asc'));
         constraints.push(orderBy('date', 'desc'));
         
         return query(collection(db, 'numeraClients', client.id, 'transactions'), ...constraints);
@@ -532,13 +559,15 @@ export default function BankTransactionsPage() {
 
     const bankBalance = useMemo(() => {
         if (!client || !selectedAccountId) return 0;
-        const allTransactions = [
-            ...(client.importedTransactions || []),
-            ...(client.allocatedTransactions || [])
-        ];
-        return allTransactions
-            .filter(tx => tx.bankAccountId === selectedAccountId)
-            .reduce((sum, tx) => sum + tx.amount, 0);
+        
+        // Correctly filter transactions from the client object if they exist
+        const clientTransactions = (client as any).transactions || [];
+        
+        // This is a temporary calculation based on potentially incomplete client-side data.
+        // For a real balance, you would typically use an aggregated value from Firestore.
+        return clientTransactions
+            .filter((tx: any) => tx.bankAccountId === selectedAccountId)
+            .reduce((sum: number, tx: any) => sum + tx.amount, 0);
     }, [client, selectedAccountId]);
     
     const selectedAccount = useMemo(() => {
@@ -633,12 +662,12 @@ export default function BankTransactionsPage() {
                             </DropdownMenuContent>
                         </DropdownMenu>
 
-                         {selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={fetchClientAndRules} />}
+                         {selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={fetchClientAndRules} currentBalance={bankBalance} />}
                     </div>
                 </div>
-                 <div className="grid gap-2 text-right md:text-left">
+                 <div className="grid gap-2 text-left md:text-right w-full md:w-auto">
                     <Label>Current Balance</Label>
-                    <div className="text-2xl font-bold">{formatPrice(bankBalance)}</div>
+                    <div className="text-2xl font-bold">R {formatPrice(bankBalance)}</div>
                 </div>
             </div>
 
@@ -667,5 +696,3 @@ export default function BankTransactionsPage() {
 // NOTE: ForReviewTab and ReviewedTab would need to be created following the pattern of NewTransactionsTab,
 // each with their own `usePaginatedFirestore` hook and appropriate base query.
 // I have stubbed them out here for brevity but will create them in subsequent steps if requested.
-
-    
