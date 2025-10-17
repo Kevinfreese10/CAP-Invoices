@@ -14,7 +14,7 @@ import { Loader2, Send } from 'lucide-react';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order } from '@/lib/types';
-import crypto from 'crypto';
+import { generatePayFastSignature } from '@/app/actions/payfast';
 
 const db = getFirestore(firebaseApp);
 
@@ -22,33 +22,15 @@ const formSchema = z.object({
   orderId: z.string().min(1, 'Order ID is required.'),
 });
 
-function rfc3986Encode(str: string) {
-    return encodeURIComponent(str).replace(/[!'()*]/g, (c) => {
-        return '%' + c.charCodeAt(0).toString(16).toUpperCase();
-    }).replace(/%20/g, '+');
-}
-
-function generateSignatureForITN(data: { [key: string]: any }, passphrase?: string): string {
-    let pfParamString = '';
-    for (const key in data) {
-        if (key !== 'signature') {
-            pfParamString += `${key}=${rfc3986Encode(String(data[key]).trim())}&`;
-        }
-    }
-    pfParamString = pfParamString.slice(0, -1);
-    if (passphrase) {
-        pfParamString += `&passphrase=${rfc3986Encode(passphrase.trim())}`;
-    }
-    return crypto.createHash('md5').update(pfParamString).digest('hex');
-}
-
-
 export default function PayfastSimulatorPage() {
   const [isSimulating, setIsSimulating] = useState(false);
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
+    defaultValues: {
+      orderId: '',
+    },
   });
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
@@ -81,8 +63,8 @@ export default function PayfastSimulatorPage() {
             merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID,
         };
 
-        const passphrase = process.env.PAYFAST_PASSPHRASE || '';
-        payload.signature = generateSignatureForITN(payload, passphrase);
+        const signature = await generatePayFastSignature(payload);
+        payload.signature = signature;
 
         const formData = new FormData();
         for (const key in payload) {
@@ -150,4 +132,3 @@ export default function PayfastSimulatorPage() {
     </div>
   );
 }
-
