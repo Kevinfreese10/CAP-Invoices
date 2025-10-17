@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -11,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight, CheckCircle, RotateCcw } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight, CheckCircle, RotateCcw, Upload } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, AIAllocationJob } from '@/lib/types';
@@ -33,6 +32,7 @@ import { allVatTypes } from '@/lib/vat-types';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
+import { extractStatementData } from '@/ai/flows/extract-statement-data';
 import { Progress } from '@/components/ui/progress';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandItem } from '@/components/ui/command';
@@ -47,6 +47,178 @@ const formatPrice = (price: number) => {
       maximumFractionDigits: 2,
     }).format(price);
 };
+
+// #region Upload Statement Dialog
+type ExtractedTransaction = {
+    date: string;
+    description: string;
+    amount: number;
+};
+
+function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { client: User | null, bankAccountId: string, onImportComplete: () => void }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [file, setFile] = useState<File | null>(null);
+    const [isExtracting, setIsExtracting] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const [extractedTransactions, setExtractedTransactions] = useState<ExtractedTransaction[]>([]);
+    const { toast } = useToast();
+
+    const resetState = () => {
+        setFile(null);
+        setExtractedTransactions([]);
+        setIsExtracting(false);
+        setIsUploading(false);
+        const fileInput = document.getElementById('ai-statement-file') as HTMLInputElement;
+        if(fileInput) fileInput.value = '';
+    };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const selectedFile = e.target.files?.[0];
+        if (selectedFile) {
+            setFile(selectedFile);
+            setExtractedTransactions([]); // Clear previous results
+            setIsExtracting(true);
+            toast({ title: "Extracting Transactions...", description: "The AI is processing your bank statement. This may take a moment."});
+            
+            const reader = new FileReader();
+            reader.readAsDataURL(selectedFile);
+            reader.onload = async () => {
+                const dataUrl = reader.result as string;
+                try {
+                    const result = await extractStatementData({ statementPdf: dataUrl });
+                     if (!result || !result.transactions || result.transactions.length === 0) {
+                        toast({ title: 'Extraction Failed', description: 'The AI could not extract any transactions. Please try a different file.', variant: 'destructive' });
+                        resetState();
+                    } else {
+                        setExtractedTransactions(result.transactions);
+                        toast({ title: 'Extraction Complete!', description: `${result.transactions.length} transactions were found.` });
+                    }
+                } catch (error) {
+                    console.error("Statement extraction error:", error);
+                    toast({ title: 'Extraction Failed', description: 'Could not extract data from this file. Please ensure it is a valid bank statement.', variant: 'destructive' });
+                    resetState();
+                } finally {
+                    setIsExtracting(false);
+                }
+            };
+            reader.onerror = () => {
+                 toast({ title: 'File Error', description: 'Could not read the selected file.', variant: 'destructive' });
+                 setIsExtracting(false);
+                 resetState();
+            };
+        }
+    };
+    
+    const handleImport = async () => {
+        if (!client || !bankAccountId || extractedTransactions.length === 0) return;
+        setIsUploading(true);
+        toast({ title: "Importing...", description: "Saving extracted transactions."});
+
+        try {
+            const batch = writeBatch(db);
+            const dailyCounters: { [key: string]: number } = {};
+
+            extractedTransactions.forEach((row, index) => {
+                // The AI returns YYYY-MM-DD which is what we want
+                const parsedDate = new Date(row.date);
+
+                if (isNaN(parsedDate.getTime())) {
+                    console.warn(`Skipping row ${index + 2}: Invalid date format from AI.`);
+                    return;
+                }
+                
+                const dateString = parsedDate.toISOString().split('T')[0].replace(/-/g, '');
+                dailyCounters[dateString] = (dailyCounters[dateString] || 0) + 1;
+                const dailyIndex = String(dailyCounters[dateString]).padStart(2, '0');
+                const reference = `${dateString}${dailyIndex}`;
+                
+                const newTransactionRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
+                
+                const transaction: Omit<ImportedTransaction, 'id'> = {
+                    clientId: client.id,
+                    date: parsedDate.toISOString(),
+                    reference: reference,
+                    description: row.description,
+                    amount: row.amount,
+                    bankAccountId: bankAccountId,
+                    status: 'new'
+                };
+                
+                batch.set(newTransactionRef, transaction);
+            });
+            
+            await batch.commit();
+
+            toast({ title: "Import Successful", description: `${extractedTransactions.length} transactions have been imported.`});
+            onImportComplete();
+            setIsOpen(false);
+            resetState();
+        } catch (error) {
+            console.error("Error importing extracted transactions:", error);
+            toast({ title: "Import Failed", description: "An error occurred during the import process.", variant: "destructive"});
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if(!open) resetState(); }}>
+            <DialogTrigger asChild>
+                <Button variant="outline"><Upload className="mr-2 h-4 w-4" /> Upload Statement</Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-4xl">
+                <DialogHeader>
+                    <DialogTitle>Upload Bank Statement (AI Extraction)</DialogTitle>
+                    <DialogDescription>
+                       Select a PDF or image file of a bank statement. The AI will extract the transactions for you to review and import.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                     <Input id="ai-statement-file" type="file" accept="application/pdf,image/*" onChange={handleFileChange} disabled={isExtracting} />
+                     {isExtracting && 
+                        <div className="flex items-center gap-2 text-primary">
+                            <Loader2 className="animate-spin"/>
+                            <span>Analyzing document...</span>
+                        </div>
+                     }
+                     {extractedTransactions.length > 0 && 
+                        <div className="pt-4 space-y-4">
+                            <p className="text-sm font-semibold text-green-600">Extracted {extractedTransactions.length} transactions:</p>
+                             <ScrollArea className="h-64 border rounded-md">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Date</TableHead>
+                                            <TableHead>Description</TableHead>
+                                            <TableHead className="text-right">Amount</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {extractedTransactions.map((tx, i) => (
+                                            <TableRow key={i}>
+                                                <TableCell>{tx.date}</TableCell>
+                                                <TableCell>{tx.description}</TableCell>
+                                                <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                             </ScrollArea>
+                        </div>
+                     }
+                </div>
+                <DialogFooter>
+                    <Button type="button" variant="ghost" onClick={() => setIsOpen(false)}>Cancel</Button>
+                    <Button type="button" onClick={handleImport} disabled={isUploading || isExtracting || extractedTransactions.length === 0}>
+                        {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Save {extractedTransactions.length > 0 ? extractedTransactions.length : ''} Transactions
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+// #endregion
 
 // #region Import Dialog
 const importFormSchema = z.object({
@@ -234,7 +406,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if(!open) resetState(); }}>
             <DialogTrigger asChild>
-                <Button><FileUp className="mr-2 h-4 w-4" /> Import Bank Statement</Button>
+                <Button><FileUp className="mr-2 h-4 w-4" /> Import CSV</Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-2xl">
                 <DialogHeader>
@@ -675,7 +847,12 @@ const NewTransactionsTab = React.forwardRef<
                             <DropdownMenuSeparator />
                              <DropdownMenuItem onSelect={() => {
                                 setIsCreateRuleOpen(true);
-                                setRuleDefaultValues({});
+                                setRuleDefaultValues({
+                                  description: "",
+                                  keywords: "",
+                                  accountId: "",
+                                  vatType: "standard_rated_purchases",
+                                });
                             }}>
                                 Create Allocation Rule
                             </DropdownMenuItem>
@@ -1174,6 +1351,7 @@ export default function BankTransactionsPage() {
 
                 <div className="flex items-center gap-8">
                      <div className="flex items-center gap-4">
+                        {client && selectedAccountId && <UploadStatementDialog client={client} bankAccountId={selectedAccountId} onImportComplete={handleImportComplete} />}
                         {client && selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={handleImportComplete} currentBalance={bankBalance} />}
                      </div>
                      <div className="text-right">
@@ -1218,10 +1396,3 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
-
-
-    
-
-    
-
-    
