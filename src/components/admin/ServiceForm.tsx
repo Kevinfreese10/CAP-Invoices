@@ -46,6 +46,7 @@ const formSchema = z.object({
   clientRequirements: z.array(z.object({ value: z.string().min(1, 'This field cannot be empty.') })),
   informationToProvide: z.array(z.object({
     label: z.string().min(1, 'Label cannot be empty.'),
+    type: z.enum(['text', 'pdf']),
   })),
   metaTitle: z.string().optional(),
   metaDescription: z.string().optional(),
@@ -97,7 +98,7 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
       turnaroundTime: service?.turnaroundTime || '',
       whatsIncluded: service?.whatsIncluded?.map(v => ({ value: v })) || [{ value: '' }],
       clientRequirements: service?.clientRequirements?.map(v => ({ value: v })) || [{ value: '' }],
-      informationToProvide: service?.informationToProvide || [],
+      informationToProvide: service?.informationToProvide?.map(v => ({ label: v.label, type: v.type || 'text' })) || [],
       metaTitle: service?.metaTitle || '',
       metaDescription: service?.metaDescription || '',
       metaKeywords: service?.metaKeywords?.map(v => ({value: v})) || [{ value: '' }],
@@ -197,7 +198,7 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
             name="title"
             render={({ field }) => (
                 <FormItem className="flex-grow">
-                <FormLabel>Service Title</FormLabel>
+                <FormLabel>Product Title</FormLabel>
                 <FormControl><Input {...field} /></FormControl>
                 <FormMessage />
                 </FormItem>
@@ -319,7 +320,7 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
             <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => appendIncluded({ value: '' })}>Add Item</Button>
         </div>
          <div className="space-y-2 rounded-lg border p-4">
-            <h3 className="text-sm font-medium">Prerequisites (Shown on public service page)</h3>
+            <h3 className="text-sm font-medium">Prerequisites (Shown on public product page)</h3>
             {prereqFields.map((field, index) => (
                  <FormField
                     key={field.id}
@@ -351,10 +352,27 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
                         </FormItem>
                     )}
                 />
+                <FormField
+                    control={form.control}
+                    name={`informationToProvide.${index}.type`}
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Field Type</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl><SelectTrigger><SelectValue placeholder="Select a type" /></SelectTrigger></FormControl>
+                                <SelectContent>
+                                    <SelectItem value="text">Text Input</SelectItem>
+                                    <SelectItem value="pdf">File Upload (PDF)</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
                 <Button type="button" variant="destructive" size="icon" onClick={() => removeInfo(index)}><Trash className="h-4 w-4"/></Button>
               </div>
             ))}
-            <Button type="button" variant="outline" size="sm" onClick={() => appendInfo({ label: '' })}>
+            <Button type="button" variant="outline" size="sm" onClick={() => appendInfo({ label: '', type: 'text' })}>
               <Plus className="mr-2 h-4 w-4" />
               Add Information Field
             </Button>
@@ -368,7 +386,7 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
                     <DialogHeader>
                         <DialogTitle>Media Library</DialogTitle>
                         <DialogDescription>
-                            {mediaLibraryTarget === 'image' ? 'Select an image for this service.' : 'Select a file to attach to the email.'}
+                            {mediaLibraryTarget === 'image' ? 'Select an image for this product.' : 'Select a file to attach to the email.'}
                         </DialogDescription>
                     </DialogHeader>
                     <MediaLibrary onSelectImage={(url) => {
@@ -483,7 +501,7 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
             </div>
         </div>
 
-        <Button type="submit" className="w-full">Save Service</Button>
+        <Button type="submit" className="w-full">Save Product</Button>
       </form>
     </Form>
   );

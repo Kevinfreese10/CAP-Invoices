@@ -47,6 +47,7 @@ export type Service = {
   clientRequirements: string[];
   informationToProvide: {
     label: string;
+    type: 'text' | 'pdf';
   }[];
   attachmentUrl?: string;
   metaTitle?: string;
