@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -174,7 +175,7 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
-                     <Input id="ai-statement-file" type="file" accept="application/pdf,image/*" onChange={handleFileChange} disabled={isExtracting} />
+                     <Input id="ai-statement-file" type="file" accept="application/pdf,image/jpeg,image/png" onChange={handleFileChange} disabled={isExtracting} />
                      {isExtracting && 
                         <div className="flex items-center gap-2 text-primary">
                             <Loader2 className="animate-spin"/>
