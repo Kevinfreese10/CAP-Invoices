@@ -22,6 +22,8 @@ import { getAuth, createUserWithEmailAndPassword, User as FirebaseUser } from 'f
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
+import { Label } from '@/components/ui/label';
+
 
 const db = getFirestore(firebaseApp);
 const auth = getAuth(firebaseApp);
@@ -157,7 +159,7 @@ export default function ManageUsersPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const { toast } = useToast();
-  const { user: adminUser, login } = useAuth();
+  const { user: adminUser, reauthenticate } = useAuth();
   
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -252,7 +254,7 @@ export default function ManageUsersPage() {
                  toast({ title: 'Error', description: 'Password is required for new users.', variant: 'destructive'});
                  return;
             }
-
+            
             const existingUserQuery = query(collection(db, "users"), where("email", "==", userData.email));
             const existingUserSnapshot = await getDocs(existingUserQuery);
             if (!existingUserSnapshot.empty) {
@@ -264,9 +266,11 @@ export default function ManageUsersPage() {
                 return;
             }
             
+            // 1. Create user in Firebase Auth
             const userCredential = await createUserWithEmailAndPassword(auth, userData.email, password);
             const newFirebaseUser = userCredential.user;
 
+            // 2. Create user document in Firestore with the new UID
             const newUserDocRef = doc(db, "users", newFirebaseUser.uid);
             await setDoc(newUserDocRef, {
                 ...userData,
@@ -274,11 +278,12 @@ export default function ManageUsersPage() {
                 id: newFirebaseUser.uid,
                 createdAt: serverTimestamp(),
             });
-            
-            if (adminUser.email && adminUser.password) {
-               await login(adminUser.email, adminUser.password);
-            }
 
+            // 3. Re-authenticate the admin user to restore their session
+            if (auth.currentUser) {
+              await reauthenticate(auth.currentUser);
+            }
+            
             toast({ title: 'User Created', description: 'The new user has been added.' });
         }
         fetchUsers();
