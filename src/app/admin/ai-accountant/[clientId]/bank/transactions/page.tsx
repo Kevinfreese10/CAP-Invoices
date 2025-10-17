@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight, CheckCircle, RotateCcw } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, AIAllocationJob } from '@/lib/types';
@@ -66,6 +66,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
     const [isParsing, setIsParsing] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const { toast } = useToast();
+    const [potentialAllocations, setPotentialAllocations] = useState(0);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = e.target.files?.[0];
@@ -73,6 +74,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
             setIsParsing(true);
             setFile(selectedFile);
             setParsedTransactions([]);
+            setPotentialAllocations(0);
             
             const reader = new FileReader();
             reader.onload = (event) => {
@@ -94,6 +96,20 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
                         })).filter(tx => tx.Date && tx.Description && !isNaN(tx.Amount));
                         
                         setParsedTransactions(transactions);
+
+                        // Check for potential allocations
+                        let allocationCount = 0;
+                        if (client?.allocationRules) {
+                            for (const tx of transactions) {
+                                for (const rule of client.allocationRules) {
+                                    if (rule.keywords.some(kw => tx.Description.toLowerCase().includes(kw))) {
+                                        allocationCount++;
+                                        break; // Move to next transaction once a rule is matched
+                                    }
+                                }
+                            }
+                        }
+                        setPotentialAllocations(allocationCount);
                         setIsParsing(false);
                     }
                 });
@@ -105,7 +121,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
     const handleImport = async () => {
         if (!file || !client || !bankAccountId || parsedTransactions.length === 0) return;
         setIsUploading(true);
-        toast({ title: "Importing...", description: "Processing your file."});
+        toast({ title: "Importing...", description: "Processing your file and applying rules."});
 
         try {
             const batch = writeBatch(db);
@@ -126,25 +142,40 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
                 const reference = `${dateString}${dailyIndex}`;
                 
                 const newTransactionRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
-                const transaction: Omit<ImportedTransaction, 'id' | 'status'> = {
+                
+                let transaction: Omit<ImportedTransaction, 'id'> = {
                     clientId: client.id,
                     date: parsedDate.toISOString(),
                     reference: reference,
                     description: row.Description,
                     amount: row.Amount,
                     bankAccountId: bankAccountId,
+                    status: 'new'
                 };
-                batch.set(newTransactionRef, { ...transaction, status: 'new' });
+                
+                // Apply allocation rules
+                const matchedRule = client.allocationRules?.find(rule => 
+                    rule.keywords.some(kw => row.Description.toLowerCase().includes(kw))
+                );
+
+                if (matchedRule) {
+                    transaction.status = 'review';
+                    transaction.allocatedTo = { value: matchedRule.accountId, type: 'account' };
+                    transaction.vatType = matchedRule.vatType;
+                }
+
+                batch.set(newTransactionRef, transaction);
                 importedCount++;
             });
             
             await batch.commit();
 
-            toast({ title: "Import Successful", description: `${importedCount} transactions have been imported.`});
+            toast({ title: "Import Successful", description: `${importedCount} transactions have been imported. ${potentialAllocations} transactions were automatically allocated for review.`});
             onImportComplete();
             setIsOpen(false);
             setFile(null);
             setParsedTransactions([]);
+            setPotentialAllocations(0);
         } catch (error) {
             console.error("Error importing transactions:", error);
             toast({ title: "Import Failed", description: "An error occurred during the import process.", variant: "destructive"});
@@ -179,7 +210,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
                 <DialogHeader>
                     <DialogTitle>Import Bank Statement</DialogTitle>
                     <DialogDescription>
-                        Upload a CSV file to import transactions.
+                        Upload a CSV file to import transactions. The system will automatically allocate transactions based on your rules.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
@@ -192,6 +223,9 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
                      {parsedTransactions.length > 0 && 
                         <div className="pt-4 space-y-4">
                             <p className="text-sm text-green-600">{parsedTransactions.length} transactions found in file.</p>
+                            {potentialAllocations > 0 && 
+                                <p className="text-sm text-blue-600">{potentialAllocations} transaction(s) will be automatically allocated for your review.</p>
+                            }
                             <Card className="bg-muted/50">
                                 <CardContent className="p-4 grid grid-cols-3 gap-4 text-center">
                                     <div>
@@ -427,7 +461,7 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
           <form onSubmit={form.handleSubmit(handleSaveRule)} className="space-y-4">
             <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Rule Description</FormLabel><FormControl><Input placeholder="e.g., Monthly bank charges" {...field} /></FormControl><FormMessage /></FormItem> )} />
             <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords (comma-separated)</FormLabel><FormControl><Input placeholder="e.g., monthly account fee, service fee" {...field} /></FormControl><FormMessage /></FormItem> )} />
-            <FormField control={form.control} name="accountId" render={({ field }) => ( <FormItem><FormLabel>Allocate To Account</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl><SelectContent>{client?.chartOfAccounts?.map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.accountNumber} - {acc.description}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem> )}/>
+            <FormField control={form.control} name="accountId" render={({ field }) => ( <FormItem><FormLabel>Allocate To Account</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl><SelectContent>{client?.chartOfAccounts?.map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem> )}/>
             <FormField control={form.control} name="vatType" render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
@@ -525,21 +559,13 @@ const NewTransactionsTab = React.forwardRef<
         const transactionsToAllocate = transactions.filter(tx => selectedTransactions.includes(tx.id));
 
         for (const tx of transactionsToAllocate) {
-            const { id, ...originalTxData } = tx;
-
-            const allocatedTx: Omit<AllocatedTransaction, 'id' | 'status'> = {
-                ...originalTxData,
+            const transactionRef = doc(db, 'aiAccountantClients', client.id, 'transactions', tx.id);
+            batch.update(transactionRef, {
+                status: 'allocated',
                 allocatedTo: { value: accountId, type: 'account' },
                 vatType: vatType,
-                vatAmount: 0, // Simplified for now
                 allocatedAt: new Date(),
-            };
-
-            const newAllocatedRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
-            batch.set(newAllocatedRef, { ...allocatedTx, status: 'allocated' });
-            
-            const originalTxRef = doc(db, 'aiAccountantClients', client.id, 'transactions', id);
-            batch.delete(originalTxRef);
+            });
         }
 
         try {
@@ -609,8 +635,8 @@ const NewTransactionsTab = React.forwardRef<
                             </DropdownMenuSub>
                             <DropdownMenuSeparator />
                              <DropdownMenuItem onSelect={() => {
-                                setRuleDefaultValues({});
                                 setIsCreateRuleOpen(true);
+                                setRuleDefaultValues({});
                             }}>
                                 Create Allocation Rule
                             </DropdownMenuItem>
@@ -721,9 +747,10 @@ const NewTransactionsTab = React.forwardRef<
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent>
                                                      <DropdownMenuItem onSelect={() => {
-                                                        setRuleDefaultValues({ keywords: tx.description.split(" ")[0] || '' });
+                                                        const firstKeyword = tx.description.split(/\s+/)[0];
                                                         setIsCreateRuleOpen(true);
-                                                    }}>
+                                                        setRuleDefaultValues({ keywords: firstKeyword });
+                                                     }}>
                                                         Create Rule from Transaction
                                                     </DropdownMenuItem>
                                                 </DropdownMenuContent>
@@ -766,6 +793,167 @@ const NewTransactionsTab = React.forwardRef<
 });
 NewTransactionsTab.displayName = 'NewTransactionsTab';
 
+
+const ForReviewTab = React.forwardRef<
+    { refetch: () => void },
+    { client: User | null; bankAccountId: string | null; fetchClientData: () => void; }
+>(({ client, bankAccountId, fetchClientData }, ref) => {
+    const { toast } = useToast();
+    const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
+    
+    const reviewTransactionsQuery = useMemo(() => {
+        if (!client?.id || !bankAccountId) return null;
+        
+        return query(
+            collection(db, 'aiAccountantClients', client.id, 'transactions'),
+            where('bankAccountId', '==', bankAccountId),
+            where('status', '==', 'review'),
+            orderBy('date', 'desc')
+        );
+    }, [client?.id, bankAccountId]);
+
+    const {
+        documents: transactions,
+        isLoading,
+        goToNextPage,
+        goToPreviousPage,
+        canGoNext,
+        canGoPrev,
+        currentPage,
+        refetch
+    } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: reviewTransactionsQuery, pageSize: PAGE_SIZE });
+    
+    React.useImperativeHandle(ref, () => ({
+        refetch,
+    }));
+    
+    const handleBulkAction = async (action: 'approve' | 'reject') => {
+        if (!client || !client.id || selectedTransactions.length === 0) return;
+
+        toast({ title: "Processing...", description: `Updating ${selectedTransactions.length} transactions.` });
+
+        const batch = writeBatch(db);
+        const newStatus = action === 'approve' ? 'allocated' : 'new';
+        
+        selectedTransactions.forEach(txId => {
+            const transactionRef = doc(db, 'aiAccountantClients', client.id, 'transactions', txId);
+            if (action === 'approve') {
+                batch.update(transactionRef, { status: 'allocated', allocatedAt: new Date() });
+            } else { // reject
+                batch.update(transactionRef, { status: 'new', allocatedTo: null, vatType: null });
+            }
+        });
+        
+        try {
+            await batch.commit();
+            toast({ title: `Transactions ${action === 'approve' ? 'Approved' : 'Rejected'}`, description: `${selectedTransactions.length} transactions have been updated.` });
+            setSelectedTransactions([]);
+            refetch();
+        } catch (error) {
+            console.error(`Error during bulk ${action}:`, error);
+            toast({ title: "Action Failed", variant: "destructive" });
+        }
+    }
+
+    const getAccountDescription = (accountId?: string) => {
+        if (!client?.chartOfAccounts || !accountId) return 'N/A';
+        return client.chartOfAccounts.find(acc => acc.id === accountId)?.description || 'Unknown Account';
+    }
+
+
+    return (
+        <Card>
+            <CardHeader className="p-4 border-b">
+                 <div className="flex items-center gap-2">
+                     <Button onClick={() => handleBulkAction('approve')} disabled={selectedTransactions.length === 0}>
+                        <CheckCircle className="mr-2 h-4 w-4" />Approve Selected
+                     </Button>
+                     <Button variant="destructive" onClick={() => handleBulkAction('reject')} disabled={selectedTransactions.length === 0}>
+                        <RotateCcw className="mr-2 h-4 w-4" />Reject Selected
+                     </Button>
+                 </div>
+            </CardHeader>
+            <CardContent className="p-0">
+                 <div className="overflow-x-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableCell className="w-12 p-2">
+                                     <Checkbox
+                                        checked={transactions.length > 0 && selectedTransactions.length === transactions.length}
+                                        onCheckedChange={(checked) => {
+                                            setSelectedTransactions(checked ? transactions.map(tx => tx.id) : []);
+                                        }}
+                                    />
+                                </TableCell>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Description</TableHead>
+                                <TableHead>Suggested Account</TableHead>
+                                <TableHead>Suggested VAT</TableHead>
+                                <TableHead className="text-right">Amount</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {isLoading ? (
+                                <TableRow><TableCell colSpan={6} className="text-center h-24"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
+                            ) : transactions.length === 0 ? (
+                                <TableRow><TableCell colSpan={6} className="text-center h-24 text-muted-foreground">No transactions are pending review.</TableCell></TableRow>
+                            ) : (
+                                transactions.map(tx => (
+                                    <TableRow key={tx.id} data-state={selectedTransactions.includes(tx.id) && "selected"}>
+                                        <TableCell className="p-2">
+                                            <Checkbox
+                                                checked={selectedTransactions.includes(tx.id)}
+                                                onCheckedChange={(checked) => {
+                                                    setSelectedTransactions(prev =>
+                                                        checked ? [...prev, tx.id] : prev.filter(id => id !== tx.id)
+                                                    );
+                                                }}
+                                            />
+                                        </TableCell>
+                                        <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
+                                        <TableCell className="whitespace-normal break-words">{tx.description}</TableCell>
+                                        <TableCell>{getAccountDescription(tx.allocatedTo?.value)}</TableCell>
+                                        <TableCell>{allVatTypes.find(v => v.name === tx.vatType)?.label || 'N/A'}</TableCell>
+                                        <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+            </CardContent>
+            <CardFooter className="flex items-center justify-center p-4">
+                <div className="flex items-center space-x-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={goToPreviousPage}
+                        disabled={!canGoPrev || isLoading}
+                    >
+                        <ChevronLeft className="h-4 w-4" />
+                        Previous
+                    </Button>
+                    <span className="text-sm font-medium">
+                        Page {currentPage}
+                    </span>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={goToNextPage}
+                        disabled={!canGoNext || isLoading}
+                    >
+                        Next
+                        <ChevronRight className="h-4 w-4" />
+                    </Button>
+                </div>
+            </CardFooter>
+        </Card>
+    );
+});
+ForReviewTab.displayName = 'ForReviewTab';
+
+
 export default function BankTransactionsPage() {
     const [client, setClient] = useState<User | null>(null);
     const [bankAccounts, setBankAccounts] = useState<ChartOfAccount[]>([]);
@@ -774,10 +962,11 @@ export default function BankTransactionsPage() {
     const params = useParams();
     const clientId = params.clientId as string;
     const { toast } = useToast();
-    const [activeTab, setActiveTab] = useState<'new' | 'reviewed'>('new');
+    const [activeTab, setActiveTab] = useState<'new' | 'review' | 'reviewed'>('new');
     const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
     const [isEditAccountOpen, setIsEditAccountOpen] = useState(false);
     const newTransactionsTabRef = useRef<{ refetch: () => void }>(null);
+    const forReviewTabRef = useRef<{ refetch: () => void }>(null);
     const [allTransactions, setAllTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
     
     const fetchClientAndRules = useCallback(async () => {
@@ -880,6 +1069,15 @@ export default function BankTransactionsPage() {
             setIsLoading(false);
         }
     };
+
+    const handleImportComplete = () => {
+        if (newTransactionsTabRef.current) {
+            newTransactionsTabRef.current.refetch();
+        }
+        if (forReviewTabRef.current) {
+            forReviewTabRef.current.refetch();
+        }
+    }
     
     return (
         <div className="space-y-4">
@@ -937,11 +1135,7 @@ export default function BankTransactionsPage() {
 
                 <div className="flex items-center gap-8">
                      <div className="flex items-center gap-4">
-                        {client && selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={() => {
-                            if(newTransactionsTabRef.current) {
-                                newTransactionsTabRef.current.refetch();
-                            }
-                        }} currentBalance={bankBalance} />}
+                        {client && selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={handleImportComplete} currentBalance={bankBalance} />}
                      </div>
                      <div className="text-right">
                         <Label>Current Balance</Label>
@@ -956,12 +1150,21 @@ export default function BankTransactionsPage() {
 
             <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)}>
                 <TabsList>
-                    <TabsTrigger value="new">New</TabsTrigger>
-                    <TabsTrigger value="reviewed">Reviewed</TabsTrigger>
+                    <TabsTrigger value="new">New Transactions</TabsTrigger>
+                    <TabsTrigger value="review">Pending Review</TabsTrigger>
+                    <TabsTrigger value="reviewed">Reviewed Transactions</TabsTrigger>
                 </TabsList>
                 <TabsContent value="new" className="mt-0">
                    <NewTransactionsTab 
                         ref={newTransactionsTabRef}
+                        client={client} 
+                        bankAccountId={selectedAccountId} 
+                        fetchClientData={fetchClientAndRules}
+                    />
+                </TabsContent>
+                 <TabsContent value="review" className="mt-0">
+                   <ForReviewTab 
+                        ref={forReviewTabRef}
                         client={client} 
                         bankAccountId={selectedAccountId} 
                         fetchClientData={fetchClientAndRules}
@@ -976,9 +1179,3 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
-
-
-
-    
-
-
