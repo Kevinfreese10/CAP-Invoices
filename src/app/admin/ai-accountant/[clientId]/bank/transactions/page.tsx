@@ -69,6 +69,17 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
     const [potentialAllocations, setPotentialAllocations] = useState(0);
     const [potentialAiAllocations, setPotentialAiAllocations] = useState(0);
 
+    const resetState = () => {
+        setFile(null);
+        setParsedTransactions([]);
+        setPotentialAllocations(0);
+        setPotentialAiAllocations(0);
+        setIsParsing(false);
+        setIsUploading(false);
+        const fileInput = document.getElementById('statement-file') as HTMLInputElement;
+        if(fileInput) fileInput.value = '';
+    };
+
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = e.target.files?.[0];
         if (selectedFile) {
@@ -186,9 +197,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
             toast({ title: "Import Successful", description: `${importedCount} transactions have been imported. ${potentialAllocations} transactions were automatically allocated for review.`});
             onImportComplete();
             setIsOpen(false);
-            setFile(null);
-            setParsedTransactions([]);
-            setPotentialAllocations(0);
+            resetState();
         } catch (error) {
             console.error("Error importing transactions:", error);
             toast({ title: "Import Failed", description: "An error occurred during the import process.", variant: "destructive"});
@@ -196,6 +205,11 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
             setIsUploading(false);
         }
     };
+
+    const handleCancel = () => {
+        setIsOpen(false);
+        resetState();
+    }
     
     const handleDownloadExample = () => {
         const csvContent = "Date,Description,Amount\nDD/MM/YYYY,Example Payment,-150.00\nDD/MM/YYYY,Example Income,1000.50";
@@ -217,7 +231,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
     const timeSavedHours = Math.ceil(timeSavedMinutes / 60);
 
     return (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if(!open) resetState(); }}>
             <DialogTrigger asChild>
                 <Button><FileUp className="mr-2 h-4 w-4" /> Import Bank Statement</Button>
             </DialogTrigger>
@@ -266,7 +280,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
                      }
                 </div>
                 <DialogFooter>
-                    <Button type="button" variant="ghost" onClick={() => setIsOpen(false)}>Cancel</Button>
+                    <Button type="button" variant="ghost" onClick={handleCancel}>Cancel</Button>
                     <Button type="button" onClick={handleImport} disabled={isUploading || isParsing || parsedTransactions.length === 0}>
                         {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Save {parsedTransactions.length > 0 ? parsedTransactions.length : ''} Transactions
