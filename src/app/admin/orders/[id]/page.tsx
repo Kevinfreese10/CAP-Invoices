@@ -213,6 +213,7 @@ export default function AdminOrderDetailsPage() {
             id: docSnap.id,
             date: data.date.toDate(),
             notes: (data.notes || []).map((note: any) => ({...note, date: note.date.toDate()})),
+            documentUploads: (data.documentUploads || []).map((doc: any) => ({...doc, uploadedAt: doc.uploadedAt.toDate()})),
           } as Order;
 
           if (fetchedOrder.originalOrderId) {
@@ -326,7 +327,7 @@ export default function AdminOrderDetailsPage() {
       fetchOrderAndStaff();
     } catch (error) {
       console.error("Error updating document status:", error);
-      toast({ title: 'Error', description: 'Failed to update document status.', variant: 'destructive' });
+      toast({ title: 'Error', description: 'Failed to update document status.', variant: "destructive" });
     }
   };
 
