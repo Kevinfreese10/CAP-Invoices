@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight, CheckCircle, RotateCcw, Upload } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight, CheckCircle, RotateCcw, Upload, AlertTriangle } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, AIAllocationJob } from '@/lib/types';
@@ -38,7 +38,9 @@ import { Progress } from '@/components/ui/progress';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandItem } from '@/components/ui/command';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { format } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachMonthOfInterval, getYear, getMonth } from 'date-fns';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+
 
 const PAGE_SIZE = 50;
 
@@ -62,6 +64,7 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
     const [isExtracting, setIsExtracting] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [extractedTransactions, setExtractedTransactions] = useState<ExtractedTransaction[]>([]);
+    const [missingMonths, setMissingMonths] = useState<string[]>([]);
     const { toast } = useToast();
 
     const resetState = () => {
@@ -69,6 +72,7 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
         setExtractedTransactions([]);
         setIsExtracting(false);
         setIsUploading(false);
+        setMissingMonths([]);
         const fileInput = document.getElementById('ai-statement-file') as HTMLInputElement;
         if(fileInput) fileInput.value = '';
     };
@@ -78,6 +82,7 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
         if (selectedFiles && selectedFiles.length > 0) {
             setFiles(Array.from(selectedFiles));
             setExtractedTransactions([]); // Clear previous results
+            setMissingMonths([]);
             setIsExtracting(true);
             toast({ title: `Extracting Transactions from ${selectedFiles.length} file(s)...`, description: "The AI is processing your bank statements. This may take a moment."});
             
@@ -109,7 +114,29 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
             })));
 
             if(allTransactions.length > 0) {
+                // Sort by date to make analysis easier
+                allTransactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
                 setExtractedTransactions(allTransactions);
+                
+                // Gap detection logic
+                const dates = allTransactions.map(tx => new Date(tx.date));
+                const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
+                const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
+                
+                if (dates.length > 1) {
+                    const interval = { start: startOfMonth(minDate), end: endOfMonth(maxDate) };
+                    const allMonthsInInterval = eachMonthOfInterval(interval);
+                    
+                    const presentMonths = new Set(dates.map(d => `${getYear(d)}-${getMonth(d)}`));
+                    
+                    const foundMissingMonths = allMonthsInInterval
+                        .filter(monthStart => !presentMonths.has(`${getYear(monthStart)}-${getMonth(monthStart)}`))
+                        .map(monthStart => format(monthStart, 'MMMM yyyy'));
+                    
+                    setMissingMonths(foundMissingMonths);
+                }
+
                 toast({ title: 'Extraction Complete!', description: `${allTransactions.length} transactions were found across all files.` });
             } else {
                  toast({ title: 'Extraction Failed', description: 'No transactions could be extracted from any of the provided files.', variant: 'destructive' });
@@ -130,11 +157,10 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
             const dailyCounters: { [key: string]: number } = {};
 
             extractedTransactions.forEach((row, index) => {
-                // The AI returns YYYY-MM-DD which is what we want
                 const parsedDate = new Date(row.date);
 
                 if (isNaN(parsedDate.getTime())) {
-                    console.warn(`Skipping row ${index + 2}: Invalid date format from AI.`);
+                    console.warn(`Skipping row with invalid date:`, row);
                     return;
                 }
                 
@@ -194,7 +220,18 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
                      }
                      {extractedTransactions.length > 0 && 
                         <div className="pt-4 space-y-4">
-                            <p className="text-sm font-semibold text-green-600">Extracted {extractedTransactions.length} transactions:</p>
+                            <div className="flex items-center justify-between">
+                                <p className="text-sm font-semibold text-green-600">Extracted {extractedTransactions.length} transactions:</p>
+                                {missingMonths.length > 0 && (
+                                    <Alert variant="destructive" className="w-auto">
+                                        <AlertTriangle className="h-4 w-4" />
+                                        <AlertTitle>Missing Statement Periods</AlertTitle>
+                                        <AlertDescription>
+                                            The following months appear to be missing: {missingMonths.join(', ')}
+                                        </AlertDescription>
+                                    </Alert>
+                                )}
+                            </div>
                              <ScrollArea className="h-64 border rounded-md">
                                 <Table>
                                     <TableHeader>
@@ -336,7 +373,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
             const dailyCounters: { [key: string]: number } = {};
 
             parsedTransactions.forEach((row, index) => {
-                const parsedDate = new Date(row.Date.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1'));
+                const parsedDate = new Date(row.Date.replace(/(\\d{2})\\/(\\d{2})\\/(\\d{4})/, '$3-$2-$1'));
 
                 if (isNaN(parsedDate.getTime())) {
                     console.warn(`Skipping row ${index + 2}: Invalid date format.`);
@@ -362,7 +399,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
                 
                 // Apply allocation rules
                 const matchedRule = client.allocationRules?.find(rule => 
-                    rule.keywords.some(kw => row.Description.toLowerCase().includes(kw))
+                    rule.keywords.some(kw => row.Description.toLowerCase().includes(kw.toLowerCase()))
                 );
 
                 if (matchedRule) {
@@ -410,9 +447,9 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
     }, [parsedTransactions]);
 
     const newBalance = currentBalance + importTotal;
-    const timeSavedMinutes = ((potentialAllocations + potentialAiAllocations) * 20) / 60;
-    const timeSavedHours = Math.ceil(timeSavedMinutes / 60);
     const totalAutomated = potentialAllocations + potentialAiAllocations;
+    const timeSavedMinutes = totalAutomated * 0.5; // Example: 30 seconds per auto-allocation
+    const timeSavedHours = Math.ceil(timeSavedMinutes / 60);
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if(!open) resetState(); }}>
@@ -977,7 +1014,7 @@ const NewTransactionsTab = React.forwardRef<
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent>
                                                      <DropdownMenuItem onSelect={() => {
-                                                        const firstKeyword = tx.description.split(/\s+/)[0];
+                                                        const firstKeyword = tx.description.split(/\\s+/)[0];
                                                         setIsCreateRuleOpen(true);
                                                         setRuleDefaultValues({ keywords: firstKeyword });
                                                      }}>
@@ -1410,3 +1447,5 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
+
+    
