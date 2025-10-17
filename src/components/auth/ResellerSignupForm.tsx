@@ -137,7 +137,7 @@ export default function ResellerSignupForm() {
         // 1. Create the user in Firebase Authentication
         const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
         const newFirebaseUser = userCredential.user;
-        const uid = newFirebaseUser.uid;
+        const authUid = newFirebaseUser.uid;
         
         let cvUrl = '';
         let certificateUrl = '';
@@ -145,15 +145,17 @@ export default function ResellerSignupForm() {
         // 2. Upload files if they exist
         if (values.wantsOutsourcedWork && values.cv?.[0] && values.certificate?.[0]) {
             toast({ title: 'Uploading Documents...', description: 'Please wait while we upload your files.' });
-            cvUrl = await uploadFile(values.cv[0], `reseller-applications/${uid}/cv-${values.cv[0].name}`);
-            certificateUrl = await uploadFile(values.certificate[0], `reseller-applications/${uid}/certificate-${values.certificate[0].name}`);
+            cvUrl = await uploadFile(values.cv[0], `reseller-applications/${authUid}/cv-${values.cv[0].name}`);
+            certificateUrl = await uploadFile(values.certificate[0], `reseller-applications/${authUid}/certificate-${values.certificate[0].name}`);
         }
 
         // 3. Save reseller data to Firestore in the 'users' collection
-        await setDoc(doc(db, 'users', uid), {
+        const newUserDoc = doc(collection(db, "users"));
+        await setDoc(newUserDoc, {
             ...resellerData,
-            name: values.contactPerson, // Use contact person as the main name
-            uid: uid,
+            name: values.contactPerson,
+            id: newUserDoc.id,
+            uid: authUid,
             role: 'reseller',
             status: 'Active',
             cvUrl: cvUrl,

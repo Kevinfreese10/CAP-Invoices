@@ -54,7 +54,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             const querySnapshot = await getDocs(q);
             if (!querySnapshot.empty) {
                 const userDoc = querySnapshot.docs[0];
-                const foundUser = { ...userDoc.data(), uid: userDoc.id } as User;
+                const foundUser = { ...userDoc.data(), id: userDoc.id, uid: userDoc.id } as User;
                 updateUser(foundUser);
                 setIsAuthenticated(true);
             } else {
@@ -116,24 +116,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
 
         const userDoc = querySnapshot.docs[0];
-        const foundUser = { ...userDoc.data(), uid: userDoc.id } as User;
+        const foundUser = { ...userDoc.data(), id: userDoc.id } as User;
         
         if (foundUser.role !== 'admin' && foundUser.role !== 'staff' && foundUser.role !== 'reseller') {
             await auth.signOut();
-            // This is actually an invalid role, but we can treat it as invalid creds for simplicity
             return 'invalid_credentials';
         }
-
-        if (foundUser.uid !== firebaseUser.uid) {
+        
+        if (!foundUser.uid || foundUser.uid !== firebaseUser.uid) {
             const userDocRef = doc(db, "users", userDoc.id);
             await setDoc(userDocRef, { uid: firebaseUser.uid }, { merge: true });
+            foundUser.uid = firebaseUser.uid;
         }
         
-        const userWithUid = { ...foundUser, uid: firebaseUser.uid };
-        
-        updateUser(userWithUid);
+        updateUser(foundUser);
         setIsAuthenticated(true);
-        return userWithUid;
+        return foundUser;
   }
 
   const logout = () => {
@@ -143,7 +141,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signup = (name: string, email: string) => {
-    const newUser: User = { uid: `new-uid-${Date.now()}`, name, email, role: 'client' };
+    const newUser: User = { uid: `new-uid-${Date.now()}`, id: `new-id-${Date.now()}`, name, email, role: 'client' };
     console.log("New client signup (placeholder):", newUser);
     return newUser;
   };

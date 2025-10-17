@@ -29,7 +29,7 @@ const departments = ['Accounting and Tax', 'Administration', 'CAP'] as const;
 const roles = ['staff', 'admin'] as const;
 
 const formSchema = z.object({
-  uid: z.string().optional(),
+  id: z.string().optional(),
   name: z.string().min(2, 'Name is required.'),
   email: z.string().email('A valid email is required.'),
   password: z.string().min(6, 'Password must be at least 6 characters.'),
@@ -41,7 +41,7 @@ function StaffForm({ staffMember, onSubmit, onCancel }: { staffMember: User | nu
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
-            uid: staffMember?.uid || '',
+            id: staffMember?.id || '',
             name: staffMember?.name || '',
             email: staffMember?.email || '',
             password: staffMember?.password || '',
@@ -107,7 +107,7 @@ export default function AdminStaffPage() {
     try {
         const q = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
         const querySnapshot = await getDocs(q);
-        const fetchedStaff = querySnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
+        const fetchedStaff = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
         setStaff(fetchedStaff);
     } catch (error) {
         console.error("Error fetching staff:", error);
@@ -133,8 +133,6 @@ export default function AdminStaffPage() {
   
   const handleDelete = async (staffId: string) => {
     try {
-        // Note: This only deletes the Firestore record. Deleting from Firebase Auth
-        // requires admin privileges and is typically done server-side.
         await deleteDoc(doc(db, "users", staffId));
         fetchStaff();
         toast({
@@ -149,17 +147,16 @@ export default function AdminStaffPage() {
   };
 
   const handleFormSubmit = async (data: z.infer<typeof formSchema>) => {
-    const { uid, ...staffData } = data;
+    const { id, ...staffData } = data;
     
     try {
-        if (uid) { // Editing existing user
-             const docRef = doc(db, "users", uid);
+        if (id) { // Editing existing user
+             const docRef = doc(db, "users", id);
              await setDoc(docRef, staffData, { merge: true });
              toast({ title: 'Staff Member Updated', description: 'The staff details have been saved.' });
         } else { // Creating new user
-            const currentAuthUser = auth.currentUser;
-            if (!currentAuthUser) {
-                toast({ title: 'Error', description: 'Admin user not found. Please log in again.', variant: 'destructive'});
+            if (!adminUser) {
+                toast({ title: 'Error', description: 'Admin user not found.', variant: 'destructive'});
                 return;
             }
             // 1. Create user in Firebase Auth
@@ -167,15 +164,19 @@ export default function AdminStaffPage() {
             const newFirebaseUser = userCredential.user;
 
             // 2. Create user document in Firestore with the new UID
-            const newUserDocRef = doc(db, "users", newFirebaseUser.uid);
-            await setDoc(newUserDocRef, {
+            const newUserDoc = doc(collection(db, "users"));
+            await setDoc(newUserDoc, {
                 ...staffData,
+                id: newUserDoc.id,
                 uid: newFirebaseUser.uid,
             });
 
             // 3. Re-authenticate the admin user to restore their session
-            await reauthenticate(currentAuthUser);
-            
+            const currentAuthUser = auth.currentUser;
+            if(currentAuthUser) {
+              await reauthenticate(currentAuthUser);
+            }
+
             toast({ title: 'Staff Member Created', description: 'The new staff member has been added.' });
         }
         fetchStaff();
@@ -236,7 +237,7 @@ export default function AdminStaffPage() {
             </TableHeader>
             <TableBody>
               {staff.map(staffMember => (
-                <TableRow key={staffMember.uid}>
+                <TableRow key={staffMember.id}>
                   <TableCell className="font-medium">
                     {staffMember.name}
                   </TableCell>
@@ -279,7 +280,7 @@ export default function AdminStaffPage() {
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDelete(staffMember.uid)}>
+                                <AlertDialogAction onClick={() => handleDelete(staffMember.id)}>
                                     Continue
                                 </AlertDialogAction>
                             </AlertDialogFooter>
