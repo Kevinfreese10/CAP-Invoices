@@ -32,6 +32,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import NewTaskEmail from '@/components/emails/NewTaskEmail';
+import WeeklyTaskCalendar from '@/components/dashboard/WeeklyTaskCalendar';
 
 const db = getFirestore(firebaseApp);
 
@@ -943,6 +944,8 @@ export default function AdminDashboardPage() {
                     </div>
                 ) : (
                     <>
+                        <WeeklyTaskCalendar tasks={tasks} allStaff={allStaff} />
+
                         <TaskTable 
                             tasks={myTasks} 
                             title="My Tasks" 
