@@ -44,7 +44,7 @@ function StaffForm({ staffMember, onSubmit, onCancel }: { staffMember: User | nu
             uid: staffMember?.uid || '',
             name: staffMember?.name || '',
             email: staffMember?.email || '',
-            password: staffMember?.password || '',
+            password: '',
             department: staffMember?.department || 'Administration',
             role: staffMember?.role === 'admin' ? 'admin' : 'staff',
         },
@@ -57,7 +57,7 @@ function StaffForm({ staffMember, onSubmit, onCancel }: { staffMember: User | nu
             form.reset({
                 ...staffMember,
                 role: staffMember?.role === 'admin' ? 'admin' : 'staff',
-                password: staffMember?.password || ''
+                password: ''
             });
         } else {
             form.reset({
@@ -72,6 +72,10 @@ function StaffForm({ staffMember, onSubmit, onCancel }: { staffMember: User | nu
     }, [staffMember, isEditing, form]);
 
     const handleSubmit = (values: z.infer<typeof formSchema>) => {
+        if (!isEditing && !values.password) {
+            form.setError('password', { message: 'Password is required for new staff members.' });
+            return;
+        }
         onSubmit(values);
     };
     
@@ -109,7 +113,7 @@ export default function AdminStaffPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<User | null>(null);
   const { toast } = useToast();
-  const { user: adminUser, reauthenticate } = useAuth();
+  const { user: adminUser, login } = useAuth();
   
   const fetchStaff = async () => {
     setIsLoading(true);
@@ -171,23 +175,16 @@ export default function AdminStaffPage() {
                 return;
             }
              if (!password) {
-                form.setError('password', { message: 'Password is required for new users.' });
+                // This should be caught by the form handler, but as a safeguard:
+                toast({ title: 'Error', description: 'Password is required for new users.', variant: 'destructive'});
                 return;
             }
 
-            // Check if email already exists in Firestore
-            const emailQuery = query(collection(db, 'users'), where('email', '==', staffData.email));
-            const querySnapshot = await getDocs(emailQuery);
-            if (!querySnapshot.empty) {
-                toast({ title: 'User Exists', description: 'A user with this email address already exists.', variant: 'destructive' });
-                return;
-            }
-
-            // 1. Create user in Firebase Auth
+            // 1. Create user in Firebase Auth. This will throw an error if the email is in use.
             const userCredential = await createUserWithEmailAndPassword(auth, staffData.email, password);
             const newFirebaseUser = userCredential.user;
 
-            // 2. Create user document in Firestore with the new UID
+            // 2. If Auth creation succeeds, create the Firestore document.
             const newUserDocRef = doc(db, "users", newFirebaseUser.uid);
             await setDoc(newUserDocRef, {
                 ...staffData,
@@ -195,10 +192,12 @@ export default function AdminStaffPage() {
                 uid: newFirebaseUser.uid,
             });
 
-            // 3. Re-authenticate the admin user to restore their session
-            const currentAuthUser = auth.currentUser;
-            if(currentAuthUser) {
-              await reauthenticate(currentAuthUser);
+            // 3. Re-authenticate the admin user to restore their session if it was affected.
+            if(auth.currentUser?.uid !== adminUser.uid) {
+                const currentAdminUser = adminUser.email && adminUser.password ? await login(adminUser.email, adminUser.password) : null;
+                if(!currentAdminUser) {
+                    console.warn("Could not re-authenticate admin user.");
+                }
             }
 
             toast({ title: 'Staff Member Created', description: 'The new staff member has been added.' });
@@ -208,7 +207,11 @@ export default function AdminStaffPage() {
         setSelectedStaff(null);
     } catch (error: any) {
         console.error("Error saving staff member:", error);
-        toast({ title: 'Error', description: error.message || 'Could not save the staff member.', variant: 'destructive'});
+        let description = 'Could not save the staff member. Please try again.';
+        if (error.code === 'auth/email-already-in-use') {
+            description = 'A user with this email address already exists in Firebase Authentication.';
+        }
+        toast({ title: 'Error', description, variant: 'destructive'});
     }
   };
 

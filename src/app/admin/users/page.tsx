@@ -160,21 +160,16 @@ export default function ManageUsersPage() {
                 return;
             }
             if (!password) {
+                // This validation is now handled by the form schema, but we double-check.
                  form.setError('password', { message: 'Password is required for new users.' });
                  return;
             }
-
-            // Check if email already exists in Firestore
-            const emailQuery = query(collection(db, 'users'), where('email', '==', userData.email));
-            const querySnapshot = await getDocs(emailQuery);
-            if (!querySnapshot.empty) {
-                toast({ title: 'User Exists', description: 'A user with this email address already exists.', variant: 'destructive' });
-                return;
-            }
             
+            // 1. Create user in Firebase Auth. This will throw an error if the email is in use.
             const userCredential = await createUserWithEmailAndPassword(auth, userData.email, password);
             const newFirebaseUser = userCredential.user;
 
+            // 2. If Auth creation succeeds, create the Firestore document.
             const newUserDocRef = doc(db, "users", newFirebaseUser.uid);
             await setDoc(newUserDocRef, {
                 ...userData,
@@ -182,10 +177,13 @@ export default function ManageUsersPage() {
                 id: newFirebaseUser.uid,
             });
             
-            // Re-authenticate the admin user to restore their session
-            const currentAuthUser = auth.currentUser;
-            if(currentAuthUser) {
-              await reauthenticate(currentAuthUser);
+            // 3. Re-authenticate the admin user to restore their session if it was affected.
+            if(auth.currentUser?.uid !== adminUser.uid) {
+                const currentAdminUser = adminUser.email ? await login(adminUser.email, adminUser.password) : null;
+                if(!currentAdminUser) {
+                    // This is a fallback and indicates a potential session issue.
+                    console.warn("Could not re-authenticate admin user.");
+                }
             }
 
             toast({ title: 'User Created', description: 'The new user has been added.' });
@@ -195,7 +193,11 @@ export default function ManageUsersPage() {
         setSelectedUser(null);
     } catch (error: any) {
         console.error("Error saving user:", error);
-        toast({ title: 'Error', description: error.message || 'Could not save the user.', variant: 'destructive'});
+        let description = 'Could not save the user. Please try again.';
+        if (error.code === 'auth/email-already-in-use') {
+            description = 'A user with this email address already exists in Firebase Authentication.';
+        }
+        toast({ title: 'Error', description, variant: 'destructive'});
     }
   };
 

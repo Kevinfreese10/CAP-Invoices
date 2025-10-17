@@ -61,7 +61,7 @@ export default function ResellerSignupForm() {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const { reauthenticate, login, user: adminUser } = useAuth();
+  const { user: adminUser, login } = useAuth();
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [isServicesLoading, setIsServicesLoading] = useState(true);
@@ -99,7 +99,7 @@ export default function ResellerSignupForm() {
             console.error("Error fetching data:", error);
             toast({
                 title: 'Error',
-                description: 'Could not load required data. Please try refreshing the page.',
+                description: 'Could not load required data. Please try again refreshing the page.',
                 variant: 'destructive',
             });
         } finally {
@@ -150,11 +150,11 @@ export default function ResellerSignupForm() {
         }
 
         // 3. Save reseller data to Firestore in the 'users' collection
-        const newUserDoc = doc(collection(db, "users"));
-        await setDoc(newUserDoc, {
+        const newUserDocRef = doc(db, "users", authUid); // Use auth UID as document ID
+        await setDoc(newUserDocRef, {
             ...resellerData,
             name: values.contactPerson,
-            id: newUserDoc.id,
+            id: authUid,
             uid: authUid,
             role: 'reseller',
             status: 'Active',
@@ -162,10 +162,7 @@ export default function ResellerSignupForm() {
             certificateUrl: certificateUrl,
         });
         
-        // 4. Re-authenticate the original admin user if one was logged in, then log in the new user.
-        if (adminUser) {
-            await reauthenticate(adminUser);
-        }
+        // 4. Log in the new user.
         await login(values.email, values.password);
 
         toast({
@@ -177,9 +174,13 @@ export default function ResellerSignupForm() {
 
     } catch (error: any) {
         console.error("Reseller signup error:", error);
+        let description = 'There was a problem creating your account. Please try again.';
+        if (error.code === 'auth/email-already-in-use') {
+            description = 'An account with this email address already exists. Please log in instead.';
+        }
         toast({
             title: 'Signup Failed',
-            description: error.message || 'There was a problem creating your account. Please try again.',
+            description,
             variant: 'destructive',
         });
     } finally {

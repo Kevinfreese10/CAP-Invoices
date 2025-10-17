@@ -5,7 +5,7 @@ import type { User } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 import { getFirestore, collection, query, where, getDocs, doc, setDoc, updateDoc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, User as FirebaseUser, signOut } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, User as FirebaseUser, signOut, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
@@ -29,31 +29,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | undefined>(undefined);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('my-accountant-user');
-    if (storedUser) {
-        try {
-            const parsedUser = JSON.parse(storedUser);
-            setUser(parsedUser);
-            setIsAuthenticated(true);
-        } catch (e) {
-            console.error("Could not parse user from localStorage", e);
-            setIsAuthenticated(false);
-        }
-    } else {
-        setIsAuthenticated(false);
-    }
-    
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
         if (firebaseUser) {
             // If user is already in context and UIDs match, do nothing to avoid unnecessary re-renders/fetches.
             if (user && firebaseUser.uid === user.uid) {
+                if (isAuthenticated === false) setIsAuthenticated(true);
                 return;
             }
             // If there's a firebase user but no one in context, or a different user, re-authenticate.
             await reauthenticate(firebaseUser);
         } else {
             // If no firebase user, ensure the local state is also logged out.
-            logout();
+            updateUser(null);
+            setIsAuthenticated(false);
         }
     });
 
@@ -93,34 +81,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             const userDocRef = doc(db, 'users', firebaseUser.uid);
             const userDocSnap = await getDoc(userDocRef);
             
-            if (!userDocSnap.exists()) {
-                // This case handles users who existed in Auth but not Firestore.
-                // We'll search by email just in case the UID is mismatched from a previous bug.
-                const q = query(collection(db, "users"), where("email", "==", firebaseUser.email));
-                const querySnapshot = await getDocs(q);
-
-                if (querySnapshot.empty) {
-                    await signOut(auth);
-                    return 'invalid_credentials';
-                }
-
-                const legacyUserDoc = querySnapshot.docs[0];
-                const foundUser = { ...legacyUserDoc.data(), id: legacyUserDoc.id } as User;
-                
-                // Correct the document ID to match the auth UID
-                const correctUserDocRef = doc(db, 'users', firebaseUser.uid);
-                await setDoc(correctUserDocRef, { ...foundUser, uid: firebaseUser.uid, id: firebaseUser.uid });
-                // You might want to delete the old document if the ID was different, but be careful.
-
-                updateUser({ ...foundUser, uid: firebaseUser.uid, id: firebaseUser.uid });
-                setIsAuthenticated(true);
-                return { ...foundUser, uid: firebaseUser.uid, id: firebaseUser.uid };
-
-            } else {
+            if (userDocSnap.exists()) {
                  const foundUser = { ...userDocSnap.data(), id: userDocSnap.id } as User;
                  updateUser(foundUser);
                  setIsAuthenticated(true);
                  return foundUser;
+            } else {
+                console.warn(`User document not found for UID: ${firebaseUser.uid}. This may happen if the user was created in Auth but their Firestore document creation failed.`)
+                await signOut(auth);
+                return 'invalid_credentials';
             }
 
         } catch (serverError: any) {
