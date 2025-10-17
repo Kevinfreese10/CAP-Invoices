@@ -256,7 +256,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
                                 <p className="text-sm text-green-600 font-semibold">{parsedTransactions.length} transactions found in file.</p>
                                 {totalAutomated > 0 && (
                                     <p className="text-sm text-purple-600">
-                                        {totalAutomated} transactions can be automatically processed ({potentialAllocations} by rules, {potentialAiAllocations} by AI), saving you an estimated {timeSavedHours} hour(s).
+                                        {totalAutomated} transaction(s) can be automatically processed ({potentialAllocations} by rules, {potentialAiAllocations} by AI), saving you an estimated {timeSavedHours} hour(s).
                                     </p>
                                 )}
                             </div>
@@ -438,17 +438,22 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
   const { toast } = useToast();
   const form = useForm<z.infer<typeof ruleFormSchema>>({
     resolver: zodResolver(ruleFormSchema),
-    defaultValues: defaultValues || {
-      description: "",
-      keywords: "",
-      accountId: "",
-      vatType: "standard_rated_purchases",
+    defaultValues: {
+      description: defaultValues?.description || "",
+      keywords: defaultValues?.keywords || "",
+      accountId: defaultValues?.accountId || "",
+      vatType: defaultValues?.vatType || "standard_rated_purchases",
     },
   });
   
   useEffect(() => {
-    if(open && defaultValues) {
-        form.reset(defaultValues);
+    if(open) {
+        form.reset(defaultValues || {
+            description: "",
+            keywords: "",
+            accountId: "",
+            vatType: "standard_rated_purchases",
+        });
     }
   }, [open, defaultValues, form]);
 
@@ -1214,6 +1219,8 @@ export default function BankTransactionsPage() {
     );
 }
 
+
+    
 
     
 
