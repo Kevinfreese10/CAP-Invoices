@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import { useToast } from '@/hooks/use-toast';
@@ -22,6 +22,7 @@ import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 import { render } from '@react-email/components';
 import { getNextOrderId } from '@/lib/sequence';
 import { Separator } from '../ui/separator';
+import Link from 'next/link';
 
 const db = getFirestore(firebaseApp);
 
@@ -35,7 +36,7 @@ const formSchema = z.object({
 
 export default function CheckoutForm() {
   const router = useRouter();
-  const { signup, user: currentUser } = useAuth();
+  const { user: currentUser } = useAuth();
   const { cartItems, cartTotal, clearCart } = useCart();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -53,6 +54,14 @@ export default function CheckoutForm() {
       discountCode: '',
     },
   });
+  
+  useEffect(() => {
+    if (currentUser) {
+        form.setValue('name_first', currentUser.name.split(' ')[0] || '');
+        form.setValue('name_last', currentUser.name.split(' ').slice(1).join(' ') || '');
+        form.setValue('email_address', currentUser.email || '');
+    }
+  }, [currentUser, form]);
 
   const handleApplyDiscount = async () => {
     const code = form.getValues('discountCode');
@@ -86,7 +95,7 @@ export default function CheckoutForm() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!currentUser) {
-       toast({ title: 'Error', description: 'Authentication issue, please reload.', variant: 'destructive' });
+       toast({ title: 'Please Log In', description: 'You must be logged in to place an order.', variant: 'destructive' });
        return;
     }
     setIsLoading(true);
@@ -112,6 +121,7 @@ export default function CheckoutForm() {
 
       const orderData: Order = {
         id: orderId,
+        userId: currentUser.uid,
         customerName: `${values.name_first} ${values.name_last}`,
         customerEmail: values.email_address,
         customerPhone: values.cell_number,
@@ -166,6 +176,22 @@ export default function CheckoutForm() {
         });
         setIsLoading(false);
     }
+  }
+
+  if (!currentUser) {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Please Log In</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <p className="text-muted-foreground">You need to be logged in to place an order.</p>
+                <Button asChild className="mt-4">
+                    <Link href="/login">Log In or Sign Up</Link>
+                </Button>
+            </CardContent>
+        </Card>
+    )
   }
 
   return (

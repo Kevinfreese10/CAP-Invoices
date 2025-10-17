@@ -17,7 +17,7 @@ interface AuthContextType {
   login: (email: string, password?: string) => Promise<User | 'invalid_role' | 'invalid_credentials' | undefined>;
   reauthenticate: (currentUser: FirebaseUser) => Promise<User | 'invalid_credentials' | undefined>;
   logout: () => void;
-  signup: (name: string, email: string) => User;
+  signup: (email: string, password?: string, name?: string) => Promise<User | string>;
   updateUser: (updatedUser: User | null) => void;
   isAuthenticated: boolean | undefined;
 }
@@ -118,11 +118,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const userDoc = querySnapshot.docs[0];
         const foundUser = { ...userDoc.data(), id: userDoc.id } as User;
         
-        if (foundUser.role !== 'admin' && foundUser.role !== 'staff' && foundUser.role !== 'reseller') {
-            await auth.signOut();
-            return 'invalid_credentials';
-        }
-        
         if (!foundUser.uid || foundUser.uid !== firebaseUser.uid) {
             const userDocRef = doc(db, "users", userDoc.id);
             await setDoc(userDocRef, { uid: firebaseUser.uid }, { merge: true });
@@ -140,10 +135,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsAuthenticated(false);
   };
 
-  const signup = (name: string, email: string) => {
-    const newUser: User = { uid: `new-uid-${Date.now()}`, id: `new-id-${Date.now()}`, name, email, role: 'client' };
-    console.log("New client signup (placeholder):", newUser);
-    return newUser;
+  const signup = async (email: string, password?: string, name?: string): Promise<User | string> => {
+    if (!password) return 'Password is required.';
+
+    try {
+        // First check if user already exists in Firestore
+        const usersRef = collection(db, "users");
+        const q = query(usersRef, where("email", "==", email));
+        const querySnapshot = await getDocs(q);
+
+        if (!querySnapshot.empty) {
+            return 'An account with this email already exists.';
+        }
+        
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const firebaseUser = userCredential.user;
+
+        const newUserDocRef = doc(collection(db, "users"));
+        const newUser: User = {
+            id: newUserDocRef.id,
+            uid: firebaseUser.uid,
+            name: name || email,
+            email: email,
+            role: 'client',
+        };
+
+        await setDoc(newUserDocRef, newUser);
+        updateUser(newUser);
+        setIsAuthenticated(true);
+
+        return newUser;
+    } catch (error: any) {
+        console.error("Error signing up:", error);
+        if (error.code === 'auth/email-already-in-use') {
+            return 'An account with this email already exists.';
+        }
+        return 'An unexpected error occurred during signup.';
+    }
   };
   
   return (

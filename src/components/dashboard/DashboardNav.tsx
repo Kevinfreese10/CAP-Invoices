@@ -65,10 +65,12 @@ export default function DashboardNav({ user }: { user: UserType }) {
 
   const handleLogout = () => {
     logout();
-    router.push('/home');
+    router.push('/');
   };
 
   const navItems = [
+     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['client'] },
+     { href: '/dashboard/profile', label: 'My Profile', icon: User, roles: ['client'] },
   ];
 
   const adminNavItems = [

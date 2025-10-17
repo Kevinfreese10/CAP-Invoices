@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Loader2, Tag } from 'lucide-react';
+import { Loader2, Tag, LogIn } from 'lucide-react';
 import { getFirestore, doc, setDoc, Timestamp, getDoc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service, User, DiscountCode, OrderNote } from '@/lib/types';
@@ -31,6 +31,7 @@ const formSchema = z.object({
   name_last: z.string().min(1, 'Last name is required.'),
   email_address: z.string().email('Invalid email address.'),
   cell_number: z.string().min(10, 'A valid phone number is required.'),
+  password: z.string().optional(),
   agreePrereqs: z.boolean().refine(val => val === true, {
     message: 'You must confirm you have the prerequisites.',
   }),
@@ -65,12 +66,21 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
       name_last: '',
       email_address: '',
       cell_number: '',
+      password: '',
       agreePrereqs: false,
       agreeRefund: false,
       discountCode: '',
     },
     mode: 'onChange',
   });
+  
+  useEffect(() => {
+    if (currentUser) {
+        form.setValue('name_first', currentUser.name.split(' ')[0] || '');
+        form.setValue('name_last', currentUser.name.split(' ').slice(1).join(' ') || '');
+        form.setValue('email_address', currentUser.email || '');
+    }
+  }, [currentUser, form]);
 
   const finalTotal = appliedDiscount ? service.price - appliedDiscount.amount : service.price;
   
@@ -104,15 +114,45 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
 
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!currentUser) {
-       toast({ title: 'Error', description: 'Authentication issue, please reload.', variant: 'destructive' });
-       return;
-    }
     setIsLoading(true);
     toast({
       title: 'Processing Order...',
       description: 'Please wait while we generate your order.',
     });
+
+    let userId = currentUser?.uid;
+    let userEmail = currentUser?.email;
+
+    // If user is not logged in, create an account for them
+    if (!currentUser) {
+      if (!values.password) {
+        form.setError('password', { message: 'Password is required to create an account.' });
+        setIsLoading(false);
+        return;
+      }
+      try {
+        const newUser = await signup(values.email_address, values.password, `${values.name_first} ${values.name_last}`);
+        if (typeof newUser === 'string') {
+          toast({ title: 'Signup Failed', description: 'Could not create your account. Please try again.', variant: 'destructive' });
+          setIsLoading(false);
+          return;
+        }
+        userId = newUser.uid;
+        userEmail = newUser.email;
+        toast({ title: 'Account Created!', description: 'You are now logged in.' });
+      } catch (e: any) {
+        toast({ title: 'Signup Failed', description: e.message || 'An unexpected error occurred.', variant: 'destructive' });
+        setIsLoading(false);
+        return;
+      }
+    }
+
+
+    if (!userId) {
+       toast({ title: 'Error', description: 'Could not identify user. Please try logging in again.', variant: 'destructive' });
+       setIsLoading(false);
+       return;
+    }
 
     try {
       const orderId = await getNextOrderId();
@@ -123,13 +163,14 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
       const confirmationNote: OrderNote = {
           text: 'Order confirmation email sent to client.',
           date: Timestamp.now(),
-          authorId: currentUser.uid,
+          authorId: userId,
           type: 'email',
           subject: confirmationEmailSubject,
       };
 
       const orderData: Order = {
         id: orderId,
+        userId: userId,
         customerName: `${values.name_first} ${values.name_last}`,
         customerEmail: values.email_address,
         customerPhone: values.cell_number,
@@ -200,6 +241,9 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
                     </div>
                     <FormField control={form.control} name="email_address" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input placeholder="name@example.com" {...field} /></FormControl><FormMessage /></FormItem> )} />
                     <FormField control={form.control} name="cell_number" render={({ field }) => ( <FormItem><FormLabel>Phone Number</FormLabel><FormControl><Input placeholder="082 123 4567" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    {!currentUser && (
+                         <FormField control={form.control} name="password" render={({ field }) => ( <FormItem><FormLabel>Create Password</FormLabel><FormControl><Input type="password" {...field} placeholder="Min. 6 characters" /></FormControl><FormMessage /></FormItem> )} />
+                    )}
                 </div>
                  <Separator />
                 <div className="space-y-2">
@@ -207,7 +251,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
                     <div className="flex gap-2">
                         <FormField control={form.control} name="discountCode" render={({ field }) => ( <FormItem className="flex-grow"><FormControl><Input placeholder="Enter your code" {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <Button type="button" variant="secondary" onClick={handleApplyDiscount} disabled={isVerifyingDiscount}>
-                            {isVerifyingDiscount ? <Loader2 className="h-4 w-4 animate-spin" /> : <Tag className="h-4 w-4" />}
+                             {isVerifyingDiscount ? <Loader2 className="h-4 w-4 animate-spin" /> : <Tag className="h-4 w-4" />}
                             <span className="ml-2">Apply</span>
                         </Button>
                     </div>
