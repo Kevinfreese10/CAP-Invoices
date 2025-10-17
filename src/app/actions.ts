@@ -3,7 +3,7 @@
 
 import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, collection, getDocs, where, query } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service, User, OrderNote, Task } from '@/lib/types';
+import { Order, Service, User, OrderNote, Task, DocumentUpload } from '@/lib/types';
 import { services as allServices } from '@/lib/data';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
@@ -12,6 +12,7 @@ import NewTaskEmail from '@/components/emails/NewTaskEmail';
 import { format } from 'date-fns';
 import MissingStatementRequestEmail from '@/components/emails/MissingStatementRequestEmail';
 import ClientDocumentUploadEmail from '@/components/emails/ClientDocumentUploadEmail';
+import DocumentReviewEmail from '@/components/emails/DocumentReviewEmail';
 
 const db = getFirestore(firebaseApp);
 
@@ -40,5 +41,23 @@ export async function notifyStaffOfDocumentUpload({ orderId, clientName, assigne
         to: assignedStaffEmail,
         subject: `Documents Uploaded for Order #${orderId}`,
         html: emailHtml,
+    });
+}
+
+export async function sendDocumentReviewFeedback({ orderId, clientName, clientEmail, documentUploads, resellerId }: { orderId: string, clientName: string, clientEmail: string, documentUploads: DocumentUpload[], resellerId?: string }) {
+    const emailHtml = render(
+        DocumentReviewEmail({
+            clientName,
+            orderId,
+            documentUploads,
+            orderUrl: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/orders/${orderId}`,
+        })
+    );
+
+    await sendEmail({
+        to: clientEmail,
+        subject: `Feedback on Your Submitted Documents for Order #${orderId}`,
+        html: emailHtml,
+        resellerId: resellerId,
     });
 }

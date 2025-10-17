@@ -29,6 +29,7 @@ import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
 import ReviewRequestEmail from '@/components/emails/ReviewRequestEmail';
 import PaymentFollowUpEmail from '@/components/emails/PaymentFollowUpEmail';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { sendDocumentReviewFeedback } from '@/app/actions';
 
 
 const db = getFirestore(firebaseApp);
@@ -184,6 +185,7 @@ export default function AdminOrderDetailsPage() {
   
   const [isRejectionDialogOpen, setIsRejectionDialogOpen] = useState(false);
   const [documentToReject, setDocumentToReject] = useState<DocumentUpload | null>(null);
+  const [isSendingFeedback, setIsSendingFeedback] = useState(false);
 
   const noteForm = useForm<z.infer<typeof noteFormSchema>>({
     resolver: zodResolver(noteFormSchema),
@@ -419,6 +421,36 @@ export default function AdminOrderDetailsPage() {
         }
     };
   
+    const allDocumentsReviewed = order?.documentUploads && order.documentUploads.length > 0 && order.documentUploads.every(d => d.status !== 'pending');
+
+    const handleSendFeedback = async () => {
+        if (!order || !order.documentUploads) return;
+        setIsSendingFeedback(true);
+        toast({ title: "Sending Feedback...", description: "Notifying the client of the document review status." });
+
+        try {
+            await sendDocumentReviewFeedback({
+                orderId: order.originalOrderId || order.id,
+                clientName: isOutsourced ? order.endCustomerName! : order.customerName,
+                clientEmail: isOutsourced ? order.endCustomerEmail! : order.customerEmail,
+                documentUploads: order.documentUploads,
+                resellerId: order.resellerId
+            });
+
+            await addEmailToHistory(
+                `Feedback on Your Submitted Documents for Order #${order.originalOrderId || order.id}`,
+                "Sent 'Document Review Feedback' email to client."
+            );
+
+            toast({ title: "Feedback Sent!", description: "The client has been notified of the review outcome." });
+        } catch(e) {
+            console.error(e);
+            toast({ title: "Failed to Send Feedback", variant: "destructive" });
+        } finally {
+            setIsSendingFeedback(false);
+        }
+    }
+  
   if (currentUser && currentUser.role === 'client') {
       return (
           <div className="flex justify-center items-center h-screen">
@@ -584,6 +616,14 @@ export default function AdminOrderDetailsPage() {
                             <p className="text-sm text-muted-foreground text-center py-4">No documents have been uploaded for this order yet.</p>
                         )}
                     </CardContent>
+                     {allDocumentsReviewed && (
+                        <CardFooter>
+                            <Button onClick={handleSendFeedback} disabled={isSendingFeedback}>
+                                {isSendingFeedback && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Provide Client with Feedback
+                            </Button>
+                        </CardFooter>
+                    )}
                 </Card>
 
                  <Card>
@@ -691,3 +731,4 @@ export default function AdminOrderDetailsPage() {
     </div>
   );
 }
+
