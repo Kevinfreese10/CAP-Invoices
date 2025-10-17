@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -83,69 +84,69 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
             setFiles(Array.from(selectedFiles));
             setExtractedTransactions([]); // Clear previous results
             setMissingMonths([]);
-            setIsExtracting(true);
-            toast({ title: `Extracting Transactions from ${selectedFiles.length} file(s)...`, description: "The AI is processing your bank statements. This may take a moment."});
-            
-            const allTransactions: ExtractedTransaction[] = [];
-            
-            await Promise.all(Array.from(selectedFiles).map(file => new Promise<void>((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = async () => {
-                    const dataUrl = reader.result as string;
-                    try {
-                        const result = await extractStatementData({ statementPdf: dataUrl });
-                         if (!result || !result.transactions || result.transactions.length === 0) {
-                            toast({ title: `Extraction Failed for ${file.name}`, description: 'The AI could not extract any transactions.', variant: 'destructive' });
-                        } else {
-                            allTransactions.push(...result.transactions);
-                        }
-                    } catch (error) {
-                        console.error(`Statement extraction error for ${file.name}:`, error);
-                        toast({ title: `Extraction Failed for ${file.name}`, description: 'Could not extract data from this file.', variant: 'destructive' });
-                    } finally {
-                        resolve();
+        }
+    };
+    
+    useEffect(() => {
+        if (files.length > 0) {
+            handlePeriodAnalysis();
+        }
+    }, [files]);
+    
+    const handlePeriodAnalysis = async () => {
+        setIsExtracting(true);
+        toast({ title: `Analyzing ${files.length} file(s)...`, description: "The AI is checking the statement periods." });
+
+        const allTransactions: ExtractedTransaction[] = [];
+        await Promise.all(files.map(file => new Promise<void>((resolve) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = async () => {
+                const dataUrl = reader.result as string;
+                try {
+                    const result = await extractStatementData({ statementPdf: dataUrl });
+                    if (result && result.transactions && result.transactions.length > 0) {
+                        allTransactions.push(...result.transactions);
                     }
-                };
-                reader.onerror = () => {
-                     toast({ title: `File Error for ${file.name}`, description: 'Could not read the selected file.', variant: 'destructive' });
-                     resolve();
-                };
-            })));
+                } catch (error) {
+                    console.error(`Statement analysis error for ${file.name}:`, error);
+                } finally {
+                    resolve();
+                }
+            };
+             reader.onerror = () => {
+                 toast({ title: `File Error for ${file.name}`, description: 'Could not read the selected file.', variant: 'destructive' });
+                 resolve();
+            };
+        })));
+        
+        if (allTransactions.length > 0) {
+            allTransactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-            if(allTransactions.length > 0) {
-                // Sort by date to make analysis easier
-                allTransactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-                setExtractedTransactions(allTransactions);
-                
-                // Gap detection logic
-                const dates = allTransactions.map(tx => new Date(tx.date));
+            // Gap detection logic
+            const dates = allTransactions.map(tx => new Date(tx.date));
+            if (dates.length > 1) {
                 const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
                 const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
                 
-                if (dates.length > 1) {
-                    const interval = { start: startOfMonth(minDate), end: endOfMonth(maxDate) };
-                    const allMonthsInInterval = eachMonthOfInterval(interval);
-                    
-                    const presentMonths = new Set(dates.map(d => `${getYear(d)}-${getMonth(d)}`));
-                    
-                    const foundMissingMonths = allMonthsInInterval
-                        .filter(monthStart => !presentMonths.has(`${getYear(monthStart)}-${getMonth(monthStart)}`))
-                        .map(monthStart => format(monthStart, 'MMMM yyyy'));
-                    
-                    setMissingMonths(foundMissingMonths);
-                }
-
-                toast({ title: 'Extraction Complete!', description: `${allTransactions.length} transactions were found across all files.` });
-            } else {
-                 toast({ title: 'Extraction Failed', description: 'No transactions could be extracted from any of the provided files.', variant: 'destructive' });
-                resetState();
+                const interval = { start: startOfMonth(minDate), end: endOfMonth(maxDate) };
+                const allMonthsInInterval = eachMonthOfInterval(interval);
+                
+                const presentMonths = new Set(dates.map(d => `${getYear(d)}-${getMonth(d)}`));
+                
+                const foundMissingMonths = allMonthsInInterval
+                    .filter(monthStart => !presentMonths.has(`${getYear(monthStart)}-${getMonth(monthStart)}`))
+                    .map(monthStart => format(monthStart, 'MMMM yyyy'));
+                
+                setMissingMonths(foundMissingMonths);
             }
-
-            setIsExtracting(false);
+             setExtractedTransactions(allTransactions); // Temporarily store for count
+        } else {
+             toast({ title: 'Analysis Failed', description: 'No transactions could be found in any of the provided files.', variant: 'destructive' });
         }
-    };
+
+        setIsExtracting(false);
+    }
     
     const handleImport = async () => {
         if (!client || !bankAccountId || extractedTransactions.length === 0) return;
@@ -156,10 +157,9 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
             const batch = writeBatch(db);
             const dailyCounters: { [key: string]: number } = {};
 
-            extractedTransactions.forEach((row, index) => {
-                const parsedDate = new Date(row.date);
-
-                if (isNaN(parsedDate.getTime())) {
+            extractedTransactions.forEach((row) => {
+                 const parsedDate = new Date(row.date);
+                 if (isNaN(parsedDate.getTime())) {
                     console.warn(`Skipping row with invalid date:`, row);
                     return;
                 }
@@ -335,20 +335,17 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
 
                         if (client?.allocationRules) {
                             for (const tx of transactions) {
-                                // Check for rule-based allocations
                                 const matchedRule = client.allocationRules.find(rule => 
                                     rule.keywords.some(kw => tx.Description.toLowerCase().includes(kw))
                                 );
                                 if (matchedRule) {
                                     ruleAllocationCount++;
                                 }
-                                // Check for potential AI allocations (expenses only)
                                 else if (tx.Amount < 0) {
                                     aiAllocationCount++;
                                 }
                             }
                         } else {
-                            // If no rules, all expenses are potential AI allocations
                             aiAllocationCount = transactions.filter(tx => tx.Amount < 0).length;
                         }
                         
@@ -397,7 +394,6 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
                     status: 'new'
                 };
                 
-                // Apply allocation rules
                 const matchedRule = client.allocationRules?.find(rule => 
                     rule.keywords.some(kw => row.Description.toLowerCase().includes(kw.toLowerCase()))
                 );
@@ -475,7 +471,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
                             <div className="space-y-1">
                                 <p className="text-sm text-green-600 font-semibold">{parsedTransactions.length} transactions found in file.</p>
                                 {totalAutomated > 0 && (
-                                    <p className="text-sm text-purple-600">
+                                     <p className="text-sm text-purple-600">
                                         {totalAutomated} transaction(s) can be automatically processed ({potentialAllocations} by rules, {potentialAiAllocations} by AI), saving you an estimated {timeSavedHours} hour(s).
                                     </p>
                                 )}
@@ -658,7 +654,7 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
   const { toast } = useToast();
   const form = useForm<z.infer<typeof ruleFormSchema>>({
     resolver: zodResolver(ruleFormSchema),
-    defaultValues: defaultValues || {
+    defaultValues: {
       description: "",
       keywords: "",
       accountId: "",
@@ -1451,3 +1447,4 @@ export default function BankTransactionsPage() {
     
 
     
+
