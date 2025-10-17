@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle, Loader2, Clock } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Loader2, Clock, Copy } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import ServiceForm from '@/components/admin/ServiceForm';
@@ -95,6 +95,28 @@ export default function AdminServicesPage() {
     } catch (error) {
         console.error("Error deleting service:", error);
         toast({ title: 'Error', description: 'Could not delete the product.', variant: 'destructive' });
+    }
+  };
+
+  const handleCopyService = async (service: Service) => {
+    const newTitle = `Copy of ${service.title}`;
+    const newSlug = newTitle.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '');
+    const { id, slug, title, ...restOfServiceData } = service;
+
+    const newServiceData = {
+        ...restOfServiceData,
+        title: newTitle,
+        slug: newSlug,
+        createdAt: serverTimestamp(),
+    };
+    
+    try {
+      await addDoc(collection(db, "services"), newServiceData);
+      toast({ title: 'Product Copied', description: `A copy of "${service.title}" has been created.` });
+      fetchServices();
+    } catch (error) {
+      console.error("Error copying product:", error);
+      toast({ title: 'Error', description: 'Could not copy the product.', variant: 'destructive'});
     }
   };
 
@@ -239,6 +261,10 @@ export default function AdminServicesPage() {
                                </DialogTrigger>
                               <DropdownMenuItem onClick={() => handleEditService(service)}>
                                   Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleCopyService(service)}>
+                                <Copy className="mr-2 h-4 w-4" />
+                                Copy Product
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <AlertDialogTrigger asChild>
