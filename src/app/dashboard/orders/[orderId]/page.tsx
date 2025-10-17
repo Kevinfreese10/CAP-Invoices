@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -53,6 +52,7 @@ export default function ClientOrderDetailsPage() {
   const [allStaff, setAllStaff] = useState<User[]>([]);
   const { toast } = useToast();
   const [uploadingFiles, setUploadingFiles] = useState<{ [key: string]: number }>({});
+  const [textInputs, setTextInputs] = useState<{ [key: string]: string }>({});
 
 
    const noteForm = useForm<z.infer<typeof noteFormSchema>>({
@@ -83,6 +83,7 @@ export default function ClientOrderDetailsPage() {
             id: docSnap.id,
             date: data.date.toDate(),
             notes: (data.notes || []).map((note: any) => ({...note, date: note.date.toDate()})),
+            documentUploads: (data.documentUploads || []).map((doc: any) => ({...doc, uploadedAt: doc.uploadedAt.toDate()})),
           } as Order);
         } else {
           notFound();
@@ -150,29 +151,37 @@ export default function ClientOrderDetailsPage() {
     );
   };
   
-  const handleTextSubmit = async (text: string, requirementLabel: string) => {
-    if (!currentUser || !order || !text.trim()) return;
-
-    const textSubmissionNote: OrderNote = {
-      text: text,
-      subject: `Client submission for: ${requirementLabel}`,
-      authorId: currentUser.uid,
-      date: Timestamp.now(),
-      type: 'text-submission',
+    const handleTextChange = (requirementLabel: string, value: string) => {
+        setTextInputs(prev => ({ ...prev, [requirementLabel]: value }));
     };
 
-    try {
-      const orderRef = doc(db, 'orders', order.id);
-      await updateDoc(orderRef, {
-        notes: arrayUnion(textSubmissionNote),
-      });
-      toast({ title: 'Information Submitted', description: 'Your information has been securely saved.' });
-      fetchOrderAndServices(); // Re-fetch to update UI
-    } catch (error) {
-      console.error("Error submitting text:", error);
-      toast({ title: "Submission Failed", description: "Could not save the information.", variant: "destructive" });
-    }
-  };
+    const handleTextSubmit = async (requirementLabel: string) => {
+        const text = textInputs[requirementLabel];
+        if (!currentUser || !order || !text || !text.trim()) {
+             toast({ title: "Cannot Submit", description: "The field cannot be empty.", variant: "destructive" });
+             return;
+        }
+
+        const textSubmissionNote: OrderNote = {
+        text: text,
+        subject: `Client submission for: ${requirementLabel}`,
+        authorId: currentUser.uid,
+        date: Timestamp.now(),
+        type: 'text-submission',
+        };
+
+        try {
+        const orderRef = doc(db, 'orders', order.id);
+        await updateDoc(orderRef, {
+            notes: arrayUnion(textSubmissionNote),
+        });
+        toast({ title: 'Information Submitted', description: 'Your information has been securely saved.' });
+        fetchOrderAndServices(); // Re-fetch to update UI
+        } catch (error) {
+        console.error("Error submitting text:", error);
+        toast({ title: "Submission Failed", description: "Could not save the information.", variant: "destructive" });
+        }
+    };
 
 
   const onNoteSubmit = async (values: z.infer<typeof noteFormSchema>) => {
@@ -315,6 +324,7 @@ export default function ClientOrderDetailsPage() {
                                         <h4 className="font-medium text-md">Documents Required:</h4>
                                         {item.service.informationToProvide.map((info, infoIndex) => {
                                             const upload = order.documentUploads?.find(d => d.serviceId === item.service?.id && d.requirementLabel === info.label);
+                                            const textSubmission = order.notes?.find(n => n.type === 'text-submission' && n.subject === `Client submission for: ${info.label}`);
                                             const uploadKey = `${item.service?.id}-${info.label}`;
                                             const isUploading = uploadingFiles[uploadKey] !== undefined;
                                             
@@ -324,34 +334,50 @@ export default function ClientOrderDetailsPage() {
                                                     <ClipboardCheck className="h-4 w-4" />
                                                     {info.label}
                                                 </label>
-                                                {upload ? (
-                                                    <div className="flex items-center justify-between">
-                                                        <a href={upload.fileUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline">{upload.fileName}</a>
-                                                        {upload.status === 'approved' && <Badge variant="success"><CheckCircle className="h-3 w-3 mr-1"/>Approved</Badge>}
-                                                        {upload.status === 'pending' && <Badge variant="warning">Pending Review</Badge>}
-                                                        {upload.status === 'rejected' && (
-                                                        <div className="text-right">
-                                                            <Badge variant="destructive"><AlertTriangle className="h-3 w-3 mr-1"/>Rejected</Badge>
-                                                            {upload.rejectionReason && <p className="text-xs text-destructive mt-1">{upload.rejectionReason}</p>}
-                                                            {info.type === 'pdf' ? (
-                                                                <Input type="file" accept="application/pdf" className="mt-2 h-9" onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], item.service!.id, info.label)} />
-                                                            ) : (
-                                                                <Input type="text" className="mt-2 h-9" placeholder="Enter information here..." onBlur={(e) => handleTextSubmit(e.target.value, info.label)}/>
-                                                            )}
-                                                        </div>
+                                                {info.type === 'pdf' ? (
+                                                    <>
+                                                        {upload ? (
+                                                            <div className="flex items-center justify-between">
+                                                                <a href={upload.fileUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline">{upload.fileName}</a>
+                                                                {upload.status === 'approved' && <Badge variant="success"><CheckCircle className="h-3 w-3 mr-1"/>Approved</Badge>}
+                                                                {upload.status === 'pending' && <Badge variant="warning">Pending Review</Badge>}
+                                                                {upload.status === 'rejected' && (
+                                                                <div className="text-right">
+                                                                    <Badge variant="destructive"><AlertTriangle className="h-3 w-3 mr-1"/>Rejected</Badge>
+                                                                    {upload.rejectionReason && <p className="text-xs text-destructive mt-1">{upload.rejectionReason}</p>}
+                                                                    <Input type="file" accept="application/pdf" className="mt-2 h-9" onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], item.service!.id, info.label)} />
+                                                                </div>
+                                                                )}
+                                                            </div>
+                                                        ) : isUploading ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <Loader2 className="h-4 w-4 animate-spin"/>
+                                                                <p className="text-sm">Uploading... {Math.round(uploadingFiles[uploadKey])}%</p>
+                                                            </div>
+                                                        ) : (
+                                                            <Input type="file" accept="application/pdf" className="h-9" onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], item.service!.id, info.label)} />
                                                         )}
-                                                    </div>
-                                                ) : isUploading ? (
-                                                    <div className="flex items-center gap-2">
-                                                        <Loader2 className="h-4 w-4 animate-spin"/>
-                                                        <p className="text-sm">Uploading... {Math.round(uploadingFiles[uploadKey])}%</p>
-                                                    </div>
+                                                    </>
                                                 ) : (
-                                                    info.type === 'pdf' ? (
-                                                        <Input type="file" accept="application/pdf" className="h-9" onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], item.service!.id, info.label)} />
-                                                    ) : (
-                                                        <Input type="text" className="h-9" placeholder="Enter information here..." onBlur={(e) => handleTextSubmit(e.target.value, info.label)} />
-                                                    )
+                                                    <>
+                                                        {textSubmission ? (
+                                                            <div className="p-2 bg-green-50 text-green-700 rounded-md border border-green-200">
+                                                                <p className="text-sm font-semibold">Submitted:</p>
+                                                                <p className="text-sm">"{textSubmission.text}"</p>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-center gap-2">
+                                                                <Input 
+                                                                    type="text" 
+                                                                    className="h-9" 
+                                                                    placeholder="Enter information here..."
+                                                                    value={textInputs[info.label] || ''}
+                                                                    onChange={(e) => handleTextChange(info.label, e.target.value)}
+                                                                />
+                                                                <Button size="sm" onClick={() => handleTextSubmit(info.label)}>Save</Button>
+                                                            </div>
+                                                        )}
+                                                    </>
                                                 )}
                                             </div>
                                         )})}
@@ -369,7 +395,7 @@ export default function ClientOrderDetailsPage() {
                     <CardFooter>
                         <Button onClick={handleDocumentSubmit} disabled={isSubmitting}>
                             {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                            Submit Documents
+                            Notify Consultant
                         </Button>
                     </CardFooter>
                 </Card>
