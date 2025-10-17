@@ -23,15 +23,6 @@ const getUserColor = (userId: string) => {
   return userColors[hash % userColors.length];
 };
 
-const getPriorityVariant = (priority: Task['priority']) => {
-    switch(priority) {
-        case 'High': return 'destructive';
-        case 'Medium': return 'warning';
-        case 'Low': return 'secondary';
-        default: return 'secondary';
-    }
-}
-
 export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTaskUpdate }: { tasks: Task[], allStaff: User[], currentUser: User | null, onTaskUpdate: (taskId: string, updates: Partial<Task>) => void }) {
   const [currentDate, setCurrentDate] = useState(new Date());
 
@@ -70,7 +61,7 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
   
   const overdueTasks = userTasks.filter(task => {
     const dueDate = getTaskDate(task);
-    return isPast(dueDate) && task.status !== 'Done';
+    return isPast(dueDate) && !isToday(dueDate) && task.status !== 'Done';
   });
 
 
@@ -118,7 +109,6 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
                   onDragOver={handleDragOver}
                 >
                      {overdueTasks.map(task => {
-                        const priority = 'High'; // Always high if overdue
                         const dueDate = getTaskDate(task);
                         return (
                             <TooltipProvider key={task.id}>
@@ -131,7 +121,6 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
                                         >
                                             <div className="flex justify-between items-start">
                                                 <p className="text-xs font-semibold leading-tight line-clamp-2">{task.title}</p>
-                                                <Badge variant={getPriorityVariant(priority)} className="text-xs shrink-0">{priority}</Badge>
                                             </div>
                                             {task.orderId && <Link href={`/admin/orders/${task.orderId}`} className="text-xs text-blue-600 hover:underline">Order #{task.orderId}</Link>}
                                             <div className="text-xs text-destructive">Due: {format(dueDate, 'dd MMM')}</div>
@@ -165,10 +154,9 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
               <div className="p-2 space-y-2">
                 {userTasks.filter(task => {
                     const dueDate = getTaskDate(task);
-                    return isSameDay(dueDate, day) && !overdueTasks.some(ot => ot.id === task.id)
+                    return isSameDay(dueDate, day);
                 }).map(task => {
                   const assignees = Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo];
-                  const priority = task.status !== 'Done' && isPast(getTaskDate(task)) ? 'High' : task.priority;
                   return (
                   <TooltipProvider key={task.id}>
                     <Tooltip>
@@ -180,7 +168,6 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
                             >
                                 <div className="flex justify-between items-start">
                                     <p className="text-xs font-semibold leading-tight line-clamp-2">{task.title}</p>
-                                    <Badge variant={getPriorityVariant(priority)} className="text-xs shrink-0">{priority}</Badge>
                                 </div>
                                 {task.orderId && <Link href={`/admin/orders/${task.orderId}`} className="text-xs text-blue-600 hover:underline">Order #{task.orderId}</Link>}
                                  <div className="flex items-center pt-1">
