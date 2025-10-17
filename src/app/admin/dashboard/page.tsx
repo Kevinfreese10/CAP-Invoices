@@ -337,6 +337,17 @@ const getUserColor = (userId: string) => {
   return userColors[hash % userColors.length];
 };
 
+const getTaskDate = (task: Task): Date => {
+  if (task.dueDate instanceof Date) {
+      return task.dueDate;
+  }
+  // Firestore Timestamps have a toDate() method
+  if (task.dueDate && typeof (task.dueDate as any).toDate === 'function') {
+      return (task.dueDate as any).toDate();
+  }
+  // Fallback for string dates (though should be avoided)
+  return new Date(task.dueDate);
+}
 
 const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete, allStaff, currentUser, onFilter, taskTypes }: { tasks: Task[], title: string, description: string, onEdit: (task: Task) => void, onUpdateStatus: (taskId: string, status: Task['status']) => void, onDelete: (taskId: string) => void, allStaff: User[], currentUser: User | null, onFilter?: (filter: string) => void, taskTypes?: string[] }) => {
     const getAssignee = (userId?: string): User | undefined => {
@@ -398,6 +409,7 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                     </TableHeader>
                     <TableBody>
                     {tasks.map(task => {
+                        const dueDate = getTaskDate(task);
                         const lastComment = task.comments && task.comments.length > 0 ? task.comments[task.comments.length - 1] : null;
                         const commentAuthor = lastComment ? getAssignee(lastComment.authorId) : null;
                         const assignees = Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo];
@@ -490,7 +502,7 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                         </TableCell>
                          <TableCell className="align-top text-xs">
                             <div className="flex flex-col">
-                                <span className="font-semibold">Due: {task.dueDate?.toDate ? format(task.dueDate.toDate(), 'dd/MM/yyyy') : 'N/A'}</span>
+                                <span className="font-semibold">Due: {format(dueDate, 'dd/MM/yyyy')}</span>
                                 <span className="text-muted-foreground">Created: {task.createdAt?.toDate ? format(task.createdAt.toDate(), 'dd/MM/yyyy') : 'N/A'}</span>
                             </div>
                         </TableCell>
@@ -630,7 +642,7 @@ export default function AdminDashboardPage() {
             task.assignedTo.includes(user.id) &&
             task.status !== 'Done' &&
             (!task.recurrence || task.recurrence === 'None')
-        ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : 0) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : 0));
+        ).sort((a,b) => getTaskDate(a).getTime() - getTaskDate(b).getTime());
     }, [tasks, user]);
 
     const upcomingAutomatedTasks = useMemo(() => {
@@ -639,15 +651,15 @@ export default function AdminDashboardPage() {
         const filtered = tasks.filter(task => 
             task.recurrence && task.recurrence !== 'None' &&
             task.status !== 'Done' &&
-            isWithinInterval(task.dueDate.toDate(), { start: now, end: thirtyDaysFromNow })
+            isWithinInterval(getTaskDate(task), { start: now, end: thirtyDaysFromNow })
         );
         
         if (upcomingAutomatedTaskFilter === 'all' || upcomingAutomatedTaskFilter === 'All Tasks') {
-            return filtered.sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : 0) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : 0));
+            return filtered.sort((a,b) => getTaskDate(a).getTime() - getTaskDate(b).getTime());
         }
         
         return filtered.filter(task => task.title.startsWith(upcomingAutomatedTaskFilter))
-            .sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : 0) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : 0));
+            .sort((a,b) => getTaskDate(a).getTime() - getTaskDate(b).getTime());
 
     }, [tasks, upcomingAutomatedTaskFilter]);
 
@@ -658,7 +670,7 @@ export default function AdminDashboardPage() {
             !task.assignedTo.includes(user.id) &&
              task.status !== 'Done' &&
             (!task.recurrence || task.recurrence === 'None')
-        ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : 0) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : 0));
+        ).sort((a,b) => getTaskDate(a).getTime() - getTaskDate(b).getTime());
     }, [tasks, user]);
 
     const taggedTasks = useMemo(() => {
@@ -668,7 +680,7 @@ export default function AdminDashboardPage() {
             task.tags.includes(user.id) &&
             task.status !== 'Done' &&
             (!task.recurrence || task.recurrence === 'None')
-        ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : 0) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : 0));
+        ).sort((a,b) => getTaskDate(a).getTime() - getTaskDate(b).getTime());
     }, [tasks, user]);
     
     const departmentTasks = useMemo(() => {
@@ -681,7 +693,7 @@ export default function AdminDashboardPage() {
             return true;
         });
         
-        return deptTasks.sort((a, b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : 0) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : 0));
+        return deptTasks.sort((a, b) => getTaskDate(a).getTime() - getTaskDate(b).getTime());
     }, [tasks, user]);
 
 
@@ -768,7 +780,7 @@ export default function AdminDashboardPage() {
         if (!completedTask.recurrence || completedTask.recurrence === 'None') return;
 
         let nextDueDate: Date;
-        const currentDueDate = completedTask.dueDate.toDate();
+        const currentDueDate = getTaskDate(completedTask);
 
         switch (completedTask.recurrence) {
             case 'Monthly':
@@ -812,7 +824,7 @@ export default function AdminDashboardPage() {
 
         const taskData = {
             ...data,
-            dueDate: Timestamp.fromDate(data.dueDate),
+            dueDate: Timestamp.fromDate(data.dueDate as Date),
         };
         
         try {
@@ -1052,6 +1064,4 @@ export default function AdminDashboardPage() {
         </div>
     );
 }
-    
-
     
