@@ -154,7 +154,8 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                             >
                                             <Check className={cn("h-4 w-4")} />
                                             </div>
-                                            <span>{staff.name}</span>
+                                            <span className="flex-grow">{staff.name}</span>
+                                            <span className="text-xs text-muted-foreground">{staff.uid}</span>
                                         </CommandItem>
                                         ))}
                                     </CommandGroup>
@@ -259,7 +260,8 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                             >
                                             <Check className={cn("h-4 w-4")} />
                                             </div>
-                                            <span>{staff.name}</span>
+                                            <span className="flex-grow">{staff.name}</span>
+                                            <span className="text-xs text-muted-foreground">{staff.uid}</span>
                                         </CommandItem>
                                         ))}
                                     </CommandGroup>
@@ -355,7 +357,7 @@ export default function AdminTasksPage() {
 
         const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
         const staffSnapshot = await getDocs(staffQuery);
-        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, uid: doc.id } as User));
         setAllStaff(fetchedStaff);
 
     } catch (error) {
@@ -777,3 +779,4 @@ export default function AdminTasksPage() {
 
 
     
+
