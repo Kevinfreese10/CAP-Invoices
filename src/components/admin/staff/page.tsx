@@ -133,6 +133,8 @@ export default function AdminStaffPage() {
   
   const handleDelete = async (staffId: string) => {
     try {
+        // Note: This only deletes the Firestore record. Deleting from Firebase Auth
+        // requires admin privileges and is typically done server-side.
         await deleteDoc(doc(db, "users", staffId));
         fetchStaff();
         toast({
@@ -164,10 +166,10 @@ export default function AdminStaffPage() {
             const newFirebaseUser = userCredential.user;
 
             // 2. Create user document in Firestore with the new UID
-            const newUserDoc = doc(collection(db, "users"));
-            await setDoc(newUserDoc, {
+            const newUserDocRef = doc(db, "users", newFirebaseUser.uid);
+            await setDoc(newUserDocRef, {
                 ...staffData,
-                id: newUserDoc.id,
+                id: newFirebaseUser.uid,
                 uid: newFirebaseUser.uid,
             });
 

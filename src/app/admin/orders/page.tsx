@@ -135,7 +135,7 @@ export default function AdminOrdersPage() {
       try {
         const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
         const staffSnapshot = await getDocs(staffQuery);
-        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
+        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
         setAllStaff(fetchedStaff);
 
         const ordersRef = collection(db, 'orders');
@@ -143,7 +143,7 @@ export default function AdminOrdersPage() {
 
         if (user?.role === 'staff') {
           // Staff view: only see orders assigned to them
-          const q = query(ordersRef, where('assignedTo', 'array-contains', user.uid), orderBy('date', 'desc'));
+          const q = query(ordersRef, where('assignedTo', 'array-contains', user.id), orderBy('date', 'desc'));
           const querySnapshot = await getDocs(q);
           filteredOrders = querySnapshot.docs.map(doc => {
             const data = doc.data();
@@ -240,12 +240,12 @@ export default function AdminOrdersPage() {
 
 
   const addEmailToHistory = async (orderId: string, subject: string, message: string) => {
-    if (!user?.uid) return;
+    if (!user?.id) return;
 
      const emailNote: OrderNote = {
       text: message,
       subject: subject || null,
-      authorId: user.uid,
+      authorId: user.id,
       date: Timestamp.now(),
       type: 'email',
     };
@@ -270,7 +270,7 @@ export default function AdminOrdersPage() {
 
   const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
     const orderToUpdate = orders.find(o => o.id === orderId);
-    if (!orderToUpdate || !user || !user.uid) {
+    if (!orderToUpdate || !user || !user.id) {
         toast({
             title: 'Action Failed',
             description: 'Cannot update status. User not found or not authenticated.',
@@ -280,7 +280,7 @@ export default function AdminOrdersPage() {
     }
 
     let assignedStaffIds = orderToUpdate.assignedTo;
-    let assignedStaffMember = assignedStaffIds?.[0] ? allStaff.find(s => s.uid === assignedStaffIds![0]) : undefined;
+    let assignedStaffMember = assignedStaffIds?.[0] ? allStaff.find(s => s.id === assignedStaffIds![0]) : undefined;
 
 
     // New Logic: Assign staff only when moving to "Processing"
@@ -290,7 +290,7 @@ export default function AdminOrdersPage() {
             const newStaffAssignment = getNextStaffMember(department);
             if (newStaffAssignment) {
                 assignedStaffMember = newStaffAssignment;
-                assignedStaffIds = [newStaffAssignment.uid];
+                assignedStaffIds = [newStaffAssignment.id];
                  toast({
                     title: 'Order Assigned',
                     description: `Order has been assigned to ${assignedStaffMember.name}.`
@@ -307,12 +307,12 @@ export default function AdminOrdersPage() {
       });
 
       // Create a task if moving to processing and a staff member is assigned
-      if (newStatus === 'Processing' && assignedStaffIds && assignedStaffIds.length > 0 && user.uid) {
+      if (newStatus === 'Processing' && assignedStaffIds && assignedStaffIds.length > 0 && user.id) {
           const taskData = {
               title: `Process Order: ${orderToUpdate.id}`,
               description: `Fulfill the services for order ${orderToUpdate.id}. Services include: ${orderToUpdate.items.map(i => i.title).join(', ')}.`,
               assignedTo: assignedStaffIds,
-              createdBy: user.uid,
+              createdBy: user.id,
               dueDate: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)), // 7 days from now
               priority: 'Medium',
               status: 'To-Do',
@@ -338,7 +338,7 @@ export default function AdminOrdersPage() {
         description: `Order ${orderId} has been marked as ${newStatus}.`,
       });
       
-      const reseller = orderToUpdate.resellerId ? allStaff.find(u => u.uid === orderToUpdate.resellerId) : undefined;
+      const reseller = orderToUpdate.resellerId ? allStaff.find(u => u.id === orderToUpdate.resellerId) : undefined;
       const isOutsourced = !!orderToUpdate.resellerId;
       const emailTo = isOutsourced ? orderToUpdate.endCustomerEmail : orderToUpdate.customerEmail;
       const customerName = isOutsourced ? orderToUpdate.endCustomerName : orderToUpdate.customerName;
@@ -413,7 +413,7 @@ export default function AdminOrdersPage() {
 
   const getAssignee = (userId?: string): User | undefined => {
     if (!userId) return undefined;
-    return allStaff.find(u => u.uid === userId);
+    return allStaff.find(u => u.id === userId);
   }
 
   const getStatusVariant = (status: Order['status']) => {
@@ -554,9 +554,9 @@ export default function AdminOrdersPage() {
                                     <DropdownMenuSubContent>
                                         {allStaff.map(staff => (
                                         <DropdownMenuItem 
-                                            key={staff.uid} 
-                                            onClick={() => handleAssignment(order.id, staff.uid)}
-                                            disabled={order.assignedTo?.[0] === staff.uid}
+                                            key={staff.id} 
+                                            onClick={() => handleAssignment(order.id, staff.id)}
+                                            disabled={order.assignedTo?.[0] === staff.id}
                                         >
                                             {staff.name}
                                         </DropdownMenuItem>
@@ -606,6 +606,7 @@ export default function AdminOrdersPage() {
     </Dialog>
   );
 }
+
 
 
 

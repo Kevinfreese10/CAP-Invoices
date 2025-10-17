@@ -84,7 +84,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
     }
     
     const getAuthor = (authorId: string): User | undefined => {
-        return allStaff.find(u => u.uid === authorId);
+        return allStaff.find(u => u.id === authorId);
     }
     
     return (
@@ -130,14 +130,14 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                     <CommandGroup heading="Individual Staff">
                                         {allStaff.map((staff) => (
                                         <CommandItem
-                                            key={staff.uid}
+                                            key={staff.id}
                                             value={staff.name}
                                             onSelect={() => {
                                             const selection = new Set(field.value);
-                                            if (selection.has(staff.uid)) {
-                                                selection.delete(staff.uid);
+                                            if (selection.has(staff.id)) {
+                                                selection.delete(staff.id);
                                             } else {
-                                                selection.add(staff.uid);
+                                                selection.add(staff.id);
                                             }
                                             field.onChange(Array.from(selection));
                                             }}
@@ -145,7 +145,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                             <div
                                             className={cn(
                                                 "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                                                field.value?.includes(staff.uid)
+                                                field.value?.includes(staff.id)
                                                 ? "bg-primary text-primary-foreground"
                                                 : "opacity-50 [&_svg]:invisible"
                                             )}
@@ -235,14 +235,14 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                     <CommandGroup heading="Individual Staff">
                                         {allStaff.map((staff) => (
                                         <CommandItem
-                                            key={staff.uid}
+                                            key={staff.id}
                                             value={staff.name}
                                             onSelect={() => {
                                             const selection = new Set(field.value);
-                                            if (selection.has(staff.uid)) {
-                                                selection.delete(staff.uid);
+                                            if (selection.has(staff.id)) {
+                                                selection.delete(staff.id);
                                             } else {
-                                                selection.add(staff.uid);
+                                                selection.add(staff.id);
                                             }
                                             field.onChange(Array.from(selection));
                                             }}
@@ -250,7 +250,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                             <div
                                             className={cn(
                                                 "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                                                field.value?.includes(staff.uid)
+                                                field.value?.includes(staff.id)
                                                 ? "bg-primary text-primary-foreground"
                                                 : "opacity-50 [&_svg]:invisible"
                                             )}
@@ -352,7 +352,7 @@ const getTaskDate = (task: Task): Date => {
 const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete, allStaff, currentUser, onFilter, taskTypes }: { tasks: Task[], title: string, description: string, onEdit: (task: Task) => void, onUpdateStatus: (taskId: string, status: Task['status']) => void, onDelete: (taskId: string) => void, allStaff: User[], currentUser: User | null, onFilter?: (filter: string) => void, taskTypes?: string[] }) => {
     const getAssignee = (userId?: string): User | undefined => {
         if (!userId) return undefined;
-        return allStaff.find(u => u.uid === userId);
+        return allStaff.find(u => u.id === userId);
     }
     
     const getStatusVariant = (status: Task['status']) => {
@@ -414,7 +414,7 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                         const commentAuthor = lastComment ? getAssignee(lastComment.authorId) : null;
                         const assignees = Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo];
                         const tags = Array.isArray(task.tags) ? task.tags : [];
-                        const canDelete = currentUser?.uid === task.createdBy;
+                        const canDelete = currentUser?.id === task.createdBy;
                         
                         return (
                         <TableRow key={task.id}>
@@ -459,7 +459,7 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                                          <TooltipProvider key={userId}>
                                             <Tooltip>
                                                 <TooltipTrigger>
-                                                    <span className={cn("h-6 w-6 border-2 border-background rounded-full flex items-center justify-center text-xs font-semibold", getUserColor(assignee.uid))}>{assignee.name.charAt(0)}</span>
+                                                    <span className={cn("h-6 w-6 border-2 border-background rounded-full flex items-center justify-center text-xs font-semibold", getUserColor(assignee.id))}>{assignee.name.charAt(0)}</span>
                                                 </TooltipTrigger>
                                                 <TooltipContent>
                                                     <p>{assignee.name.split(' ')[0]}</p>
@@ -484,7 +484,7 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                                          <TooltipProvider key={userId}>
                                             <Tooltip>
                                                 <TooltipTrigger>
-                                                    <span className={cn("h-6 w-6 border-2 border-background rounded-full flex items-center justify-center text-xs", getUserColor(taggedUser.uid))}>{taggedUser.name.charAt(0)}</span>
+                                                    <span className={cn("h-6 w-6 border-2 border-background rounded-full flex items-center justify-center text-xs", getUserColor(taggedUser.id))}>{taggedUser.name.charAt(0)}</span>
                                                 </TooltipTrigger>
                                                 <TooltipContent>
                                                     <p>Tagged: {taggedUser.name.split(' ')[0]}</p>
@@ -601,7 +601,7 @@ export default function AdminDashboardPage() {
             // Fetch staff
             const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
             const staffSnapshot = await getDocs(staffQuery);
-            const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, uid: doc.id } as User));
+            const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
             setAllStaff(fetchedStaff);
         } catch (error) {
             console.error("Error fetching dashboard data:", error);
@@ -639,7 +639,7 @@ export default function AdminDashboardPage() {
         if (!user) return [];
         return tasks.filter(task => 
             Array.isArray(task.assignedTo) && 
-            task.assignedTo.includes(user.uid) &&
+            task.assignedTo.includes(user.id) &&
             task.status !== 'Done' &&
             (!task.recurrence || task.recurrence === 'None')
         ).sort((a,b) => getTaskDate(a).getTime() - getTaskDate(b).getTime());
@@ -666,8 +666,8 @@ export default function AdminDashboardPage() {
     const delegatedTasks = useMemo(() => {
         if (!user) return [];
         return tasks.filter(task => 
-            (task.createdBy === user.uid) &&
-            !task.assignedTo.includes(user.uid) &&
+            (task.createdBy === user.id) &&
+            !task.assignedTo.includes(user.id) &&
              task.status !== 'Done' &&
             (!task.recurrence || task.recurrence === 'None')
         ).sort((a,b) => getTaskDate(a).getTime() - getTaskDate(b).getTime());
@@ -677,7 +677,7 @@ export default function AdminDashboardPage() {
         if (!user) return [];
         return tasks.filter(task => 
             Array.isArray(task.tags) && 
-            task.tags.includes(user.uid) &&
+            task.tags.includes(user.id) &&
             task.status !== 'Done' &&
             (!task.recurrence || task.recurrence === 'None')
         ).sort((a,b) => getTaskDate(a).getTime() - getTaskDate(b).getTime());
@@ -705,7 +705,7 @@ export default function AdminDashboardPage() {
         if (!user) return [];
         return tasks.filter(task => 
             task.status === 'Done' &&
-            (task.assignedTo.includes(user.uid) || (user.role === 'admin' && task.createdBy === 'system'))
+            (task.assignedTo.includes(user.id) || (user.role === 'admin' && task.createdBy === 'system'))
         );
     }, [tasks, user]);
 
@@ -818,7 +818,7 @@ export default function AdminDashboardPage() {
 
 
     const handleFormSubmit = async (data: Omit<Task, 'id' | 'status' | 'createdBy' | 'comments' | 'priority' | 'createdAt'>) => {
-        if (!user || !user.uid) {
+        if (!user || !user.id) {
             toast({ title: 'Authentication Error', description: 'Could not identify the current user. Please log in again.', variant: 'destructive'});
             return;
         };
@@ -839,7 +839,7 @@ export default function AdminDashboardPage() {
                     ...taskData,
                     status: 'To-Do',
                     priority: 'Medium',
-                    createdBy: user.uid,
+                    createdBy: user.id,
                     createdAt: Timestamp.now(),
                     comments: [],
                 };
@@ -848,8 +848,8 @@ export default function AdminDashboardPage() {
 
                 // Send email notifications
                 for (const assigneeId of data.assignedTo) {
-                    if (assigneeId !== user.uid) { // Don't email the user who created the task
-                        const assignee = allStaff.find(s => s.uid === assigneeId);
+                    if (assigneeId !== user.id) { // Don't email the user who created the task
+                        const assignee = allStaff.find(s => s.id === assigneeId);
                         // if (assignee?.email) {
                         //     try {
                         //         const emailHtml = render(<NewTaskEmail 
@@ -890,7 +890,7 @@ export default function AdminDashboardPage() {
         const newComment: TaskComment = {
             text: commentText,
             date: Timestamp.now(),
-            authorId: user.uid,
+            authorId: user.id,
         };
 
         try {
@@ -1069,3 +1069,4 @@ export default function AdminDashboardPage() {
     
 
     
+
