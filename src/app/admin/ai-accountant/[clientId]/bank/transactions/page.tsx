@@ -122,10 +122,11 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
             if (!nextMonth || nextMonth.getTime() !== addMonths(currentMonth, 1).getTime()) {
                 if (startRange.getTime() === currentMonth.getTime()) {
                     // Single month
-                    ranges.push(format(startRange, 'MMMM yyyy'));
+                    ranges.push(format(startRange, 'dd MMMM yyyy'));
                 } else {
                     // End of a range
-                    ranges.push(`${format(startRange, 'MMMM yyyy')} - ${format(currentMonth, 'MMMM yyyy')}`);
+                    const rangeEnd = endOfMonth(currentMonth);
+                    ranges.push(`${format(startRange, 'dd MMMM yyyy')} to ${format(rangeEnd, 'dd MMMM yyyy')}`);
                 }
                 if(nextMonth) {
                     startRange = nextMonth;
@@ -1575,4 +1576,5 @@ export default function BankTransactionsPage() {
     
 
     
+
 
