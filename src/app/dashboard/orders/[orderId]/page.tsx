@@ -3,9 +3,9 @@
 
 import { useState, useEffect } from 'react';
 import { notFound, useParams } from 'next/navigation';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, updateDoc, arrayUnion, Timestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order } from '@/lib/types';
+import { Order, Service } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -13,6 +13,8 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Loader2, Upload } from 'lucide-react';
 import { format } from 'date-fns';
+import { services as allServices } from '@/lib/data';
+
 
 const db = getFirestore(firebaseApp);
 
@@ -85,6 +87,10 @@ export default function ClientOrderDetailsPage() {
     return notFound();
   }
 
+   const orderedServices = order.items.map(item => {
+        return allServices.find(s => s.id === item.id);
+    }).filter((s): s is Service => s !== undefined);
+
   return (
     <div className="space-y-8">
         <div>
@@ -128,12 +134,18 @@ export default function ClientOrderDetailsPage() {
                  <Card>
                     <CardHeader>
                         <CardTitle>Upload Documents</CardTitle>
-                        <CardDescription>Upload the required documents for this order.</CardDescription>
+                        <CardDescription>Provide the required information for your order.</CardDescription>
                     </CardHeader>
-                    <CardContent>
-                        <Button className="w-full">
+                    <CardContent className="space-y-4">
+                        {orderedServices.flatMap(s => s.informationToProvide).map((info, index) => (
+                            <div key={index} className="space-y-2">
+                                <label className="text-sm font-medium">{info.label}</label>
+                                <Input type="text" />
+                            </div>
+                        ))}
+                         <Button className="w-full">
                             <Upload className="mr-2 h-4 w-4" />
-                            Upload Files
+                            Submit Information
                         </Button>
                     </CardContent>
                  </Card>

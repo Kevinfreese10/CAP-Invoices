@@ -109,7 +109,7 @@ export const DocumentRequestEmail = ({ order, items, reseller, replyTo }: Docume
                     Hi {order.customerName},
                 </Text>
                 <Text style={paragraph}>
-                    Your order <strong style={{color: '#214392'}}>{order.id}</strong> is now being processed. To continue, we need some information from you. Please reply to this email and attach the documents listed below. Any forms you need to fill out are attached to this email.
+                    Your order <strong style={{color: '#214392'}}>{order.id}</strong> is now being processed. To continue, we need some information from you. Please log into your client dashboard to upload the required documents. Any forms you need to fill out are also available there.
                 </Text>
                 
                 <Hr style={hr} />
@@ -119,8 +119,8 @@ export const DocumentRequestEmail = ({ order, items, reseller, replyTo }: Docume
                         <Text style={itemTitle}>{service.title}</Text>
                         <Text style={paragraph}>We will need the following from you:</Text>
                         <ul style={prereqList}>
-                            {service.clientRequirements.map((req, index) => (
-                                <li key={index} style={prereqItem}>{req}</li>
+                            {service.informationToProvide.map((req, index) => (
+                                <li key={index} style={prereqItem}>{req.label}</li>
                             ))}
                         </ul>
                     </Section>
