@@ -1,3 +1,4 @@
+
 import {
   Body,
   Container,
@@ -18,6 +19,8 @@ import { Order, User } from '@/lib/types';
 interface OrderConfirmationEmailProps {
   order: Order;
   reseller?: User;
+  isNewUser?: boolean;
+  generatedPassword?: string | null;
 }
 
 const formatPrice = (price: number) => {
@@ -96,30 +99,6 @@ const paymentInstructionSection = {
     backgroundColor: '#fafafa',
 }
 
-const paymentRow = {
-    marginBottom: '10px'
-}
-
-const paymentLabel = {
-    fontSize: '14px',
-    color: '#525f7f',
-    width: '150px'
-}
-
-const paymentValue = {
-    fontSize: '14px',
-    fontWeight: 'bold' as const,
-    color: '#333'
-}
-
-const referenceValue = {
-    ...paymentValue,
-    color: '#c00',
-    backgroundColor: '#fff0f0',
-    padding: '4px 8px',
-    borderRadius: '4px',
-}
-
 const detailItem = {
     marginBottom: '12px',
 };
@@ -137,7 +116,16 @@ const detailValue = {
     margin: 0,
 };
 
-export const OrderConfirmationEmail = ({ order, reseller }: OrderConfirmationEmailProps) => {
+const referenceValue = {
+    ...detailValue,
+    display: 'inline-block',
+    color: '#c00',
+    backgroundColor: '#fff0f0',
+    padding: '4px 8px',
+    borderRadius: '4px',
+}
+
+export const OrderConfirmationEmail = ({ order, reseller, isNewUser, generatedPassword }: OrderConfirmationEmailProps) => {
     const previewText = `Order Confirmation #${order.id}`;
 
     const bankingDetails = reseller?.bankingDetails || {
@@ -151,8 +139,7 @@ export const OrderConfirmationEmail = ({ order, reseller }: OrderConfirmationEma
     const companyEmail = reseller?.email || 'info@myacc.co.za';
     const companyAddress = reseller?.address ? `${reseller.address.street}, ${reseller.address.city}` : '369 Oak Avenue, Ferndale, Randburg';
     
-    // In a real app this would be an environment variable
-    const siteUrl = 'https://my-accountant-app.com';
+    const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.myacc.co.za';
 
     return (
         <Html>
@@ -184,6 +171,29 @@ export const OrderConfirmationEmail = ({ order, reseller }: OrderConfirmationEma
                     <Column align="right"><Text style={{...paragraph, fontWeight: 'bold'}}>{formatPrice(order.clientTotal || order.total)}</Text></Column>
                 </Row>
                 <Hr style={hr} />
+                
+                {isNewUser && generatedPassword && (
+                    <>
+                        <Heading style={{...heading, fontSize: '20px', marginTop: '30px'}}>Your New Client Portal Account</Heading>
+                        <Text style={paragraph}>
+                            An account has been created for you. You can use these details to log in and upload the documents required for your order.
+                        </Text>
+                        <Section style={paymentInstructionSection}>
+                            <div style={detailItem}>
+                                <p style={detailLabel}>Login Email:</p>
+                                <p style={detailValue}>{order.customerEmail}</p>
+                            </div>
+                            <div style={detailItem}>
+                                <p style={detailLabel}>Your Password:</p>
+                                <p style={{...referenceValue, display: 'inline-block'}}>{generatedPassword}</p>
+                            </div>
+                        </Section>
+                        <Text style={{ ...paragraph, textAlign: 'center', margin: '20px 0' }}>
+                            <Link href={`${siteUrl}/login`} style={button}>Login to Your Account</Link>
+                        </Text>
+                        <Hr style={hr} />
+                    </>
+                )}
                 
                 <Heading style={{...heading, fontSize: '20px', marginTop: '30px'}}>Payment Instructions</Heading>
                 <Text style={paragraph}>

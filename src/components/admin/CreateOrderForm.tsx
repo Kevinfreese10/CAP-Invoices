@@ -43,7 +43,6 @@ const formSchema = z.object({
   customerName: z.string().min(2, 'Customer name is required.'),
   customerEmail: z.string().email('Invalid email address.'),
   customerPhone: z.string().min(10, 'A valid phone number is required.'),
-  password: z.string().optional(),
   items: z.array(lineItemSchema).min(1, 'At least one line item is required.'),
 });
 
@@ -94,7 +93,6 @@ export default function CreateOrderForm() {
       customerName: '',
       customerEmail: '',
       customerPhone: '',
-      password: '',
       items: [{ isCustom: false, serviceId: '', description: '', quantity: 1, price: 0, discountType: 'fixed', discountValue: 0 }],
     },
     mode: 'onChange',
@@ -197,11 +195,6 @@ export default function CreateOrderForm() {
   async function onSubmit(values: CreateOrderFormValues) {
     if (!currentUser) return;
     
-    if (!existingUser && !values.password) {
-        form.setError('password', { message: 'A password is required for new clients.'});
-        return;
-    }
-    
     setIsLoading(true);
     toast({
       title: 'Creating Order...',
@@ -210,10 +203,12 @@ export default function CreateOrderForm() {
 
     try {
         let userId = existingUser?.uid;
-        // Step 1: Create user if they don't exist
-        if (!existingUser && values.password) {
+        let generatedPassword: null | string = null;
+
+        if (!existingUser) {
+            generatedPassword = Math.random().toString(36).slice(-8);
             try {
-                const userCredential = await createUserWithEmailAndPassword(auth, values.customerEmail, values.password);
+                const userCredential = await createUserWithEmailAndPassword(auth, values.customerEmail, generatedPassword);
                 const firebaseUser = userCredential.user;
                 userId = firebaseUser.uid;
                 
@@ -285,7 +280,7 @@ export default function CreateOrderForm() {
 
       await setDoc(doc(db, 'orders', orderId), orderData);
       
-      const emailHtml = render(<OrderConfirmationEmail order={orderData} />);
+      const emailHtml = render(<OrderConfirmationEmail order={orderData} isNewUser={!existingUser} generatedPassword={generatedPassword} />);
       await sendEmail({
         to: values.customerEmail,
         bcc: 'kev@thinkestry.co.za',
@@ -368,18 +363,12 @@ export default function CreateOrderForm() {
             />
         </div>
         {!existingUser && (
-            <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Create Password for New Client</FormLabel>
-                    <FormControl><Input type="password" {...field} /></FormControl>
-                    <FormDescription>A temporary password for the client to log in.</FormDescription>
-                    <FormMessage />
-                    </FormItem>
-                )}
-            />
+            <Alert variant="destructive">
+                <AlertTitle>New Client Account</AlertTitle>
+                <AlertDescription>
+                    A new client account will be created. A randomly generated password will be included in the order confirmation email.
+                </AlertDescription>
+            </Alert>
         )}
         
         <Separator />

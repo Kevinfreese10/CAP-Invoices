@@ -1,3 +1,4 @@
+
 import {
   Body,
   Container,
@@ -55,6 +56,19 @@ const anchor = {
   color: '#214392',
 };
 
+const button = {
+  backgroundColor: '#214392',
+  borderRadius: '5px',
+  color: '#fff',
+  fontSize: '16px',
+  fontWeight: 'bold',
+  textDecoration: 'none',
+  textAlign: 'center' as const,
+  display: 'block',
+  width: '100%',
+  padding: '12px',
+};
+
 const footer = {
   color: '#8898aa',
   fontSize: '12px',
@@ -66,28 +80,6 @@ const heading = {
   fontWeight: 'bold' as const,
   marginBottom: '20px',
   color: '#333'
-}
-
-const itemSection = {
-    padding: '10px 0'
-}
-
-const itemTitle = {
-    fontWeight: 'bold' as const,
-    fontSize: '16px',
-    color: '#333'
-}
-
-const prereqList = {
-    listStyleType: 'disc',
-    paddingLeft: '20px',
-    margin: '10px 0',
-}
-
-const prereqItem = {
-    color: '#525f7f',
-    fontSize: '14px',
-    lineHeight: '22px',
 }
 
 export const DocumentRequestEmail = ({ order, items, reseller, replyTo }: DocumentRequestEmailProps) => {
@@ -109,22 +101,12 @@ export const DocumentRequestEmail = ({ order, items, reseller, replyTo }: Docume
                     Hi {order.customerName},
                 </Text>
                 <Text style={paragraph}>
-                    Your order <strong style={{color: '#214392'}}>{order.id}</strong> is now being processed. To continue, we need some information from you. Please log into your client dashboard to upload the required documents. Any forms you need to fill out are also available there.
+                    Your order <strong style={{color: '#214392'}}>{order.id}</strong> is now being processed. To continue, we need some information from you. Please log into your client dashboard to upload the required documents.
                 </Text>
                 
-                <Hr style={hr} />
-
-                {items.map(({ service }) => (
-                    <Section key={service.id} style={itemSection}>
-                        <Text style={itemTitle}>{service.title}</Text>
-                        <Text style={paragraph}>We will need the following from you:</Text>
-                        <ul style={prereqList}>
-                            {service.informationToProvide.map((req, index) => (
-                                <li key={index} style={prereqItem}>{req.label}</li>
-                            ))}
-                        </ul>
-                    </Section>
-                ))}
+                 <Button style={button} href={`${process.env.NEXT_PUBLIC_APP_URL}/dashboard/orders/${order.id}`}>
+                    Go to My Dashboard
+                </Button>
                 
                 <Hr style={hr} />
                 
