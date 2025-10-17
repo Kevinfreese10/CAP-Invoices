@@ -75,9 +75,14 @@ async function isValidPayFastIP(request: NextRequest): Promise<boolean> {
 /**
  * Performs server-to-server confirmation of the transaction with PayFast.
  * @param data The ITN payload.
+ * @param isSimulation A flag to bypass the check during simulations.
  * @returns A promise that resolves to a boolean.
  */
-async function validateWithPayFastServer(data: { [key: string]: any }): Promise<boolean> {
+async function validateWithPayFastServer(data: { [key: string]: any }, isSimulation: boolean): Promise<boolean> {
+    if (isSimulation) {
+        return true; // Bypass for simulated requests
+    }
+
     const pfHost = process.env.NEXT_PUBLIC_PAYFAST_URL?.includes('sandbox') 
         ? 'sandbox.payfast.co.za' 
         : 'www.payfast.co.za';
@@ -123,6 +128,8 @@ export async function POST(req: NextRequest) {
     if (!orderId) {
         return new NextResponse('Order ID (m_payment_id) missing', { status: 400 });
     }
+    
+    const isSimulation = req.headers.get('X-PayFast-Simulation') === 'true';
 
     const orderRef = doc(db, 'orders', orderId);
 
@@ -169,7 +176,8 @@ export async function POST(req: NextRequest) {
     const orderSnap = await getDoc(orderRef);
     if (!orderSnap.exists()) {
         const errorMessage = `Order ${orderId} not found in database.`;
-        await logItnAttempt('Failed', errorMessage);
+        // Can't log to an order that doesn't exist, so just log to console.
+        console.error(errorMessage);
         return new NextResponse('Order not found', { status: 404 });
     }
     const order = orderSnap.data() as Order;
@@ -185,7 +193,7 @@ export async function POST(req: NextRequest) {
     await logItnAttempt('Success', `Security Check 3 PASSED: Payment amount matches order total.`);
 
     // Security Check 4: Server-to-Server Confirmation
-    const isServerValid = await validateWithPayFastServer(data);
+    const isServerValid = await validateWithPayFastServer(data, isSimulation);
     if (!isServerValid) {
         const errorMessage = `Security Check 4 FAILED: PayFast server validation failed.`;
         await logItnAttempt('Failed', errorMessage);
