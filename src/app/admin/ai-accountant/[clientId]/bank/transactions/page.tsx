@@ -244,7 +244,7 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
                                     <TableBody>
                                         {extractedTransactions.map((tx, i) => (
                                             <TableRow key={i}>
-                                                <TableCell>{tx.date}</TableCell>
+                                                <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                                 <TableCell>{tx.description}</TableCell>
                                                 <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
                                             </TableRow>
@@ -373,7 +373,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
             const dailyCounters: { [key: string]: number } = {};
 
             parsedTransactions.forEach((row, index) => {
-                const parsedDate = new Date(row.Date.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1'));
+                const parsedDate = new Date(row.Date.replace(/(\\d{2})\/(\\d{2})\/(\\d{4})/, '$3-$2-$1'));
 
                 if (isNaN(parsedDate.getTime())) {
                     console.warn(`Skipping row ${index + 2}: Invalid date format.`);
