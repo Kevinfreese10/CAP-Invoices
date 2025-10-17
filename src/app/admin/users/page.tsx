@@ -1,5 +1,4 @@
 
-
 'use client';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -17,7 +16,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { User } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc, query, where, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc, query, where, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { getAuth, createUserWithEmailAndPassword, User as FirebaseUser } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
@@ -96,10 +95,66 @@ function UserForm({ user, onSubmit, onCancel }: { user: User | null, onSubmit: (
     )
 }
 
+function DeleteUserDialog({
+  userToDelete,
+  allUsers,
+  onConfirmDelete,
+  isDeleting,
+}: {
+  userToDelete: User | null;
+  allUsers: User[];
+  onConfirmDelete: (userIdToDelete: string, transferToUserId: string) => void;
+  isDeleting: boolean;
+}) {
+  const [transferToUserId, setTransferToUserId] = useState<string>('');
+  if (!userToDelete) return null;
+
+  return (
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Delete User: {userToDelete.name}?</AlertDialogTitle>
+        <AlertDialogDescription>
+          This action is permanent. To prevent orphaned tasks, please select a new user to transfer all of their existing tasks to.
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+       <div className="py-4 space-y-2">
+        <Label htmlFor="transfer-user-select">Transfer tasks to:</Label>
+        <Select onValueChange={setTransferToUserId} value={transferToUserId}>
+          <SelectTrigger id="transfer-user-select">
+            <SelectValue placeholder="Select a user..." />
+          </SelectTrigger>
+          <SelectContent>
+            {allUsers
+              .filter((user) => user.id !== userToDelete.id) // Exclude the user being deleted
+              .map((user) => (
+                <SelectItem key={user.id} value={user.id}>
+                  {user.name} ({user.email})
+                </SelectItem>
+              ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <AlertDialogFooter>
+        <AlertDialogCancel>Cancel</AlertDialogCancel>
+        <AlertDialogAction
+          onClick={() => onConfirmDelete(userToDelete.id, transferToUserId)}
+          disabled={!transferToUserId || isDeleting}
+        >
+          {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          Transfer & Delete
+        </AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  );
+}
+
+
 export default function ManageUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const { toast } = useToast();
   const { user: adminUser, login } = useAuth();
@@ -133,20 +188,52 @@ export default function ManageUsersPage() {
     setIsFormOpen(true);
   };
   
-  const handleDelete = async (userId: string) => {
+  const handleDeleteClick = (user: User) => {
+    setSelectedUser(user);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async (userIdToDelete: string, transferToUserId: string) => {
+    setIsDeleting(true);
     try {
-        await deleteDoc(doc(db, "users", userId));
-        fetchUsers();
-        toast({
-            title: 'User Deleted',
-            description: 'The user has been removed from Firestore.',
-            variant: 'destructive',
-        });
+      const batch = writeBatch(db);
+
+      // 1. Reassign tasks
+      const tasksQuery = query(collection(db, 'tasks'), where('assignedTo', 'array-contains', userIdToDelete));
+      const tasksSnapshot = await getDocs(tasksQuery);
+      
+      tasksSnapshot.forEach((taskDoc) => {
+        const taskData = taskDoc.data();
+        const newAssignedTo = [...taskData.assignedTo.filter((id: string) => id !== userIdToDelete), transferToUserId];
+        batch.update(taskDoc.ref, { assignedTo: Array.from(new Set(newAssignedTo)) }); // Ensure no duplicates
+      });
+      
+      // 2. Delete the user document from Firestore
+      const userRef = doc(db, 'users', userIdToDelete);
+      batch.delete(userRef);
+
+      // Note: Deleting from Firebase Auth requires admin SDK, which is not available client-side.
+      // This action only removes them from the application's user database.
+
+      await batch.commit();
+      
+      toast({
+        title: 'User Deleted',
+        description: `The user and their ${tasksSnapshot.size} tasks have been transferred and the user removed.`,
+        variant: 'destructive',
+      });
+
+      fetchUsers();
     } catch (error) {
         console.error("Error deleting user:", error);
         toast({ title: 'Error', description: 'Could not delete the user.', variant: 'destructive' });
+    } finally {
+      setIsDeleting(false);
+      setIsDeleteDialogOpen(false);
+      setSelectedUser(null);
     }
   };
+
 
   const handleFormSubmit = async (data: z.infer<typeof formSchema>) => {
     const { id, password, ...userData } = data;
@@ -258,6 +345,7 @@ export default function ManageUsersPage() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>UID</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -270,6 +358,7 @@ export default function ManageUsersPage() {
                     {user.name}
                   </TableCell>
                   <TableCell>{user.email}</TableCell>
+                   <TableCell className="font-mono text-xs">{user.uid}</TableCell>
                   <TableCell>
                     <Badge variant={user.role === 'admin' ? 'default' : 'secondary'} className="capitalize">
                       {user.role}
@@ -277,43 +366,25 @@ export default function ManageUsersPage() {
                   </TableCell>
                   <TableCell>{formatDate(user.createdAt)}</TableCell>
                   <TableCell className="text-right">
-                    <AlertDialog>
-                        <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => handleEdit(user)}>
-                                Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                             <AlertDialogTrigger asChild>
-                                <DropdownMenuItem className="text-destructive" disabled={user.role === 'admin'}>
-                                    Delete
-                                </DropdownMenuItem>
-                            </AlertDialogTrigger>
-                        </DropdownMenuContent>
-                        </DropdownMenu>
-                         <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                This action cannot be undone. This will permanently delete the user account for:
-                                <span className="font-semibold"> {user.name}</span>. This only removes them from Firestore.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDelete(user.id)}>
-                                    Continue
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="h-8 w-8 p-0">
+                          <span className="sr-only">Open menu</span>
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuItem onClick={() => handleEdit(user)}>Edit</DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                            className="text-destructive"
+                            onSelect={() => handleDeleteClick(user)}
+                        >
+                            Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))}
@@ -322,6 +393,16 @@ export default function ManageUsersPage() {
           )}
         </CardContent>
       </Card>
+      
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DeleteUserDialog
+          userToDelete={selectedUser}
+          allUsers={users}
+          onConfirmDelete={handleConfirmDelete}
+          isDeleting={isDeleting}
+        />
+      </AlertDialog>
+
     </div>
   );
 }
