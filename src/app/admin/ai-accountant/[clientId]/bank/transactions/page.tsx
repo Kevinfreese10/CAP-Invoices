@@ -40,7 +40,7 @@ import { Progress } from '@/components/ui/progress';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandItem } from '@/components/ui/command';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { format, startOfMonth, endOfMonth, eachMonthOfInterval, getYear, getMonth, parseISO } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachMonthOfInterval, getYear, getMonth, parseISO, addMonths } from 'date-fns';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 
@@ -105,6 +105,36 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
             handlePeriodAnalysis();
         }
     }, [files]);
+
+    const groupConsecutiveMonths = (monthDates: Date[]): string[] => {
+        if (monthDates.length === 0) return [];
+    
+        monthDates.sort((a,b) => a.getTime() - b.getTime());
+    
+        const ranges: string[] = [];
+        let startRange: Date = monthDates[0];
+    
+        for (let i = 0; i < monthDates.length; i++) {
+            const currentMonth = monthDates[i];
+            const nextMonth = monthDates[i + 1];
+    
+            // Check if next month is not consecutive
+            if (!nextMonth || nextMonth.getTime() !== addMonths(currentMonth, 1).getTime()) {
+                if (startRange.getTime() === currentMonth.getTime()) {
+                    // Single month
+                    ranges.push(format(startRange, 'MMMM yyyy'));
+                } else {
+                    // End of a range
+                    ranges.push(`${format(startRange, 'MMMM yyyy')} - ${format(currentMonth, 'MMMM yyyy')}`);
+                }
+                if(nextMonth) {
+                    startRange = nextMonth;
+                }
+            }
+        }
+        return ranges;
+    };
+    
     
     const handlePeriodAnalysis = async () => {
         setIsAnalyzing(true);
@@ -161,11 +191,10 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
                     });
                 });
                 
-                const foundMissingMonths = allMonthsInInterval
-                    .filter(monthStart => !presentMonths.has(`${getYear(monthStart)}-${getMonth(monthStart)}`))
-                    .map(monthStart => format(monthStart, 'MMMM yyyy'));
+                const foundMissingMonthDates = allMonthsInInterval
+                    .filter(monthStart => !presentMonths.has(`${getYear(monthStart)}-${getMonth(monthStart)}`));
                 
-                setMissingMonths(foundMissingMonths);
+                setMissingMonths(groupConsecutiveMonths(foundMissingMonthDates));
             }
         }
         setIsAnalyzing(false);
@@ -335,7 +364,7 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
                                     <TableBody>
                                         {extractedTransactions.map((tx, i) => (
                                             <TableRow key={i}>
-                                                <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
+                                                <TableCell>{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
                                                 <TableCell>{tx.description}</TableCell>
                                                 <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
                                             </TableRow>
@@ -1546,3 +1575,4 @@ export default function BankTransactionsPage() {
     
 
     
+
