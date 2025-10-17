@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { Task, User } from '@/lib/types';
-import { format, startOfWeek, addDays, isSameDay, eachDayOfInterval, subDays, isToday, parseISO } from 'date-fns';
+import { format, startOfWeek, addDays, isSameDay, eachDayOfInterval, subDays, isToday, parseISO, isPast } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
