@@ -1,17 +1,19 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
 import { notFound, useParams } from 'next/navigation';
 import { getFirestore, doc, getDoc, collection, query, where, getDocs, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service, User, OrderNote } from '@/lib/types';
+import { Order, Service, User, OrderNote, DocumentUpload } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, Upload, ClipboardCheck, MessageSquare, Send, Mail } from 'lucide-react';
+import { ArrowLeft, Loader2, Upload, ClipboardCheck, MessageSquare, Send, Mail, CheckCircle, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
@@ -24,6 +26,7 @@ import { Textarea } from '@/components/ui/textarea';
 
 
 const db = getFirestore(firebaseApp);
+const storage = getStorage(firebaseApp);
 
 const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -47,6 +50,8 @@ export default function ClientOrderDetailsPage() {
   const { user: currentUser } = useAuth();
   const [allStaff, setAllStaff] = useState<User[]>([]);
   const { toast } = useToast();
+  const [uploadingFiles, setUploadingFiles] = useState<{ [key: string]: number }>({});
+
 
    const noteForm = useForm<z.infer<typeof noteFormSchema>>({
     resolver: zodResolver(noteFormSchema),
@@ -62,13 +67,11 @@ export default function ClientOrderDetailsPage() {
         const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
         setAllStaff(fetchedStaff);
 
-        // Fetch all services from Firestore
         const servicesQuery = query(collection(db, 'services'));
         const servicesSnapshot = await getDocs(servicesQuery);
         const fetchedServices = servicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
         setAllServices(fetchedServices);
 
-        // Fetch the specific order
         const docRef = doc(db, 'orders', id);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
@@ -93,6 +96,57 @@ export default function ClientOrderDetailsPage() {
   useEffect(() => {
     fetchOrderAndServices();
   }, [id]);
+  
+  const handleFileUpload = (file: File, serviceId: string, requirementLabel: string) => {
+    if (!currentUser || !order) return;
+    
+    const uniqueFileName = `${Date.now()}-${file.name}`;
+    const storageRef = ref(storage, `orders/${order.id}/${uniqueFileName}`);
+    const uploadTask = uploadBytesResumable(storageRef, file);
+    
+    const uploadKey = `${serviceId}-${requirementLabel}`;
+    setUploadingFiles(prev => ({ ...prev, [uploadKey]: 0 }));
+
+    uploadTask.on('state_changed',
+        (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            setUploadingFiles(prev => ({ ...prev, [uploadKey]: progress }));
+        },
+        (error) => {
+            console.error("Upload failed:", error);
+            toast({ title: 'Upload Failed', description: 'Could not upload your file.', variant: 'destructive'});
+            setUploadingFiles(prev => {
+                const newUploading = { ...prev };
+                delete newUploading[uploadKey];
+                return newUploading;
+            });
+        },
+        async () => {
+            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            const newUpload: DocumentUpload = {
+                serviceId,
+                requirementLabel,
+                fileUrl: downloadURL,
+                fileName: file.name,
+                uploadedAt: Timestamp.now(),
+                status: 'pending',
+            };
+            
+            const orderRef = doc(db, 'orders', order.id);
+            await updateDoc(orderRef, {
+                documentUploads: arrayUnion(newUpload)
+            });
+
+            toast({ title: 'File Uploaded', description: `${file.name} has been submitted for review.`});
+            setUploadingFiles(prev => {
+                const newUploading = { ...prev };
+                delete newUploading[uploadKey];
+                return newUploading;
+            });
+            fetchOrderAndServices(); // Re-fetch to update UI
+        }
+    );
+  };
   
   const onNoteSubmit = async (values: z.infer<typeof noteFormSchema>) => {
     if (!currentUser || !order) return;
@@ -135,7 +189,6 @@ export default function ClientOrderDetailsPage() {
   };
 
   const getAuthor = (authorId: string): User | undefined => {
-    // Also check current user in case they aren't in the staff list (e.g. client)
     if (currentUser?.uid === authorId) return currentUser;
     return allStaff.find(u => u.uid === authorId);
   }
@@ -189,15 +242,40 @@ export default function ClientOrderDetailsPage() {
                                 {item.service && item.service.informationToProvide && item.service.informationToProvide.length > 0 && (
                                     <div className="pl-4 ml-4 border-l-2 space-y-4">
                                         <h4 className="font-medium text-md text-muted-foreground">Documents Required:</h4>
-                                        {item.service.informationToProvide.map((info, infoIndex) => (
-                                            <div key={infoIndex} className="space-y-2">
+                                        {item.service.informationToProvide.map((info, infoIndex) => {
+                                            const upload = order.documentUploads?.find(d => d.serviceId === item.service?.id && d.requirementLabel === info.label);
+                                            const uploadKey = `${item.service?.id}-${info.label}`;
+                                            const isUploading = uploadingFiles[uploadKey] !== undefined;
+                                            
+                                            return (
+                                            <div key={infoIndex} className="space-y-2 p-3 rounded-md border">
                                                 <label className="text-sm font-medium flex items-center gap-2">
                                                     <ClipboardCheck className="h-4 w-4" />
                                                     {info.label}
                                                 </label>
-                                                <Input type={info.type === 'pdf' ? 'file' : 'text'} accept={info.type === 'pdf' ? 'application/pdf' : undefined} />
+                                                {upload ? (
+                                                     <div className="flex items-center justify-between">
+                                                        <a href={upload.fileUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline">{upload.fileName}</a>
+                                                        {upload.status === 'approved' && <Badge variant="success"><CheckCircle className="h-3 w-3 mr-1"/>Approved</Badge>}
+                                                        {upload.status === 'pending' && <Badge variant="warning">Pending Review</Badge>}
+                                                        {upload.status === 'rejected' && (
+                                                          <div className="text-right">
+                                                            <Badge variant="destructive"><AlertTriangle className="h-3 w-3 mr-1"/>Rejected</Badge>
+                                                            {upload.rejectionReason && <p className="text-xs text-destructive mt-1">{upload.rejectionReason}</p>}
+                                                            <Input type="file" accept={info.type === 'pdf' ? 'application/pdf' : 'image/*'} className="mt-2" onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], item.service!.id, info.label)} />
+                                                          </div>
+                                                        )}
+                                                     </div>
+                                                ) : isUploading ? (
+                                                     <div className="flex items-center gap-2">
+                                                        <Loader2 className="h-4 w-4 animate-spin"/>
+                                                        <p className="text-sm">Uploading... {Math.round(uploadingFiles[uploadKey])}%</p>
+                                                    </div>
+                                                ) : (
+                                                    <Input type="file" accept={info.type === 'pdf' ? 'application/pdf' : 'image/*'} onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], item.service!.id, info.label)} />
+                                                )}
                                             </div>
-                                        ))}
+                                        )})}
                                     </div>
                                 )}
                                 {index < orderedItemsWithServices.length - 1 && <Separator />}
@@ -209,12 +287,6 @@ export default function ClientOrderDetailsPage() {
                             <span>Total</span>
                             <span>{formatPrice(order.total)}</span>
                         </div>
-                        {orderedItemsWithServices.some(item => item.service?.informationToProvide?.length) && (
-                            <Button className="w-full mt-6" size="lg">
-                                <Upload className="mr-2 h-4 w-4" />
-                                Submit All Documents
-                            </Button>
-                        )}
                     </CardContent>
                 </Card>
             </div>

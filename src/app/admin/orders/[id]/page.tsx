@@ -1,18 +1,19 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
 import { notFound, useParams } from 'next/navigation';
 import { getFirestore, doc, getDoc, updateDoc, arrayUnion, Timestamp, collection, getDocs, where, query } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service, User, OrderNote } from '@/lib/types';
+import { Order, Service, User, OrderNote, DocumentUpload } from '@/lib/types';
 import { services } from '@/lib/data';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, User as UserIcon, Mail, Phone, Send, FileText, Star, MessageSquare, Percent } from 'lucide-react';
+import { ArrowLeft, Loader2, User as UserIcon, Mail, Phone, Send, FileText, Star, MessageSquare, Percent, CheckCircle, AlertTriangle, XCircle, Download } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -164,6 +165,9 @@ const noteFormSchema = z.object({
   noteText: z.string().min(3, "Note must be at least 3 characters."),
 });
 
+const rejectionFormSchema = z.object({
+  reason: z.string().min(10, 'Please provide a reason for rejection.'),
+});
 
 export default function AdminOrderDetailsPage() {
   const [order, setOrder] = useState<Order | null>(null);
@@ -177,10 +181,19 @@ export default function AdminOrderDetailsPage() {
   const { toast } = useToast();
   const [allStaff, setAllStaff] = useState<User[]>([]);
   
+  const [isRejectionDialogOpen, setIsRejectionDialogOpen] = useState(false);
+  const [documentToReject, setDocumentToReject] = useState<DocumentUpload | null>(null);
+
   const noteForm = useForm<z.infer<typeof noteFormSchema>>({
     resolver: zodResolver(noteFormSchema),
     defaultValues: { noteText: "" },
   });
+
+  const rejectionForm = useForm<z.infer<typeof rejectionFormSchema>>({
+    resolver: zodResolver(rejectionFormSchema),
+    defaultValues: { reason: '' },
+  });
+
 
   const fetchOrderAndStaff = async () => {
       if (!id) return;
@@ -202,7 +215,6 @@ export default function AdminOrderDetailsPage() {
             notes: (data.notes || []).map((note: any) => ({...note, date: note.date.toDate()})),
           } as Order;
 
-          // If it's an outsourced order, fetch the original order to get end-client details
           if (fetchedOrder.originalOrderId) {
             const originalOrderRef = doc(db, 'orders', fetchedOrder.originalOrderId);
             const originalOrderSnap = await getDoc(originalOrderRef);
@@ -221,7 +233,6 @@ export default function AdminOrderDetailsPage() {
           }
           
           if (fetchedOrder.userId) {
-            // Check dynamic users first
             let customerUser = fetchedStaff.find(u => u.uid === fetchedOrder.userId);
             setCustomer(customerUser || null);
           }
@@ -270,7 +281,7 @@ export default function AdminOrderDetailsPage() {
 
       toast({ title: "Note Added", description: "Your note has been saved." });
       noteForm.reset();
-      await fetchOrderAndStaff(); // Re-fetch to display the new note
+      await fetchOrderAndStaff(); 
     } catch (error) {
       console.error("Error adding note:", error);
       toast({ title: "Error", description: "Failed to add note.", variant: "destructive" });
@@ -296,7 +307,40 @@ export default function AdminOrderDetailsPage() {
       await fetchOrderAndStaff();
     } catch (error) {
         console.error("Error logging email to history:", error);
-        // We don't show a toast here because the user already got a "sent" confirmation
+    }
+  };
+
+   const handleDocumentStatusUpdate = async (fileUrl: string, status: 'approved' | 'rejected', reason?: string) => {
+    if (!order) return;
+    const updatedUploads = (order.documentUploads || []).map(doc => {
+      if (doc.fileUrl === fileUrl) {
+        return { ...doc, status, rejectionReason: reason || '' };
+      }
+      return doc;
+    });
+
+    try {
+      const orderRef = doc(db, 'orders', order.id);
+      await updateDoc(orderRef, { documentUploads: updatedUploads });
+      toast({ title: 'Document Status Updated', description: `The document has been ${status}.`});
+      fetchOrderAndStaff();
+    } catch (error) {
+      console.error("Error updating document status:", error);
+      toast({ title: 'Error', description: 'Failed to update document status.', variant: 'destructive' });
+    }
+  };
+
+  const handleOpenRejectionDialog = (doc: DocumentUpload) => {
+    setDocumentToReject(doc);
+    rejectionForm.reset();
+    setIsRejectionDialogOpen(true);
+  };
+  
+  const handleRejectionSubmit = async (values: z.infer<typeof rejectionFormSchema>) => {
+    if (documentToReject) {
+        await handleDocumentStatusUpdate(documentToReject.fileUrl, 'rejected', values.reason);
+        setIsRejectionDialogOpen(false);
+        setDocumentToReject(null);
     }
   };
 
@@ -394,6 +438,32 @@ export default function AdminOrderDetailsPage() {
 
   return (
     <div className="space-y-8">
+        <Dialog open={isRejectionDialogOpen} onOpenChange={setIsRejectionDialogOpen}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Reject Document</DialogTitle>
+                    <DialogDescription>Please provide a clear reason for rejecting this document. This will be visible to the client.</DialogDescription>
+                </DialogHeader>
+                 <Form {...rejectionForm}>
+                    <form onSubmit={rejectionForm.handleSubmit(handleRejectionSubmit)} className="space-y-4">
+                        <FormField
+                            control={rejectionForm.control}
+                            name="reason"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormControl><Textarea {...field} rows={4} /></FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <div className="flex justify-end gap-2">
+                            <Button type="button" variant="ghost" onClick={() => setIsRejectionDialogOpen(false)}>Cancel</Button>
+                            <Button type="submit" variant="destructive">Reject</Button>
+                        </div>
+                    </form>
+                </Form>
+            </DialogContent>
+        </Dialog>
         <div>
             <Button variant="outline" asChild>
                 <Link href="/admin/orders">
@@ -453,6 +523,50 @@ export default function AdminOrderDetailsPage() {
                                 </div>
                             </div>
                         </div>
+                    </CardContent>
+                </Card>
+
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Uploaded Documents</CardTitle>
+                         <CardDescription>Documents uploaded by the client for this order.</CardDescription>
+                    </CardHeader>
+                     <CardContent>
+                        {order.documentUploads && order.documentUploads.length > 0 ? (
+                            <ul className="space-y-3">
+                                {order.documentUploads.map((doc) => (
+                                    <li key={doc.fileUrl} className="flex items-center justify-between p-2 border rounded-md">
+                                        <div>
+                                            <p className="font-medium text-sm">{doc.requirementLabel}</p>
+                                            <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1">
+                                                <Download className="h-3 w-3" /> {doc.fileName}
+                                            </a>
+                                            {doc.status === 'rejected' && doc.rejectionReason && (
+                                                <p className="text-xs text-destructive mt-1">Reason: {doc.rejectionReason}</p>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {doc.status === 'pending' ? (
+                                                <>
+                                                    <Button size="sm" variant="success" onClick={() => handleDocumentStatusUpdate(doc.fileUrl, 'approved')}>
+                                                        <CheckCircle className="mr-2 h-4 w-4" />Approve
+                                                    </Button>
+                                                    <Button size="sm" variant="destructive" onClick={() => handleOpenRejectionDialog(doc)}>
+                                                         <XCircle className="mr-2 h-4 w-4" />Reject
+                                                    </Button>
+                                                </>
+                                            ) : doc.status === 'approved' ? (
+                                                <Badge variant="success" className="text-sm"><CheckCircle className="mr-2 h-4 w-4"/>Approved</Badge>
+                                            ) : (
+                                                <Badge variant="destructive" className="text-sm"><AlertTriangle className="mr-2 h-4 w-4"/>Rejected</Badge>
+                                            )}
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <p className="text-sm text-muted-foreground text-center py-4">No documents have been uploaded for this order yet.</p>
+                        )}
                     </CardContent>
                 </Card>
 

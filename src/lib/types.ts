@@ -20,13 +20,23 @@ export type ChartOfAccount = {
 };
 
 export type AllocationRule = {
-  id: string;
+  id:string;
   type: 'hard' | 'soft';
   description: string; // Used for soft rules, or as a note for hard rules
   keywords: string[]; // Only for hard rules
   accountId: string;
   vatType: VatType;
   scope?: 'client' | 'global';
+};
+
+export type DocumentUpload = {
+  serviceId: string;
+  requirementLabel: string;
+  fileUrl: string;
+  fileName: string;
+  uploadedAt: any; // Firestore Timestamp
+  status: 'pending' | 'approved' | 'rejected';
+  rejectionReason?: string;
 };
 
 export type Service = {
@@ -124,6 +134,7 @@ export type Order = {
   department?: 'Accounting and Tax' | 'Administration' | 'CAP' | null;
   originalOrderId?: string | null;
   notes?: OrderNote[];
+  documentUploads?: DocumentUpload[];
   itnHistory?: ItnLog[];
   source?: 'Client' | 'Staff' | 'Reseller';
 };
