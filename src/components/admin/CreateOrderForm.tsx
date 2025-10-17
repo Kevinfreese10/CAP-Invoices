@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -11,10 +10,10 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Loader2, Plus, Trash, RefreshCw, Clock, ClipboardCheck } from 'lucide-react';
-import { getFirestore, doc, setDoc, Timestamp, collection, query, orderBy, getDocs } from 'firebase/firestore';
+import { Loader2, Plus, Trash, RefreshCw, Clock, ClipboardCheck, Search } from 'lucide-react';
+import { getFirestore, doc, setDoc, Timestamp, collection, query, orderBy, getDocs, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service, OrderNote } from '@/lib/types';
+import { Order, Service, OrderNote, User } from '@/lib/types';
 import { Separator } from '../ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
@@ -23,9 +22,12 @@ import { render } from '@react-email/components';
 import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 import { getNextOrderId } from '@/lib/sequence';
 import { useAuth } from '@/contexts/AuthContext';
+import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
+import { Alert, AlertTitle, AlertDescription } from '../ui/alert';
 
 
 const db = getFirestore(firebaseApp);
+const auth = getAuth(firebaseApp);
 
 const lineItemSchema = z.object({
   isCustom: z.boolean().default(false),
@@ -41,6 +43,7 @@ const formSchema = z.object({
   customerName: z.string().min(2, 'Customer name is required.'),
   customerEmail: z.string().email('Invalid email address.'),
   customerPhone: z.string().min(10, 'A valid phone number is required.'),
+  password: z.string().optional(),
   items: z.array(lineItemSchema).min(1, 'At least one line item is required.'),
 });
 
@@ -63,6 +66,9 @@ export default function CreateOrderForm() {
   const { user: currentUser } = useAuth();
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [isServicesLoading, setIsServicesLoading] = useState(true);
+  const [existingUser, setExistingUser] = useState<User | null>(null);
+  const [isCheckingUser, setIsCheckingUser] = useState(false);
+
 
   useEffect(() => {
     const fetchServices = async () => {
@@ -88,6 +94,7 @@ export default function CreateOrderForm() {
       customerName: '',
       customerEmail: '',
       customerPhone: '',
+      password: '',
       items: [{ isCustom: false, serviceId: '', description: '', quantity: 1, price: 0, discountType: 'fixed', discountValue: 0 }],
     },
     mode: 'onChange',
@@ -99,6 +106,11 @@ export default function CreateOrderForm() {
   });
   
   const watchedItems = form.watch('items');
+  const watchedEmail = form.watch('customerEmail');
+
+  useEffect(() => {
+    setExistingUser(null);
+  }, [watchedEmail]);
 
   const calculateTotal = (items: any[]) => {
      return (items || []).reduce((acc, item) => {
@@ -128,6 +140,34 @@ export default function CreateOrderForm() {
   useEffect(() => {
     setTotal(calculateTotal(form.getValues('items')));
   }, []);
+  
+  const handleCheckUser = async () => {
+      const email = form.getValues('customerEmail');
+      if (!email) {
+          form.setError('customerEmail', { message: 'Please enter an email to check.'});
+          return;
+      }
+      setIsCheckingUser(true);
+      setExistingUser(null);
+      try {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('email', '==', email));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+            const userData = querySnapshot.docs[0].data() as User;
+            setExistingUser(userData);
+            form.setValue('customerName', userData.name);
+            if(userData.contactNumber) form.setValue('customerPhone', userData.contactNumber);
+            toast({ title: 'User Found', description: 'This order will be linked to the existing user account.'})
+        } else {
+            toast({ title: 'User Not Found', description: 'A new user account will be created with this order.'});
+        }
+      } catch (error) {
+          toast({ title: 'Error', description: 'Could not check for existing user.', variant: 'destructive'});
+      } finally {
+          setIsCheckingUser(false);
+      }
+  }
 
   const handleServiceChange = (serviceId: string, index: number) => {
     const selectedService = allServices.find(s => s.id === serviceId);
@@ -156,6 +196,12 @@ export default function CreateOrderForm() {
 
   async function onSubmit(values: CreateOrderFormValues) {
     if (!currentUser) return;
+    
+    if (!existingUser && !values.password) {
+        form.setError('password', { message: 'A password is required for new clients.'});
+        return;
+    }
+    
     setIsLoading(true);
     toast({
       title: 'Creating Order...',
@@ -163,6 +209,42 @@ export default function CreateOrderForm() {
     });
 
     try {
+        let userId = existingUser?.uid;
+        // Step 1: Create user if they don't exist
+        if (!existingUser && values.password) {
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, values.customerEmail, values.password);
+                const firebaseUser = userCredential.user;
+                userId = firebaseUser.uid;
+                
+                const newUserDocRef = doc(db, "users", userId);
+                const newUser: Omit<User, 'id'> = {
+                    uid: userId,
+                    name: values.customerName,
+                    email: values.customerEmail,
+                    contactNumber: values.customerPhone,
+                    role: 'client',
+                    createdAt: Timestamp.now(),
+                };
+                await setDoc(newUserDocRef, newUser);
+
+            } catch (authError: any) {
+                if (authError.code === 'auth/email-already-in-use') {
+                    toast({ title: 'User Exists', description: 'This email is already registered. Please check the user first.', variant: 'destructive'});
+                } else {
+                    toast({ title: 'Authentication Error', description: 'Could not create user account.', variant: 'destructive'});
+                }
+                setIsLoading(false);
+                return;
+            }
+        }
+        
+        if (!userId) {
+             toast({ title: 'User Error', description: 'Could not resolve the user for this order.', variant: 'destructive'});
+             setIsLoading(false);
+             return;
+        }
+
         const orderId = await getNextOrderId();
         const firstService = allServices.find(s => s.id === values.items[0]?.serviceId);
         const department = firstService?.department;
@@ -179,8 +261,10 @@ export default function CreateOrderForm() {
 
       const orderData: Order = {
         id: orderId,
+        userId: userId,
         customerName: values.customerName,
         customerEmail: values.customerEmail,
+        customerPhone: values.customerPhone,
         items: values.items.map(item => ({ 
             id: item.serviceId || item.description.toLowerCase().replace(/\s/g, '-'),
             title: item.description, 
@@ -188,6 +272,9 @@ export default function CreateOrderForm() {
             quantity: item.quantity
         })),
         total: total,
+        discountCode: null,
+        discountAmount: null,
+        paymentMethod: 'EFT',
         status: 'Pending Payment',
         date: Timestamp.now(),
         department: department || null,
@@ -198,7 +285,6 @@ export default function CreateOrderForm() {
 
       await setDoc(doc(db, 'orders', orderId), orderData);
       
-      // Send confirmation email
       const emailHtml = render(<OrderConfirmationEmail order={orderData} />);
       await sendEmail({
         to: values.customerEmail,
@@ -209,7 +295,7 @@ export default function CreateOrderForm() {
 
       toast({
         title: 'Order Created Successfully',
-        description: `Order ${orderId} has been created.`,
+        description: `Order ${orderId} has been created for ${existingUser ? 'existing' : 'new'} client.`,
       });
       
       setIsLoading(false);
@@ -229,7 +315,35 @@ export default function CreateOrderForm() {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4">
+            <FormField
+            control={form.control}
+            name="customerEmail"
+            render={({ field }) => (
+                <FormItem>
+                <FormLabel>Customer Email</FormLabel>
+                 <div className="flex gap-2">
+                    <FormControl><Input placeholder="name@example.com" {...field} /></FormControl>
+                    <Button type="button" variant="secondary" onClick={handleCheckUser} disabled={isCheckingUser}>
+                        {isCheckingUser ? <Loader2 className="h-4 w-4 animate-spin"/> : <Search className="h-4 w-4"/>}
+                        <span className="ml-2 hidden sm:inline">Check User</span>
+                    </Button>
+                </div>
+                <FormMessage />
+                </FormItem>
+            )}
+            />
+
+            {existingUser && (
+                 <Alert>
+                    <AlertTitle>Existing User Found</AlertTitle>
+                    <AlertDescription>
+                        This order will be linked to {existingUser.name}. The fields below have been pre-filled.
+                    </AlertDescription>
+                </Alert>
+            )}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
             control={form.control}
             name="customerName"
@@ -237,17 +351,6 @@ export default function CreateOrderForm() {
                 <FormItem>
                 <FormLabel>Customer Full Name</FormLabel>
                 <FormControl><Input placeholder="John Doe" {...field} /></FormControl>
-                <FormMessage />
-                </FormItem>
-            )}
-            />
-            <FormField
-            control={form.control}
-            name="customerEmail"
-            render={({ field }) => (
-                <FormItem>
-                <FormLabel>Customer Email</FormLabel>
-                <FormControl><Input placeholder="name@example.com" {...field} /></FormControl>
                 <FormMessage />
                 </FormItem>
             )}
@@ -264,6 +367,20 @@ export default function CreateOrderForm() {
             )}
             />
         </div>
+        {!existingUser && (
+            <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Create Password for New Client</FormLabel>
+                    <FormControl><Input type="password" {...field} /></FormControl>
+                    <FormDescription>A temporary password for the client to log in.</FormDescription>
+                    <FormMessage />
+                    </FormItem>
+                )}
+            />
+        )}
         
         <Separator />
 
@@ -321,14 +438,6 @@ export default function CreateOrderForm() {
                                             <Clock className="h-4 w-4" />
                                             <span>{selectedService.turnaroundTime}</span>
                                         </div>
-                                        {selectedService.clientRequirements.length > 0 && (
-                                            <div className="space-y-1">
-                                                <p className="font-medium">Prerequisites:</p>
-                                                <ul className="list-disc pl-5">
-                                                    {selectedService.clientRequirements.map((req, i) => <li key={i}>{req}</li>)}
-                                                </ul>
-                                            </div>
-                                        )}
                                     </div>
                                 )}
                                 </>
