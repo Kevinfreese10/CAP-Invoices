@@ -145,19 +145,32 @@ export default function ClientOrderDetailsPage() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         {orderedServices.length > 0 ? (
-                             orderedServices.flatMap(s => s.informationToProvide || []).map((info, index) => (
-                                <div key={index} className="space-y-2">
-                                    <label className="text-sm font-medium">{info.label}</label>
-                                    <Input type={info.type === 'pdf' ? 'file' : 'text'} accept={info.type === 'pdf' ? 'application/pdf' : undefined} />
-                                </div>
-                            ))
+                            <div className="space-y-6">
+                                {orderedServices.map(service => (
+                                    <div key={service.id} className="space-y-4">
+                                        <h4 className="font-semibold text-md border-b pb-2">{service.title}</h4>
+                                        {service.informationToProvide && service.informationToProvide.length > 0 ? (
+                                            service.informationToProvide.map((info, index) => (
+                                                <div key={index} className="space-y-2">
+                                                    <label className="text-sm font-medium">{info.label}</label>
+                                                    <Input type={info.type === 'pdf' ? 'file' : 'text'} accept={info.type === 'pdf' ? 'application/pdf' : undefined} />
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <p className="text-sm text-muted-foreground">No specific documents required for this service.</p>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
                         ) : (
                             <p className="text-sm text-muted-foreground">No documents are required for this order.</p>
                         )}
-                         <Button className="w-full">
-                            <Upload className="mr-2 h-4 w-4" />
-                            Submit Information
-                        </Button>
+                        {orderedServices.length > 0 && (
+                            <Button className="w-full mt-6">
+                                <Upload className="mr-2 h-4 w-4" />
+                                Submit Information
+                            </Button>
+                        )}
                     </CardContent>
                  </Card>
              </div>
