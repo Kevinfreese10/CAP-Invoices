@@ -340,37 +340,61 @@ export default function ClientOrderDetailsPage() {
                                                     <Badge variant={upload.status === 'approved' ? 'success' : upload.status === 'rejected' ? 'destructive' : 'warning'}>
                                                       {upload.status === 'approved' && <CheckCircle className="mr-1 h-3 w-3" />}
                                                       {upload.status === 'rejected' && <AlertTriangle className="mr-1 h-3 w-3" />}
-                                                      {upload.status.replace('_', ' ')}
+                                                      {upload.status.charAt(0).toUpperCase() + upload.status.slice(1).replace('_', ' ')}
                                                     </Badge>
                                                   )}
                                                 </div>
 
-                                                {upload?.status === 'rejected' && upload.rejectionReason && (
-                                                  <p className="text-xs text-destructive mt-1 italic">Reason: {upload.rejectionReason}</p>
+                                                {upload?.status === 'rejected' && (
+                                                  <>
+                                                    {upload.rejectionReason && <p className="text-xs text-destructive mt-1 italic">Reason: {upload.rejectionReason}</p>}
+                                                    <div className="flex items-center gap-2 pt-2">
+                                                        {info.type === 'pdf' ? (
+                                                          <Input type="file" accept="application/pdf" className="h-9" onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], item.service!.id, info.label)} />
+                                                        ) : (
+                                                          <div className="flex items-center gap-2 flex-grow">
+                                                              <Input 
+                                                                  type="text" 
+                                                                  className="h-9" 
+                                                                  placeholder="Enter new information..."
+                                                                  value={textInputs[info.label] || ''}
+                                                                  onChange={(e) => handleTextChange(info.label, e.target.value)}
+                                                              />
+                                                              <Button size="sm" onClick={() => handleTextSubmit(item.service!.id, info.label)}>Save</Button>
+                                                          </div>
+                                                        )}
+                                                    </div>
+                                                  </>
                                                 )}
                                                 
-                                                {upload && upload.status !== 'rejected' ? (
+                                                {(!upload || upload.status === 'pending') && !isUploading && upload?.status !== 'rejected' && (
+                                                   info.type === 'pdf' ? (
+                                                      <Input type="file" accept="application/pdf" className="h-9" onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], item.service!.id, info.label)} />
+                                                    ) : (
+                                                      <div className="flex items-center gap-2">
+                                                          <Input 
+                                                              type="text" 
+                                                              className="h-9" 
+                                                              placeholder="Enter information here..."
+                                                              value={textInputs[info.label] || ''}
+                                                              onChange={(e) => handleTextChange(info.label, e.target.value)}
+                                                          />
+                                                          <Button size="sm" onClick={() => handleTextSubmit(item.service!.id, info.label)}>Save</Button>
+                                                      </div>
+                                                    )
+                                                )}
+
+                                                {upload && upload.status !== 'rejected' && (
                                                    <div className="p-2 bg-green-50 text-green-800 rounded-md border border-green-200 text-sm">
                                                       {upload.type === 'file' ? `Submitted: ${upload.fileName}` : `Submitted: "${upload.textValue}"`}
                                                    </div>
-                                                ) : isUploading ? (
+                                                )}
+
+                                                {isUploading && (
                                                     <div className="flex items-center gap-2">
                                                       <Loader2 className="h-4 w-4 animate-spin"/>
                                                       <p className="text-sm">Uploading... {Math.round(uploadingFiles[uploadKey])}%</p>
                                                     </div>
-                                                ) : info.type === 'pdf' ? (
-                                                  <Input type="file" accept="application/pdf" className="h-9" onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], item.service!.id, info.label)} />
-                                                ) : (
-                                                  <div className="flex items-center gap-2">
-                                                      <Input 
-                                                          type="text" 
-                                                          className="h-9" 
-                                                          placeholder="Enter information here..."
-                                                          value={textInputs[info.label] || ''}
-                                                          onChange={(e) => handleTextChange(info.label, e.target.value)}
-                                                      />
-                                                      <Button size="sm" onClick={() => handleTextSubmit(item.service!.id, info.label)}>Save</Button>
-                                                  </div>
                                                 )}
                                             </div>
                                         )})}
