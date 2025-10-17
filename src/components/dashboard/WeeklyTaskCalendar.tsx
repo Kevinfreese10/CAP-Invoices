@@ -1,9 +1,9 @@
 
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Task, User } from '@/lib/types';
-import { format, startOfWeek, addDays, isSameDay, eachDayOfInterval, subDays, isToday, isPast, endOfDay } from 'date-fns';
+import { format, startOfWeek, addDays, isSameDay, eachDayOfInterval, isToday, isPast } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, AlertOctagon } from 'lucide-react';
@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
-import { Separator } from '@/components/ui/separator';
+import { Separator } from '../ui/separator';
 
 const userColors = [
   'bg-red-200 text-red-800', 'bg-blue-200 text-blue-800', 'bg-green-200 text-green-800',
@@ -32,7 +32,7 @@ const getPriorityVariant = (priority: Task['priority']) => {
     }
 }
 
-export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser }: { tasks: Task[], allStaff: User[], currentUser: User | null }) {
+export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTaskUpdate }: { tasks: Task[], allStaff: User[], currentUser: User | null, onTaskUpdate: (taskId: string, updates: Partial<Task>) => void }) {
   const [currentDate, setCurrentDate] = useState(new Date());
 
   const weekStartsOn = 1; // Monday
@@ -57,6 +57,20 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser }: { t
   });
   
   const overdueTasks = userTasks.filter(task => isPast(task.dueDate.toDate()) && task.status !== 'Done');
+
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, taskId: string) => {
+    e.dataTransfer.setData("taskId", taskId);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>, newDate: Date) => {
+    e.preventDefault();
+    const taskId = e.dataTransfer.getData("taskId");
+    onTaskUpdate(taskId, { dueDate: newDate });
+  };
+  
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+  };
 
   return (
     <Card>
@@ -89,7 +103,11 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser }: { t
                             <TooltipProvider key={task.id}>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <div className="p-2 bg-background rounded-lg border text-left space-y-1">
+                                        <div 
+                                            draggable
+                                            onDragStart={(e) => handleDragStart(e, task.id)}
+                                            className="p-2 bg-background rounded-lg border text-left space-y-1 cursor-grab"
+                                        >
                                             <div className="flex justify-between items-start">
                                                 <p className="text-xs font-semibold leading-tight line-clamp-2">{task.title}</p>
                                                 <Badge variant={getPriorityVariant(priority)} className="text-xs shrink-0">{priority}</Badge>
@@ -113,7 +131,12 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser }: { t
                 </div>
             </div>
           {weekDays.map(day => (
-            <div key={day.toString()} className="border-r border-b min-h-[200px]">
+            <div 
+                key={day.toString()} 
+                onDrop={(e) => handleDrop(e, day)}
+                onDragOver={handleDragOver}
+                className="border-r border-b min-h-[200px]"
+            >
               <div className={cn("p-2 text-center border-b", isToday(day) && "bg-primary/10")}>
                 <p className={cn("text-sm font-semibold", isToday(day) && "text-primary")}>{format(day, 'EEE')}</p>
                 <p className="text-xs text-muted-foreground">{format(day, 'd MMM')}</p>
@@ -126,7 +149,11 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser }: { t
                   <TooltipProvider key={task.id}>
                     <Tooltip>
                         <TooltipTrigger asChild>
-                             <div className="p-2 bg-background rounded-lg border text-left space-y-1">
+                             <div 
+                                draggable
+                                onDragStart={(e) => handleDragStart(e, task.id)}
+                                className="p-2 bg-background rounded-lg border text-left space-y-1 cursor-grab"
+                            >
                                 <div className="flex justify-between items-start">
                                     <p className="text-xs font-semibold leading-tight line-clamp-2">{task.title}</p>
                                     <Badge variant={getPriorityVariant(priority)} className="text-xs shrink-0">{priority}</Badge>

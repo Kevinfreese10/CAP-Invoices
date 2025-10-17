@@ -723,6 +723,21 @@ export default function AdminDashboardPage() {
         }
     };
 
+    const handleUpdate = async (taskId: string, updates: Partial<Task>) => {
+        try {
+            const taskRef = doc(db, 'tasks', taskId);
+            await updateDoc(taskRef, updates);
+            // Optimistically update local state to reflect changes immediately
+            setTasks(prevTasks => prevTasks.map(t => (t.id === taskId ? { ...t, ...updates } : t)));
+        } catch (error) {
+            console.error("Error updating task:", error);
+            toast({ title: 'Error', description: 'Could not update the task.', variant: 'destructive'});
+            // Re-fetch to ensure data consistency on error
+            fetchDashboardData();
+        }
+    };
+
+
     const handleUpdateStatus = async (taskId: string, status: Task['status']) => {
         const originalTask = tasks.find(t => t.id === taskId);
         if (!originalTask) return;
@@ -944,7 +959,7 @@ export default function AdminDashboardPage() {
                     </div>
                 ) : (
                     <>
-                        <WeeklyTaskCalendar tasks={tasks} allStaff={allStaff} currentUser={user} />
+                        <WeeklyTaskCalendar tasks={tasks} allStaff={allStaff} currentUser={user} onTaskUpdate={handleUpdate} />
 
                         <TaskTable 
                             tasks={myTasks} 
