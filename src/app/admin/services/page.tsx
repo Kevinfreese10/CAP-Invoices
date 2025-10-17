@@ -166,6 +166,7 @@ export default function AdminServicesPage() {
                 </DialogHeader>
                 <ServiceForm 
                     service={selectedService} 
+                    allServices={services}
                     onSubmit={handleFormSubmit}
                 />
            </DialogContent>

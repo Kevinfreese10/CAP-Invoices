@@ -55,11 +55,12 @@ const formSchema = z.object({
 
 type ServiceFormProps = {
   service: Service | null;
+  allServices: Service[];
   onSubmit: (data: any) => void;
 };
 
 
-export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
+export default function ServiceForm({ service, allServices, onSubmit }: ServiceFormProps) {
   const { toast } = useToast();
   const [isAiUpdating, setIsAiUpdating] = useState(false);
   const [isMediaLibraryOpen, setIsMediaLibraryOpen] = useState(false);
@@ -115,7 +116,7 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
     name: 'clientRequirements',
   });
 
-  const { fields: infoFields, append: appendInfo, remove: removeInfo } = useFieldArray({
+  const { fields: infoFields, append: appendInfo, remove: removeInfo, replace: replaceInfo } = useFieldArray({
     control: form.control,
     name: 'informationToProvide',
   });
@@ -182,6 +183,14 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
         metaKeywords: values.metaKeywords?.map(v => v.value).filter(Boolean),
     }
     onSubmit(serviceData);
+  };
+  
+  const handleCopyFrom = (serviceId: string) => {
+    const sourceService = allServices.find(s => s.id === serviceId);
+    if (sourceService && sourceService.informationToProvide) {
+      replaceInfo(sourceService.informationToProvide);
+      toast({ title: 'Information Copied', description: `Copied requirements from "${sourceService.title}".`});
+    }
   };
 
   const currentImageUrl = form.watch('imageUrl');
@@ -338,7 +347,20 @@ export default function ServiceForm({ service, onSubmit }: ServiceFormProps) {
         </div>
         
         <div className="space-y-2 rounded-lg border p-4">
-            <h3 className="text-sm font-medium">Information to be provided by the client</h3>
+            <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium">Information to be provided by the client</h3>
+                <Select onValueChange={handleCopyFrom}>
+                    <SelectTrigger className="w-[200px] h-8">
+                        <SelectValue placeholder="Copy from..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {allServices.filter(s => s.id !== service?.id).map(s => (
+                            <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+
             {infoFields.map((field, index) => (
               <div key={field.id} className="flex items-end gap-2 p-2 border rounded-md">
                  <FormField
