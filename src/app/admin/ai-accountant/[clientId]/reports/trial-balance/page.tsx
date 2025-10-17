@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Loader2, Download } from "lucide-react";
 import { useParams } from 'next/navigation';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User, AllocatedTransaction, ImportedTransaction, ChartOfAccount } from '@/lib/types';
 import {
@@ -57,14 +57,11 @@ function getFinancialYearStart(date: Date, endMonthName?: string) {
     }
 }
 
-function TrialBalanceReport({ client, dateRange }: { client: User, dateRange?: DateRange }) {
+function TrialBalanceReport({ client, transactions, dateRange }: { client: User, transactions: (ImportedTransaction | AllocatedTransaction)[], dateRange?: DateRange }) {
     
     const accountBalances = useMemo(() => {
         const balances = new Map<string, number>();
-        const allTransactions: (AllocatedTransaction | ImportedTransaction)[] = [
-            ...(client.allocatedTransactions || []),
-            ...(client.importedTransactions || []),
-        ];
+        const allTransactions: (AllocatedTransaction | ImportedTransaction)[] = transactions;
         
         client.chartOfAccounts?.forEach(acc => {
             balances.set(acc.id, 0);
@@ -153,7 +150,7 @@ function TrialBalanceReport({ client, dateRange }: { client: User, dateRange?: D
         });
 
         return balances;
-    }, [client, dateRange]);
+    }, [client, dateRange, transactions]);
 
     const trialBalanceData = useMemo(() => {
         return client.chartOfAccounts
@@ -267,11 +264,12 @@ export default function TrialBalancePage() {
     const params = useParams();
     const clientId = params.clientId as string;
     const [client, setClient] = useState<User | null>(null);
+    const [transactions, setTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [date, setDate] = React.useState<DateRange | undefined>(undefined);
     
     useEffect(() => {
-        const fetchClient = async () => {
+        const fetchClientAndTransactions = async () => {
             setIsLoading(true);
             try {
                 const docRef = doc(db, 'aiAccountantClients', clientId);
@@ -279,15 +277,21 @@ export default function TrialBalancePage() {
                 if (docSnap.exists()) {
                     setClient({ id: docSnap.id, ...docSnap.data() } as User);
                 }
+
+                const transactionsRef = collection(db, 'aiAccountantClients', clientId, 'transactions');
+                const transactionsSnap = await getDocs(transactionsRef);
+                const fetchedTransactions = transactionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as (ImportedTransaction | AllocatedTransaction)));
+                setTransactions(fetchedTransactions);
+
             } catch (error) {
-                console.error("Error fetching client:", error);
+                console.error("Error fetching client data:", error);
             } finally {
                 setIsLoading(false);
             }
         };
 
         if (clientId) {
-            fetchClient();
+            fetchClientAndTransactions();
         }
     }, [clientId]);
     
@@ -332,7 +336,7 @@ export default function TrialBalancePage() {
                                         Trial Balance {getReportDateString()}
                                     </DialogDescription>
                                 </DialogHeader>
-                                <TrialBalanceReport client={client} dateRange={date} />
+                                <TrialBalanceReport client={client} transactions={transactions} dateRange={date} />
                             </DialogContent>
                         </Dialog>
                     ) : (
