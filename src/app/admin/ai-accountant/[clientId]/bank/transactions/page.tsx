@@ -67,6 +67,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
     const [isUploading, setIsUploading] = useState(false);
     const { toast } = useToast();
     const [potentialAllocations, setPotentialAllocations] = useState(0);
+    const [potentialAiAllocations, setPotentialAiAllocations] = useState(0);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = e.target.files?.[0];
@@ -75,6 +76,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
             setFile(selectedFile);
             setParsedTransactions([]);
             setPotentialAllocations(0);
+            setPotentialAiAllocations(0);
             
             const reader = new FileReader();
             reader.onload = (event) => {
@@ -97,19 +99,30 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
                         
                         setParsedTransactions(transactions);
 
-                        // Check for potential allocations
-                        let allocationCount = 0;
+                        let ruleAllocationCount = 0;
+                        let aiAllocationCount = 0;
+
                         if (client?.allocationRules) {
                             for (const tx of transactions) {
-                                for (const rule of client.allocationRules) {
-                                    if (rule.keywords.some(kw => tx.Description.toLowerCase().includes(kw))) {
-                                        allocationCount++;
-                                        break; // Move to next transaction once a rule is matched
-                                    }
+                                // Check for rule-based allocations
+                                const matchedRule = client.allocationRules.find(rule => 
+                                    rule.keywords.some(kw => tx.Description.toLowerCase().includes(kw))
+                                );
+                                if (matchedRule) {
+                                    ruleAllocationCount++;
+                                }
+                                // Check for potential AI allocations (expenses only)
+                                else if (tx.Amount < 0) {
+                                    aiAllocationCount++;
                                 }
                             }
+                        } else {
+                            // If no rules, all expenses are potential AI allocations
+                            aiAllocationCount = transactions.filter(tx => tx.Amount < 0).length;
                         }
-                        setPotentialAllocations(allocationCount);
+                        
+                        setPotentialAllocations(ruleAllocationCount);
+                        setPotentialAiAllocations(aiAllocationCount);
                         setIsParsing(false);
                     }
                 });
@@ -200,6 +213,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
     }, [parsedTransactions]);
 
     const newBalance = currentBalance + importTotal;
+    const timeSavedMinutes = Math.round((potentialAiAllocations * 20) / 60);
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -222,10 +236,15 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
                      {isParsing && <p className="text-sm text-muted-foreground flex items-center"><Loader2 className="mr-2 animate-spin"/> Parsing file...</p>}
                      {parsedTransactions.length > 0 && 
                         <div className="pt-4 space-y-4">
-                            <p className="text-sm text-green-600">{parsedTransactions.length} transactions found in file.</p>
-                            {potentialAllocations > 0 && 
-                                <p className="text-sm text-blue-600">{potentialAllocations} transaction(s) will be automatically allocated for your review.</p>
-                            }
+                            <div className="space-y-1">
+                                <p className="text-sm text-green-600 font-semibold">{parsedTransactions.length} transactions found in file.</p>
+                                {potentialAllocations > 0 && 
+                                    <p className="text-sm text-blue-600">{potentialAllocations} transaction(s) will be automatically allocated for review based on your rules.</p>
+                                }
+                                {potentialAiAllocations > 0 &&
+                                    <p className="text-sm text-purple-600">{potentialAiAllocations} expense transaction(s) can be automatically allocated by AI, saving you an estimated {timeSavedMinutes} minutes.</p>
+                                }
+                            </div>
                             <Card className="bg-muted/50">
                                 <CardContent className="p-4 grid grid-cols-3 gap-4 text-center">
                                     <div>
@@ -1179,3 +1198,6 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
+
+
+    
