@@ -3,15 +3,15 @@
 
 import { useState } from 'react';
 import { Task, User } from '@/lib/types';
-import { format, startOfWeek, addDays, isSameDay, eachDayOfInterval, subDays, isToday, parseISO, isPast } from 'date-fns';
+import { format, startOfWeek, addDays, isSameDay, eachDayOfInterval, subDays, isToday, isPast, endOfDay } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, AlertOctagon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
-import { Separator } from '../ui/separator';
+import { Separator } from '@/components/ui/separator';
 
 const userColors = [
   'bg-red-200 text-red-800', 'bg-blue-200 text-blue-800', 'bg-green-200 text-green-800',
@@ -32,8 +32,7 @@ const getPriorityVariant = (priority: Task['priority']) => {
     }
 }
 
-
-export default function WeeklyTaskCalendar({ tasks, allStaff }: { tasks: Task[], allStaff: User[] }) {
+export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser }: { tasks: Task[], allStaff: User[], currentUser: User | null }) {
   const [currentDate, setCurrentDate] = useState(new Date());
 
   const weekStartsOn = 1; // Monday
@@ -52,12 +51,19 @@ export default function WeeklyTaskCalendar({ tasks, allStaff }: { tasks: Task[],
     setCurrentDate(new Date());
   }
 
+  const userTasks = tasks.filter(task => {
+    if (!currentUser) return false;
+    return Array.isArray(task.assignedTo) && task.assignedTo.includes(currentUser.id);
+  });
+  
+  const overdueTasks = userTasks.filter(task => isPast(task.dueDate.toDate()) && task.status !== 'Done');
+
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
             <div>
-                 <CardTitle>Weekly Task Calendar</CardTitle>
+                 <CardTitle>My Weekly Tasks</CardTitle>
                  <CardDescription>{format(start, 'dd MMM yyyy')} - {format(end, 'dd MMM yyyy')}</CardDescription>
             </div>
             <div className="flex items-center gap-2">
@@ -68,7 +74,44 @@ export default function WeeklyTaskCalendar({ tasks, allStaff }: { tasks: Task[],
         </div>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-7 border-t border-l">
+        <div className="grid grid-cols-[1fr_repeat(7,_1fr)] border-t border-l">
+           <div className="border-r border-b min-h-[200px] bg-destructive/5">
+                <div className="p-2 text-center border-b">
+                    <p className="text-sm font-semibold text-destructive flex items-center justify-center gap-2">
+                        <AlertOctagon className="h-4 w-4"/>
+                        Overdue
+                    </p>
+                </div>
+                <div className="p-2 space-y-2">
+                     {overdueTasks.map(task => {
+                        const priority = 'High'; // Always high if overdue
+                        return (
+                            <TooltipProvider key={task.id}>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <div className="p-2 bg-background rounded-lg border text-left space-y-1">
+                                            <div className="flex justify-between items-start">
+                                                <p className="text-xs font-semibold leading-tight line-clamp-2">{task.title}</p>
+                                                <Badge variant={getPriorityVariant(priority)} className="text-xs shrink-0">{priority}</Badge>
+                                            </div>
+                                            {task.orderId && <Link href={`/admin/orders/${task.orderId}`} className="text-xs text-blue-600 hover:underline">Order #{task.orderId}</Link>}
+                                            <div className="text-xs text-destructive">Due: {format(task.dueDate.toDate(), 'dd MMM')}</div>
+                                        </div>
+                                    </TooltipTrigger>
+                                     <TooltipContent side="bottom" align="start">
+                                        <div className="max-w-xs space-y-2">
+                                            <p className="font-bold">{task.title}</p>
+                                            <p className="text-xs text-muted-foreground">{task.description}</p>
+                                            <Separator />
+                                            <p className="text-xs"><span className="font-semibold">Assignees:</span> {task.assignedTo.map(id => getAssignee(id)?.name).join(', ')}</p>
+                                        </div>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        )
+                    })}
+                </div>
+            </div>
           {weekDays.map(day => (
             <div key={day.toString()} className="border-r border-b min-h-[200px]">
               <div className={cn("p-2 text-center border-b", isToday(day) && "bg-primary/10")}>
@@ -76,7 +119,7 @@ export default function WeeklyTaskCalendar({ tasks, allStaff }: { tasks: Task[],
                 <p className="text-xs text-muted-foreground">{format(day, 'd MMM')}</p>
               </div>
               <div className="p-2 space-y-2">
-                {tasks.filter(task => isSameDay(task.dueDate.toDate(), day)).map(task => {
+                {userTasks.filter(task => isSameDay(task.dueDate.toDate(), day) && !overdueTasks.some(ot => ot.id === task.id)).map(task => {
                   const assignees = Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo];
                   const priority = task.status !== 'Done' && isPast(task.dueDate.toDate()) ? 'High' : task.priority;
                   return (
