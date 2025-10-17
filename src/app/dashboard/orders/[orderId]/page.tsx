@@ -13,8 +13,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Loader2, Upload } from 'lucide-react';
 import { format } from 'date-fns';
-import { services as allServices } from '@/lib/data';
-
+import { Input } from '@/components/ui/input';
 
 const db = getFirestore(firebaseApp);
 
@@ -29,15 +28,23 @@ const formatPrice = (price: number) => {
 
 export default function ClientOrderDetailsPage() {
   const [order, setOrder] = useState<Order | null>(null);
+  const [allServices, setAllServices] = useState<Service[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const params = useParams();
   const id = params.orderId as string;
 
   useEffect(() => {
-    const fetchOrder = async () => {
+    const fetchOrderAndServices = async () => {
       if (!id) return;
       setIsLoading(true);
       try {
+        // Fetch all services from Firestore
+        const servicesQuery = query(collection(db, 'services'));
+        const servicesSnapshot = await getDocs(servicesQuery);
+        const fetchedServices = servicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
+        setAllServices(fetchedServices);
+
+        // Fetch the specific order
         const docRef = doc(db, 'orders', id);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
@@ -57,7 +64,7 @@ export default function ClientOrderDetailsPage() {
         setIsLoading(false);
       }
     };
-    fetchOrder();
+    fetchOrderAndServices();
   }, [id]);
 
   const getStatusVariant = (status: Order['status']) => {
@@ -137,12 +144,16 @@ export default function ClientOrderDetailsPage() {
                         <CardDescription>Provide the required information for your order.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        {orderedServices.flatMap(s => s.informationToProvide).map((info, index) => (
-                            <div key={index} className="space-y-2">
-                                <label className="text-sm font-medium">{info.label}</label>
-                                <Input type="text" />
-                            </div>
-                        ))}
+                        {orderedServices.length > 0 ? (
+                             orderedServices.flatMap(s => s.informationToProvide || []).map((info, index) => (
+                                <div key={index} className="space-y-2">
+                                    <label className="text-sm font-medium">{info.label}</label>
+                                    <Input type={info.type === 'pdf' ? 'file' : 'text'} accept={info.type === 'pdf' ? 'application/pdf' : undefined} />
+                                </div>
+                            ))
+                        ) : (
+                            <p className="text-sm text-muted-foreground">No documents are required for this order.</p>
+                        )}
                          <Button className="w-full">
                             <Upload className="mr-2 h-4 w-4" />
                             Submit Information
