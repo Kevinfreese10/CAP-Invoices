@@ -213,7 +213,8 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
     }, [parsedTransactions]);
 
     const newBalance = currentBalance + importTotal;
-    const timeSavedMinutes = Math.round((potentialAiAllocations * 20) / 60);
+    const timeSavedMinutes = (potentialAiAllocations * 20) / 60;
+    const timeSavedHours = Math.ceil(timeSavedMinutes / 60);
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -242,7 +243,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
                                     <p className="text-sm text-blue-600">{potentialAllocations} transaction(s) will be automatically allocated for review based on your rules.</p>
                                 }
                                 {potentialAiAllocations > 0 &&
-                                    <p className="text-sm text-purple-600">{potentialAiAllocations} expense transaction(s) can be automatically allocated by AI, saving you an estimated {timeSavedMinutes} minutes.</p>
+                                    <p className="text-sm text-purple-600">{potentialAiAllocations} expense transaction(s) can be automatically allocated by AI, saving you an estimated {timeSavedHours} hour(s).</p>
                                 }
                             </div>
                             <Card className="bg-muted/50">
