@@ -147,6 +147,7 @@ export type User = {
   name: string;
   email: string;
   role: 'client' | 'admin' | 'staff' | 'reseller';
+  createdAt?: any;
   password?: string;
   source?: 'AI Accountant' | 'Client Management';
   department?: 'Accounting and Tax' | 'Administration' | 'CAP';

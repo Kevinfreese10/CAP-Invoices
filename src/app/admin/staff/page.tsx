@@ -17,7 +17,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { User } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc, query, where } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc, query, where, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { getAuth, createUserWithEmailAndPassword, User as FirebaseUser } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
@@ -196,6 +196,7 @@ export default function AdminStaffPage() {
                 ...staffData,
                 id: newFirebaseUser.uid,
                 uid: newFirebaseUser.uid,
+                createdAt: serverTimestamp(),
             });
 
             if (adminUser.email && adminUser.password) {

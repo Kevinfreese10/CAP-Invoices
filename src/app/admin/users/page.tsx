@@ -17,11 +17,12 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { User } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc, query, where } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc, query, where, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { getAuth, createUserWithEmailAndPassword, User as FirebaseUser } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
+import { format } from 'date-fns';
 
 const db = getFirestore(firebaseApp);
 const auth = getAuth(firebaseApp);
@@ -184,6 +185,7 @@ export default function ManageUsersPage() {
                 ...userData,
                 uid: newFirebaseUser.uid,
                 id: newFirebaseUser.uid,
+                createdAt: serverTimestamp(),
             });
             
             if (adminUser.email && adminUser.password) {
@@ -199,11 +201,20 @@ export default function ManageUsersPage() {
         console.error("Error saving user:", error);
         let description = 'Could not save the user. Please try again.';
         if (error.code === 'auth/email-already-in-use') {
-            description = 'A user with this email address already exists in Firebase Authentication.';
+            description = 'An account with this email address already exists in Firebase Authentication.';
         }
         toast({ title: 'Error', description, variant: 'destructive'});
     }
   };
+
+  const formatDate = (timestamp: any): string => {
+    if (!timestamp) return 'N/A';
+    if (timestamp.toDate && typeof timestamp.toDate === 'function') {
+        return format(timestamp.toDate(), 'dd/MM/yyyy');
+    }
+    return 'Invalid Date';
+  };
+
 
   return (
     <div className="space-y-8">
@@ -248,6 +259,7 @@ export default function ManageUsersPage() {
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
+                <TableHead>Created</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -263,6 +275,7 @@ export default function ManageUsersPage() {
                       {user.role}
                     </Badge>
                   </TableCell>
+                  <TableCell>{formatDate(user.createdAt)}</TableCell>
                   <TableCell className="text-right">
                     <AlertDialog>
                         <DropdownMenu>
