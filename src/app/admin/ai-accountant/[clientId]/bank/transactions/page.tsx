@@ -878,7 +878,7 @@ const NewTransactionsTab = React.forwardRef<
                                             />
                                         </TableCell>
                                         <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
-                                        <TableCell className="max-w-[250px] truncate">{tx.description}</TableCell>
+                                        <TableCell className="whitespace-normal break-words">{tx.description}</TableCell>
                                         <TableCell className="font-mono">{tx.reference}</TableCell>
                                         <TableCell>
                                             <Select
