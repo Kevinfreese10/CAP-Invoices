@@ -107,6 +107,19 @@ export default async function ProductDetailPage({ params }: Props) {
       priceCurrency: 'ZAR',
       price: service.price.toString(),
       availability: 'https://schema.org/InStock',
+      hasMerchantReturnPolicy: {
+        '@type': 'MerchantReturnPolicy',
+        'applicableCountry': 'ZA',
+        'returnPolicyCategory': 'https://schema.org/MerchantReturnNotPermitted'
+      },
+      shippingDetails: {
+        '@type': 'OfferShippingDetails',
+        shippingRate: {
+            '@type': 'MonetaryAmount',
+            value: '0',
+            currency: 'ZAR'
+        }
+      }
     },
   };
 
