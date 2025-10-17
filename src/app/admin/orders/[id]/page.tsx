@@ -5,13 +5,13 @@ import { useState, useEffect } from 'react';
 import { notFound, useParams } from 'next/navigation';
 import { getFirestore, doc, getDoc, updateDoc, arrayUnion, Timestamp, collection, getDocs, where, query } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order, Service, User, OrderNote, DocumentUpload } from '@/lib/types';
+import { Order, Service, User, OrderNote, DocumentUpload, ItnLog } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, User as UserIcon, Mail, Phone, Send, FileText, Star, MessageSquare, Percent, CheckCircle, AlertTriangle, XCircle, Download, Info } from 'lucide-react';
+import { ArrowLeft, Loader2, User as UserIcon, Mail, Phone, Send, FileText, Star, MessageSquare, Percent, CheckCircle, AlertTriangle, XCircle, Download, Info, Server } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -29,6 +29,7 @@ import ReviewRequestEmail from '@/components/emails/ReviewRequestEmail';
 import PaymentFollowUpEmail from '@/components/emails/PaymentFollowUpEmail';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { sendDocumentReviewFeedback } from '@/app/actions';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 
 const db = getFirestore(firebaseApp);
@@ -54,6 +55,54 @@ const emailFormSchema = z.object({
     subject: z.string().min(5, 'Subject must be at least 5 characters long.'),
     message: z.string().min(20, 'Message must be at least 20 characters long.'),
 });
+
+function BackendSummaryModal({ order }: { order: Order }) {
+  if (!order.itnHistory || order.itnHistory.length === 0) {
+    return (
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Backend Summary for Order {order.id}</DialogTitle>
+          <DialogDescription>No backend notifications have been received for this order yet.</DialogDescription>
+        </DialogHeader>
+      </DialogContent>
+    )
+  }
+
+  return (
+    <DialogContent className="max-w-2xl">
+      <DialogHeader>
+        <DialogTitle>Backend Summary for Order {order.id}</DialogTitle>
+        <DialogDescription>History of notifications received from PayFast.</DialogDescription>
+      </DialogHeader>
+      <ScrollArea className="max-h-[60vh] pr-6">
+        <div className="space-y-4">
+          {order.itnHistory.slice().reverse().map((log, index) => (
+            <Card key={index}>
+              <CardHeader>
+                <CardTitle className="text-base flex justify-between items-center">
+                  <span>
+                    Status: <Badge variant={log.status === 'Success' ? 'success' : 'destructive'}>{log.status}</Badge>
+                  </span>
+                   <span className="text-xs font-normal text-muted-foreground">
+                    {log.receivedAt ? format(log.receivedAt.toDate(), 'dd/MM/yyyy, HH:mm:ss') : 'N/A'}
+                  </span>
+                </CardTitle>
+                <CardDescription className="pt-2">{log.message}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <h4 className="font-semibold text-sm mb-2">Received Payload:</h4>
+                <pre className="text-xs bg-muted p-2 rounded-md overflow-x-auto">
+                  {JSON.stringify(log.payload, null, 2)}
+                </pre>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </ScrollArea>
+    </DialogContent>
+  );
+}
+
 
 function EmailClientDialog({ order, user, allStaff, onEmailSent }: { order: Order, user: User | null, allStaff: User[], onEmailSent: (subject: string, message: string) => Promise<void> }) {
     const { toast } = useToast();
@@ -181,6 +230,7 @@ export default function AdminOrderDetailsPage() {
   const { toast } = useToast();
   const [allStaff, setAllStaff] = useState<User[]>([]);
   const [allServices, setAllServices] = useState<Service[]>([]);
+  const [viewingBackendSummary, setViewingBackendSummary] = useState<Order | null>(null);
   
   const [isRejectionDialogOpen, setIsRejectionDialogOpen] = useState(false);
   const [documentToReject, setDocumentToReject] = useState<DocumentUpload | null>(null);
@@ -221,6 +271,7 @@ export default function AdminOrderDetailsPage() {
             date: data.date.toDate(),
             notes: (data.notes || []).map((note: any) => ({...note, date: note.date.toDate()})),
             documentUploads: (data.documentUploads || []).map((doc: any) => ({...doc, uploadedAt: doc.uploadedAt.toDate()})),
+            itnHistory: (data.itnHistory || []).map((log: any) => ({ ...log, receivedAt: log.receivedAt.toDate() })),
           } as Order;
 
           if (fetchedOrder.resellerId && fetchedOrder.originalOrderId) {
@@ -476,257 +527,270 @@ export default function AdminOrderDetailsPage() {
   const displayCustomer = isOutsourced ? null : customer;
 
   return (
-    <div className="space-y-8">
-        <Dialog open={isRejectionDialogOpen} onOpenChange={setIsRejectionDialogOpen}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Reject Document</DialogTitle>
-                    <DialogDescription>Please provide a clear reason for rejecting this document. This will be visible to the client.</DialogDescription>
-                </DialogHeader>
-                 <Form {...rejectionForm}>
-                    <form onSubmit={rejectionForm.handleSubmit(handleRejectionSubmit)} className="space-y-4">
-                        <FormField
-                            control={rejectionForm.control}
-                            name="reason"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormControl><Textarea {...field} rows={4} /></FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                        <div className="flex justify-end gap-2">
-                            <Button type="button" variant="ghost" onClick={() => setIsRejectionDialogOpen(false)}>Cancel</Button>
-                            <Button type="submit" variant="destructive">Reject</Button>
-                        </div>
-                    </form>
-                </Form>
-            </DialogContent>
-        </Dialog>
-        <div>
-            <Button variant="outline" asChild>
-                <Link href="/admin/orders">
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Back to Orders
-                </Link>
-            </Button>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-            <div className="lg:col-span-2 space-y-8">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Order {order.id}</CardTitle>
-                        <CardDescription>
-                        Date: {format(new Date(order.date), 'dd/MM/yyyy')} | Status: <Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
-                         {order.originalOrderId && <span className="ml-2">| Original Order: <Link href={`/reseller/orders/${order.originalOrderId}`} className="text-primary hover:underline">{order.originalOrderId}</Link></span>}
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <h3 className="font-semibold text-muted-foreground mb-2">Order Items</h3>
-                                <div className="space-y-4">
-                                {order.items.map((item: any) => (
-                                    <div key={item.id} className="flex justify-between items-center">
-                                    <div>
-                                        <p className="font-semibold">{item.title}</p>
-                                        <p className="text-sm text-muted-foreground">Quantity: {item.quantity}</p>
-                                    </div>
-                                    <p>{formatPrice(item.price)}</p>
-                                    </div>
-                                ))}
-                                </div>
-                                <Separator className="my-4" />
-                                <div className="flex justify-between font-bold text-lg">
-                                <span>Total</span>
-                                <span>{formatPrice(order.total)}</span>
-                                </div>
-                            </div>
-                            <div>
-                                <h3 className="font-semibold text-muted-foreground mb-2">{isOutsourced ? 'End Client Details' : 'Customer Details'}</h3>
-                                <div className="space-y-3">
-                                    <p className="font-semibold text-lg">{displayCustomerName}</p>
-                                    {displayCustomerEmail && (
-                                        <div className="flex items-center gap-2 text-sm">
-                                            <Mail className="h-4 w-4 text-muted-foreground" />
-                                            <a href={`mailto:${displayCustomerEmail}`} className="text-primary hover:underline">{displayCustomerEmail}</a>
-                                        </div>
-                                    )}
-                                    {displayCustomer?.contactNumber && (
-                                        <div className="flex items-center gap-2 text-sm">
-                                            <Phone className="h-4 w-4 text-muted-foreground" />
-                                            <span>{displayCustomer.contactNumber}</span>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                 <Card>
-                    <CardHeader>
-                        <CardTitle>Uploaded Documents</CardTitle>
-                         <CardDescription>Documents uploaded by the client for this order.</CardDescription>
-                    </CardHeader>
-                     <CardContent>
-                        {order.documentUploads && order.documentUploads.length > 0 ? (
-                            <ul className="space-y-3">
-                                {order.documentUploads.map((doc, index) => {
-                                    const identifier = doc.type === 'file' ? doc.fileUrl! : doc.textValue!;
-                                    return (
-                                        <li key={index} className="flex items-center justify-between p-2 border rounded-md">
-                                            <div>
-                                                <p className="font-medium text-sm">{doc.requirementLabel}</p>
-                                                {doc.type === 'file' ? (
-                                                    <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1">
-                                                        <Download className="h-3 w-3" /> {doc.fileName}
-                                                    </a>
-                                                ) : (
-                                                    <p className="text-sm p-2 bg-muted rounded-md mt-1">"{doc.textValue}"</p>
-                                                )}
-
-                                                {doc.status === 'rejected' && doc.rejectionReason && (
-                                                    <p className="text-xs text-destructive mt-1">Reason: {doc.rejectionReason}</p>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                {doc.status === 'pending' ? (
-                                                    <>
-                                                        <Button size="sm" variant="outline" onClick={() => handleDocumentStatusUpdate(identifier, 'approved')}>
-                                                            <CheckCircle className="mr-2 h-4 w-4 text-green-500" />Approve
-                                                        </Button>
-                                                         <Button size="sm" variant="destructive" onClick={() => handleOpenRejectionDialog(doc)}>
-                                                            <XCircle className="mr-2 h-4 w-4" />Reject
-                                                        </Button>
-                                                    </>
-                                                ) : doc.status === 'approved' ? (
-                                                    <Badge variant="success" className="text-sm"><CheckCircle className="mr-2 h-4 w-4"/>Approved</Badge>
-                                                ) : (
-                                                    <Badge variant="destructive" className="text-sm"><AlertTriangle className="mr-2 h-4 w-4"/>Rejected</Badge>
-                                                )}
-                                            </div>
-                                        </li>
-                                    )
-                                })}
-                            </ul>
-                        ) : (
-                            <p className="text-sm text-muted-foreground text-center py-4">No documents have been uploaded for this order yet.</p>
-                        )}
-                    </CardContent>
-                     {allDocumentsReviewed && (
-                        <CardFooter>
-                            <Button onClick={handleSendFeedback} disabled={isSendingFeedback}>
-                                {isSendingFeedback && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Provide Client with Feedback
-                            </Button>
-                        </CardFooter>
-                    )}
-                </Card>
-
-                 <Card>
-                    <CardHeader>
-                        <CardTitle>Communication History</CardTitle>
-                        <CardDescription>Internal notes and sent emails for this order.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                         <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-                            {order.notes && order.notes.length > 0 ? (
-                                order.notes.slice().reverse().map((note, index) => {
-                                    const author = getAuthor(note.authorId);
-                                    const isEmail = note.type === 'email';
-                                    return (
-                                        <div key={index} className="flex items-start gap-3">
-                                            <div className="p-3 rounded-lg w-full bg-muted">
-                                                <div className="flex justify-between items-center mb-1">
-                                                    <p className="text-xs font-semibold">{author?.name || 'System'}</p>
-                                                    <p className="text-xs text-muted-foreground">{format(new Date(note.date), 'dd/MM/yyyy, HH:mm')}</p>
-                                                </div>
-                                                 {isEmail ? (
-                                                    <div>
-                                                        <div className="flex items-center gap-2 mb-1">
-                                                            <Mail className="h-4 w-4 text-muted-foreground" />
-                                                            <p className="text-sm font-semibold">{note.subject}</p>
-                                                        </div>
-                                                        <p className="text-sm italic text-muted-foreground">"{note.text}"</p>
-                                                    </div>
-                                                 ) : (
-                                                    <p className="text-sm">{note.text}</p>
-                                                 )}
-                                            </div>
-                                        </div>
-                                    );
-                                })
-                            ) : (
-                                <p className="text-xs text-muted-foreground text-center py-4">No notes for this order yet.</p>
-                            )}
-                        </div>
-                         <Form {...noteForm}>
-                          <form onSubmit={noteForm.handleSubmit(onNoteSubmit)} className="flex items-start gap-2 pt-4">
+    <Dialog onOpenChange={(isOpen) => !isOpen && setViewingBackendSummary(null)}>
+        <div className="space-y-8">
+            <Dialog open={isRejectionDialogOpen} onOpenChange={setIsRejectionDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Reject Document</DialogTitle>
+                        <DialogDescription>Please provide a clear reason for rejecting this document. This will be visible to the client.</DialogDescription>
+                    </DialogHeader>
+                    <Form {...rejectionForm}>
+                        <form onSubmit={rejectionForm.handleSubmit(handleRejectionSubmit)} className="space-y-4">
                             <FormField
-                              control={noteForm.control}
-                              name="noteText"
-                              render={({ field }) => (
-                                <FormItem className="flex-grow">
-                                  <FormControl>
-                                    <Textarea placeholder="Add a new note..." {...field} rows={2} />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
+                                control={rejectionForm.control}
+                                name="reason"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormControl><Textarea {...field} rows={4} /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
                             />
-                            <Button type="submit" size="icon" className="flex-shrink-0 mt-1">
-                              <Send className="h-4 w-4" />
-                            </Button>
-                          </form>
-                        </Form>
-                    </CardContent>
-                </Card>
-
+                            <div className="flex justify-end gap-2">
+                                <Button type="button" variant="ghost" onClick={() => setIsRejectionDialogOpen(false)}>Cancel</Button>
+                                <Button type="submit" variant="destructive">Reject</Button>
+                            </div>
+                        </form>
+                    </Form>
+                </DialogContent>
+            </Dialog>
+            <div>
+                <Button variant="outline" asChild>
+                    <Link href="/admin/orders">
+                        <ArrowLeft className="mr-2 h-4 w-4" />
+                        Back to Orders
+                    </Link>
+                </Button>
             </div>
-            <div className="lg:col-span-1 space-y-6 sticky top-24">
-                 {assignee && (
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+                <div className="lg:col-span-2 space-y-8">
                     <Card>
-                        <CardHeader className="flex flex-row items-center gap-3 space-y-0">
-                           <UserIcon className="h-5 w-5 text-muted-foreground"/>
-                           <CardTitle className="text-lg">Assigned To</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="flex items-center gap-4">
+                        <CardHeader>
+                            <div className="flex justify-between items-start">
                                 <div>
-                                    <p className="font-semibold">{assignee.name}</p>
-                                    <p className="text-sm text-muted-foreground">{assignee.department}</p>
+                                    <CardTitle>Order {order.id}</CardTitle>
+                                    <CardDescription>
+                                    Date: {format(new Date(order.date), 'dd/MM/yyyy')} | Status: <Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
+                                    {order.originalOrderId && <span className="ml-2">| Original Order: <Link href={`/reseller/orders/${order.originalOrderId}`} className="text-primary hover:underline">{order.originalOrderId}</Link></span>}
+                                    </CardDescription>
+                                </div>
+                                <DialogTrigger asChild>
+                                    <Button variant="outline" size="sm" onClick={() => setViewingBackendSummary(order)}>
+                                        <Server className="mr-2 h-4 w-4" />
+                                        Backend Summary
+                                    </Button>
+                                </DialogTrigger>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <h3 className="font-semibold text-muted-foreground mb-2">Order Items</h3>
+                                    <div className="space-y-4">
+                                    {order.items.map((item: any) => (
+                                        <div key={item.id} className="flex justify-between items-center">
+                                        <div>
+                                            <p className="font-semibold">{item.title}</p>
+                                            <p className="text-sm text-muted-foreground">Quantity: {item.quantity}</p>
+                                        </div>
+                                        <p>{formatPrice(item.price)}</p>
+                                        </div>
+                                    ))}
+                                    </div>
+                                    <Separator className="my-4" />
+                                    <div className="flex justify-between font-bold text-lg">
+                                    <span>Total</span>
+                                    <span>{formatPrice(order.total)}</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-muted-foreground mb-2">{isOutsourced ? 'End Client Details' : 'Customer Details'}</h3>
+                                    <div className="space-y-3">
+                                        <p className="font-semibold text-lg">{displayCustomerName}</p>
+                                        {displayCustomerEmail && (
+                                            <div className="flex items-center gap-2 text-sm">
+                                                <Mail className="h-4 w-4 text-muted-foreground" />
+                                                <a href={`mailto:${displayCustomerEmail}`} className="text-primary hover:underline">{displayCustomerEmail}</a>
+                                            </div>
+                                        )}
+                                        {displayCustomer?.contactNumber && (
+                                            <div className="flex items-center gap-2 text-sm">
+                                                <Phone className="h-4 w-4 text-muted-foreground" />
+                                                <span>{displayCustomer.contactNumber}</span>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </CardContent>
                     </Card>
-                 )}
-                  <Card>
-                    <CardHeader>
-                        <CardTitle>Quick Actions</CardTitle>
-                        <CardDescription>Send pre-made emails to the client.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                        <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickActionEmail('payment')}>
-                            <Phone className="mr-2 h-4 w-4" /> Follow Up On Payment
-                        </Button>
-                        <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickActionEmail('docs')}>
-                            <FileText className="mr-2 h-4 w-4" /> Request Documents
-                        </Button>
-                        <Separator className="my-2" />
-                        <EmailClientDialog order={order} user={customer} allStaff={allStaff} onEmailSent={addEmailToHistory} />
-                        <Separator className="my-2" />
-                        <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickActionEmail('review')}>
-                            <Star className="mr-2 h-4 w-4" /> Request a Review
-                        </Button>
-                        <Button variant="outline" className="w-full justify-start">
-                            <Percent className="mr-2 h-4 w-4" /> Generate 10% discount
-                        </Button>
-                    </CardContent>
-                 </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Uploaded Documents</CardTitle>
+                            <CardDescription>Documents uploaded by the client for this order.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {order.documentUploads && order.documentUploads.length > 0 ? (
+                                <ul className="space-y-3">
+                                    {order.documentUploads.map((doc, index) => {
+                                        const identifier = doc.type === 'file' ? doc.fileUrl! : doc.textValue!;
+                                        return (
+                                            <li key={index} className="flex items-center justify-between p-2 border rounded-md">
+                                                <div>
+                                                    <p className="font-medium text-sm">{doc.requirementLabel}</p>
+                                                    {doc.type === 'file' ? (
+                                                        <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1">
+                                                            <Download className="h-3 w-3" /> {doc.fileName}
+                                                        </a>
+                                                    ) : (
+                                                        <p className="text-sm p-2 bg-muted rounded-md mt-1">"{doc.textValue}"</p>
+                                                    )}
+
+                                                    {doc.status === 'rejected' && doc.rejectionReason && (
+                                                        <p className="text-xs text-destructive mt-1">Reason: {doc.rejectionReason}</p>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    {doc.status === 'pending' ? (
+                                                        <>
+                                                            <Button size="sm" variant="outline" onClick={() => handleDocumentStatusUpdate(identifier, 'approved')}>
+                                                                <CheckCircle className="mr-2 h-4 w-4 text-green-500" />Approve
+                                                            </Button>
+                                                            <Button size="sm" variant="destructive" onClick={() => handleOpenRejectionDialog(doc)}>
+                                                                <XCircle className="mr-2 h-4 w-4" />Reject
+                                                            </Button>
+                                                        </>
+                                                    ) : doc.status === 'approved' ? (
+                                                        <Badge variant="success" className="text-sm"><CheckCircle className="mr-2 h-4 w-4"/>Approved</Badge>
+                                                    ) : (
+                                                        <Badge variant="destructive" className="text-sm"><AlertTriangle className="mr-2 h-4 w-4"/>Rejected</Badge>
+                                                    )}
+                                                </div>
+                                            </li>
+                                        )
+                                    })}
+                                </ul>
+                            ) : (
+                                <p className="text-sm text-muted-foreground text-center py-4">No documents have been uploaded for this order yet.</p>
+                            )}
+                        </CardContent>
+                        {allDocumentsReviewed && (
+                            <CardFooter>
+                                <Button onClick={handleSendFeedback} disabled={isSendingFeedback}>
+                                    {isSendingFeedback && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    Provide Client with Feedback
+                                </Button>
+                            </CardFooter>
+                        )}
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Communication History</CardTitle>
+                            <CardDescription>Internal notes and sent emails for this order.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+                                {order.notes && order.notes.length > 0 ? (
+                                    order.notes.slice().reverse().map((note, index) => {
+                                        const author = getAuthor(note.authorId);
+                                        const isEmail = note.type === 'email';
+                                        return (
+                                            <div key={index} className="flex items-start gap-3">
+                                                <div className="p-3 rounded-lg w-full bg-muted">
+                                                    <div className="flex justify-between items-center mb-1">
+                                                        <p className="text-xs font-semibold">{author?.name || 'System'}</p>
+                                                        <p className="text-xs text-muted-foreground">{format(new Date(note.date), 'dd/MM/yyyy, HH:mm')}</p>
+                                                    </div>
+                                                    {isEmail ? (
+                                                        <div>
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <Mail className="h-4 w-4 text-muted-foreground" />
+                                                                <p className="text-sm font-semibold">{note.subject}</p>
+                                                            </div>
+                                                            <p className="text-sm italic text-muted-foreground">"{note.text}"</p>
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-sm">{note.text}</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                ) : (
+                                    <p className="text-xs text-muted-foreground text-center py-4">No notes for this order yet.</p>
+                                )}
+                            </div>
+                            <Form {...noteForm}>
+                            <form onSubmit={noteForm.handleSubmit(onNoteSubmit)} className="flex items-start gap-2 pt-4">
+                                <FormField
+                                control={noteForm.control}
+                                name="noteText"
+                                render={({ field }) => (
+                                    <FormItem className="flex-grow">
+                                    <FormControl>
+                                        <Textarea placeholder="Add a new note..." {...field} rows={2} />
+                                    </FormControl>
+                                    <FormMessage />
+                                    </FormItem>
+                                )}
+                                />
+                                <Button type="submit" size="icon" className="flex-shrink-0 mt-1">
+                                <Send className="h-4 w-4" />
+                                </Button>
+                            </form>
+                            </Form>
+                        </CardContent>
+                    </Card>
+
+                </div>
+                <div className="lg:col-span-1 space-y-6 sticky top-24">
+                    {assignee && (
+                        <Card>
+                            <CardHeader className="flex flex-row items-center gap-3 space-y-0">
+                            <UserIcon className="h-5 w-5 text-muted-foreground"/>
+                            <CardTitle className="text-lg">Assigned To</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="flex items-center gap-4">
+                                    <div>
+                                        <p className="font-semibold">{assignee.name}</p>
+                                        <p className="text-sm text-muted-foreground">{assignee.department}</p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Quick Actions</CardTitle>
+                            <CardDescription>Send pre-made emails to the client.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                            <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickActionEmail('payment')}>
+                                <Phone className="mr-2 h-4 w-4" /> Follow Up On Payment
+                            </Button>
+                            <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickActionEmail('docs')}>
+                                <FileText className="mr-2 h-4 w-4" /> Request Documents
+                            </Button>
+                            <Separator className="my-2" />
+                            <EmailClientDialog order={order} user={customer} allStaff={allStaff} onEmailSent={addEmailToHistory} />
+                            <Separator className="my-2" />
+                            <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickActionEmail('review')}>
+                                <Star className="mr-2 h-4 w-4" /> Request a Review
+                            </Button>
+                            <Button variant="outline" className="w-full justify-start">
+                                <Percent className="mr-2 h-4 w-4" /> Generate 10% discount
+                            </Button>
+                        </CardContent>
+                    </Card>
+                </div>
             </div>
+             {viewingBackendSummary && <BackendSummaryModal order={viewingBackendSummary} />}
         </div>
-    </div>
+    </Dialog>
   );
 }
