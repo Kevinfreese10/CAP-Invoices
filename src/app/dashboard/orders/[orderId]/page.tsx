@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -262,7 +261,11 @@ export default function ClientOrderDetailsPage() {
                                                           <div className="text-right">
                                                             <Badge variant="destructive"><AlertTriangle className="h-3 w-3 mr-1"/>Rejected</Badge>
                                                             {upload.rejectionReason && <p className="text-xs text-destructive mt-1">{upload.rejectionReason}</p>}
-                                                            <Input type="file" accept={info.type === 'pdf' ? 'application/pdf' : 'image/*'} className="mt-2" onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], item.service!.id, info.label)} />
+                                                            {info.type === 'pdf' ? (
+                                                              <Input type="file" accept="application/pdf" className="mt-2" onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], item.service!.id, info.label)} />
+                                                            ) : (
+                                                              <Input type="text" className="mt-2" placeholder="Enter information here..." />
+                                                            )}
                                                           </div>
                                                         )}
                                                      </div>
@@ -272,7 +275,11 @@ export default function ClientOrderDetailsPage() {
                                                         <p className="text-sm">Uploading... {Math.round(uploadingFiles[uploadKey])}%</p>
                                                     </div>
                                                 ) : (
-                                                    <Input type="file" accept={info.type === 'pdf' ? 'application/pdf' : 'image/*'} onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], item.service!.id, info.label)} />
+                                                    info.type === 'pdf' ? (
+                                                        <Input type="file" accept="application/pdf" onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], item.service!.id, info.label)} />
+                                                    ) : (
+                                                        <Input type="text" placeholder="Enter information here..." />
+                                                    )
                                                 )}
                                             </div>
                                         )})}
