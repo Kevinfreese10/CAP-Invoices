@@ -22,6 +22,8 @@ import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 import { render } from '@react-email/components';
 import Link from 'next/link';
 import { getNextOrderId } from '@/lib/sequence';
+import PayFastCheckout from './PayFastCheckout';
+
 
 const db = getFirestore(firebaseApp);
 
@@ -55,6 +57,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
   const { signup, user: currentUser } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [orderForPayment, setOrderForPayment] = useState<Partial<Order> | null>(null);
   const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; amount: number; percentage: number; } | null>(null);
   const [isVerifyingDiscount, setIsVerifyingDiscount] = useState(false);
 
@@ -120,9 +123,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
     });
 
     let userId = currentUser?.uid;
-    let userEmail = currentUser?.email;
 
-    // If user is not logged in, create an account for them
     if (!currentUser) {
       if (!values.password) {
         form.setError('password', { message: 'Password is required to create an account.' });
@@ -137,7 +138,6 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
           return;
         }
         userId = newUser.uid;
-        userEmail = newUser.email;
         toast({ title: 'Account Created!', description: 'You are now logged in.' });
       } catch (e: any) {
         toast({ title: 'Signup Failed', description: e.message || 'An unexpected error occurred.', variant: 'destructive' });
@@ -157,16 +157,6 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
       const orderId = await getNextOrderId();
       const department = service.department as 'Accounting and Tax' | 'Administration' | 'CAP' | undefined;
 
-      const confirmationEmailSubject = `My Accountant | Order Confirmation: #${orderId}`;
-
-      const confirmationNote: OrderNote = {
-          text: 'Order confirmation email sent to client.',
-          date: Timestamp.now(),
-          authorId: userId,
-          type: 'email',
-          subject: confirmationEmailSubject,
-      };
-
       const orderData: Order = {
         id: orderId,
         userId: userId,
@@ -182,12 +172,11 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
         total: finalTotal,
         discountCode: appliedDiscount ? appliedDiscount.code : null,
         discountAmount: appliedDiscount ? appliedDiscount.amount : null,
-        paymentMethod: 'EFT',
+        paymentMethod: 'PayFast',
         status: 'Pending Payment',
         date: Timestamp.now(),
         department: department || null,
         assignedTo: null,
-        notes: [confirmationNote],
         source: 'Client',
       };
       
@@ -202,18 +191,8 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
           });
       }
       
-      // Send confirmation email
-      const emailHtml = render(<OrderConfirmationEmail order={orderData} />);
-      await sendEmail({
-        to: values.email_address,
-        bcc: 'kev@thinkestry.co.za',
-        subject: confirmationEmailSubject,
-        html: emailHtml,
-      });
+      setOrderForPayment(orderData);
       
-      setIsLoading(false);
-      router.push(`/order-confirmation/${orderId}`);
-
     } catch (error) {
         console.error("Error creating order: ", error);
         toast({
@@ -276,10 +255,23 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
                         <p className="text-2xl font-bold">{formatPrice(finalTotal)}</p>
                     </div>
                 </div>
-                <Button type="submit" className="w-full" size="lg" disabled={isLoading || !form.formState.isValid}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {isLoading ? 'Processing...' : 'Place Order & Pay via EFT'}
-                </Button>
+                 {orderForPayment ? (
+                    <PayFastCheckout
+                        order={orderForPayment}
+                        isDisabled={isLoading}
+                        onPaymentStart={() => setIsLoading(true)}
+                        onPaymentSuccess={() => { /* Redirects handled by PayFast */ }}
+                        onPaymentError={(err) => {
+                            toast({ title: 'Payment Error', description: err, variant: 'destructive'});
+                            setIsLoading(false);
+                        }}
+                    />
+                ) : (
+                    <Button type="submit" className="w-full" size="lg" disabled={isLoading || !form.formState.isValid}>
+                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {isLoading ? 'Processing...' : 'Proceed to Payment'}
+                    </Button>
+                )}
             </CardFooter>
           </form>
         </Form>

@@ -1,5 +1,4 @@
 
-
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -23,6 +22,7 @@ import { render } from '@react-email/components';
 import { getNextOrderId } from '@/lib/sequence';
 import { Separator } from '../ui/separator';
 import Link from 'next/link';
+import PayFastCheckout from './PayFastCheckout';
 
 const db = getFirestore(firebaseApp);
 
@@ -40,6 +40,7 @@ export default function CheckoutForm() {
   const { cartItems, cartTotal, clearCart } = useCart();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [orderForPayment, setOrderForPayment] = useState<Partial<Order> | null>(null);
   const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; amount: number; percentage: number; } | null>(null);
   const [isVerifyingDiscount, setIsVerifyingDiscount] = useState(false);
 
@@ -109,16 +110,6 @@ export default function CheckoutForm() {
       const firstService = cartItems[0]?.service;
       const department = firstService?.department as 'Accounting and Tax' | 'Administration' | 'CAP' | undefined;
       
-      const confirmationEmailSubject = `My Accountant | Order Confirmation: #${orderId}`;
-
-      const confirmationNote: OrderNote = {
-          text: 'Order confirmation email sent to client.',
-          date: Timestamp.now(),
-          authorId: currentUser.uid,
-          type: 'email',
-          subject: confirmationEmailSubject,
-      };
-
       const orderData: Order = {
         id: orderId,
         userId: currentUser.uid,
@@ -134,12 +125,11 @@ export default function CheckoutForm() {
         total: finalTotal,
         discountCode: appliedDiscount ? appliedDiscount.code : null,
         discountAmount: appliedDiscount ? appliedDiscount.amount : null,
-        paymentMethod: 'EFT',
+        paymentMethod: 'PayFast',
         status: 'Pending Payment',
         date: Timestamp.now(),
         department: department || null,
         assignedTo: null,
-        notes: [confirmationNote],
         source: 'Client',
       };
       
@@ -154,18 +144,7 @@ export default function CheckoutForm() {
           });
       }
       
-      // Send confirmation email with EFT details
-      const emailHtml = render(<OrderConfirmationEmail order={orderData} />);
-      await sendEmail({
-        to: values.email_address,
-        bcc: 'kev@thinkestry.co.za',
-        subject: confirmationEmailSubject,
-        html: emailHtml,
-      });
-      
-      clearCart();
-      setIsLoading(false);
-      router.push(`/order-confirmation/${orderId}`);
+      setOrderForPayment(orderData);
 
     } catch (error) {
         console.error("Error creating order: ", error);
@@ -226,10 +205,26 @@ export default function CheckoutForm() {
                 )}
             </div>
 
-            <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isLoading ? 'Processing...' : 'Place Order via EFT'}
-            </Button>
+            {orderForPayment ? (
+                <PayFastCheckout
+                    order={orderForPayment}
+                    isDisabled={isLoading}
+                    onPaymentStart={() => setIsLoading(true)}
+                    onPaymentSuccess={() => {
+                      clearCart();
+                    }}
+                    onPaymentError={(err) => {
+                        toast({ title: 'Payment Error', description: err, variant: 'destructive'});
+                        setIsLoading(false);
+                    }}
+                />
+            ) : (
+                <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isLoading ? 'Processing...' : 'Proceed to Payment'}
+                </Button>
+            )}
+
           </form>
         </Form>
       </CardContent>
