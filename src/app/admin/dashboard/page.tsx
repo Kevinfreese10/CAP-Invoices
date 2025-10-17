@@ -626,7 +626,7 @@ export default function AdminDashboardPage() {
         if (!user) return [];
         return tasks.filter(task => 
             Array.isArray(task.assignedTo) && 
-            task.assignedTo.includes(user.uid) &&
+            task.assignedTo.includes(user.id) &&
             task.status !== 'Done' &&
             (!task.recurrence || task.recurrence === 'None')
         ).sort((a,b) => (a.dueDate.toDate ? a.dueDate.toDate().getTime() : 0) - (b.dueDate.toDate ? b.dueDate.toDate().getTime() : 0));
