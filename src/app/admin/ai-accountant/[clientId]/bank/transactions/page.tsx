@@ -58,14 +58,14 @@ type ExtractedTransaction = {
 
 function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { client: User | null, bankAccountId: string, onImportComplete: () => void }) {
     const [isOpen, setIsOpen] = useState(false);
-    const [file, setFile] = useState<File | null>(null);
+    const [files, setFiles] = useState<File[]>([]);
     const [isExtracting, setIsExtracting] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [extractedTransactions, setExtractedTransactions] = useState<ExtractedTransaction[]>([]);
     const { toast } = useToast();
 
     const resetState = () => {
-        setFile(null);
+        setFiles([]);
         setExtractedTransactions([]);
         setIsExtracting(false);
         setIsUploading(false);
@@ -74,39 +74,49 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
     };
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const selectedFile = e.target.files?.[0];
-        if (selectedFile) {
-            setFile(selectedFile);
+        const selectedFiles = e.target.files;
+        if (selectedFiles && selectedFiles.length > 0) {
+            setFiles(Array.from(selectedFiles));
             setExtractedTransactions([]); // Clear previous results
             setIsExtracting(true);
-            toast({ title: "Extracting Transactions...", description: "The AI is processing your bank statement. This may take a moment."});
+            toast({ title: `Extracting Transactions from ${selectedFiles.length} file(s)...`, description: "The AI is processing your bank statements. This may take a moment."});
             
-            const reader = new FileReader();
-            reader.readAsDataURL(selectedFile);
-            reader.onload = async () => {
-                const dataUrl = reader.result as string;
-                try {
-                    const result = await extractStatementData({ statementPdf: dataUrl });
-                     if (!result || !result.transactions || result.transactions.length === 0) {
-                        toast({ title: 'Extraction Failed', description: 'The AI could not extract any transactions. Please try a different file.', variant: 'destructive' });
-                        resetState();
-                    } else {
-                        setExtractedTransactions(result.transactions);
-                        toast({ title: 'Extraction Complete!', description: `${result.transactions.length} transactions were found.` });
+            const allTransactions: ExtractedTransaction[] = [];
+            
+            await Promise.all(Array.from(selectedFiles).map(file => new Promise<void>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = async () => {
+                    const dataUrl = reader.result as string;
+                    try {
+                        const result = await extractStatementData({ statementPdf: dataUrl });
+                         if (!result || !result.transactions || result.transactions.length === 0) {
+                            toast({ title: `Extraction Failed for ${file.name}`, description: 'The AI could not extract any transactions.', variant: 'destructive' });
+                        } else {
+                            allTransactions.push(...result.transactions);
+                        }
+                    } catch (error) {
+                        console.error(`Statement extraction error for ${file.name}:`, error);
+                        toast({ title: `Extraction Failed for ${file.name}`, description: 'Could not extract data from this file.', variant: 'destructive' });
+                    } finally {
+                        resolve();
                     }
-                } catch (error) {
-                    console.error("Statement extraction error:", error);
-                    toast({ title: 'Extraction Failed', description: 'Could not extract data from this file. Please ensure it is a valid bank statement.', variant: 'destructive' });
-                    resetState();
-                } finally {
-                    setIsExtracting(false);
-                }
-            };
-            reader.onerror = () => {
-                 toast({ title: 'File Error', description: 'Could not read the selected file.', variant: 'destructive' });
-                 setIsExtracting(false);
-                 resetState();
-            };
+                };
+                reader.onerror = () => {
+                     toast({ title: `File Error for ${file.name}`, description: 'Could not read the selected file.', variant: 'destructive' });
+                     resolve();
+                };
+            })));
+
+            if(allTransactions.length > 0) {
+                setExtractedTransactions(allTransactions);
+                toast({ title: 'Extraction Complete!', description: `${allTransactions.length} transactions were found across all files.` });
+            } else {
+                 toast({ title: 'Extraction Failed', description: 'No transactions could be extracted from any of the provided files.', variant: 'destructive' });
+                resetState();
+            }
+
+            setIsExtracting(false);
         }
     };
     
@@ -165,21 +175,21 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
     return (
         <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if(!open) resetState(); }}>
             <DialogTrigger asChild>
-                <Button variant="outline"><Upload className="mr-2 h-4 w-4" /> Upload Statement</Button>
+                <Button variant="outline"><Upload className="mr-2 h-4 w-4" /> Upload Statement(s)</Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-4xl">
                 <DialogHeader>
                     <DialogTitle>Upload Bank Statement (AI Extraction)</DialogTitle>
                     <DialogDescription>
-                       Select a PDF or image file of a bank statement. The AI will extract the transactions for you to review and import.
+                       Select one or more PDF or image files of a bank statement. The AI will extract the transactions for you to review and import.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
-                     <Input id="ai-statement-file" type="file" accept="application/pdf,image/jpeg,image/png" onChange={handleFileChange} disabled={isExtracting} />
+                     <Input id="ai-statement-file" type="file" accept="application/pdf,image/jpeg,image/png" onChange={handleFileChange} disabled={isExtracting} multiple />
                      {isExtracting && 
                         <div className="flex items-center gap-2 text-primary">
                             <Loader2 className="animate-spin"/>
-                            <span>Analyzing document...</span>
+                            <span>Analyzing document(s)...</span>
                         </div>
                      }
                      {extractedTransactions.length > 0 && 
@@ -242,7 +252,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
     const [potentialAllocations, setPotentialAllocations] = useState(0);
     const [potentialAiAllocations, setPotentialAiAllocations] = useState(0);
 
-    const resetState = () => {
+    const resetState = useCallback(() => {
         setFile(null);
         setParsedTransactions([]);
         setPotentialAllocations(0);
@@ -251,7 +261,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
         setIsUploading(false);
         const fileInput = document.getElementById('statement-file') as HTMLInputElement;
         if(fileInput) fileInput.value = '';
-    };
+    }, []);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = e.target.files?.[0];
@@ -379,10 +389,10 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
         }
     };
 
-    const handleCancel = () => {
+    const handleCancel = useCallback(() => {
         setIsOpen(false);
         resetState();
-    }
+    }, [resetState]);
     
     const handleDownloadExample = () => {
         const csvContent = "Date,Description,Amount\nDD/MM/YYYY,Example Payment,-150.00\nDD/MM/YYYY,Example Income,1000.50";
@@ -611,11 +621,11 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
   const { toast } = useToast();
   const form = useForm<z.infer<typeof ruleFormSchema>>({
     resolver: zodResolver(ruleFormSchema),
-    defaultValues: {
-      description: defaultValues?.description || "",
-      keywords: defaultValues?.keywords || "",
-      accountId: defaultValues?.accountId || "",
-      vatType: defaultValues?.vatType || "standard_rated_purchases",
+    defaultValues: defaultValues || {
+      description: "",
+      keywords: "",
+      accountId: "",
+      vatType: "standard_rated_purchases",
     },
   });
   
