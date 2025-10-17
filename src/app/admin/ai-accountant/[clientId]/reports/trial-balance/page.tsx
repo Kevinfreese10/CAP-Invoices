@@ -71,7 +71,7 @@ function TrialBalanceReport({ client, transactions, dateRange }: { client: User,
         const reportEndDate = dateRange?.to;
 
         const retainedIncomeAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '5200/000');
-        const suspenseAccountId = client.chartOfAccounts?.find(acc => acc.accountNumber === '9950/000')?.id;
+        const suspenseAccountId = client.chartOfAccounts?.find(acc => acc.accountNumber === '9500-001')?.id;
         const vatControlAccountId = client.chartOfAccounts?.find(acc => acc.accountNumber === '9500/000')?.id;
 
         let priorPeriodNetIncome = 0;
@@ -114,9 +114,6 @@ function TrialBalanceReport({ client, transactions, dateRange }: { client: User,
         });
         
         if (retainedIncomeAccount) {
-            // A positive priorPeriodNetIncome is a loss (expenses > income), which creates a DEBIT on retained income.
-            // A negative priorPeriodNetIncome is a profit (income > expenses), which creates a CREDIT on retained income.
-            // Debits are positive, Credits are negative in our system.
             balances.set(retainedIncomeAccount.id, (balances.get(retainedIncomeAccount.id) || 0) + priorPeriodNetIncome);
         }
 
