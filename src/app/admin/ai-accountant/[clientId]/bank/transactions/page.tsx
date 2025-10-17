@@ -35,11 +35,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 import { extractStatementData } from '@/ai/flows/extract-statement-data';
+import { extractStatementPeriod } from '@/ai/flows/extract-statement-period';
 import { Progress } from '@/components/ui/progress';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandItem } from '@/components/ui/command';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { format, startOfMonth, endOfMonth, eachMonthOfInterval, getYear, getMonth } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachMonthOfInterval, getYear, getMonth, parseISO } from 'date-fns';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 
@@ -59,21 +60,31 @@ type ExtractedTransaction = {
     amount: number;
 };
 
+type PeriodAnalysisResult = {
+    fileName: string;
+    startDate: string;
+    endDate: string;
+};
+
 function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { client: User | null, bankAccountId: string, onImportComplete: () => void }) {
     const [isOpen, setIsOpen] = useState(false);
     const [files, setFiles] = useState<File[]>([]);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [isExtracting, setIsExtracting] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
-    const [extractedTransactions, setExtractedTransactions] = useState<ExtractedTransaction[]>([]);
+    const [periodAnalysis, setPeriodAnalysis] = useState<PeriodAnalysisResult[]>([]);
     const [missingMonths, setMissingMonths] = useState<string[]>([]);
+    const [extractedTransactions, setExtractedTransactions] = useState<ExtractedTransaction[]>([]);
     const { toast } = useToast();
 
     const resetState = () => {
         setFiles([]);
+        setPeriodAnalysis([]);
+        setMissingMonths([]);
         setExtractedTransactions([]);
+        setIsAnalyzing(false);
         setIsExtracting(false);
         setIsUploading(false);
-        setMissingMonths([]);
         const fileInput = document.getElementById('ai-statement-file') as HTMLInputElement;
         if(fileInput) fileInput.value = '';
     };
@@ -82,21 +93,88 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
         const selectedFiles = e.target.files;
         if (selectedFiles && selectedFiles.length > 0) {
             setFiles(Array.from(selectedFiles));
-            setExtractedTransactions([]); // Clear previous results
+            // Reset states for a new upload batch
+            setPeriodAnalysis([]);
             setMissingMonths([]);
+            setExtractedTransactions([]);
         }
     };
     
     useEffect(() => {
-        if (files.length > 0) {
+        if (files.length > 0 && periodAnalysis.length === 0) { // Only run if analysis hasn't been done
             handlePeriodAnalysis();
         }
     }, [files]);
     
     const handlePeriodAnalysis = async () => {
-        setIsExtracting(true);
+        setIsAnalyzing(true);
         toast({ title: `Analyzing ${files.length} file(s)...`, description: "The AI is checking the statement periods." });
 
+        const analysisResults = await Promise.all(files.map(async (file) => {
+            const reader = new FileReader();
+            return new Promise<PeriodAnalysisResult | null>((resolve) => {
+                reader.readAsDataURL(file);
+                reader.onload = async () => {
+                    const dataUrl = reader.result as string;
+                    try {
+                        const result = await extractStatementPeriod({ statementPdf: dataUrl });
+                        if (result && result.startDate && result.endDate) {
+                            resolve({ fileName: file.name, ...result });
+                        } else {
+                            toast({ title: `Analysis Error`, description: `Could not determine date range for ${file.name}.`, variant: 'destructive'});
+                            resolve(null);
+                        }
+                    } catch (error) {
+                        toast({ title: `Analysis Error`, description: `Failed to analyze ${file.name}.`, variant: 'destructive'});
+                        console.error(`Statement analysis error for ${file.name}:`, error);
+                        resolve(null);
+                    }
+                };
+                reader.onerror = () => {
+                    toast({ title: `File Error`, description: `Could not read ${file.name}.`, variant: 'destructive'});
+                    resolve(null);
+                };
+            });
+        }));
+        
+        const validResults = analysisResults.filter((r): r is PeriodAnalysisResult => r !== null);
+        
+        if (validResults.length > 0) {
+            validResults.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+            setPeriodAnalysis(validResults);
+
+            const allDates = validResults.flatMap(r => [parseISO(r.startDate), parseISO(r.endDate)]);
+            if (allDates.length > 1) {
+                const minDate = new Date(Math.min(...allDates.map(d => d.getTime())));
+                const maxDate = new Date(Math.max(...allDates.map(d => d.getTime())));
+                
+                const interval = { start: startOfMonth(minDate), end: endOfMonth(maxDate) };
+                const allMonthsInInterval = eachMonthOfInterval(interval);
+                
+                const presentMonths = new Set<string>();
+                validResults.forEach(r => {
+                    const start = parseISO(r.startDate);
+                    const end = parseISO(r.endDate);
+                    const monthsInFile = eachMonthOfInterval({ start, end });
+                    monthsInFile.forEach(monthStart => {
+                        presentMonths.add(`${getYear(monthStart)}-${getMonth(monthStart)}`);
+                    });
+                });
+                
+                const foundMissingMonths = allMonthsInInterval
+                    .filter(monthStart => !presentMonths.has(`${getYear(monthStart)}-${getMonth(monthStart)}`))
+                    .map(monthStart => format(monthStart, 'MMMM yyyy'));
+                
+                setMissingMonths(foundMissingMonths);
+            }
+        }
+        setIsAnalyzing(false);
+    };
+
+    const handleExtractTransactions = async () => {
+        setIsExtracting(true);
+        toast({ title: 'Extracting Transactions...', description: `The AI is now reading all transaction data from ${files.length} file(s).` });
+        
         const allTransactions: ExtractedTransaction[] = [];
         await Promise.all(files.map(file => new Promise<void>((resolve) => {
             const reader = new FileReader();
@@ -109,7 +187,7 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
                         allTransactions.push(...result.transactions);
                     }
                 } catch (error) {
-                    console.error(`Statement analysis error for ${file.name}:`, error);
+                    console.error(`Transaction extraction error for ${file.name}:`, error);
                 } finally {
                     resolve();
                 }
@@ -122,31 +200,13 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
         
         if (allTransactions.length > 0) {
             allTransactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-            // Gap detection logic
-            const dates = allTransactions.map(tx => new Date(tx.date));
-            if (dates.length > 1) {
-                const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
-                const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
-                
-                const interval = { start: startOfMonth(minDate), end: endOfMonth(maxDate) };
-                const allMonthsInInterval = eachMonthOfInterval(interval);
-                
-                const presentMonths = new Set(dates.map(d => `${getYear(d)}-${getMonth(d)}`));
-                
-                const foundMissingMonths = allMonthsInInterval
-                    .filter(monthStart => !presentMonths.has(`${getYear(monthStart)}-${getMonth(monthStart)}`))
-                    .map(monthStart => format(monthStart, 'MMMM yyyy'));
-                
-                setMissingMonths(foundMissingMonths);
-            }
-             setExtractedTransactions(allTransactions); // Temporarily store for count
+            setExtractedTransactions(allTransactions);
         } else {
-             toast({ title: 'Analysis Failed', description: 'No transactions could be found in any of the provided files.', variant: 'destructive' });
+             toast({ title: 'Extraction Failed', description: 'No transactions could be found in any of the provided files.', variant: 'destructive' });
         }
-
+        
         setIsExtracting(false);
-    }
+    };
     
     const handleImport = async () => {
         if (!client || !bankAccountId || extractedTransactions.length === 0) return;
@@ -211,27 +271,58 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
-                     <Input id="ai-statement-file" type="file" accept="application/pdf,image/jpeg,image/png" onChange={handleFileChange} disabled={isExtracting} multiple />
-                     {isExtracting && 
+                     <Input id="ai-statement-file" type="file" accept="application/pdf,image/jpeg,image/png" onChange={handleFileChange} disabled={isAnalyzing || isExtracting} multiple />
+                     
+                     {(isAnalyzing || isExtracting) && 
                         <div className="flex items-center gap-2 text-primary">
                             <Loader2 className="animate-spin"/>
-                            <span>Analyzing document(s)...</span>
+                            <span>{isAnalyzing ? "Analyzing periods..." : "Extracting transactions..."}</span>
                         </div>
                      }
+                     
+                     {periodAnalysis.length > 0 && extractedTransactions.length === 0 && !isExtracting && (
+                        <div className="pt-4 space-y-4">
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Period Analysis</CardTitle>
+                                    <CardDescription>Review the detected statement periods before proceeding.</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    {missingMonths.length > 0 && (
+                                        <Alert variant="destructive" className="mb-4">
+                                            <AlertTriangle className="h-4 w-4" />
+                                            <AlertTitle>Missing Statement Periods Detected</AlertTitle>
+                                            <AlertDescription>
+                                                The following months appear to be missing between your uploaded files: {missingMonths.join(', ')}
+                                            </AlertDescription>
+                                        </Alert>
+                                    )}
+                                     <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>File Name</TableHead>
+                                                <TableHead>Start Date</TableHead>
+                                                <TableHead>End Date</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {periodAnalysis.map((p, i) => (
+                                                <TableRow key={i}>
+                                                    <TableCell>{p.fileName}</TableCell>
+                                                    <TableCell>{format(parseISO(p.startDate), 'dd MMMM yyyy')}</TableCell>
+                                                    <TableCell>{format(parseISO(p.endDate), 'dd MMMM yyyy')}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </CardContent>
+                            </Card>
+                        </div>
+                     )}
+
                      {extractedTransactions.length > 0 && 
                         <div className="pt-4 space-y-4">
-                            <div className="flex items-center justify-between">
-                                <p className="text-sm font-semibold text-green-600">Extracted {extractedTransactions.length} transactions:</p>
-                                {missingMonths.length > 0 && (
-                                    <Alert variant="destructive" className="w-auto">
-                                        <AlertTriangle className="h-4 w-4" />
-                                        <AlertTitle>Missing Statement Periods</AlertTitle>
-                                        <AlertDescription>
-                                            The following months appear to be missing: {missingMonths.join(', ')}
-                                        </AlertDescription>
-                                    </Alert>
-                                )}
-                            </div>
+                            <p className="text-sm font-semibold text-green-600">Extracted {extractedTransactions.length} transactions:</p>
                              <ScrollArea className="h-64 border rounded-md">
                                 <Table>
                                     <TableHeader>
@@ -257,10 +348,18 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
                 </div>
                 <DialogFooter>
                     <Button type="button" variant="ghost" onClick={() => setIsOpen(false)}>Cancel</Button>
-                    <Button type="button" onClick={handleImport} disabled={isUploading || isExtracting || extractedTransactions.length === 0}>
-                        {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Save {extractedTransactions.length > 0 ? extractedTransactions.length : ''} Transactions
-                    </Button>
+                     {periodAnalysis.length > 0 && extractedTransactions.length === 0 && (
+                        <Button type="button" onClick={handleExtractTransactions} disabled={isExtracting || isAnalyzing}>
+                            {isExtracting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                             Extract {files.length} Statement(s)
+                        </Button>
+                    )}
+                    {extractedTransactions.length > 0 && (
+                        <Button type="button" onClick={handleImport} disabled={isUploading}>
+                            {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Save {extractedTransactions.length} Transactions
+                        </Button>
+                    )}
                 </DialogFooter>
             </DialogContent>
         </Dialog>
@@ -468,11 +567,11 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
                      {isParsing && <p className="text-sm text-muted-foreground flex items-center"><Loader2 className="mr-2 animate-spin"/> Parsing file...</p>}
                      {parsedTransactions.length > 0 && 
                         <div className="pt-4 space-y-4">
-                            <div className="space-y-1">
+                             <div className="space-y-1">
                                 <p className="text-sm text-green-600 font-semibold">{parsedTransactions.length} transactions found in file.</p>
                                 {totalAutomated > 0 && (
                                      <p className="text-sm text-purple-600">
-                                        {totalAutomated} transaction(s) can be automatically processed ({potentialAllocations} by rules, {potentialAiAllocations} by AI), saving you an estimated {timeSavedHours} hour(s).
+                                       {totalAutomated} transaction(s) can be automatically processed (by rules or AI), saving you an estimated {timeSavedHours} hour(s).
                                     </p>
                                 )}
                             </div>
@@ -654,7 +753,7 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
   const { toast } = useToast();
   const form = useForm<z.infer<typeof ruleFormSchema>>({
     resolver: zodResolver(ruleFormSchema),
-    defaultValues: {
+    defaultValues: defaultValues || {
       description: "",
       keywords: "",
       accountId: "",
@@ -1447,4 +1546,3 @@ export default function BankTransactionsPage() {
     
 
     
-
