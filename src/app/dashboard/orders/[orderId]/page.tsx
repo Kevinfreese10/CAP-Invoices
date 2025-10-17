@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -129,6 +130,7 @@ export default function ClientOrderDetailsPage() {
             const newUpload: DocumentUpload = {
                 serviceId,
                 requirementLabel,
+                type: 'file',
                 fileUrl: downloadURL,
                 fileName: file.name,
                 uploadedAt: Timestamp.now(),
@@ -155,31 +157,32 @@ export default function ClientOrderDetailsPage() {
         setTextInputs(prev => ({ ...prev, [requirementLabel]: value }));
     };
 
-    const handleTextSubmit = async (requirementLabel: string) => {
+    const handleTextSubmit = async (serviceId: string, requirementLabel: string) => {
         const text = textInputs[requirementLabel];
         if (!currentUser || !order || !text || !text.trim()) {
              toast({ title: "Cannot Submit", description: "The field cannot be empty.", variant: "destructive" });
              return;
         }
 
-        const textSubmissionNote: OrderNote = {
-        text: text,
-        subject: `Client submission for: ${requirementLabel}`,
-        authorId: currentUser.uid,
-        date: Timestamp.now(),
-        type: 'text-submission',
+        const newUpload: DocumentUpload = {
+            serviceId,
+            requirementLabel,
+            type: 'text',
+            textValue: text,
+            uploadedAt: Timestamp.now(),
+            status: 'pending',
         };
 
         try {
-        const orderRef = doc(db, 'orders', order.id);
-        await updateDoc(orderRef, {
-            notes: arrayUnion(textSubmissionNote),
-        });
-        toast({ title: 'Information Submitted', description: 'Your information has been securely saved.' });
-        fetchOrderAndServices(); // Re-fetch to update UI
+            const orderRef = doc(db, 'orders', order.id);
+            await updateDoc(orderRef, {
+                documentUploads: arrayUnion(newUpload)
+            });
+            toast({ title: 'Information Submitted', description: 'Your information has been securely saved.' });
+            fetchOrderAndServices(); // Re-fetch to update UI
         } catch (error) {
-        console.error("Error submitting text:", error);
-        toast({ title: "Submission Failed", description: "Could not save the information.", variant: "destructive" });
+            console.error("Error submitting text:", error);
+            toast({ title: "Submission Failed", description: "Could not save the information.", variant: "destructive" });
         }
     };
 
@@ -324,7 +327,6 @@ export default function ClientOrderDetailsPage() {
                                         <h4 className="font-medium text-md">Documents Required:</h4>
                                         {item.service.informationToProvide.map((info, infoIndex) => {
                                             const upload = order.documentUploads?.find(d => d.serviceId === item.service?.id && d.requirementLabel === info.label);
-                                            const textSubmission = order.notes?.find(n => n.type === 'text-submission' && n.subject === `Client submission for: ${info.label}`);
                                             const uploadKey = `${item.service?.id}-${info.label}`;
                                             const isUploading = uploadingFiles[uploadKey] !== undefined;
                                             
@@ -336,7 +338,7 @@ export default function ClientOrderDetailsPage() {
                                                 </label>
                                                 {info.type === 'pdf' ? (
                                                     <>
-                                                        {upload ? (
+                                                        {upload && upload.type === 'file' ? (
                                                             <div className="flex items-center justify-between">
                                                                 <a href={upload.fileUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline">{upload.fileName}</a>
                                                                 {upload.status === 'approved' && <Badge variant="success"><CheckCircle className="h-3 w-3 mr-1"/>Approved</Badge>}
@@ -358,12 +360,12 @@ export default function ClientOrderDetailsPage() {
                                                             <Input type="file" accept="application/pdf" className="h-9" onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], item.service!.id, info.label)} />
                                                         )}
                                                     </>
-                                                ) : (
+                                                ) : ( // 'text' type
                                                     <>
-                                                        {textSubmission ? (
+                                                        {upload && upload.type === 'text' ? (
                                                             <div className="p-2 bg-green-50 text-green-700 rounded-md border border-green-200">
                                                                 <p className="text-sm font-semibold">Submitted:</p>
-                                                                <p className="text-sm">"{textSubmission.text}"</p>
+                                                                <p className="text-sm">"{upload.textValue}"</p>
                                                             </div>
                                                         ) : (
                                                             <div className="flex items-center gap-2">
@@ -374,7 +376,7 @@ export default function ClientOrderDetailsPage() {
                                                                     value={textInputs[info.label] || ''}
                                                                     onChange={(e) => handleTextChange(info.label, e.target.value)}
                                                                 />
-                                                                <Button size="sm" onClick={() => handleTextSubmit(info.label)}>Save</Button>
+                                                                <Button size="sm" onClick={() => handleTextSubmit(item.service!.id, info.label)}>Save</Button>
                                                             </div>
                                                         )}
                                                     </>
@@ -395,7 +397,7 @@ export default function ClientOrderDetailsPage() {
                     <CardFooter>
                         <Button onClick={handleDocumentSubmit} disabled={isSubmitting}>
                             {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                            Notify Consultant
+                            Notify Consultant of All Submissions
                         </Button>
                     </CardFooter>
                 </Card>

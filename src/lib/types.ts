@@ -32,8 +32,10 @@ export type AllocationRule = {
 export type DocumentUpload = {
   serviceId: string;
   requirementLabel: string;
-  fileUrl: string;
-  fileName: string;
+  type: 'file' | 'text';
+  fileUrl?: string;
+  fileName?: string;
+  textValue?: string;
   uploadedAt: any; // Firestore Timestamp
   status: 'pending' | 'approved' | 'rejected';
   rejectionReason?: string;

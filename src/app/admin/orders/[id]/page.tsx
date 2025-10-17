@@ -28,6 +28,7 @@ import { render } from '@react-email/components';
 import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
 import ReviewRequestEmail from '@/components/emails/ReviewRequestEmail';
 import PaymentFollowUpEmail from '@/components/emails/PaymentFollowUpEmail';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 
 const db = getFirestore(firebaseApp);
@@ -316,10 +317,10 @@ export default function AdminOrderDetailsPage() {
     }
   };
 
-   const handleDocumentStatusUpdate = async (fileUrl: string, status: 'approved' | 'rejected', reason?: string) => {
+   const handleDocumentStatusUpdate = async (fileUrlOrTextValue: string, status: 'approved' | 'rejected', reason?: string) => {
     if (!order) return;
     const updatedUploads = (order.documentUploads || []).map(doc => {
-      if (doc.fileUrl === fileUrl) {
+      if (doc.fileUrl === fileUrlOrTextValue || doc.textValue === fileUrlOrTextValue) {
         return { ...doc, status, rejectionReason: reason || '' };
       }
       return doc;
@@ -344,7 +345,8 @@ export default function AdminOrderDetailsPage() {
   
   const handleRejectionSubmit = async (values: z.infer<typeof rejectionFormSchema>) => {
     if (documentToReject) {
-        await handleDocumentStatusUpdate(documentToReject.fileUrl, 'rejected', values.reason);
+        const identifier = documentToReject.type === 'file' ? documentToReject.fileUrl! : documentToReject.textValue!;
+        await handleDocumentStatusUpdate(identifier, 'rejected', values.reason);
         setIsRejectionDialogOpen(false);
         setDocumentToReject(null);
     }
@@ -540,35 +542,43 @@ export default function AdminOrderDetailsPage() {
                      <CardContent>
                         {order.documentUploads && order.documentUploads.length > 0 ? (
                             <ul className="space-y-3">
-                                {order.documentUploads.map((doc) => (
-                                    <li key={doc.fileUrl} className="flex items-center justify-between p-2 border rounded-md">
-                                        <div>
-                                            <p className="font-medium text-sm">{doc.requirementLabel}</p>
-                                            <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1">
-                                                <Download className="h-3 w-3" /> {doc.fileName}
-                                            </a>
-                                            {doc.status === 'rejected' && doc.rejectionReason && (
-                                                <p className="text-xs text-destructive mt-1">Reason: {doc.rejectionReason}</p>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            {doc.status === 'pending' ? (
-                                                <>
-                                                    <Button size="sm" variant="outline" onClick={() => handleDocumentStatusUpdate(doc.fileUrl, 'approved')}>
-                                                        <CheckCircle className="mr-2 h-4 w-4 text-green-500" />Approve
-                                                    </Button>
-                                                    <Button size="sm" variant="destructive" onClick={() => handleOpenRejectionDialog(doc)}>
-                                                         <XCircle className="mr-2 h-4 w-4" />Reject
-                                                    </Button>
-                                                </>
-                                            ) : doc.status === 'approved' ? (
-                                                <Badge variant="success" className="text-sm"><CheckCircle className="mr-2 h-4 w-4"/>Approved</Badge>
-                                            ) : (
-                                                <Badge variant="destructive" className="text-sm"><AlertTriangle className="mr-2 h-4 w-4"/>Rejected</Badge>
-                                            )}
-                                        </div>
-                                    </li>
-                                ))}
+                                {order.documentUploads.map((doc, index) => {
+                                    const identifier = doc.type === 'file' ? doc.fileUrl! : doc.textValue!;
+                                    return (
+                                        <li key={index} className="flex items-center justify-between p-2 border rounded-md">
+                                            <div>
+                                                <p className="font-medium text-sm">{doc.requirementLabel}</p>
+                                                {doc.type === 'file' ? (
+                                                    <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1">
+                                                        <Download className="h-3 w-3" /> {doc.fileName}
+                                                    </a>
+                                                ) : (
+                                                    <p className="text-sm p-2 bg-muted rounded-md mt-1">"{doc.textValue}"</p>
+                                                )}
+
+                                                {doc.status === 'rejected' && doc.rejectionReason && (
+                                                    <p className="text-xs text-destructive mt-1">Reason: {doc.rejectionReason}</p>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                {doc.status === 'pending' ? (
+                                                    <>
+                                                        <Button size="sm" variant="outline" onClick={() => handleDocumentStatusUpdate(identifier, 'approved')}>
+                                                            <CheckCircle className="mr-2 h-4 w-4 text-green-500" />Approve
+                                                        </Button>
+                                                         <Button size="sm" variant="destructive" onClick={() => handleOpenRejectionDialog(doc)}>
+                                                            <XCircle className="mr-2 h-4 w-4" />Reject
+                                                        </Button>
+                                                    </>
+                                                ) : doc.status === 'approved' ? (
+                                                    <Badge variant="success" className="text-sm"><CheckCircle className="mr-2 h-4 w-4"/>Approved</Badge>
+                                                ) : (
+                                                    <Badge variant="destructive" className="text-sm"><AlertTriangle className="mr-2 h-4 w-4"/>Rejected</Badge>
+                                                )}
+                                            </div>
+                                        </li>
+                                    )
+                                })}
                             </ul>
                         ) : (
                             <p className="text-sm text-muted-foreground text-center py-4">No documents have been uploaded for this order yet.</p>
@@ -587,7 +597,6 @@ export default function AdminOrderDetailsPage() {
                                 order.notes.slice().reverse().map((note, index) => {
                                     const author = getAuthor(note.authorId);
                                     const isEmail = note.type === 'email';
-                                    const isTextSubmission = note.type === 'text-submission';
                                     return (
                                         <div key={index} className="flex items-start gap-3">
                                             <div className="p-3 rounded-lg w-full bg-muted">
@@ -602,14 +611,6 @@ export default function AdminOrderDetailsPage() {
                                                             <p className="text-sm font-semibold">{note.subject}</p>
                                                         </div>
                                                         <p className="text-sm italic text-muted-foreground">"{note.text}"</p>
-                                                    </div>
-                                                 ) : isTextSubmission ? (
-                                                     <div>
-                                                        <div className="flex items-center gap-2 mb-1">
-                                                            <Info className="h-4 w-4 text-muted-foreground" />
-                                                            <p className="text-sm font-semibold">{note.subject}</p>
-                                                        </div>
-                                                        <p className="text-sm p-2 bg-background rounded-md">"{note.text}"</p>
                                                     </div>
                                                  ) : (
                                                     <p className="text-sm">{note.text}</p>
@@ -645,7 +646,7 @@ export default function AdminOrderDetailsPage() {
                 </Card>
 
             </div>
-            <div className="lg:col-span-1 space-y-6">
+            <div className="lg:col-span-1 space-y-6 sticky top-24">
                  {assignee && (
                     <Card>
                         <CardHeader className="flex flex-row items-center gap-3 space-y-0">
