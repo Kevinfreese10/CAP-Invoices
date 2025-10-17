@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight, CheckCircle, RotateCcw, Upload, AlertTriangle } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight, CheckCircle, RotateCcw, Upload, AlertTriangle, Mail } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, AIAllocationJob } from '@/lib/types';
@@ -42,6 +42,7 @@ import { Command, CommandInput, CommandList, CommandEmpty, CommandItem } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { format, startOfMonth, endOfMonth, eachMonthOfInterval, getYear, getMonth, parseISO, addMonths } from 'date-fns';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { requestMissingStatements } from '@/app/actions';
 
 
 const PAGE_SIZE = 50;
@@ -118,13 +119,10 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
             const currentMonth = monthDates[i];
             const nextMonth = monthDates[i + 1];
     
-            // Check if next month is not consecutive
             if (!nextMonth || nextMonth.getTime() !== addMonths(currentMonth, 1).getTime()) {
                 if (startRange.getTime() === currentMonth.getTime()) {
-                    // Single month
                     ranges.push(format(startRange, 'dd MMMM yyyy'));
                 } else {
-                    // End of a range
                     const rangeEnd = endOfMonth(currentMonth);
                     ranges.push(`${format(startRange, 'dd MMMM yyyy')} to ${format(rangeEnd, 'dd MMMM yyyy')}`);
                 }
@@ -287,6 +285,25 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
             setIsUploading(false);
         }
     };
+    
+    const handleRequestStatements = async () => {
+        if (!client || !client.email || missingMonths.length === 0) {
+            toast({ title: "Cannot Send Request", description: "Client email or missing months are not defined.", variant: "destructive"});
+            return;
+        }
+        toast({ title: "Sending Request...", description: `Emailing ${client.name} for missing statements.` });
+        try {
+            await requestMissingStatements({
+                clientName: client.name,
+                clientEmail: client.email,
+                missingPeriods: missingMonths,
+            });
+            toast({ title: "Request Sent!", description: "An email has been sent to the client."});
+        } catch (error) {
+            console.error("Error sending missing statement request:", error);
+            toast({ title: "Request Failed", description: "Could not send the email.", variant: "destructive"});
+        }
+    }
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if(!open) resetState(); }}>
@@ -321,10 +338,15 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
                                     {missingMonths.length > 0 && (
                                         <Alert variant="destructive" className="mb-4">
                                             <AlertTriangle className="h-4 w-4" />
-                                            <AlertTitle>Missing Statement Periods Detected</AlertTitle>
-                                            <AlertDescription>
-                                                The following months appear to be missing between your uploaded files: {missingMonths.join(', ')}
-                                            </AlertDescription>
+                                            <div className="flex justify-between items-center">
+                                                <div>
+                                                    <AlertTitle>Missing Statement Periods Detected</AlertTitle>
+                                                    <AlertDescription>
+                                                        The following months appear to be missing between your uploaded files: {missingMonths.join(', ')}
+                                                    </AlertDescription>
+                                                </div>
+                                                 <Button variant="outline" size="sm" onClick={handleRequestStatements}><Mail className="mr-2 h-4 w-4"/> Request from Client</Button>
+                                            </div>
                                         </Alert>
                                     )}
                                      <Table>
@@ -1576,5 +1598,4 @@ export default function BankTransactionsPage() {
     
 
     
-
 
