@@ -72,7 +72,7 @@ export default function DashboardPage() {
             <Card>
                 <CardHeader>
                     <CardTitle>My Orders</CardTitle>
-                    <CardDescription>A list of your recent service orders.</CardDescription>
+                    <CardDescription>A list of your recent product orders.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     {isLoading ? (
@@ -83,7 +83,7 @@ export default function DashboardPage() {
                         <div className="text-center py-10">
                             <p className="text-muted-foreground">You haven't placed any orders yet.</p>
                             <Button asChild className="mt-4">
-                                <Link href="/services">Browse Services</Link>
+                                <Link href="/products">Browse Products</Link>
                             </Button>
                         </div>
                     ) : (

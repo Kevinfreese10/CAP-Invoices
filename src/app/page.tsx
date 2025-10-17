@@ -99,7 +99,7 @@ export default function Home() {
             </p>
             <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
               <Button asChild size="lg">
-                <Link href="#services">Explore Services</Link>
+                <Link href="#products">Explore Products</Link>
               </Button>
             </div>
           </div>
@@ -138,7 +138,7 @@ export default function Home() {
           <form className="relative">
             <Input
               type="search"
-              placeholder="Search for a service (e.g., 'Company Registration')"
+              placeholder="Search for a product (e.g., 'Company Registration')"
               className="h-12 w-full rounded-md border-input bg-background pr-14 text-base"
             />
             <Button
@@ -154,7 +154,7 @@ export default function Home() {
         </div>
       </section>
       
-        <div id="services" className="container mx-auto px-4 space-y-12 scroll-m-20">
+        <div id="products" className="container mx-auto px-4 space-y-12 scroll-m-20">
             {isLoading ? (
                 <div className="flex justify-center items-center h-40">
                   <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -187,7 +187,7 @@ export default function Home() {
                       </CardContent>
                       <CardFooter>
                           <Button asChild className="w-full">
-                          <Link href={`/services/${service.slug}`}>Learn More</Link>
+                          <Link href={`/products/${service.slug}`}>Learn More</Link>
                           </Button>
                       </CardFooter>
                       </Card>

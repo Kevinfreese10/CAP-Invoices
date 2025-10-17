@@ -22,7 +22,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     '/popia',
     '/refund-policy',
     '/reseller-signup',
-    '/services',
+    '/products',
     '/support',
     '/become-a-partner',
   ].map((route) => ({
@@ -32,8 +32,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   
   const servicesSnapshot = await getDocs(query(collection(db, "services"), orderBy("title")));
   const services = servicesSnapshot.docs.map(doc => doc.data() as Service);
-  const serviceRoutes = services.map((service) => ({
-    url: `${BASE_URL}/services/${service.slug}`,
+  const productRoutes = services.map((service) => ({
+    url: `${BASE_URL}/products/${service.slug}`,
     lastModified: new Date(),
   }));
 
@@ -58,7 +58,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   return [
     ...staticRoutes,
-    ...serviceRoutes,
+    ...productRoutes,
     ...blogPostRoutes,
   ];
 }

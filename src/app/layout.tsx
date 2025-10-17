@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'My Accountant | Professional Accounting & Tax Services',
     description: 'Simplify your finances with our expert accounting and tax solutions.',
-    url: 'https://my-accountant-app.com', // In a real app, this would be your domain
+    url: 'https://www.myacc.co.za',
     siteName: 'My Accountant',
     images: [
       {

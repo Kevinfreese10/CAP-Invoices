@@ -88,13 +88,13 @@ export default function AdminServicesPage() {
         await deleteDoc(doc(db, "services", serviceId));
         fetchServices();
         toast({
-            title: 'Service Deleted',
-            description: 'The service has been successfully removed.',
+            title: 'Product Deleted',
+            description: 'The product has been successfully removed.',
             variant: 'destructive',
         });
     } catch (error) {
         console.error("Error deleting service:", error);
-        toast({ title: 'Error', description: 'Could not delete the service.', variant: 'destructive' });
+        toast({ title: 'Error', description: 'Could not delete the product.', variant: 'destructive' });
     }
   };
 
@@ -109,17 +109,17 @@ export default function AdminServicesPage() {
     try {
         if (id) {
             await setDoc(doc(db, "services", id), finalData, { merge: true });
-            toast({ title: 'Service Updated', description: 'The service details have been saved.' });
+            toast({ title: 'Product Updated', description: 'The product details have been saved.' });
         } else {
             await addDoc(collection(db, "services"), { ...finalData, createdAt: serverTimestamp() });
-            toast({ title: 'Service Created', description: 'The new service has been added successfully.' });
+            toast({ title: 'Product Created', description: 'The new product has been added successfully.' });
         }
         fetchServices();
         setIsFormOpen(false);
         setSelectedService(null);
     } catch (error) {
         console.error("Error saving service:", error);
-        toast({ title: 'Error', description: 'Could not save the service.', variant: 'destructive'});
+        toast({ title: 'Error', description: 'Could not save the product.', variant: 'destructive'});
     }
   };
 
@@ -127,19 +127,19 @@ export default function AdminServicesPage() {
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">Manage Services</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Manage Products</h1>
         <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
            <DialogTrigger asChild>
                 <Button onClick={handleAddService}>
                     <PlusCircle className="mr-2 h-4 w-4" />
-                    Create Service
+                    Create Product
                 </Button>
            </DialogTrigger>
            <DialogContent className="sm:max-w-xl">
                 <DialogHeader>
-                    <DialogTitle>{selectedService ? 'Edit Service' : 'Create New Service'}</DialogTitle>
+                    <DialogTitle>{selectedService ? 'Edit Product' : 'Create New Product'}</DialogTitle>
                     <DialogDescription>
-                        {selectedService ? 'Update the details of this service.' : 'Fill out the form to add a new service.'}
+                        {selectedService ? 'Update the details of this product.' : 'Fill out the form to add a new product.'}
                     </DialogDescription>
                 </DialogHeader>
                 <ServiceForm 
@@ -151,8 +151,8 @@ export default function AdminServicesPage() {
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>All Services</CardTitle>
-          <CardDescription>View, edit, and delete your company's services.</CardDescription>
+          <CardTitle>All Products</CardTitle>
+          <CardDescription>View, edit, and delete your company's products.</CardDescription>
            <div className="flex flex-col sm:flex-row gap-4 pt-4">
                 <Input
                     placeholder="Filter by title..."
@@ -252,7 +252,7 @@ export default function AdminServicesPage() {
                               <AlertDialogHeader>
                                   <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                  This action cannot be undone. This will permanently delete the service
+                                  This action cannot be undone. This will permanently delete the product
                                   <span className="font-semibold"> {service.title}</span>.
                                   </AlertDialogDescription>
                               </AlertDialogHeader>
@@ -266,9 +266,9 @@ export default function AdminServicesPage() {
                       </AlertDialog>
                       <DialogContent className="sm:max-w-2xl">
                           <DialogHeader>
-                              <DialogTitle>Service Preview</DialogTitle>
+                              <DialogTitle>Product Preview</DialogTitle>
                               <DialogDescription>
-                                  This is how clients will see the service page.
+                                  This is how clients will see the product page.
                               </DialogDescription>
                           </DialogHeader>
                           {viewingService && <ServicePreview service={viewingService} />}
