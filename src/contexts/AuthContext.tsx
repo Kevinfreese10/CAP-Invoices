@@ -3,9 +3,9 @@
 import { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import type { User } from '@/lib/types';
 import { useRouter } from 'next/navigation';
-import { getFirestore, collection, query, where, getDocs, doc, setDoc } from 'firebase/firestore';
+import { getFirestore, collection, query, where, getDocs, doc, setDoc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, User as FirebaseUser } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, User as FirebaseUser, signOut } from 'firebase/auth';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
@@ -17,7 +17,7 @@ interface AuthContextType {
   login: (email: string, password?: string) => Promise<User | 'invalid_role' | 'invalid_credentials' | undefined>;
   reauthenticate: (currentUser: FirebaseUser) => Promise<User | 'invalid_credentials' | undefined>;
   logout: () => void;
-  signup: (email: string, password?: string, name?: string) => Promise<User | string>;
+  signup: (email: string, password: string, name: string) => Promise<User | string>;
   updateUser: (updatedUser: User | null) => void;
   isAuthenticated: boolean | undefined;
 }
@@ -45,22 +45,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
         if (firebaseUser) {
+            // If user is already in context and UIDs match, do nothing to avoid unnecessary re-renders/fetches.
             if (user && firebaseUser.uid === user.uid) {
-                // User is already in context, no need to re-fetch
                 return;
             }
-            const usersRef = collection(db, "users");
-            const q = query(usersRef, where("uid", "==", firebaseUser.uid));
-            const querySnapshot = await getDocs(q);
-            if (!querySnapshot.empty) {
-                const userDoc = querySnapshot.docs[0];
-                const foundUser = { ...userDoc.data(), id: userDoc.id, uid: userDoc.id } as User;
-                updateUser(foundUser);
-                setIsAuthenticated(true);
-            } else {
-                logout(); 
-            }
+            // If there's a firebase user but no one in context, or a different user, re-authenticate.
+            await reauthenticate(firebaseUser);
         } else {
+            // If no firebase user, ensure the local state is also logged out.
             logout();
         }
     });
@@ -81,7 +73,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!password) return 'invalid_credentials';
     try {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        return reauthenticate(userCredential.user);
+        return await reauthenticate(userCredential.user);
     } catch (error: any) {
         if (error.code !== 'permission-denied') { 
              console.error("Error logging in:", error.code, error.message);
@@ -96,41 +88,46 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const reauthenticate = async (firebaseUser: FirebaseUser): Promise<User | 'invalid_credentials' | undefined> => {
         if (!firebaseUser.email) return 'invalid_credentials';
-        const usersRef = collection(db, "users");
-        const q = query(usersRef, where("email", "==", firebaseUser.email));
         
-        const querySnapshot = await getDocs(q).catch(async (serverError) => {
+        try {
+            const usersRef = collection(db, "users");
+            const q = query(usersRef, where("email", "==", firebaseUser.email));
+            
+            const querySnapshot = await getDocs(q);
+            
+            if (querySnapshot.empty) {
+                await signOut(auth);
+                return 'invalid_credentials';
+            }
+
+            const userDoc = querySnapshot.docs[0];
+            const foundUser = { ...userDoc.data(), id: userDoc.id } as User;
+            
+            // Ensure the UID in Firestore matches the Firebase Auth UID
+            if (!foundUser.uid || foundUser.uid !== firebaseUser.uid) {
+                const userDocRef = doc(db, "users", userDoc.id);
+                await updateDoc(userDocRef, { uid: firebaseUser.uid });
+                foundUser.uid = firebaseUser.uid;
+            }
+            
+            updateUser(foundUser);
+            setIsAuthenticated(true);
+            return foundUser;
+        } catch (serverError: any) {
             if (serverError.code === 'permission-denied') {
                 const permissionError = new FirestorePermissionError({
-                    path: usersRef.path,
+                    path: `users`,
                     operation: 'list',
                 } satisfies SecurityRuleContext);
                 errorEmitter.emit('permission-error', permissionError);
             }
-            throw serverError;
-        });
-        
-        if (querySnapshot.empty) {
-            await auth.signOut();
-            return 'invalid_credentials';
+             console.error("Error re-authenticating:", serverError);
+             return undefined;
         }
-
-        const userDoc = querySnapshot.docs[0];
-        const foundUser = { ...userDoc.data(), id: userDoc.id } as User;
-        
-        if (!foundUser.uid || foundUser.uid !== firebaseUser.uid) {
-            const userDocRef = doc(db, "users", userDoc.id);
-            await setDoc(userDocRef, { uid: firebaseUser.uid }, { merge: true });
-            foundUser.uid = firebaseUser.uid;
-        }
-        
-        updateUser(foundUser);
-        setIsAuthenticated(true);
-        return foundUser;
   }
 
   const logout = () => {
-    auth.signOut();
+    signOut(auth);
     updateUser(null);
     setIsAuthenticated(false);
   };
@@ -139,21 +136,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!password) return 'Password is required.';
 
     try {
-        // First check if user already exists in Firestore
-        const usersRef = collection(db, "users");
-        const q = query(usersRef, where("email", "==", email));
-        const querySnapshot = await getDocs(q);
-
-        if (!querySnapshot.empty) {
-            return 'An account with this email already exists.';
-        }
-        
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const firebaseUser = userCredential.user;
 
-        const newUserDocRef = doc(collection(db, "users"));
+        const newUserDocRef = doc(db, "users", firebaseUser.uid);
         const newUser: User = {
-            id: newUserDocRef.id,
+            id: firebaseUser.uid,
             uid: firebaseUser.uid,
             name: name || email,
             email: email,

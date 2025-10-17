@@ -1,5 +1,4 @@
 
-
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -133,7 +132,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
       try {
         const newUser = await signup(values.email_address, values.password, `${values.name_first} ${values.name_last}`);
         if (typeof newUser === 'string') {
-          toast({ title: 'Signup Failed', description: 'Could not create your account. Please try again.', variant: 'destructive' });
+          toast({ title: 'Signup Failed', description: newUser, variant: 'destructive' });
           setIsLoading(false);
           return;
         }
