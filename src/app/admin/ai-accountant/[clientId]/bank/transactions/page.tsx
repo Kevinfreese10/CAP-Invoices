@@ -227,8 +227,9 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
     }, [parsedTransactions]);
 
     const newBalance = currentBalance + importTotal;
-    const timeSavedMinutes = (potentialAiAllocations * 20) / 60;
+    const timeSavedMinutes = ((potentialAllocations + potentialAiAllocations) * 20) / 60;
     const timeSavedHours = Math.ceil(timeSavedMinutes / 60);
+    const totalAutomated = potentialAllocations + potentialAiAllocations;
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if(!open) resetState(); }}>
@@ -253,12 +254,11 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
                         <div className="pt-4 space-y-4">
                             <div className="space-y-1">
                                 <p className="text-sm text-green-600 font-semibold">{parsedTransactions.length} transactions found in file.</p>
-                                {potentialAllocations > 0 && 
-                                    <p className="text-sm text-blue-600">{potentialAllocations} transaction(s) will be automatically allocated for review based on your rules.</p>
-                                }
-                                {potentialAiAllocations > 0 &&
-                                    <p className="text-sm text-purple-600">{potentialAiAllocations} expense transaction(s) can be automatically allocated by AI, saving you an estimated {timeSavedHours} hour(s).</p>
-                                }
+                                {totalAutomated > 0 && (
+                                    <p className="text-sm text-purple-600">
+                                        {totalAutomated} transactions can be automatically processed ({potentialAllocations} by rules, {potentialAiAllocations} by AI), saving you an estimated {timeSavedHours} hour(s).
+                                    </p>
+                                )}
                             </div>
                             <Card className="bg-muted/50">
                                 <CardContent className="p-4 grid grid-cols-3 gap-4 text-center">
@@ -1214,5 +1214,7 @@ export default function BankTransactionsPage() {
     );
 }
 
+
+    
 
     
