@@ -16,7 +16,7 @@ const db = getFirestore(firebaseApp);
 
 
 export async function requestMissingStatements({ clientName, clientEmail, missingPeriods }: { clientName: string, clientEmail: string, missingPeriods: string[] }) {
-    const emailHtml = render(<MissingStatementRequestEmail clientName={clientName} missingPeriods={missingPeriods}></MissingStatementRequestEmail>);
+    const emailHtml = render(MissingStatementRequestEmail({ clientName: clientName, missingPeriods: missingPeriods }));
     
     await sendEmail({
         to: clientEmail,
@@ -24,4 +24,3 @@ export async function requestMissingStatements({ clientName, clientEmail, missin
         html: emailHtml,
     });
 }
-
