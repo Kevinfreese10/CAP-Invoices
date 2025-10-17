@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -149,6 +150,31 @@ export default function ClientOrderDetailsPage() {
     );
   };
   
+  const handleTextSubmit = async (text: string, requirementLabel: string) => {
+    if (!currentUser || !order || !text.trim()) return;
+
+    const textSubmissionNote: OrderNote = {
+      text: text,
+      subject: `Client submission for: ${requirementLabel}`,
+      authorId: currentUser.uid,
+      date: Timestamp.now(),
+      type: 'text-submission',
+    };
+
+    try {
+      const orderRef = doc(db, 'orders', order.id);
+      await updateDoc(orderRef, {
+        notes: arrayUnion(textSubmissionNote),
+      });
+      toast({ title: 'Information Submitted', description: 'Your information has been securely saved.' });
+      fetchOrderAndServices(); // Re-fetch to update UI
+    } catch (error) {
+      console.error("Error submitting text:", error);
+      toast({ title: "Submission Failed", description: "Could not save the information.", variant: "destructive" });
+    }
+  };
+
+
   const onNoteSubmit = async (values: z.infer<typeof noteFormSchema>) => {
     if (!currentUser || !order) return;
 
@@ -310,7 +336,7 @@ export default function ClientOrderDetailsPage() {
                                                             {info.type === 'pdf' ? (
                                                                 <Input type="file" accept="application/pdf" className="mt-2 h-9" onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], item.service!.id, info.label)} />
                                                             ) : (
-                                                                <Input type="text" className="mt-2 h-9" placeholder="Enter information here..." />
+                                                                <Input type="text" className="mt-2 h-9" placeholder="Enter information here..." onBlur={(e) => handleTextSubmit(e.target.value, info.label)}/>
                                                             )}
                                                         </div>
                                                         )}
@@ -324,7 +350,7 @@ export default function ClientOrderDetailsPage() {
                                                     info.type === 'pdf' ? (
                                                         <Input type="file" accept="application/pdf" className="h-9" onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], item.service!.id, info.label)} />
                                                     ) : (
-                                                        <Input type="text" className="h-9" placeholder="Enter information here..." />
+                                                        <Input type="text" className="h-9" placeholder="Enter information here..." onBlur={(e) => handleTextSubmit(e.target.value, info.label)} />
                                                     )
                                                 )}
                                             </div>

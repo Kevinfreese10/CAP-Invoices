@@ -7,13 +7,12 @@ import { notFound, useParams } from 'next/navigation';
 import { getFirestore, doc, getDoc, updateDoc, arrayUnion, Timestamp, collection, getDocs, where, query } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service, User, OrderNote, DocumentUpload } from '@/lib/types';
-import { services } from '@/lib/data';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, User as UserIcon, Mail, Phone, Send, FileText, Star, MessageSquare, Percent, CheckCircle, AlertTriangle, XCircle, Download } from 'lucide-react';
+import { ArrowLeft, Loader2, User as UserIcon, Mail, Phone, Send, FileText, Star, MessageSquare, Percent, CheckCircle, AlertTriangle, XCircle, Download, Info } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -180,6 +179,7 @@ export default function AdminOrderDetailsPage() {
   const { user: currentUser } = useAuth();
   const { toast } = useToast();
   const [allStaff, setAllStaff] = useState<User[]>([]);
+  const [allServices, setAllServices] = useState<Service[]>([]);
   
   const [isRejectionDialogOpen, setIsRejectionDialogOpen] = useState(false);
   const [documentToReject, setDocumentToReject] = useState<DocumentUpload | null>(null);
@@ -204,6 +204,11 @@ export default function AdminOrderDetailsPage() {
         const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
         setAllStaff(fetchedStaff);
 
+        const servicesQuery = query(collection(db, "services"));
+        const servicesSnapshot = await getDocs(servicesQuery);
+        const fetchedServices = servicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
+        setAllServices(fetchedServices);
+
         const docRef = doc(db, 'orders', id);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
@@ -216,7 +221,7 @@ export default function AdminOrderDetailsPage() {
             documentUploads: (data.documentUploads || []).map((doc: any) => ({...doc, uploadedAt: doc.uploadedAt.toDate()})),
           } as Order;
 
-          if (fetchedOrder.originalOrderId) {
+          if (fetchedOrder.resellerId && fetchedOrder.originalOrderId) {
             const originalOrderRef = doc(db, 'orders', fetchedOrder.originalOrderId);
             const originalOrderSnap = await getDoc(originalOrderRef);
             if (originalOrderSnap.exists()) {
@@ -239,7 +244,7 @@ export default function AdminOrderDetailsPage() {
           }
 
           const itemsWithServices = fetchedOrder.items.map(item => {
-            const serviceDetails = services.find(s => s.id === item.id);
+            const serviceDetails = fetchedServices.find(s => s.id === item.id);
             if (!serviceDetails) {
               console.warn(`Service with id ${item.id} not found.`);
               return { ...item, service: null };
@@ -382,13 +387,13 @@ export default function AdminOrderDetailsPage() {
       }
 
       if (type === 'docs') {
-         const itemsWithServices = order.items.map(item => {
-            const service = services.find(s => s.id === item.id);
+        const itemsWithServices = order.items.map(item => {
+            const service = allServices.find(s => s.id === item.id);
             return { ...item, service };
         }).filter(item => item.service) as { service: Service }[];
         
         emailHtml = render(<DocumentRequestEmail order={orderForEmail} items={itemsWithServices} reseller={reseller} replyTo={currentUser.email || 'info@myacc.co.za'} />);
-        subject = `Action Required: Documents needed for your order #${orderForEmail.id}`;
+        subject = `Action Required for Your Order #${orderForEmail.id}`;
         message = "Sent 'Request Documents' email to client.";
       } else if (type === 'payment') {
          emailHtml = render(<PaymentFollowUpEmail order={orderForEmail} reseller={reseller} />);
@@ -549,8 +554,8 @@ export default function AdminOrderDetailsPage() {
                                         <div className="flex items-center gap-2">
                                             {doc.status === 'pending' ? (
                                                 <>
-                                                    <Button size="sm" variant="success" onClick={() => handleDocumentStatusUpdate(doc.fileUrl, 'approved')}>
-                                                        <CheckCircle className="mr-2 h-4 w-4" />Approve
+                                                    <Button size="sm" variant="outline" onClick={() => handleDocumentStatusUpdate(doc.fileUrl, 'approved')}>
+                                                        <CheckCircle className="mr-2 h-4 w-4 text-green-500" />Approve
                                                     </Button>
                                                     <Button size="sm" variant="destructive" onClick={() => handleOpenRejectionDialog(doc)}>
                                                          <XCircle className="mr-2 h-4 w-4" />Reject
@@ -582,6 +587,7 @@ export default function AdminOrderDetailsPage() {
                                 order.notes.slice().reverse().map((note, index) => {
                                     const author = getAuthor(note.authorId);
                                     const isEmail = note.type === 'email';
+                                    const isTextSubmission = note.type === 'text-submission';
                                     return (
                                         <div key={index} className="flex items-start gap-3">
                                             <div className="p-3 rounded-lg w-full bg-muted">
@@ -596,6 +602,14 @@ export default function AdminOrderDetailsPage() {
                                                             <p className="text-sm font-semibold">{note.subject}</p>
                                                         </div>
                                                         <p className="text-sm italic text-muted-foreground">"{note.text}"</p>
+                                                    </div>
+                                                 ) : isTextSubmission ? (
+                                                     <div>
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <Info className="h-4 w-4 text-muted-foreground" />
+                                                            <p className="text-sm font-semibold">{note.subject}</p>
+                                                        </div>
+                                                        <p className="text-sm p-2 bg-background rounded-md">"{note.text}"</p>
                                                     </div>
                                                  ) : (
                                                     <p className="text-sm">{note.text}</p>
