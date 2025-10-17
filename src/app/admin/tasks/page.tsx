@@ -1,5 +1,4 @@
 
-
 'use client';
 import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -155,7 +154,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                             <Check className={cn("h-4 w-4")} />
                                             </div>
                                             <span className="flex-grow">{staff.name}</span>
-                                            <span className="text-xs text-muted-foreground">{staff.uid}</span>
+                                            <span className="text-xs text-muted-foreground font-mono">{staff.uid}</span>
                                         </CommandItem>
                                         ))}
                                     </CommandGroup>
@@ -261,7 +260,7 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
                                             <Check className={cn("h-4 w-4")} />
                                             </div>
                                             <span className="flex-grow">{staff.name}</span>
-                                            <span className="text-xs text-muted-foreground">{staff.uid}</span>
+                                            <span className="text-xs text-muted-foreground font-mono">{staff.uid}</span>
                                         </CommandItem>
                                         ))}
                                     </CommandGroup>
@@ -472,7 +471,7 @@ export default function AdminTasksPage() {
             const newTask: Omit<Task, 'id' | 'priority'> = {
                 ...taskData,
                 status: 'To-Do',
-                createdBy: user.id,
+                createdBy: user.uid, // Use uid for consistency
                 createdAt: Timestamp.now(),
                 comments: [],
             };
@@ -779,4 +778,5 @@ export default function AdminTasksPage() {
 
 
     
+
 
