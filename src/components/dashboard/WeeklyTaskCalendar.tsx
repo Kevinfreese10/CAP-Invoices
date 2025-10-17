@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { Task, User } from '@/lib/types';
-import { format, startOfWeek, addDays, isSameDay, eachDayOfInterval, isToday, isPast } from 'date-fns';
+import { format, startOfWeek, addDays, isSameDay, isToday, isPast } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, AlertOctagon } from 'lucide-react';
@@ -56,7 +56,15 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
     return Array.isArray(task.assignedTo) && task.assignedTo.includes(currentUser.id);
   });
   
-  const overdueTasks = userTasks.filter(task => isPast(task.dueDate.toDate()) && task.status !== 'Done');
+  const getTaskDate = (task: Task) => {
+    return task.dueDate?.toDate ? task.dueDate.toDate() : new Date(task.dueDate);
+  }
+  
+  const overdueTasks = userTasks.filter(task => {
+    const dueDate = getTaskDate(task);
+    return isPast(dueDate) && task.status !== 'Done';
+  });
+
 
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, taskId: string) => {
     e.dataTransfer.setData("taskId", taskId);
@@ -96,9 +104,14 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
                         Overdue
                     </p>
                 </div>
-                <div className="p-2 space-y-2">
+                <div 
+                  className="p-2 space-y-2"
+                  onDrop={(e) => handleDrop(e, addDays(new Date(), -1))} // Drop here defaults to yesterday
+                  onDragOver={handleDragOver}
+                >
                      {overdueTasks.map(task => {
                         const priority = 'High'; // Always high if overdue
+                        const dueDate = getTaskDate(task);
                         return (
                             <TooltipProvider key={task.id}>
                                 <Tooltip>
@@ -113,7 +126,7 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
                                                 <Badge variant={getPriorityVariant(priority)} className="text-xs shrink-0">{priority}</Badge>
                                             </div>
                                             {task.orderId && <Link href={`/admin/orders/${task.orderId}`} className="text-xs text-blue-600 hover:underline">Order #{task.orderId}</Link>}
-                                            <div className="text-xs text-destructive">Due: {format(task.dueDate.toDate(), 'dd MMM')}</div>
+                                            <div className="text-xs text-destructive">Due: {format(dueDate, 'dd MMM')}</div>
                                         </div>
                                     </TooltipTrigger>
                                      <TooltipContent side="bottom" align="start">
@@ -142,9 +155,12 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
                 <p className="text-xs text-muted-foreground">{format(day, 'd MMM')}</p>
               </div>
               <div className="p-2 space-y-2">
-                {userTasks.filter(task => isSameDay(task.dueDate.toDate(), day) && !overdueTasks.some(ot => ot.id === task.id)).map(task => {
+                {userTasks.filter(task => {
+                    const dueDate = getTaskDate(task);
+                    return isSameDay(dueDate, day) && !overdueTasks.some(ot => ot.id === task.id)
+                }).map(task => {
                   const assignees = Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo];
-                  const priority = task.status !== 'Done' && isPast(task.dueDate.toDate()) ? 'High' : task.priority;
+                  const priority = task.status !== 'Done' && isPast(getTaskDate(task)) ? 'High' : task.priority;
                   return (
                   <TooltipProvider key={task.id}>
                     <Tooltip>
