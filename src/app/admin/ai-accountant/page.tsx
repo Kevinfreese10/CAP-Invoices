@@ -69,6 +69,8 @@ export default function AIAccountantPage() {
         const clientData: Partial<User> = {
             name: data.name,
             companyName: data.name,
+            contactPerson: data.contactPerson,
+            email: data.email,
             yearEnd: data.yearEnd,
             isVatRegistered: data.isVatRegistered,
             role: 'client',

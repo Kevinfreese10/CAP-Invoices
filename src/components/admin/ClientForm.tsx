@@ -19,11 +19,11 @@ const vatCategories: ('A' | 'B' | 'C')[] = ['A', 'B', 'C'];
 const formSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(2, 'Client/Company name is required.'),
+  contactPerson: z.string().min(2, 'Contact person name is required.'),
+  email: z.string().email('A valid email address is required.'),
   yearEnd: z.string().optional(),
   isVatRegistered: z.boolean().default(false),
   // The following fields are kept for schema compatibility but will be hidden for AI Accountant
-  contactPerson: z.string().optional(),
-  email: z.string().optional(),
   cellNumber: z.string().optional(),
   status: z.enum(clientStatuses).optional(),
 });
@@ -46,11 +46,11 @@ export default function ClientForm({
         defaultValues: {
             id: client?.id || '',
             name: client?.name || client?.companyName || '',
+            contactPerson: client?.contactPerson || '',
+            email: client?.email || '',
             yearEnd: client?.yearEnd || undefined,
             isVatRegistered: client?.isVatRegistered || false,
             // Non-AI Accountant fields
-            contactPerson: client?.contactPerson || '',
-            email: client?.email || '',
             cellNumber: client?.contactNumber || '',
             status: client?.status || 'Active',
         },
@@ -59,7 +59,6 @@ export default function ClientForm({
     const watchIsVatRegistered = form.watch('isVatRegistered');
 
     const handleSubmit = (values: z.infer<typeof formSchema>) => {
-        // Ensure email is populated for main client creation if not provided
         const finalValues = {
             ...values,
             email: values.email || `${values.name.toLowerCase().replace(/\s/g, '.')}@myacc.co.za`,
@@ -73,11 +72,11 @@ export default function ClientForm({
                 <div className="space-y-4">
                     <h3 className="text-lg font-medium">Client Details</h3>
                     <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Client / Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="contactPerson" render={({ field }) => ( <FormItem><FormLabel>Contact Person Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                     
                     {!isAIClient && (
                          <>
-                            <FormField control={form.control} name="contactPerson" render={({ field }) => ( <FormItem><FormLabel>Contact Person Name (Optional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                            <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                             <FormField control={form.control} name="cellNumber" render={({ field }) => ( <FormItem><FormLabel>Cell Number</FormLabel><FormControl><Input placeholder="e.g. 0821234567" {...field} /></FormControl><FormMessage /></FormItem>)} />
                             <FormField control={form.control} name="status" render={({ field }) => ( <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{clientStatuses.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                         </>
