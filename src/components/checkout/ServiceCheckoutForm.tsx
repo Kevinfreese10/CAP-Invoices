@@ -17,12 +17,9 @@ import { firebaseApp } from '@/lib/firebase';
 import { Order, Service, User, DiscountCode, OrderNote } from '@/lib/types';
 import { Checkbox } from '../ui/checkbox';
 import { Separator } from '../ui/separator';
-import { sendEmail } from '@/lib/email';
-import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
-import { render } from '@react-email/components';
 import Link from 'next/link';
 import { getNextOrderId } from '@/lib/sequence';
-import PayFastCheckout from './PayFastCheckout';
+import { generatePayFastSignature } from '@/app/actions/payfast';
 
 
 const db = getFirestore(firebaseApp);
@@ -57,9 +54,9 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
   const { signup, user: currentUser } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [orderForPayment, setOrderForPayment] = useState<Partial<Order> | null>(null);
   const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; amount: number; percentage: number; } | null>(null);
   const [isVerifyingDiscount, setIsVerifyingDiscount] = useState(false);
+  const [payfastFormData, setPayfastFormData] = useState<{ [key: string]: string } | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -83,6 +80,16 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
         form.setValue('email_address', currentUser.email || '');
     }
   }, [currentUser, form]);
+
+  useEffect(() => {
+    if (payfastFormData) {
+      const formElement = document.getElementById('payfast-redirect-form') as HTMLFormElement;
+      if (formElement) {
+        formElement.submit();
+      }
+    }
+  }, [payfastFormData]);
+
 
   const finalTotal = appliedDiscount ? service.price - appliedDiscount.amount : service.price;
   
@@ -191,7 +198,20 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
           });
       }
       
-      setOrderForPayment(orderData);
+      const dataForSignature = {
+        merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID,
+        merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY,
+        return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success/${orderId}`,
+        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/products/${service.slug}`,
+        notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
+        email_address: orderData.customerEmail,
+        m_payment_id: orderData.id,
+        amount: orderData.total.toFixed(2),
+        item_name: orderData.items[0].title,
+      };
+
+      const signature = await generatePayFastSignature(dataForSignature);
+      setPayfastFormData({ ...dataForSignature, signature });
       
     } catch (error) {
         console.error("Error creating order: ", error);
@@ -205,6 +225,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
   }
 
   return (
+    <>
     <Card className="sticky top-24">
       <CardHeader>
         <CardTitle>Place Your Order</CardTitle>
@@ -212,6 +233,12 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
       <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
             <CardContent className="space-y-6">
+                {!currentUser && (
+                    <div className="text-sm text-muted-foreground">
+                        Already have an account? <Link href="/login" className="text-primary font-semibold hover:underline">Log in here</Link>.
+                        <Separator className="my-4" />
+                    </div>
+                )}
                 <div className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <FormField control={form.control} name="name_first" render={({ field }) => ( <FormItem><FormLabel>First Name</FormLabel><FormControl><Input placeholder="John" {...field} /></FormControl><FormMessage /></FormItem> )} />
@@ -241,7 +268,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
                 </div>
                 <Separator />
                 <div className="space-y-4">
-                     <FormField control={form.control} name="agreePrereqs" render={({ field }) => ( <FormItem className="flex flex-row items-start space-x-3 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><div className="space-y-1 leading-none"><FormLabel>I confirm I have all the prerequisite documents ready.</FormLabel><FormMessage /></div></FormItem>)} />
+                     <FormField control={form.control} name="agreePrereqs" render={({ field }) => ( <FormItem className="flex flex-row items-start space-x-3 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><div className="space-y-1 leading-none"><FormLabel>I confirm I have the prerequisite documents ready.</FormLabel><FormMessage /></div></FormItem>)} />
                      <FormField control={form.control} name="agreeRefund" render={({ field }) => ( <FormItem className="flex flex-row items-start space-x-3 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><div className="space-y-1 leading-none"><FormLabel>I understand and agree to the <Link href="/refund-policy" className="underline hover:text-primary" target="_blank">refund policy</Link>.</FormLabel><FormMessage /></div></FormItem>)} />
                 </div>
             </CardContent>
@@ -255,26 +282,23 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
                         <p className="text-2xl font-bold">{formatPrice(finalTotal)}</p>
                     </div>
                 </div>
-                 {orderForPayment ? (
-                    <PayFastCheckout
-                        order={orderForPayment}
-                        isDisabled={isLoading}
-                        onPaymentStart={() => setIsLoading(true)}
-                        onPaymentSuccess={() => { /* Redirects handled by PayFast */ }}
-                        onPaymentError={(err) => {
-                            toast({ title: 'Payment Error', description: err, variant: 'destructive'});
-                            setIsLoading(false);
-                        }}
-                    />
-                ) : (
-                    <Button type="submit" className="w-full" size="lg" disabled={isLoading || !form.formState.isValid}>
-                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        {isLoading ? 'Processing...' : 'Proceed to Payment'}
-                    </Button>
-                )}
+                 
+                <Button type="submit" className="w-full" size="lg" disabled={isLoading || !form.formState.isValid}>
+                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {isLoading ? 'Processing...' : 'Proceed to Payment'}
+                </Button>
             </CardFooter>
           </form>
         </Form>
     </Card>
+
+    {payfastFormData && (
+        <form id="payfast-redirect-form" action={process.env.NEXT_PUBLIC_PAYFAST_URL} method="post" style={{ display: 'none' }}>
+            {Object.entries(payfastFormData).map(([key, value]) => (
+                <input key={key} type="hidden" name={key} value={value} />
+            ))}
+        </form>
+    )}
+    </>
   );
 }

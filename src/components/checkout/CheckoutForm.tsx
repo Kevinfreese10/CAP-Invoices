@@ -16,15 +16,21 @@ import { Loader2, Tag } from 'lucide-react';
 import { getFirestore, doc, setDoc, Timestamp, getDoc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, User, Service, DiscountCode, OrderNote } from '@/lib/types';
-import { sendEmail } from '@/lib/email';
-import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
-import { render } from '@react-email/components';
 import { getNextOrderId } from '@/lib/sequence';
 import { Separator } from '../ui/separator';
 import Link from 'next/link';
-import PayFastCheckout from './PayFastCheckout';
+import { generatePayFastSignature } from '@/app/actions/payfast';
 
 const db = getFirestore(firebaseApp);
+
+const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
+      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(price);
+};
 
 const formSchema = z.object({
   name_first: z.string().min(1, 'First name is required.'),
@@ -40,10 +46,9 @@ export default function CheckoutForm() {
   const { cartItems, cartTotal, clearCart } = useCart();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [orderForPayment, setOrderForPayment] = useState<Partial<Order> | null>(null);
   const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; amount: number; percentage: number; } | null>(null);
   const [isVerifyingDiscount, setIsVerifyingDiscount] = useState(false);
-
+  const [payfastFormData, setPayfastFormData] = useState<{ [key: string]: string } | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -63,6 +68,17 @@ export default function CheckoutForm() {
         form.setValue('email_address', currentUser.email || '');
     }
   }, [currentUser, form]);
+
+   useEffect(() => {
+    if (payfastFormData) {
+      const formElement = document.getElementById('payfast-redirect-form') as HTMLFormElement;
+      if (formElement) {
+        formElement.submit();
+        clearCart();
+      }
+    }
+  }, [payfastFormData, clearCart]);
+
 
   const handleApplyDiscount = async () => {
     const code = form.getValues('discountCode');
@@ -102,7 +118,7 @@ export default function CheckoutForm() {
     setIsLoading(true);
     toast({
       title: 'Processing Order...',
-      description: 'Please wait while we generate your order.',
+      description: 'Please wait while we prepare your payment.',
     });
 
     try {
@@ -144,7 +160,20 @@ export default function CheckoutForm() {
           });
       }
       
-      setOrderForPayment(orderData);
+      const dataForSignature = {
+        merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID,
+        merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY,
+        return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success/${orderId}`,
+        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/cart`,
+        notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
+        email_address: orderData.customerEmail,
+        m_payment_id: orderData.id,
+        amount: orderData.total.toFixed(2),
+        item_name: `Order #${orderData.id}`,
+      };
+
+      const signature = await generatePayFastSignature(dataForSignature);
+      setPayfastFormData({ ...dataForSignature, signature });
 
     } catch (error) {
         console.error("Error creating order: ", error);
@@ -174,60 +203,54 @@ export default function CheckoutForm() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Billing Details</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField control={form.control} name="name_first" render={({ field }) => ( <FormItem><FormLabel>First Name</FormLabel><FormControl><Input placeholder="John" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                <FormField control={form.control} name="name_last" render={({ field }) => ( <FormItem><FormLabel>Last Name</FormLabel><FormControl><Input placeholder="Doe" {...field} /></FormControl><FormMessage /></FormItem> )} />
-            </div>
-            <FormField control={form.control} name="email_address" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input placeholder="name@example.com" {...field} /></FormControl><FormMessage /></FormItem> )} />
-            <FormField control={form.control} name="cell_number" render={({ field }) => ( <FormItem><FormLabel>Cell Number</FormLabel><FormControl><Input placeholder="082 123 4567" {...field} /></FormControl><FormMessage /></FormItem> )} />
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>Billing Details</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField control={form.control} name="name_first" render={({ field }) => ( <FormItem><FormLabel>First Name</FormLabel><FormControl><Input placeholder="John" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                  <FormField control={form.control} name="name_last" render={({ field }) => ( <FormItem><FormLabel>Last Name</FormLabel><FormControl><Input placeholder="Doe" {...field} /></FormControl><FormMessage /></FormItem> )} />
+              </div>
+              <FormField control={form.control} name="email_address" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input placeholder="name@example.com" {...field} /></FormControl><FormMessage /></FormItem> )} />
+              <FormField control={form.control} name="cell_number" render={({ field }) => ( <FormItem><FormLabel>Cell Number</FormLabel><FormControl><Input placeholder="082 123 4567" {...field} /></FormControl><FormMessage /></FormItem> )} />
 
-            <Separator />
-            <div className="space-y-2">
-                <FormLabel>Discount Code</FormLabel>
-                <div className="flex gap-2">
-                    <FormField control={form.control} name="discountCode" render={({ field }) => ( <FormItem className="flex-grow"><FormControl><Input placeholder="Enter your code" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                    <Button type="button" variant="secondary" onClick={handleApplyDiscount} disabled={isVerifyingDiscount}>
-                         {isVerifyingDiscount ? <Loader2 className="h-4 w-4 animate-spin" /> : <Tag className="h-4 w-4" />}
-                        <span className="ml-2">Apply</span>
-                    </Button>
-                </div>
-                 {appliedDiscount && (
-                    <p className="text-sm text-green-600">
-                        Successfully applied a {appliedDiscount.percentage}% discount!
-                    </p>
-                )}
-            </div>
+              <Separator />
+              <div className="space-y-2">
+                  <FormLabel>Discount Code</FormLabel>
+                  <div className="flex gap-2">
+                      <FormField control={form.control} name="discountCode" render={({ field }) => ( <FormItem className="flex-grow"><FormControl><Input placeholder="Enter your code" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                      <Button type="button" variant="secondary" onClick={handleApplyDiscount} disabled={isVerifyingDiscount}>
+                          {isVerifyingDiscount ? <Loader2 className="h-4 w-4 animate-spin" /> : <Tag className="h-4 w-4" />}
+                          <span className="ml-2">Apply</span>
+                      </Button>
+                  </div>
+                  {appliedDiscount && (
+                      <p className="text-sm text-green-600">
+                          Successfully applied a {appliedDiscount.percentage}% discount!
+                      </p>
+                  )}
+              </div>
 
-            {orderForPayment ? (
-                <PayFastCheckout
-                    order={orderForPayment}
-                    isDisabled={isLoading}
-                    onPaymentStart={() => setIsLoading(true)}
-                    onPaymentSuccess={() => {
-                      clearCart();
-                    }}
-                    onPaymentError={(err) => {
-                        toast({ title: 'Payment Error', description: err, variant: 'destructive'});
-                        setIsLoading(false);
-                    }}
-                />
-            ) : (
-                <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {isLoading ? 'Processing...' : 'Proceed to Payment'}
-                </Button>
-            )}
+              <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  {isLoading ? 'Processing...' : 'Proceed to Payment'}
+              </Button>
 
-          </form>
-        </Form>
-      </CardContent>
-    </Card>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+      {payfastFormData && (
+        <form id="payfast-redirect-form" action={process.env.NEXT_PUBLIC_PAYFAST_URL} method="post" style={{ display: 'none' }}>
+            {Object.entries(payfastFormData).map(([key, value]) => (
+                <input key={key} type="hidden" name={key} value={value} />
+            ))}
+        </form>
+      )}
+    </>
   );
 }
