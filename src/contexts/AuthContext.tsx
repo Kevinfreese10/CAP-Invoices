@@ -15,7 +15,7 @@ const auth = getAuth(firebaseApp);
 interface AuthContextType {
   user: User | null;
   login: (email: string, password?: string) => Promise<User | 'invalid_role' | 'invalid_credentials' | undefined>;
-  reauthenticate: (currentUser: FirebaseUser) => Promise<User | 'invalid_credentials' | undefined>;
+  reauthenticate: (firebaseUser: FirebaseUser) => Promise<User | 'invalid_credentials' | undefined>;
   logout: () => void;
   signup: (email: string, password: string, name: string) => Promise<User | string>;
   updateUser: (updatedUser: User | null) => void;
@@ -31,15 +31,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
         if (firebaseUser) {
-            // If user is already in context and UIDs match, do nothing to avoid unnecessary re-renders/fetches.
             if (user && firebaseUser.uid === user.uid) {
                 if (isAuthenticated === false) setIsAuthenticated(true);
                 return;
             }
-            // If there's a firebase user but no one in context, or a different user, re-authenticate.
             await reauthenticate(firebaseUser);
         } else {
-            // If no firebase user, ensure the local state is also logged out.
             updateUser(null);
             setIsAuthenticated(false);
         }
@@ -82,7 +79,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             const userDocSnap = await getDoc(userDocRef);
             
             if (userDocSnap.exists()) {
-                 const foundUser = { ...userDocSnap.data(), id: userDocSnap.id } as User;
+                 const foundUser = { ...userDocSnap.data(), id: userDocSnap.id, uid: userDocSnap.id } as User;
                  updateUser(foundUser);
                  setIsAuthenticated(true);
                  return foundUser;

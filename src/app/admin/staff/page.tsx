@@ -146,8 +146,6 @@ export default function AdminStaffPage() {
   
   const handleDelete = async (staffId: string) => {
     try {
-        // Note: This only deletes the Firestore record. Deleting from Firebase Auth
-        // requires admin privileges and is typically done server-side.
         await deleteDoc(doc(db, "users", staffId));
         fetchStaff();
         toast({
@@ -175,16 +173,24 @@ export default function AdminStaffPage() {
                 return;
             }
              if (!password) {
-                // This should be caught by the form handler, but as a safeguard:
-                toast({ title: 'Error', description: 'Password is required for new users.', variant: 'destructive'});
+                 toast({ title: 'Error', description: 'Password is required for new users.', variant: 'destructive'});
+                 return;
+            }
+            
+            const existingUserQuery = query(collection(db, "users"), where("email", "==", staffData.email));
+            const existingUserSnapshot = await getDocs(existingUserQuery);
+            if (!existingUserSnapshot.empty) {
+                toast({
+                    title: 'User Exists',
+                    description: 'A user with this email address already exists in the database.',
+                    variant: 'destructive',
+                });
                 return;
             }
 
-            // 1. Create user in Firebase Auth. This will throw an error if the email is in use.
             const userCredential = await createUserWithEmailAndPassword(auth, staffData.email, password);
             const newFirebaseUser = userCredential.user;
 
-            // 2. If Auth creation succeeds, create the Firestore document.
             const newUserDocRef = doc(db, "users", newFirebaseUser.uid);
             await setDoc(newUserDocRef, {
                 ...staffData,
@@ -192,13 +198,10 @@ export default function AdminStaffPage() {
                 uid: newFirebaseUser.uid,
             });
 
-            // 3. Re-authenticate the admin user to restore their session if it was affected.
-            if(auth.currentUser?.uid !== adminUser.uid) {
-                const currentAdminUser = adminUser.email && adminUser.password ? await login(adminUser.email, adminUser.password) : null;
-                if(!currentAdminUser) {
-                    console.warn("Could not re-authenticate admin user.");
-                }
+            if (adminUser.email && adminUser.password) {
+               await login(adminUser.email, adminUser.password);
             }
+
 
             toast({ title: 'Staff Member Created', description: 'The new staff member has been added.' });
         }

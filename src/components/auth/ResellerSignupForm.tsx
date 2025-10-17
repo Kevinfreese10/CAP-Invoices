@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -14,7 +15,7 @@ import { Checkbox } from '../ui/checkbox';
 import { Separator } from '../ui/separator';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { getFirestore, doc, setDoc, collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, collection, getDocs, query, orderBy, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useState, useEffect, useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
@@ -134,7 +135,6 @@ export default function ResellerSignupForm() {
     try {
         const { password, cv, certificate, ...resellerData } = values;
 
-        // 1. Create the user in Firebase Authentication
         const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
         const newFirebaseUser = userCredential.user;
         const authUid = newFirebaseUser.uid;
@@ -142,15 +142,13 @@ export default function ResellerSignupForm() {
         let cvUrl = '';
         let certificateUrl = '';
 
-        // 2. Upload files if they exist
         if (values.wantsOutsourcedWork && values.cv?.[0] && values.certificate?.[0]) {
             toast({ title: 'Uploading Documents...', description: 'Please wait while we upload your files.' });
             cvUrl = await uploadFile(values.cv[0], `reseller-applications/${authUid}/cv-${values.cv[0].name}`);
             certificateUrl = await uploadFile(values.certificate[0], `reseller-applications/${authUid}/certificate-${values.certificate[0].name}`);
         }
 
-        // 3. Save reseller data to Firestore in the 'users' collection
-        const newUserDocRef = doc(db, "users", authUid); // Use auth UID as document ID
+        const newUserDocRef = doc(db, "users", authUid);
         await setDoc(newUserDocRef, {
             ...resellerData,
             name: values.contactPerson,
@@ -162,7 +160,6 @@ export default function ResellerSignupForm() {
             certificateUrl: certificateUrl,
         });
         
-        // 4. Log in the new user.
         await login(values.email, values.password);
 
         toast({

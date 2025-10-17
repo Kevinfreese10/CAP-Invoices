@@ -1,4 +1,5 @@
 
+
 'use client';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -60,6 +61,10 @@ function UserForm({ user, onSubmit, onCancel }: { user: User | null, onSubmit: (
     }, [user, isEditing, form]);
 
     const handleSubmit = (values: z.infer<typeof formSchema>) => {
+        if (!isEditing && !values.password) {
+            form.setError('password', { message: 'Password is required for new users.' });
+            return;
+        }
         onSubmit(values);
     };
     
@@ -96,7 +101,7 @@ export default function ManageUsersPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const { toast } = useToast();
-  const { user: adminUser, reauthenticate } = useAuth();
+  const { user: adminUser, login } = useAuth();
   
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -130,9 +135,6 @@ export default function ManageUsersPage() {
   const handleDelete = async (userId: string) => {
     try {
         await deleteDoc(doc(db, "users", userId));
-        // Note: This only deletes the Firestore record. Deleting from Firebase Auth
-        // requires admin privileges and is a separate, more complex operation,
-        // usually handled server-side for security reasons.
         fetchUsers();
         toast({
             title: 'User Deleted',
@@ -149,27 +151,34 @@ export default function ManageUsersPage() {
     const { id, password, ...userData } = data;
     
     try {
-        if (id) { // Editing existing user
+        if (id) { 
              const docRef = doc(db, "users", id);
              await setDoc(docRef, userData, { merge: true });
-             // Password update would need a cloud function for security
              toast({ title: 'User Updated', description: 'The user details have been saved.' });
-        } else { // Creating new user
+        } else { 
             if (!adminUser) {
                 toast({ title: 'Error', description: 'Admin user not found.', variant: 'destructive'});
                 return;
             }
             if (!password) {
-                // This validation is now handled by the form schema, but we double-check.
-                 form.setError('password', { message: 'Password is required for new users.' });
+                 toast({ title: 'Error', description: 'Password is required for new users.', variant: 'destructive'});
                  return;
             }
+
+            const existingUserQuery = query(collection(db, "users"), where("email", "==", userData.email));
+            const existingUserSnapshot = await getDocs(existingUserQuery);
+            if (!existingUserSnapshot.empty) {
+                toast({
+                    title: 'User Exists',
+                    description: 'A user with this email address already exists in the database.',
+                    variant: 'destructive',
+                });
+                return;
+            }
             
-            // 1. Create user in Firebase Auth. This will throw an error if the email is in use.
             const userCredential = await createUserWithEmailAndPassword(auth, userData.email, password);
             const newFirebaseUser = userCredential.user;
 
-            // 2. If Auth creation succeeds, create the Firestore document.
             const newUserDocRef = doc(db, "users", newFirebaseUser.uid);
             await setDoc(newUserDocRef, {
                 ...userData,
@@ -177,13 +186,8 @@ export default function ManageUsersPage() {
                 id: newFirebaseUser.uid,
             });
             
-            // 3. Re-authenticate the admin user to restore their session if it was affected.
-            if(auth.currentUser?.uid !== adminUser.uid) {
-                const currentAdminUser = adminUser.email ? await login(adminUser.email, adminUser.password) : null;
-                if(!currentAdminUser) {
-                    // This is a fallback and indicates a potential session issue.
-                    console.warn("Could not re-authenticate admin user.");
-                }
+            if (adminUser.email && adminUser.password) {
+               await login(adminUser.email, adminUser.password);
             }
 
             toast({ title: 'User Created', description: 'The new user has been added.' });
