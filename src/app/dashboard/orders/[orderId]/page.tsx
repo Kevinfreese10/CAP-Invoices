@@ -8,7 +8,7 @@ import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service, User, OrderNote, DocumentUpload } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
+import { notifyStaffOfDocumentUpload } from '@/app/actions';
 
 
 const db = getFirestore(firebaseApp);
@@ -44,6 +45,7 @@ export default function ClientOrderDetailsPage() {
   const [order, setOrder] = useState<Order | null>(null);
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const params = useParams();
   const id = params.orderId as string;
   const { user: currentUser } = useAuth();
@@ -63,7 +65,7 @@ export default function ClientOrderDetailsPage() {
       try {
         const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
         const staffSnapshot = await getDocs(staffQuery);
-        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
+        const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id, id: doc.id } as User));
         setAllStaff(fetchedStaff);
 
         const servicesQuery = query(collection(db, 'services'));
@@ -172,6 +174,50 @@ export default function ClientOrderDetailsPage() {
     }
   };
 
+  const handleDocumentSubmit = async () => {
+    if (!currentUser || !order || !order.assignedTo || order.assignedTo.length === 0) {
+      toast({ title: "Cannot Submit", description: "This order is not yet assigned to a consultant.", variant: "destructive" });
+      return;
+    }
+    
+    const assignedStaff = allStaff.find(s => s.id === order.assignedTo![0]);
+    if (!assignedStaff || !assignedStaff.email) {
+      toast({ title: "Cannot Submit", description: "The assigned consultant could not be found or does not have an email address.", variant: "destructive" });
+      return;
+    }
+
+    setIsSubmitting(true);
+    toast({ title: "Submitting...", description: "Notifying your consultant." });
+
+    const noteText = "Client has submitted their documents for review.";
+    const newNote: OrderNote = {
+      text: noteText,
+      authorId: currentUser.uid,
+      date: Timestamp.now(),
+      type: 'note',
+    };
+
+    try {
+      const orderRef = doc(db, 'orders', order.id);
+      await updateDoc(orderRef, { notes: arrayUnion(newNote) });
+      
+      await notifyStaffOfDocumentUpload({
+          orderId: order.id,
+          clientName: currentUser.name,
+          assignedStaffName: assignedStaff.name,
+          assignedStaffEmail: assignedStaff.email,
+      });
+
+      toast({ title: "Documents Submitted!", description: "Your consultant has been notified." });
+      fetchOrderAndServices();
+    } catch(error) {
+      console.error("Error submitting documents:", error);
+      toast({ title: "Submission Failed", description: "Could not notify the consultant.", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const getStatusVariant = (status: Order['status']) => {
     switch (status) {
       case 'Completed':
@@ -229,73 +275,94 @@ export default function ClientOrderDetailsPage() {
                         Date: {format(new Date(order.date), 'dd MMMM yyyy')} | Status: <Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
                         </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-6">
+                    <CardContent>
                         {orderedItemsWithServices.map((item, index) => (
-                            <div key={item.id} className="space-y-4">
+                            <div key={item.id}>
                                 <div className="flex justify-between items-center">
                                     <div>
                                         <p className="font-semibold text-lg">{item.title}</p>
                                     </div>
                                     <p className="font-semibold text-lg">{formatPrice(item.price)}</p>
                                 </div>
-                                {item.service && item.service.informationToProvide && item.service.informationToProvide.length > 0 && (
-                                    <div className="pl-4 ml-4 border-l-2 space-y-4">
-                                        <h4 className="font-medium text-md text-muted-foreground">Documents Required:</h4>
-                                        {item.service.informationToProvide.map((info, infoIndex) => {
-                                            const upload = order.documentUploads?.find(d => d.serviceId === item.service?.id && d.requirementLabel === info.label);
-                                            const uploadKey = `${item.service?.id}-${info.label}`;
-                                            const isUploading = uploadingFiles[uploadKey] !== undefined;
-                                            
-                                            return (
-                                            <div key={infoIndex} className="space-y-2 p-3 rounded-md border">
-                                                <label className="text-sm font-medium flex items-center gap-2">
-                                                    <ClipboardCheck className="h-4 w-4" />
-                                                    {info.label}
-                                                </label>
-                                                {upload ? (
-                                                     <div className="flex items-center justify-between">
-                                                        <a href={upload.fileUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline">{upload.fileName}</a>
-                                                        {upload.status === 'approved' && <Badge variant="success"><CheckCircle className="h-3 w-3 mr-1"/>Approved</Badge>}
-                                                        {upload.status === 'pending' && <Badge variant="warning">Pending Review</Badge>}
-                                                        {upload.status === 'rejected' && (
-                                                          <div className="text-right">
-                                                            <Badge variant="destructive"><AlertTriangle className="h-3 w-3 mr-1"/>Rejected</Badge>
-                                                            {upload.rejectionReason && <p className="text-xs text-destructive mt-1">{upload.rejectionReason}</p>}
-                                                            {info.type === 'pdf' ? (
-                                                              <Input type="file" accept="application/pdf" className="mt-2" onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], item.service!.id, info.label)} />
-                                                            ) : (
-                                                              <Input type="text" className="mt-2" placeholder="Enter information here..." />
-                                                            )}
-                                                          </div>
-                                                        )}
-                                                     </div>
-                                                ) : isUploading ? (
-                                                     <div className="flex items-center gap-2">
-                                                        <Loader2 className="h-4 w-4 animate-spin"/>
-                                                        <p className="text-sm">Uploading... {Math.round(uploadingFiles[uploadKey])}%</p>
-                                                    </div>
-                                                ) : (
-                                                    info.type === 'pdf' ? (
-                                                        <Input type="file" accept="application/pdf" onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], item.service!.id, info.label)} />
-                                                    ) : (
-                                                        <Input type="text" placeholder="Enter information here..." />
-                                                    )
-                                                )}
-                                            </div>
-                                        )})}
-                                    </div>
-                                )}
-                                {index < orderedItemsWithServices.length - 1 && <Separator />}
+                                {index < orderedItemsWithServices.length - 1 && <Separator className="my-6" />}
                             </div>
                         ))}
-                        
-                        <Separator className="my-4" />
+                         <Separator className="my-4" />
                         <div className="flex justify-between font-bold text-xl">
                             <span>Total</span>
                             <span>{formatPrice(order.total)}</span>
                         </div>
                     </CardContent>
                 </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Documents Required</CardTitle>
+                        <CardDescription>Upload the documents needed for us to process your order.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {orderedItemsWithServices.map((item) => (
+                            <div key={item.id} className="space-y-4">
+                                {item.service && item.service.informationToProvide && item.service.informationToProvide.length > 0 && (
+                                    <div className="space-y-4">
+                                        <h4 className="font-medium text-md">{item.service.title}</h4>
+                                        <div className="pl-4 ml-4 border-l-2 space-y-4">
+                                            {item.service.informationToProvide.map((info, infoIndex) => {
+                                                const upload = order.documentUploads?.find(d => d.serviceId === item.service?.id && d.requirementLabel === info.label);
+                                                const uploadKey = `${item.service?.id}-${info.label}`;
+                                                const isUploading = uploadingFiles[uploadKey] !== undefined;
+                                                
+                                                return (
+                                                <div key={infoIndex} className="space-y-2 p-3 rounded-md border">
+                                                    <label className="text-sm font-medium flex items-center gap-2">
+                                                        <ClipboardCheck className="h-4 w-4" />
+                                                        {info.label}
+                                                    </label>
+                                                    {upload ? (
+                                                        <div className="flex items-center justify-between">
+                                                            <a href={upload.fileUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline">{upload.fileName}</a>
+                                                            {upload.status === 'approved' && <Badge variant="success"><CheckCircle className="h-3 w-3 mr-1"/>Approved</Badge>}
+                                                            {upload.status === 'pending' && <Badge variant="warning">Pending Review</Badge>}
+                                                            {upload.status === 'rejected' && (
+                                                            <div className="text-right">
+                                                                <Badge variant="destructive"><AlertTriangle className="h-3 w-3 mr-1"/>Rejected</Badge>
+                                                                {upload.rejectionReason && <p className="text-xs text-destructive mt-1">{upload.rejectionReason}</p>}
+                                                                {info.type === 'pdf' ? (
+                                                                    <Input type="file" accept="application/pdf" className="mt-2 h-9" onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], item.service!.id, info.label)} />
+                                                                ) : (
+                                                                    <Input type="text" className="mt-2 h-9" placeholder="Enter information here..." />
+                                                                )}
+                                                            </div>
+                                                            )}
+                                                        </div>
+                                                    ) : isUploading ? (
+                                                        <div className="flex items-center gap-2">
+                                                            <Loader2 className="h-4 w-4 animate-spin"/>
+                                                            <p className="text-sm">Uploading... {Math.round(uploadingFiles[uploadKey])}%</p>
+                                                        </div>
+                                                    ) : (
+                                                        info.type === 'pdf' ? (
+                                                            <Input type="file" accept="application/pdf" className="h-9" onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], item.service!.id, info.label)} />
+                                                        ) : (
+                                                            <Input type="text" className="h-9" placeholder="Enter information here..." />
+                                                        )
+                                                    )}
+                                                </div>
+                                            )})}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </CardContent>
+                    <CardFooter>
+                        <Button onClick={handleDocumentSubmit} disabled={isSubmitting}>
+                            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                            Submit Documents
+                        </Button>
+                    </CardFooter>
+                </Card>
+
             </div>
              <div className="lg:col-span-1 space-y-6 sticky top-24">
                   <Card>
