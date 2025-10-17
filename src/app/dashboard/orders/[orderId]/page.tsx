@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { notFound, useParams } from 'next/navigation';
-import { getFirestore, doc, getDoc, updateDoc, arrayUnion, Timestamp, collection, query, where, getDocs } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, Upload } from 'lucide-react';
+import { ArrowLeft, Loader2, Upload, ClipboardCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 
@@ -94,9 +94,10 @@ export default function ClientOrderDetailsPage() {
     return notFound();
   }
 
-   const orderedServices = order.items.map(item => {
-        return allServices.find(s => s.id === item.id);
-    }).filter((s): s is Service => s !== undefined);
+   const orderedItemsWithServices = order.items.map(item => {
+        const serviceDetails = allServices.find(s => s.id === item.id);
+        return { ...item, service: serviceDetails };
+    });
 
   return (
     <div className="space-y-8">
@@ -109,72 +110,53 @@ export default function ClientOrderDetailsPage() {
             </Button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-            <div className="lg:col-span-2 space-y-8">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Order {order.id}</CardTitle>
-                        <CardDescription>
-                        Date: {format(new Date(order.date), 'dd MMMM yyyy')} | Status: <Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-4">
-                        {order.items.map((item: any) => (
-                            <div key={item.id} className="flex justify-between items-center">
+         <Card>
+            <CardHeader>
+                <CardTitle>Order {order.id}</CardTitle>
+                <CardDescription>
+                Date: {format(new Date(order.date), 'dd MMMM yyyy')} | Status: <Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                {orderedItemsWithServices.map((item, index) => (
+                    <div key={item.id} className="space-y-4">
+                        <div className="flex justify-between items-center">
                             <div>
-                                <p className="font-semibold">{item.title}</p>
+                                <p className="font-semibold text-lg">{item.title}</p>
                             </div>
-                            <p>{formatPrice(item.price)}</p>
-                            </div>
-                        ))}
+                            <p className="font-semibold text-lg">{formatPrice(item.price)}</p>
                         </div>
-                        <Separator className="my-4" />
-                        <div className="flex justify-between font-bold text-lg">
-                        <span>Total</span>
-                        <span>{formatPrice(order.total)}</span>
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
-             <div className="lg:col-span-1 space-y-6">
-                 <Card>
-                    <CardHeader>
-                        <CardTitle>Upload Documents</CardTitle>
-                        <CardDescription>Provide the required information for your order.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        {orderedServices.length > 0 ? (
-                            <div className="space-y-6">
-                                {orderedServices.map(service => (
-                                    <div key={service.id} className="space-y-4">
-                                        <h4 className="font-semibold text-md border-b pb-2">{service.title}</h4>
-                                        {service.informationToProvide && service.informationToProvide.length > 0 ? (
-                                            service.informationToProvide.map((info, index) => (
-                                                <div key={index} className="space-y-2">
-                                                    <label className="text-sm font-medium">{info.label}</label>
-                                                    <Input type={info.type === 'pdf' ? 'file' : 'text'} accept={info.type === 'pdf' ? 'application/pdf' : undefined} />
-                                                </div>
-                                            ))
-                                        ) : (
-                                            <p className="text-sm text-muted-foreground">No specific documents required for this service.</p>
-                                        )}
+                        {item.service && item.service.informationToProvide && item.service.informationToProvide.length > 0 && (
+                             <div className="pl-4 ml-4 border-l-2 space-y-4">
+                                <h4 className="font-medium text-md text-muted-foreground">Documents Required:</h4>
+                                {item.service.informationToProvide.map((info, infoIndex) => (
+                                    <div key={infoIndex} className="space-y-2">
+                                        <label className="text-sm font-medium flex items-center gap-2">
+                                            <ClipboardCheck className="h-4 w-4" />
+                                            {info.label}
+                                        </label>
+                                        <Input type={info.type === 'pdf' ? 'file' : 'text'} accept={info.type === 'pdf' ? 'application/pdf' : undefined} />
                                     </div>
                                 ))}
                             </div>
-                        ) : (
-                            <p className="text-sm text-muted-foreground">No documents are required for this order.</p>
                         )}
-                        {orderedServices.length > 0 && (
-                            <Button className="w-full mt-6">
-                                <Upload className="mr-2 h-4 w-4" />
-                                Submit Information
-                            </Button>
-                        )}
-                    </CardContent>
-                 </Card>
-             </div>
-        </div>
+                        {index < orderedItemsWithServices.length - 1 && <Separator />}
+                    </div>
+                ))}
+                
+                <Separator className="my-4" />
+                <div className="flex justify-between font-bold text-xl">
+                    <span>Total</span>
+                    <span>{formatPrice(order.total)}</span>
+                </div>
+                 {orderedItemsWithServices.some(item => item.service?.informationToProvide?.length) && (
+                    <Button className="w-full mt-6" size="lg">
+                        <Upload className="mr-2 h-4 w-4" />
+                        Submit All Documents
+                    </Button>
+                )}
+            </CardContent>
+        </Card>
     </div>
   );
 }
