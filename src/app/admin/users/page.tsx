@@ -163,6 +163,14 @@ export default function ManageUsersPage() {
                  form.setError('password', { message: 'Password is required for new users.' });
                  return;
             }
+
+            // Check if email already exists in Firestore
+            const emailQuery = query(collection(db, 'users'), where('email', '==', userData.email));
+            const querySnapshot = await getDocs(emailQuery);
+            if (!querySnapshot.empty) {
+                toast({ title: 'User Exists', description: 'A user with this email address already exists.', variant: 'destructive' });
+                return;
+            }
             
             const userCredential = await createUserWithEmailAndPassword(auth, userData.email, password);
             const newFirebaseUser = userCredential.user;
@@ -298,4 +306,3 @@ export default function ManageUsersPage() {
     </div>
   );
 }
-

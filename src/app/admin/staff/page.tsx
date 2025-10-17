@@ -32,7 +32,7 @@ const formSchema = z.object({
   uid: z.string().optional(),
   name: z.string().min(2, 'Name is required.'),
   email: z.string().email('A valid email is required.'),
-  password: z.string().min(6, 'Password must be at least 6 characters.'),
+  password: z.string().min(6, 'Password must be at least 6 characters.').optional(),
   department: z.enum(departments),
   role: z.enum(roles),
 });
@@ -58,6 +58,15 @@ function StaffForm({ staffMember, onSubmit, onCancel }: { staffMember: User | nu
                 ...staffMember,
                 role: staffMember?.role === 'admin' ? 'admin' : 'staff',
                 password: staffMember?.password || ''
+            });
+        } else {
+            form.reset({
+                uid: '',
+                name: '',
+                email: '',
+                password: '',
+                department: 'Administration',
+                role: 'staff',
             });
         }
     }, [staffMember, isEditing, form]);
@@ -107,7 +116,7 @@ export default function AdminStaffPage() {
     try {
         const q = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
         const querySnapshot = await getDocs(q);
-        const fetchedStaff = querySnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
+        const fetchedStaff = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, uid: doc.id } as User));
         setStaff(fetchedStaff);
     } catch (error) {
         console.error("Error fetching staff:", error);
@@ -149,7 +158,7 @@ export default function AdminStaffPage() {
   };
 
   const handleFormSubmit = async (data: z.infer<typeof formSchema>) => {
-    const { uid, ...staffData } = data;
+    const { uid, password, ...staffData } = data;
     
     try {
         if (uid) { // Editing existing user
@@ -161,14 +170,28 @@ export default function AdminStaffPage() {
                 toast({ title: 'Error', description: 'Admin user not found.', variant: 'destructive'});
                 return;
             }
+             if (!password) {
+                form.setError('password', { message: 'Password is required for new users.' });
+                return;
+            }
+
+            // Check if email already exists in Firestore
+            const emailQuery = query(collection(db, 'users'), where('email', '==', staffData.email));
+            const querySnapshot = await getDocs(emailQuery);
+            if (!querySnapshot.empty) {
+                toast({ title: 'User Exists', description: 'A user with this email address already exists.', variant: 'destructive' });
+                return;
+            }
+
             // 1. Create user in Firebase Auth
-            const userCredential = await createUserWithEmailAndPassword(auth, staffData.email, staffData.password);
+            const userCredential = await createUserWithEmailAndPassword(auth, staffData.email, password);
             const newFirebaseUser = userCredential.user;
 
             // 2. Create user document in Firestore with the new UID
             const newUserDocRef = doc(db, "users", newFirebaseUser.uid);
             await setDoc(newUserDocRef, {
                 ...staffData,
+                id: newFirebaseUser.uid,
                 uid: newFirebaseUser.uid,
             });
 
@@ -238,7 +261,7 @@ export default function AdminStaffPage() {
             </TableHeader>
             <TableBody>
               {staff.map(staffMember => (
-                <TableRow key={staffMember.uid}>
+                <TableRow key={staffMember.id}>
                   <TableCell className="font-medium">
                     {staffMember.name}
                   </TableCell>
@@ -281,7 +304,7 @@ export default function AdminStaffPage() {
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDelete(staffMember.uid)}>
+                                <AlertDialogAction onClick={() => handleDelete(staffMember.id)}>
                                     Continue
                                 </AlertDialogAction>
                             </AlertDialogFooter>
