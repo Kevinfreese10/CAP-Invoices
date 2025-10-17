@@ -10,11 +10,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Send } from 'lucide-react';
+import { Loader2, Send, Server, ShieldCheck, CheckCircle, XCircle } from 'lucide-react';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Order } from '@/lib/types';
+import { Order, ItnLog } from '@/lib/types';
 import { generatePayFastSignature } from '@/app/actions/payfast';
+import { Badge } from '@/components/ui/badge';
+import { format } from 'date-fns';
+import { Separator } from '@/components/ui/separator';
 
 const db = getFirestore(firebaseApp);
 
@@ -24,6 +27,8 @@ const formSchema = z.object({
 
 export default function PayfastSimulatorPage() {
   const [isSimulating, setIsSimulating] = useState(false);
+  const [simulationLogs, setSimulationLogs] = useState<ItnLog[]>([]);
+  const [finalStatus, setFinalStatus] = useState<string | null>(null);
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -35,6 +40,8 @@ export default function PayfastSimulatorPage() {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsSimulating(true);
+    setSimulationLogs([]);
+    setFinalStatus(null);
     toast({ title: 'Simulating Payment...', description: `Sending ITN for Order ID: ${values.orderId}` });
 
     try {
@@ -76,15 +83,28 @@ export default function PayfastSimulatorPage() {
             body: formData,
         });
 
-        if (response.ok) {
-            toast({
-                title: 'Simulation Successful!',
-                description: 'The ITN was sent and processed. Check the order status.',
-            });
-        } else {
+        if (!response.ok) {
              const errorText = await response.text();
              throw new Error(`Simulation failed with status ${response.status}: ${errorText}`);
         }
+        
+        toast({
+            title: 'Simulation Sent!',
+            description: 'The ITN was sent. Fetching results...',
+        });
+
+        // Fetch the updated order to display logs
+        const updatedOrderSnap = await getDoc(orderRef);
+        if (updatedOrderSnap.exists()) {
+            const updatedOrder = updatedOrderSnap.data() as Order;
+            setSimulationLogs(updatedOrder.itnHistory || []);
+            setFinalStatus(updatedOrder.status);
+            toast({
+                title: 'Results Loaded',
+                description: `Final order status is: ${updatedOrder.status}`,
+            });
+        }
+
 
     } catch (error: any) {
         console.error("Simulation error:", error);
@@ -95,7 +115,7 @@ export default function PayfastSimulatorPage() {
   };
 
   return (
-    <div className="space-y-8 max-w-2xl mx-auto">
+    <div className="space-y-8 max-w-4xl mx-auto">
       <h1 className="text-3xl font-bold tracking-tight">PayFast ITN Simulator</h1>
       <Card>
         <CardHeader>
@@ -129,6 +149,36 @@ export default function PayfastSimulatorPage() {
           </Form>
         </CardContent>
       </Card>
+      
+      {simulationLogs.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Simulation Log</CardTitle>
+              <CardDescription>
+                  Detailed results for the simulation of order <span className="font-mono font-semibold">{form.getValues('orderId')}</span>.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                {finalStatus && (
+                    <div className="flex justify-between items-center bg-muted p-3 rounded-md">
+                        <span className="font-semibold">Final Order Status:</span>
+                        <Badge variant={finalStatus === 'Processing' ? 'success' : 'secondary'}>{finalStatus}</Badge>
+                    </div>
+                )}
+                <div className="space-y-3">
+                  {simulationLogs.slice().reverse().map((log, index) => (
+                    <div key={index} className="flex items-start gap-4 p-3 border rounded-md">
+                        {log.status === 'Success' ? <CheckCircle className="h-5 w-5 text-green-500 mt-1 flex-shrink-0" /> : <XCircle className="h-5 w-5 text-destructive mt-1 flex-shrink-0" />}
+                        <div className="flex-grow">
+                            <p className="font-semibold text-sm">{log.message}</p>
+                            <p className="text-xs text-muted-foreground">{format(log.receivedAt.toDate(), 'dd/MM/yyyy, HH:mm:ss.SSS')}</p>
+                        </div>
+                    </div>
+                  ))}
+                </div>
+            </CardContent>
+          </Card>
+      )}
     </div>
   );
 }
