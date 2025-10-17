@@ -12,6 +12,7 @@ const settingsNav = [
     { title: 'Manage Categories', href: '/admin/categories' },
     { title: 'Manage Blog', href: '/admin/blog' },
     { title: 'Manage Staff', href: '/admin/staff' },
+    { title: 'Manage Users', href: '/admin/users' },
     { title: 'Manage Discounts', href: '/admin/discounts' },
     { title: 'Knowledge Base & Training', href: '/admin/knowledge-base' },
     { title: 'Media', href: '/admin/media' },

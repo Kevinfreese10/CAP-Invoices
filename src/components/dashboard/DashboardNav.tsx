@@ -59,7 +59,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const router = useRouter();
   const { logout } = useAuth();
   const { state, toggleSidebar } = useSidebar();
-  const [isSettingsOpen, setIsSettingsOpen] = useState(pathname.startsWith('/admin/settings'));
+  const [isSettingsOpen, setIsSettingsOpen] = useState(pathname.startsWith('/admin/settings') || pathname.startsWith('/admin/users') || pathname.startsWith('/admin/staff'));
   const [isCapSuppliersOpen, setIsCapSuppliersOpen] = useState(pathname.startsWith('/admin/cap-suppliers'));
   const [isAiAccountantOpen, setIsAiAccountantOpen] = useState(pathname.startsWith('/admin/ai-accountant'));
 
@@ -106,6 +106,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/categories', label: 'Manage Categories', icon: Shapes, roles: ['admin'] },
     { href: '/admin/blog', label: 'Manage Blog', icon: BookMarked, roles: ['admin'] },
     { href: '/admin/staff', label: 'Manage Staff', icon: Users, roles: ['admin'] },
+    { href: '/admin/users', label: 'Manage Users', icon: Users, roles: ['admin'] },
     { href: '/admin/discounts', label: 'Manage Discounts', icon: Percent, roles: ['admin'] },
     { href: '/admin/knowledge-base', label: 'Knowledge Base', icon: BrainCircuit, roles: ['admin'] },
     { href: '/admin/media', label: 'Media', icon: Images, roles: ['admin'] },
@@ -231,7 +232,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
                  <Collapsible open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
                     <SidebarMenuItem>
                         <CollapsibleTrigger asChild>
-                            <SidebarMenuButton isActive={pathname.startsWith('/admin/settings')} tooltip="Settings">
+                            <SidebarMenuButton isActive={pathname.startsWith('/admin/settings') || pathname.startsWith('/admin/users')} tooltip="Settings">
                                 <Settings />
                                 <span>Settings</span>
                                 <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200 group-[[data-state=open]]:rotate-180" />
