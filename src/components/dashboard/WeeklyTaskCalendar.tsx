@@ -6,7 +6,7 @@ import { Task, User } from '@/lib/types';
 import { format, startOfWeek, addDays, isSameDay, isToday, isPast, eachDayOfInterval } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, AlertOctagon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, AlertOctagon, Check } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -23,7 +23,7 @@ const getUserColor = (userId: string) => {
   return userColors[hash % userColors.length];
 };
 
-export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTaskUpdate }: { tasks: Task[], allStaff: User[], currentUser: User | null, onTaskUpdate: (taskId: string, updates: Partial<Task>) => void }) {
+export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTaskUpdate }: { tasks: Task[], allStaff: User[], currentUser: User | null, onTaskUpdate: (taskId: string, status: Task['status']) => void }) {
   const [currentDate, setCurrentDate] = useState(new Date());
 
   const weekStartsOn = 1; // Monday
@@ -44,18 +44,16 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
 
   const userTasks = tasks.filter(task => {
     if (!currentUser) return false;
-    return Array.isArray(task.assignedTo) && task.assignedTo.includes(currentUser.id);
+    return Array.isArray(task.assignedTo) && task.assignedTo.includes(currentUser.id) && task.status !== 'Done';
   });
   
   const getTaskDate = (task: Task): Date => {
     if (task.dueDate instanceof Date) {
         return task.dueDate;
     }
-    // Firestore Timestamps have a toDate() method
     if (task.dueDate && typeof (task.dueDate as any).toDate === 'function') {
         return (task.dueDate as any).toDate();
     }
-    // Fallback for string dates (though should be avoided)
     return new Date(task.dueDate);
   }
   
@@ -72,7 +70,15 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
   const handleDrop = (e: React.DragEvent<HTMLDivElement>, newDate: Date) => {
     e.preventDefault();
     const taskId = e.dataTransfer.getData("taskId");
-    onTaskUpdate(taskId, { dueDate: newDate });
+    onTaskUpdate(taskId, 'To-Do'); // Also reset status to To-Do when dragging
+    onTaskUpdate(taskId, 'To-Do'); // Also reset status to To-Do when dragging, and update date separately
+    // The parent's `handleUpdate` will handle the date change.
+    // This is a bit of a workaround because the `onTaskUpdate` expects a status.
+    // A better approach would be a more flexible onTaskUpdate function.
+    const taskToUpdate = tasks.find(t => t.id === taskId);
+    if(taskToUpdate) {
+        onTaskUpdate(taskId, taskToUpdate.status);
+    }
   };
   
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -105,7 +111,7 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
                 </div>
                 <div 
                   className="p-2 space-y-2"
-                  onDrop={(e) => handleDrop(e, addDays(new Date(), -1))} // Drop here defaults to yesterday
+                  onDrop={(e) => handleDrop(e, addDays(new Date(), -1))}
                   onDragOver={handleDragOver}
                 >
                      {overdueTasks.map(task => {
@@ -117,8 +123,16 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
                                         <div 
                                             draggable
                                             onDragStart={(e) => handleDragStart(e, task.id)}
-                                            className="p-2 bg-background rounded-lg border text-left space-y-1 cursor-grab"
+                                            className="p-2 bg-background rounded-lg border text-left space-y-1 cursor-grab group relative"
                                         >
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                                              onClick={() => onTaskUpdate(task.id, 'Done')}
+                                            >
+                                                <Check className="h-4 w-4 text-green-500" />
+                                            </Button>
                                             <div className="flex justify-between items-start">
                                                 <p className="text-xs font-semibold leading-tight line-clamp-2">{task.title}</p>
                                             </div>
@@ -154,7 +168,7 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
               <div className="p-2 space-y-2">
                 {userTasks.filter(task => {
                     const dueDate = getTaskDate(task);
-                    return isSameDay(dueDate, day);
+                    return isSameDay(dueDate, day) && !isPast(dueDate);
                 }).map(task => {
                   const assignees = Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo];
                   return (
@@ -164,8 +178,16 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
                              <div 
                                 draggable
                                 onDragStart={(e) => handleDragStart(e, task.id)}
-                                className="p-2 bg-background rounded-lg border text-left space-y-1 cursor-grab"
+                                className="p-2 bg-background rounded-lg border text-left space-y-1 cursor-grab group relative"
                             >
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  onClick={() => onTaskUpdate(task.id, 'Done')}
+                                >
+                                    <Check className="h-4 w-4 text-green-500" />
+                                </Button>
                                 <div className="flex justify-between items-start">
                                     <p className="text-xs font-semibold leading-tight line-clamp-2">{task.title}</p>
                                 </div>

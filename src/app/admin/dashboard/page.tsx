@@ -739,16 +739,19 @@ export default function AdminDashboardPage() {
         try {
             const taskRef = doc(db, 'tasks', taskId);
             await updateDoc(taskRef, updates);
-            // Optimistically update local state to reflect changes immediately
-            setTasks(prevTasks => prevTasks.map(t => (t.id === taskId ? { ...t, ...updates } : t)));
+            
+            const updatedTaskIndex = tasks.findIndex(t => t.id === taskId);
+            if (updatedTaskIndex > -1) {
+                const updatedTasks = [...tasks];
+                updatedTasks[updatedTaskIndex] = { ...updatedTasks[updatedTaskIndex], ...updates };
+                setTasks(updatedTasks);
+            }
         } catch (error) {
             console.error("Error updating task:", error);
             toast({ title: 'Error', description: 'Could not update the task.', variant: 'destructive'});
-            // Re-fetch to ensure data consistency on error
             fetchDashboardData();
         }
     };
-
 
     const handleUpdateStatus = async (taskId: string, status: Task['status']) => {
         const originalTask = tasks.find(t => t.id === taskId);
@@ -767,8 +770,7 @@ export default function AdminDashboardPage() {
                 toast({ title: 'Task Status Updated', description: `The task has been marked as "${status}".` });
             }
             
-            // Optimistically update local state to reflect changes immediately
-            setTasks(prevTasks => prevTasks.map(t => (t.id === taskId ? { ...t, status } : t)));
+            setTasks(prevTasks => prevTasks.map(t => (t.id === taskId ? { ...t, status } : t)).filter(t => t.id !== taskId || status !== 'Done'));
 
         } catch (error) {
             console.error("Error updating status:", error);
@@ -971,7 +973,7 @@ export default function AdminDashboardPage() {
                     </div>
                 ) : (
                     <>
-                        <WeeklyTaskCalendar tasks={tasks} allStaff={allStaff} currentUser={user} onTaskUpdate={handleUpdate} />
+                        <WeeklyTaskCalendar tasks={tasks} allStaff={allStaff} currentUser={user} onTaskUpdate={handleUpdateStatus} />
 
                         <TaskTable 
                             tasks={myTasks} 
