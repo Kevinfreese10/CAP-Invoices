@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight, Bot, User as UserIcon, Send } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, AIAllocationJob } from '@/lib/types';
@@ -34,7 +34,6 @@ import { allVatTypes } from '@/lib/vat-types';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
-import { websiteQAndA } from '@/ai/dev';
 import { Progress } from '@/components/ui/progress';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandItem } from '@/components/ui/command';
@@ -445,201 +444,6 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
   );
 }
 
-// #endregion
-
-
-// #region AI Accountant Dialog
-const chatFormSchema = z.object({
-  question: z.string().min(1, 'Cannot send an empty message.'),
-});
-type ChatMessage = {
-  role: 'user' | 'bot';
-  text: string;
-  options?: { label: string; action: string }[];
-}
-
-function AIAccountantDialog({ client, bankAccountId }: { client: User | null; bankAccountId: string | null; }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
-  const [isAiLoading, setIsAiLoading] = useState(false);
-  const chatContainerRef = useRef<HTMLDivElement>(null);
-
-  const form = useForm<z.infer<typeof chatFormSchema>>({
-    resolver: zodResolver(chatFormSchema),
-    defaultValues: { question: '' },
-  });
-  
-  useEffect(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-    }
-  }, [chatHistory]);
-
-  const handleOpenChange = (open: boolean) => {
-    setIsOpen(open);
-    if (open && chatHistory.length === 0) {
-      const welcomeMessage: ChatMessage = {
-        role: 'bot',
-        text: 'Hello! I am your AI Accountant, Khai. How can I help you with your allocations today?',
-        options: [
-          { label: 'Allocate using allocation rules', action: 'allocate_rules' },
-          { label: 'Allocate using AI', action: 'allocate_ai' },
-        ],
-      };
-      setChatHistory([welcomeMessage]);
-    }
-  };
-  
-  async function onChatSubmit(values: z.infer<typeof chatFormSchema>) {
-    const userMessage: ChatMessage = { role: 'user', text: values.question };
-    setChatHistory(prev => [...prev, userMessage]);
-    setIsAiLoading(true);
-    form.reset();
-
-    try {
-      const response = await websiteQAndA({ 
-        question: values.question,
-        history: chatHistory.map(m => ({ role: m.role, content: m.text }))
-       });
-      const botMessage: ChatMessage = { role: 'bot', text: response.answer };
-      setChatHistory(prev => [...prev, botMessage]);
-    } catch (e) {
-      const errorMessage: ChatMessage = { role: 'bot', text: 'Sorry, I am having trouble connecting. Please try again later.' };
-      setChatHistory(prev => [...prev, errorMessage]);
-      console.error(e);
-    } finally {
-      setIsAiLoading(false);
-    }
-  }
-
-  const handleOptionClick = async (action: string) => {
-    setIsAiLoading(true);
-    const userChoiceMessage: ChatMessage = { role: 'user', text: action.replace(/_/g, ' ') };
-    setChatHistory(prev => [...prev.map(p => ({ ...p, options: undefined })), userChoiceMessage]);
-    
-    let botResponseMessage: ChatMessage;
-
-    if (action === 'allocate_rules') {
-      if (client && bankAccountId) {
-        const rules = client.allocationRules || [];
-        const q = query(
-            collection(db, 'aiAccountantClients', client.id, 'transactions'), 
-            where('status', '==', 'new'),
-            where('bankAccountId', '==', bankAccountId)
-        );
-        const snapshot = await getDocs(q);
-        const transactions = snapshot.docs.map(doc => doc.data() as ImportedTransaction);
-
-        let matchCount = 0;
-        transactions.forEach(tx => {
-            for (const rule of rules) {
-                if (rule.keywords.some(kw => tx.description.toLowerCase().includes(kw))) {
-                    matchCount++;
-                    break;
-                }
-            }
-        });
-        
-        botResponseMessage = {
-            role: 'bot',
-            text: `I found ${matchCount} transactions that can be allocated using your ${rules.length} existing rules. Would you like me to proceed?`,
-            options: [
-                { label: 'Yes', action: 'proceed_allocation' },
-                { label: 'No', action: 'cancel_allocation' },
-                { label: 'See Rules', action: 'view_rules' },
-            ],
-        };
-
-      } else {
-        botResponseMessage = { role: 'bot', text: "I can't seem to access the client or bank account information right now." };
-      }
-    } else if (action === 'allocate_ai') {
-        botResponseMessage = { role: 'bot', text: "Right, I'll use AI to suggest allocations for your transactions. This feature is coming soon!" };
-    } else if (action === 'proceed_allocation') {
-        botResponseMessage = { role: 'bot', text: "Great! I'm starting the allocation process now. This feature is under development." };
-    } else if (action === 'cancel_allocation') {
-        botResponseMessage = { role: 'bot', text: "No problem. Let me know if there's anything else." };
-    } else if (action === 'view_rules') {
-        botResponseMessage = { role: 'bot', text: "Showing allocation rules is not yet implemented." };
-    } else {
-        botResponseMessage = { role: 'bot', text: "I'm not sure how to handle that action yet." };
-    }
-    
-    setChatHistory(prev => [...prev, botResponseMessage]);
-    setIsAiLoading(false);
-  };
-
-
-  return (
-    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button variant="outline"><Sparkles className="mr-2 h-4 w-4" /> AI Accountant</Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-md p-0 flex flex-col h-[70vh]">
-          <DialogHeader className="p-4 border-b flex flex-row items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Bot className="h-6 w-6 text-primary" />
-                <DialogTitle>AI Accountant</DialogTitle>
-              </div>
-          </DialogHeader>
-           <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
-              {chatHistory.map((message, index) => (
-                <div key={index}>
-                    <div className={cn("flex items-end gap-2", message.role === 'user' ? 'justify-end' : 'justify-start')}>
-                    {message.role === 'bot' && <Bot className="h-6 w-6 text-primary flex-shrink-0" />}
-                    <div className={cn(
-                            "p-3 rounded-lg max-w-[80%]",
-                            message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'
-                        )}>
-                            <p className="text-sm">{message.text}</p>
-                        </div>
-                    {message.role === 'user' && <UserIcon className="h-6 w-6 text-primary flex-shrink-0" />}
-                    </div>
-                     {message.options && (
-                        <div className="flex flex-col gap-2 mt-2 items-start pl-8">
-                            {message.options.map(option => (
-                                <Button key={option.action} size="sm" variant="outline" onClick={() => handleOptionClick(option.action)} disabled={isAiLoading}>
-                                    {option.label}
-                                </Button>
-                            ))}
-                        </div>
-                    )}
-                </div>
-              ))}
-              {isAiLoading && (
-                 <div className="flex items-end gap-2 justify-start">
-                    <Bot className="h-6 w-6 text-primary flex-shrink-0" />
-                    <div className="p-3 rounded-lg bg-muted flex items-center">
-                       <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                    </div>
-                </div>
-              )}
-            </div>
-           <DialogFooter className="p-2 border-t">
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onChatSubmit)} className="w-full flex items-center gap-2">
-                  <FormField
-                    control={form.control}
-                    name="question"
-                    render={({ field }) => (
-                      <FormItem className="flex-grow">
-                        <FormControl>
-                          <Input placeholder="Ask a question..." {...field} autoComplete="off" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <Button type="submit" size="icon" disabled={isAiLoading}>
-                    <Send className="h-5 w-5" />
-                  </Button>
-                </form>
-              </Form>
-            </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 // #endregion
 
 const NewTransactionsTab = React.forwardRef<
@@ -1134,7 +938,6 @@ export default function BankTransactionsPage() {
 
                 <div className="flex items-center gap-8">
                      <div className="flex items-center gap-4">
-                        {client && <AIAccountantDialog client={client} bankAccountId={selectedAccountId} />}
                         {client && selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={() => {
                             if(newTransactionsTabRef.current) {
                                 newTransactionsTabRef.current.refetch();
@@ -1178,3 +981,4 @@ export default function BankTransactionsPage() {
 
 
     
+
