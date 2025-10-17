@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -693,7 +692,7 @@ const NewTransactionsTab = React.forwardRef<
                                                 <SelectContent>
                                                     {client?.chartOfAccounts?.map(acc => (
                                                         <SelectItem key={acc.id} value={acc.id}>
-                                                            {acc.accountNumber} - {acc.description}
+                                                            {acc.description}
                                                         </SelectItem>
                                                     ))}
                                                 </SelectContent>
@@ -981,4 +980,5 @@ export default function BankTransactionsPage() {
 
 
     
+
 
