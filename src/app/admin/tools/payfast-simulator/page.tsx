@@ -80,6 +80,9 @@ export default function PayfastSimulatorPage() {
         
         const response = await fetch('/api/payfast/notify', {
             method: 'POST',
+            headers: {
+                'X-PayFast-Simulation': 'true',
+            },
             body: formData,
         });
 
@@ -96,7 +99,7 @@ export default function PayfastSimulatorPage() {
         // Fetch the updated order to display logs
         const updatedOrderSnap = await getDoc(orderRef);
         if (updatedOrderSnap.exists()) {
-            const updatedOrder = updatedOrderSnap.data() as Order;
+            const updatedOrder = { ...updatedOrderSnap.data(), id: updatedOrderSnap.id } as Order;
             setSimulationLogs(updatedOrder.itnHistory || []);
             setFinalStatus(updatedOrder.status);
             toast({

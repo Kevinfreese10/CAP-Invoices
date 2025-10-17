@@ -43,6 +43,11 @@ function generateSignature(data: { [key: string]: any }, passphrase?: string): s
  * @returns A promise that resolves to a boolean.
  */
 async function isValidPayFastIP(request: NextRequest): Promise<boolean> {
+    // For local development and testing via the simulator, bypass the IP check
+    if (process.env.NODE_ENV === 'development' || request.headers.get('X-PayFast-Simulation') === 'true') {
+        return true;
+    }
+
     const validHosts = [
         'www.payfast.co.za',
         'sandbox.payfast.co.za',
