@@ -90,34 +90,44 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (!firebaseUser.email) return 'invalid_credentials';
         
         try {
-            const usersRef = collection(db, "users");
-            const q = query(usersRef, where("email", "==", firebaseUser.email));
+            const userDocRef = doc(db, 'users', firebaseUser.uid);
+            const userDocSnap = await getDoc(userDocRef);
             
-            const querySnapshot = await getDocs(q);
-            
-            if (querySnapshot.empty) {
-                await signOut(auth);
-                return 'invalid_credentials';
+            if (!userDocSnap.exists()) {
+                // This case handles users who existed in Auth but not Firestore.
+                // We'll search by email just in case the UID is mismatched from a previous bug.
+                const q = query(collection(db, "users"), where("email", "==", firebaseUser.email));
+                const querySnapshot = await getDocs(q);
+
+                if (querySnapshot.empty) {
+                    await signOut(auth);
+                    return 'invalid_credentials';
+                }
+
+                const legacyUserDoc = querySnapshot.docs[0];
+                const foundUser = { ...legacyUserDoc.data(), id: legacyUserDoc.id } as User;
+                
+                // Correct the document ID to match the auth UID
+                const correctUserDocRef = doc(db, 'users', firebaseUser.uid);
+                await setDoc(correctUserDocRef, { ...foundUser, uid: firebaseUser.uid, id: firebaseUser.uid });
+                // You might want to delete the old document if the ID was different, but be careful.
+
+                updateUser({ ...foundUser, uid: firebaseUser.uid, id: firebaseUser.uid });
+                setIsAuthenticated(true);
+                return { ...foundUser, uid: firebaseUser.uid, id: firebaseUser.uid };
+
+            } else {
+                 const foundUser = { ...userDocSnap.data(), id: userDocSnap.id } as User;
+                 updateUser(foundUser);
+                 setIsAuthenticated(true);
+                 return foundUser;
             }
 
-            const userDoc = querySnapshot.docs[0];
-            const foundUser = { ...userDoc.data(), id: userDoc.id } as User;
-            
-            // Ensure the UID in Firestore matches the Firebase Auth UID
-            if (!foundUser.uid || foundUser.uid !== firebaseUser.uid) {
-                const userDocRef = doc(db, "users", userDoc.id);
-                await updateDoc(userDocRef, { uid: firebaseUser.uid });
-                foundUser.uid = firebaseUser.uid;
-            }
-            
-            updateUser(foundUser);
-            setIsAuthenticated(true);
-            return foundUser;
         } catch (serverError: any) {
             if (serverError.code === 'permission-denied') {
                 const permissionError = new FirestorePermissionError({
-                    path: `users`,
-                    operation: 'list',
+                    path: `users/${firebaseUser.uid}`,
+                    operation: 'get',
                 } satisfies SecurityRuleContext);
                 errorEmitter.emit('permission-error', permissionError);
             }
