@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { Task, User } from '@/lib/types';
-import { format, startOfWeek, addDays, isSameDay, isToday, isPast } from 'date-fns';
+import { format, startOfWeek, addDays, isSameDay, isToday, isPast, eachDayOfInterval } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, AlertOctagon } from 'lucide-react';
@@ -56,8 +56,16 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
     return Array.isArray(task.assignedTo) && task.assignedTo.includes(currentUser.id);
   });
   
-  const getTaskDate = (task: Task) => {
-    return task.dueDate?.toDate ? task.dueDate.toDate() : new Date(task.dueDate);
+  const getTaskDate = (task: Task): Date => {
+    if (task.dueDate instanceof Date) {
+        return task.dueDate;
+    }
+    // Firestore Timestamps have a toDate() method
+    if (task.dueDate && typeof (task.dueDate as any).toDate === 'function') {
+        return (task.dueDate as any).toDate();
+    }
+    // Fallback for string dates (though should be avoided)
+    return new Date(task.dueDate);
   }
   
   const overdueTasks = userTasks.filter(task => {
