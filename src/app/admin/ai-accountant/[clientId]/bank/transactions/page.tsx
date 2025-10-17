@@ -336,7 +336,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
             const dailyCounters: { [key: string]: number } = {};
 
             parsedTransactions.forEach((row, index) => {
-                const parsedDate = new Date(row.Date.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1'));
+                const parsedDate = new Date(row.Date.replace(/(\\d{2})\\/(\\d{2})\\/(\\d{4})/, '$3-$2-$1'));
 
                 if (isNaN(parsedDate.getTime())) {
                     console.warn(`Skipping row ${index + 2}: Invalid date format.`);
@@ -630,14 +630,12 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
   });
   
   useEffect(() => {
-    if(open) {
-        form.reset(defaultValues || {
-            description: "",
-            keywords: "",
-            accountId: "",
-            vatType: "standard_rated_purchases",
-        });
-    }
+    form.reset(defaultValues || {
+      description: "",
+      keywords: "",
+      accountId: "",
+      vatType: "standard_rated_purchases",
+    });
   }, [open, defaultValues, form]);
 
   const handleSaveRule = async (values: z.infer<typeof ruleFormSchema>) => {
