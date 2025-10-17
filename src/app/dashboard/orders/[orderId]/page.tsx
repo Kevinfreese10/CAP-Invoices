@@ -178,6 +178,7 @@ export default function ClientOrderDetailsPage() {
                 documentUploads: arrayUnion(newUpload)
             });
             toast({ title: 'Information Submitted', description: 'Your information has been securely saved.' });
+            setTextInputs(prev => ({...prev, [requirementLabel]: ''}));
             fetchOrderAndServices(); // Re-fetch to update UI
         } catch (error) {
             console.error("Error submitting text:", error);
@@ -211,7 +212,7 @@ export default function ClientOrderDetailsPage() {
     }
   };
 
-  const handleDocumentSubmit = async () => {
+  const handleNotifyConsultant = async () => {
     if (!currentUser || !order || !order.assignedTo || order.assignedTo.length === 0) {
       toast({ title: "Cannot Submit", description: "This order is not yet assigned to a consultant.", variant: "destructive" });
       return;
@@ -224,7 +225,7 @@ export default function ClientOrderDetailsPage() {
     }
 
     setIsSubmitting(true);
-    toast({ title: "Submitting...", description: "Notifying your consultant." });
+    toast({ title: "Notifying Consultant...", description: "Please wait a moment." });
 
     const noteText = "Client has submitted their documents for review.";
     const newNote: OrderNote = {
@@ -292,6 +293,11 @@ export default function ClientOrderDetailsPage() {
         return { ...item, service: serviceDetails };
     });
 
+  const allRequirements = orderedItemsWithServices.flatMap(item => item.service?.informationToProvide || []);
+  const allSubmitted = allRequirements.every(req => 
+      order.documentUploads?.some(doc => doc.requirementLabel === req.label && doc.status !== 'rejected')
+  );
+
   return (
     <div className="space-y-8">
         <div>
@@ -328,7 +334,8 @@ export default function ClientOrderDetailsPage() {
                                             const upload = order.documentUploads?.find(d => d.serviceId === item.service?.id && d.requirementLabel === info.label);
                                             const uploadKey = `${item.service?.id}-${info.label}`;
                                             const isUploading = uploadingFiles[uploadKey] !== undefined;
-                                            
+                                            const isRejected = upload?.status === 'rejected';
+
                                             return (
                                             <div key={infoIndex} className="space-y-2 p-3 rounded-md border">
                                                 <div className="flex justify-between items-center">
@@ -345,56 +352,38 @@ export default function ClientOrderDetailsPage() {
                                                   )}
                                                 </div>
 
-                                                {upload?.status === 'rejected' && (
-                                                  <>
-                                                    {upload.rejectionReason && <p className="text-xs text-destructive mt-1 italic">Reason: {upload.rejectionReason}</p>}
-                                                    <div className="flex items-center gap-2 pt-2">
-                                                        {info.type === 'pdf' ? (
-                                                          <Input type="file" accept="application/pdf" className="h-9" onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], item.service!.id, info.label)} />
-                                                        ) : (
-                                                          <div className="flex items-center gap-2 flex-grow">
-                                                              <Input 
-                                                                  type="text" 
-                                                                  className="h-9" 
-                                                                  placeholder="Enter new information..."
-                                                                  value={textInputs[info.label] || ''}
-                                                                  onChange={(e) => handleTextChange(info.label, e.target.value)}
-                                                              />
-                                                              <Button size="sm" onClick={() => handleTextSubmit(item.service!.id, info.label)}>Save</Button>
-                                                          </div>
-                                                        )}
-                                                    </div>
-                                                  </>
+                                                {isRejected && (
+                                                    <p className="text-xs text-destructive mt-1 italic">Reason: {upload.rejectionReason}</p>
                                                 )}
                                                 
-                                                {(!upload || upload.status === 'pending') && !isUploading && upload?.status !== 'rejected' && (
-                                                   info.type === 'pdf' ? (
-                                                      <Input type="file" accept="application/pdf" className="h-9" onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], item.service!.id, info.label)} />
+                                                {isRejected || !upload ? (
+                                                  <>
+                                                    {isUploading ? (
+                                                        <div className="flex items-center gap-2">
+                                                          <Loader2 className="h-4 w-4 animate-spin"/>
+                                                          <p className="text-sm">Uploading... {Math.round(uploadingFiles[uploadKey])}%</p>
+                                                        </div>
                                                     ) : (
-                                                      <div className="flex items-center gap-2">
-                                                          <Input 
-                                                              type="text" 
-                                                              className="h-9" 
-                                                              placeholder="Enter information here..."
-                                                              value={textInputs[info.label] || ''}
-                                                              onChange={(e) => handleTextChange(info.label, e.target.value)}
-                                                          />
-                                                          <Button size="sm" onClick={() => handleTextSubmit(item.service!.id, info.label)}>Save</Button>
-                                                      </div>
-                                                    )
-                                                )}
-
-                                                {upload && upload.status !== 'rejected' && (
+                                                      info.type === 'pdf' ? (
+                                                        <Input type="file" accept="application/pdf" className="h-9" onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], item.service!.id, info.label)} />
+                                                      ) : (
+                                                        <div className="flex items-center gap-2">
+                                                            <Input 
+                                                                type="text" 
+                                                                className="h-9" 
+                                                                placeholder="Enter information here..."
+                                                                value={textInputs[info.label] || ''}
+                                                                onChange={(e) => handleTextChange(info.label, e.target.value)}
+                                                            />
+                                                            <Button size="sm" onClick={() => handleTextSubmit(item.service!.id, info.label)}>Save</Button>
+                                                        </div>
+                                                      )
+                                                    )}
+                                                  </>
+                                                ) : (
                                                    <div className="p-2 bg-green-50 text-green-800 rounded-md border border-green-200 text-sm">
                                                       {upload.type === 'file' ? `Submitted: ${upload.fileName}` : `Submitted: "${upload.textValue}"`}
                                                    </div>
-                                                )}
-
-                                                {isUploading && (
-                                                    <div className="flex items-center gap-2">
-                                                      <Loader2 className="h-4 w-4 animate-spin"/>
-                                                      <p className="text-sm">Uploading... {Math.round(uploadingFiles[uploadKey])}%</p>
-                                                    </div>
                                                 )}
                                             </div>
                                         )})}
@@ -409,17 +398,17 @@ export default function ClientOrderDetailsPage() {
                             <span>{formatPrice(order.total)}</span>
                         </div>
                     </CardContent>
-                    <CardFooter>
-                        <Button onClick={handleDocumentSubmit} disabled={isSubmitting}>
-                            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                            Notify Consultant of All Submissions
-                        </Button>
-                    </CardFooter>
+                    {allRequirements.length > 0 && (
+                        <CardFooter>
+                            <Button onClick={handleNotifyConsultant} disabled={isSubmitting || !allSubmitted}>
+                                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                                Notify Consultant of All Submissions
+                            </Button>
+                        </CardFooter>
+                    )}
                 </Card>
-
-            </div>
-             <div className="lg:col-span-1 space-y-6 sticky top-24">
-                  <Card>
+                
+                 <Card>
                     <CardHeader>
                         <CardTitle>Communication History</CardTitle>
                         <CardDescription>Internal notes and sent emails for this order.</CardDescription>
@@ -477,7 +466,11 @@ export default function ClientOrderDetailsPage() {
                         </Form>
                     </CardContent>
                 </Card>
-             </div>
+
+            </div>
+            <div className="lg:col-span-1 space-y-6 sticky top-24">
+              {/* This column is intentionally empty now */}
+            </div>
         </div>
     </div>
   );
