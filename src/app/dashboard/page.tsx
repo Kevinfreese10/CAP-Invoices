@@ -6,7 +6,7 @@ import { Order, Service, User } from '@/lib/types';
 import { useState, useEffect, useMemo } from 'react';
 import { getFirestore, collection, getDocs, orderBy, query, onSnapshot, setDoc, doc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, ArrowRight, CheckCircle, Clock } from 'lucide-react';
+import { Loader2, ArrowRight, CheckCircle, Clock, Banknote, FileSpreadsheet, TrendingUp, ShieldCheck, Users, Briefcase, BrainCircuit, UserPlus, BadgeDollarSign } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
