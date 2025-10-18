@@ -85,17 +85,16 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/tools', label: 'Tools', icon: Wrench, roles: ['admin'] },
   ];
   
-  const clientId = user?.role === 'client' ? user.id : router.pathname?.split('/')[3];
+  const clientId = user?.role === 'client' ? user.id : pathname.split('/')[3];
 
   const aiAccountantItems = [
-     { href: `/admin/ai-accountant/${clientId}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, roles: ['client', 'admin'] },
-     { href: `/admin/ai-accountant/${clientId}/customers`, label: 'Customers', icon: Users, roles: ['client', 'admin'] },
-     { href: `/admin/ai-accountant/${clientId}/invoices`, label: 'Invoices', icon: FileText, roles: ['client', 'admin'] },
-     { href: `/admin/ai-accountant/${clientId}/bank/transactions`, label: 'Bank Accounts', icon: Banknote, roles: ['client', 'admin'] },
-     { href: `/admin/ai-accountant/${clientId}/chart-of-accounts`, label: 'Chart of Accounts', icon: Book, roles: ['client', 'admin'] },
-     { href: `/admin/ai-accountant/${clientId}/journals`, label: 'Journals', icon: BookMarked, roles: ['client', 'admin'] },
-     { href: '/admin/ai-accountant/allocation-rules', label: 'Allocation Rules', icon: ArrowRightLeft, roles: ['admin'] },
-     { href: `/admin/ai-accountant/${clientId}/reports/trial-balance`, label: 'Reports', icon: FileSpreadsheet, roles: ['client', 'admin'] },
+     { href: `/admin/ai-accountant/${clientId}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, roles: ['client', 'admin', 'staff'] },
+     { href: `/admin/ai-accountant/${clientId}/customers`, label: 'Customers', icon: Users, roles: ['client', 'admin', 'staff'] },
+     { href: `/admin/ai-accountant/${clientId}/invoices`, label: 'Invoices', icon: FileText, roles: ['client', 'admin', 'staff'] },
+     { href: `/admin/ai-accountant/${clientId}/bank/transactions`, label: 'Bank Accounts', icon: Banknote, roles: ['client', 'admin', 'staff'] },
+     { href: `/admin/ai-accountant/${clientId}/chart-of-accounts`, label: 'Chart of Accounts', icon: Book, roles: ['client', 'admin', 'staff'] },
+     { href: `/admin/ai-accountant/${clientId}/journals`, label: 'Journals', icon: BookMarked, roles: ['client', 'admin', 'staff'] },
+     { href: `/admin/ai-accountant/${clientId}/reports`, label: 'Reports', icon: FileSpreadsheet, roles: ['client', 'admin', 'staff'] },
   ];
 
   const capSupplierItems = [
@@ -117,6 +116,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/users', label: 'Manage Users', icon: Users, roles: ['admin'] },
     { href: '/admin/discounts', label: 'Manage Discounts', icon: Percent, roles: ['admin'] },
     { href: '/admin/knowledge-base', label: 'Knowledge Base', icon: BrainCircuit, roles: ['admin'] },
+    { href: '/admin/ai-accountant/allocation-rules', label: 'Allocation Rules', icon: ArrowRightLeft, roles: ['admin'] },
     { href: '/admin/media', label: 'Media', icon: Images, roles: ['admin'] },
     { href: '/admin/seo', label: 'SEO Management', icon: Search, roles: ['admin'] },
   ];
@@ -131,7 +131,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
 
   const visibleNavItems = navItems.filter(item => item.roles.includes(user.role));
   const visibleAdminNavItems = adminNavItems.filter(item => item.roles.includes(user.role));
-  const visibleAiAccountantItems = aiAccountantItems.filter(item => item.roles.includes(user.role));
+  const visibleAiAccountantItems = aiAccountantItems.filter(item => item.roles.some(r => user.role === r));
   const visibleCapSupplierItems = capSupplierItems.filter(item => item.roles.includes(user.role) && (!item.department || item.department === user.department));
   const visibleSettingsNavItems = settingsNavItems.filter(item => item.roles.includes(user.role));
   const visibleResellerNavItems = resellerNavItems.filter(item => item.roles.includes(user.role));
@@ -240,7 +240,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
                  <Collapsible open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
                     <SidebarMenuItem>
                         <CollapsibleTrigger asChild>
-                            <SidebarMenuButton isActive={pathname.startsWith('/admin/settings') || pathname.startsWith('/admin/users')} tooltip="Settings">
+                            <SidebarMenuButton isActive={pathname.startsWith('/admin/settings') || pathname.startsWith('/admin/users') || pathname.startsWith('/admin/profile')} tooltip="Settings">
                                 <Settings />
                                 <span>Settings</span>
                                 <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200 group-[[data-state=open]]:rotate-180" />
