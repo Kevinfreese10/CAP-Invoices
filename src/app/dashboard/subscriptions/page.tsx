@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { CheckCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SubscriptionData } from '@/lib/types';
-import { Separator } from '../ui/separator';
+import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 
 const formatPrice = (price: number) => {
@@ -160,6 +160,10 @@ export default function SubscriptionsPage() {
                                 <span className="text-muted-foreground">New Plan:</span>
                                 <span className="font-semibold">{pendingPlanChange && planDetails[pendingPlanChange].title}</span>
                                 <span className="font-semibold">{formatPrice(planPrice)}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm">
+                                <span className="text-muted-foreground">Additional Companies:</span>
+                                <span className="font-semibold">0</span>
                             </div>
                              {extraUsers > 0 && (
                                 <div className="flex justify-between items-center text-sm">
