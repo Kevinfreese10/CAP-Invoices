@@ -24,7 +24,7 @@ export default function DashboardPage() {
     const monthlyPackages = [
         {
             title: 'Monthly Accounting (Non-VAT)',
-            price: 'R850',
+            price: 'R950',
             priceDetail: '/month',
             features: [
                 'Annual Financial Statements',
@@ -37,8 +37,8 @@ export default function DashboardPage() {
             ]
         },
         {
-            title: 'Monthly Accounting (VAT)',
-            price: 'R1,950',
+            title: 'Monthly Accounting (VAT Registered)',
+            price: 'R2,450',
             priceDetail: '/month',
             features: [
                 'Annual Financial Statements',
