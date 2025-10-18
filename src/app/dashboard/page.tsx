@@ -21,10 +21,11 @@ export default function DashboardPage() {
     const [orders, setOrders] = useState<Order[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    const accountingPackages = [
+    const monthlyPackages = [
         {
             title: 'Monthly Accounting (Non-VAT)',
             price: 'R850',
+            priceDetail: '/month',
             features: [
                 'Up to 50 transactions',
                 'Bank reconciliations',
@@ -36,19 +37,17 @@ export default function DashboardPage() {
         {
             title: 'Monthly Accounting (VAT)',
             price: 'R1,950',
+            priceDetail: '/month',
             features: [
                 'Up to 100 transactions',
                 'Includes all Non-VAT features',
                 'Bi-monthly VAT201 submissions'
             ]
         },
-    ];
-
-    const payrollPackages = [
         {
             title: 'Monthly Payroll',
             price: 'R550',
-            priceDetail: '+ R110 / employee',
+            priceDetail: '/month + R110 / employee',
             features: [
                 'Monthly payslips',
                 'EMP201 submissions (PAYE, UIF, SDL)',
@@ -109,53 +108,17 @@ export default function DashboardPage() {
             <section id="packages">
                 <div className="space-y-8">
                     <div>
-                        <h2 className="text-2xl font-bold tracking-tight">Monthly Accounting Packages</h2>
+                        <h2 className="text-2xl font-bold tracking-tight">Monthly Service Packages</h2>
                         <p className="text-muted-foreground">Automate your finances with our comprehensive monthly packages.</p>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
-                        {accountingPackages.map((pkg) => (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-stretch">
+                        {monthlyPackages.map((pkg) => (
                             <Card key={pkg.title} className="flex flex-col">
                                 <CardHeader>
                                     <CardTitle>{pkg.title}</CardTitle>
                                     <div className="flex items-baseline pt-2">
                                         <span className="text-3xl font-bold">{pkg.price}</span>
-                                        <span className="text-sm text-muted-foreground">/month</span>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="flex-grow">
-                                    <ul className="space-y-3">
-                                        {pkg.features.map((feature, index) => (
-                                            <li key={index} className="flex items-center gap-2 text-sm">
-                                                <CheckCircle className="h-4 w-4 text-green-500" />
-                                                <span>{feature}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </CardContent>
-                                <CardFooter>
-                                    <Button className="w-full" asChild>
-                                        <Link href="/contact">Contact Us</Link>
-                                    </Button>
-                                </CardFooter>
-                            </Card>
-                        ))}
-                    </div>
-
-                    <Separator />
-
-                    <div>
-                        <h2 className="text-2xl font-bold tracking-tight">Payroll Packages</h2>
-                        <p className="text-muted-foreground">Ensure your payroll is compliant and on time, every time.</p>
-                    </div>
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
-                        {payrollPackages.map((pkg) => (
-                            <Card key={pkg.title} className="flex flex-col md:col-start-2">
-                                <CardHeader>
-                                    <CardTitle>{pkg.title}</CardTitle>
-                                    <div className="flex items-baseline pt-2">
-                                        <span className="text-3xl font-bold">{pkg.price}</span>
-                                        <span className="text-sm text-muted-foreground">/month</span>
-                                        {pkg.priceDetail && <span className="ml-2 text-sm font-semibold">{pkg.priceDetail}</span>}
+                                        {pkg.priceDetail && <span className="ml-1.5 text-sm text-muted-foreground">{pkg.priceDetail}</span>}
                                     </div>
                                 </CardHeader>
                                 <CardContent className="flex-grow">
