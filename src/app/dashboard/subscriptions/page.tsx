@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { CheckCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SubscriptionData } from '@/lib/types';
-import { Separator } from '@/components/ui/separator';
+import { Separator } from '../ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 
 const formatPrice = (price: number) => {
@@ -72,7 +72,11 @@ export default function SubscriptionsPage() {
     }
     
     const currentPlan = user.subscription?.serviceLevel || 'free';
-    const newTotal = pendingPlanChange ? pricing[pendingPlanChange] + ((user.subscription?.extraUsers || 0) * pricing.extraUser) : 0;
+    
+    const extraUsers = user.subscription?.extraUsers || 0;
+    const planPrice = pendingPlanChange ? pricing[pendingPlanChange] : 0;
+    const usersPrice = extraUsers * pricing.extraUser;
+    const newTotal = planPrice + usersPrice;
 
     return (
         <div className="space-y-8">
@@ -151,9 +155,18 @@ export default function SubscriptionsPage() {
                         <DialogDescription>Please review the changes to your monthly subscription.</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
-                        <div className="flex justify-between items-center">
-                            <span className="text-muted-foreground">New Plan:</span>
-                            <span className="font-semibold">{pendingPlanChange && planDetails[pendingPlanChange].title}</span>
+                        <div className="space-y-2">
+                             <div className="flex justify-between items-center text-sm">
+                                <span className="text-muted-foreground">New Plan:</span>
+                                <span className="font-semibold">{pendingPlanChange && planDetails[pendingPlanChange].title}</span>
+                                <span className="font-semibold">{formatPrice(planPrice)}</span>
+                            </div>
+                             {extraUsers > 0 && (
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-muted-foreground">Additional Users ({extraUsers} x {formatPrice(pricing.extraUser)}):</span>
+                                    <span className="font-semibold">{formatPrice(usersPrice)}</span>
+                                </div>
+                            )}
                         </div>
                         <Separator/>
                         <div className="flex justify-between items-center font-bold text-lg">
