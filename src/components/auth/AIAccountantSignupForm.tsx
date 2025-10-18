@@ -11,11 +11,15 @@ import { useToast } from '@/hooks/use-toast';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { getFirestore, doc, setDoc, serverTimestamp, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Loader2, Sparkles, CheckCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { allocationRules as initialAllocationRules } from '@/lib/allocation-rules';
 import { chartOfAccounts as initialChartOfAccounts } from '@/lib/chart-of-accounts';
+import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
+import { Label } from '../ui/label';
+import { Switch } from '../ui/switch';
+import { Separator } from '../ui/separator';
 
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
@@ -24,17 +28,28 @@ const formSchema = z.object({
   companyName: z.string().min(2, 'Company name is required.'),
   email: z.string().email('Please enter a valid email.'),
   password: z.string().min(6, 'Password must be at least 6 characters.'),
-  yearEnd: z.string().min(3, 'Financial year end is required.'),
-  isVatRegistered: z.boolean().default(false),
+  serviceLevel: z.enum(['free', 'ai_addon', 'monthly_non_vat', 'monthly_vat']).default('free'),
+  extraUsers: z.preprocess(val => Number(val) || 0, z.number().min(0).optional()),
+  includePayroll: z.boolean().default(false),
+  payslipCount: z.preprocess(val => Number(val) || 0, z.number().min(0).optional()),
 });
 
-const months = [ "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" ];
+const pricing = {
+  free: 0,
+  ai_addon: 290,
+  monthly_non_vat: 950,
+  monthly_vat: 1950,
+  extraUser: 50,
+  payrollBase: 550,
+  perPayslip: 110,
+};
 
 
 export default function AIAccountantSignupForm() {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [monthlyTotal, setMonthlyTotal] = useState(0);
   const { login } = useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -43,10 +58,30 @@ export default function AIAccountantSignupForm() {
       companyName: '',
       email: '',
       password: '',
-      yearEnd: 'February',
-      isVatRegistered: false,
+      serviceLevel: 'free',
+      extraUsers: 0,
+      includePayroll: false,
+      payslipCount: 0,
     },
   });
+
+  const watchedValues = form.watch();
+
+  useEffect(() => {
+    let total = 0;
+    const { serviceLevel, extraUsers, includePayroll, payslipCount } = watchedValues;
+    
+    total += pricing[serviceLevel];
+    total += (extraUsers || 0) * pricing.extraUser;
+
+    if (includePayroll) {
+      total += pricing.payrollBase;
+      total += (payslipCount || 0) * pricing.perPayslip;
+    }
+
+    setMonthlyTotal(total);
+  }, [watchedValues]);
+
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
@@ -73,6 +108,10 @@ export default function AIAccountantSignupForm() {
             chartOfAccounts: initialChartOfAccounts,
             allocationRules: globalRules,
             createdAt: serverTimestamp(),
+            subscription: {
+                ...values,
+                monthlyTotal: monthlyTotal,
+            }
         });
         
         await login(values.email, values.password);
@@ -94,6 +133,14 @@ export default function AIAccountantSignupForm() {
         setIsLoading(false);
     }
   }
+  
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
+    }).format(price);
+  };
+
 
   return (
     <Form {...form}>
@@ -101,9 +148,86 @@ export default function AIAccountantSignupForm() {
         <FormField control={form.control} name="companyName" render={({ field }) => ( <FormItem><FormLabel>Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
         <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Login Email Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
         <FormField control={form.control} name="password" render={({ field }) => ( <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
+
+        <Separator />
         
+        <FormField
+          control={form.control}
+          name="serviceLevel"
+          render={({ field }) => (
+            <FormItem className="space-y-3">
+              <FormLabel>Select Your Plan</FormLabel>
+              <FormControl>
+                <RadioGroup
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                  className="space-y-2"
+                >
+                  <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer">
+                    <RadioGroupItem value="free" id="free" />
+                    <div>
+                      <span className="font-semibold">Free Plan</span>
+                      <p className="text-sm text-muted-foreground">1 company, 1 user, basic features.</p>
+                    </div>
+                  </Label>
+                   <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer">
+                    <RadioGroupItem value="ai_addon" id="ai_addon" />
+                    <div>
+                      <span className="font-semibold">AI Accountant Add-on (R290 / month)</span>
+                      <p className="text-sm text-muted-foreground">Unlock AI-powered automation for your company.</p>
+                    </div>
+                  </Label>
+                  <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer">
+                    <RadioGroupItem value="monthly_non_vat" id="monthly_non_vat" />
+                    <div>
+                      <span className="font-semibold">Monthly Accounting - Non-VAT (R950 / month)</span>
+                      <p className="text-sm text-muted-foreground">Includes AI Accountant & full bookkeeping service.</p>
+                    </div>
+                  </Label>
+                  <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer">
+                    <RadioGroupItem value="monthly_vat" id="monthly_vat" />
+                     <div>
+                      <span className="font-semibold">Monthly Accounting - VAT (R1950 / month)</span>
+                      <p className="text-sm text-muted-foreground">Full-suite service for VAT-registered companies.</p>
+                    </div>
+                  </Label>
+                </RadioGroup>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        
+        <Separator />
+
+         <div className="space-y-4">
+            <h4 className="font-medium">Optional Add-ons</h4>
+            <FormField control={form.control} name="extraUsers" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel>Additional Users (+R50 per user)</FormLabel><FormControl><Input type="number" className="w-24" {...field} /></FormControl><FormMessage /></FormItem>)} />
+            <FormField
+                control={form.control}
+                name="includePayroll"
+                render={({ field }) => (
+                    <FormItem className="flex items-center justify-between">
+                    <FormLabel>Include Payroll Services?</FormLabel>
+                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                    </FormItem>
+                )}
+            />
+            {watchedValues.includePayroll && (
+                <FormField control={form.control} name="payslipCount" render={({ field }) => ( <FormItem className="flex items-center justify-between pl-6"><FormLabel>Number of Payslips (+R110 per payslip + R550 submission)</FormLabel><FormControl><Input type="number" className="w-24" {...field} /></FormControl><FormMessage /></FormItem>)} />
+            )}
+        </div>
+        
+        <Separator />
+
+        <div className="flex justify-between items-center bg-primary/10 p-4 rounded-lg">
+            <h4 className="text-lg font-bold">Estimated Monthly Total:</h4>
+            <p className="text-2xl font-bold">{formatPrice(monthlyTotal)}</p>
+        </div>
+
+
         <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
-            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCheck className="mr-2 h-4 w-4"/>}
             Create My AI Accountant Profile
         </Button>
       </form>
