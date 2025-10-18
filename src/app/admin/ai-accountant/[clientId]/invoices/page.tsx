@@ -28,8 +28,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { allVatTypes } from '@/lib/vat-types';
 
 const lineItemSchema = z.object({
-    accountId: z.string().optional(),
-    description: z.string().optional(),
+    accountId: z.string().min(1, "Please select an account."),
+    description: z.string().min(1, "Description is required."),
     quantity: z.preprocess((val) => Number(val), z.number().min(1)),
     rate: z.preprocess((val) => Number(val), z.number().min(0)),
     vatType: z.string().default('standard_rated_sales'),
@@ -67,7 +67,7 @@ export default function InvoicesPage() {
         },
     });
 
-    const { fields, append, remove } = useFieldArray({
+    const { fields, append, remove, update } = useFieldArray({
         control: form.control,
         name: "lineItems",
     });
@@ -87,6 +87,20 @@ export default function InvoicesPage() {
         const total = subtotal + vat;
         return { subtotal, vat, total };
     }, [watchedLines]);
+    
+    const handleAccountChange = (value: string, index: number) => {
+        const selectedAccount = accounts.find(acc => acc.id === value);
+        if (selectedAccount) {
+            const currentLine = form.getValues(`lineItems.${index}`);
+            const newVatType = selectedAccount.accountNumber === '1000-001' ? 'zero_rated_sales' : 'standard_rated_sales';
+            update(index, {
+                ...currentLine,
+                accountId: value,
+                description: selectedAccount.description,
+                vatType: newVatType
+            });
+        }
+    };
 
     const fetchData = async () => {
         if (!clientId) return;
@@ -97,7 +111,7 @@ export default function InvoicesPage() {
             if (clientSnap.exists()) {
                 const clientData = clientSnap.data() as User;
                 setClient(clientData);
-                setAccounts(clientData.chartOfAccounts?.filter(acc => acc.section === 'Income Statement').sort((a,b) => a.accountNumber.localeCompare(b.accountNumber)) || []);
+                setAccounts(clientData.chartOfAccounts?.filter(acc => acc.accountNumber.startsWith('1000-')).sort((a,b) => a.accountNumber.localeCompare(b.accountNumber)) || []);
             }
             
             const customersQuery = query(collection(db, `aiAccountantClients/${clientId}/customers`), orderBy("name"));
@@ -242,12 +256,13 @@ export default function InvoicesPage() {
                                 </div>
                             </div>
                             <div className="space-y-2">
-                                <div className="grid grid-cols-12 gap-2 text-xs font-semibold px-2">
+                                <div className="hidden md:grid grid-cols-12 gap-2 text-xs font-semibold px-2">
                                     <div className="col-span-3">Account</div>
+                                    <div className="col-span-3">Description</div>
                                     <div className="col-span-1 text-center">Qty</div>
-                                    <div className="col-span-2 text-right">Unit Price</div>
-                                    <div className="col-span-2 text-right">Total</div>
-                                    <div className="col-span-2">Tax Code</div>
+                                    <div className="col-span-1 text-right">Unit Price</div>
+                                    <div className="col-span-1 text-right">Total</div>
+                                    <div className="col-span-1">Tax Code</div>
                                     <div className="col-span-1 text-right">Tax</div>
                                     <div className="col-span-1 text-right"></div>
                                 </div>
@@ -256,14 +271,15 @@ export default function InvoicesPage() {
                                     const lineSubtotal = (line.quantity || 0) * (line.rate || 0);
                                     const taxAmount = line.vatType === 'standard_rated_sales' ? lineSubtotal * 0.15 : 0;
                                     return (
-                                        <div key={field.id} className="grid grid-cols-12 gap-2 items-start">
-                                            <div className="col-span-3"><FormField control={form.control} name={`lineItems.${index}.accountId`} render={({ field }) => ( <FormItem><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Account..." /></SelectTrigger></FormControl><SelectContent>{accounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )}/></div>
-                                            <div className="col-span-1"><FormField control={form.control} name={`lineItems.${index}.quantity`} render={({ field }) => ( <FormItem><FormControl><Input type="number" {...field} className="h-9 text-xs text-center" /></FormControl><FormMessage /></FormItem> )}/></div>
-                                            <div className="col-span-2"><FormField control={form.control} name={`lineItems.${index}.rate`} render={({ field }) => ( <FormItem><FormControl><Input type="number" step="0.01" {...field} className="h-9 text-xs text-right" /></FormControl><FormMessage /></FormItem> )}/></div>
-                                            <div className="col-span-2 flex items-center justify-end h-9 font-mono text-xs">{formatPrice(lineSubtotal)}</div>
-                                            <div className="col-span-2"><FormField control={form.control} name={`lineItems.${index}.vatType`} render={({ field }) => ( <FormItem><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger></FormControl><SelectContent>{vatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/></div>
-                                            <div className="col-span-1 flex items-center justify-end h-9 font-mono text-xs">{formatPrice(taxAmount)}</div>
-                                            <div className="col-span-1 flex justify-end items-center h-9">
+                                        <div key={field.id} className="grid grid-cols-12 gap-2 items-start p-2 border rounded-md">
+                                            <div className="col-span-12 md:col-span-3"><FormField control={form.control} name={`lineItems.${index}.accountId`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Account</FormLabel><Select onValueChange={(value) => handleAccountChange(value, index)} defaultValue={field.value}><FormControl><SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Account..." /></SelectTrigger></FormControl><SelectContent>{accounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )}/></div>
+                                            <div className="col-span-12 md:col-span-3"><FormField control={form.control} name={`lineItems.${index}.description`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Description</FormLabel><FormControl><Input {...field} className="h-9 text-xs" /></FormControl><FormMessage /></FormItem> )}/></div>
+                                            <div className="col-span-4 md:col-span-1"><FormField control={form.control} name={`lineItems.${index}.quantity`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Qty</FormLabel><FormControl><Input type="number" {...field} className="h-9 text-xs text-center" /></FormControl><FormMessage /></FormItem> )}/></div>
+                                            <div className="col-span-4 md:col-span-1"><FormField control={form.control} name={`lineItems.${index}.rate`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Unit Price</FormLabel><FormControl><Input type="number" step="0.01" {...field} className="h-9 text-xs text-right" /></FormControl><FormMessage /></FormItem> )}/></div>
+                                            <div className="col-span-4 md:col-span-1 flex flex-col items-end justify-center h-9"><FormLabel className="md:hidden">Total</FormLabel><span className="font-mono text-xs">{formatPrice(lineSubtotal)}</span></div>
+                                            <div className="col-span-6 md:col-span-1"><FormField control={form.control} name={`lineItems.${index}.vatType`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Tax Code</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger></FormControl><SelectContent>{vatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/></div>
+                                            <div className="col-span-3 md:col-span-1 flex flex-col items-end justify-center h-9"><FormLabel className="md:hidden">Tax</FormLabel><span className="font-mono text-xs">{formatPrice(taxAmount)}</span></div>
+                                            <div className="col-span-3 md:col-span-1 flex justify-end items-center h-9">
                                                 <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => remove(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                                             </div>
                                         </div>
