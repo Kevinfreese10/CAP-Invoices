@@ -10,7 +10,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Plus, Trash2, PlusCircle } from 'lucide-react';
+import { Loader2, Plus, Trash2 } from 'lucide-react';
 import { getFirestore, doc, addDoc, getDoc, collection, query, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useParams } from 'next/navigation';
@@ -120,7 +120,15 @@ export default function InvoicesPage() {
             
             const invoicesQuery = query(collection(db, `aiAccountantClients/${clientId}/invoices`), orderBy("invoiceDate", "desc"));
             const invoicesSnapshot = await getDocs(invoicesQuery);
-            setInvoices(invoicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Invoice)));
+            setInvoices(invoicesSnapshot.docs.map(docSnap => {
+                const data = docSnap.data();
+                return { 
+                    id: docSnap.id, 
+                    ...data,
+                    invoiceDate: data.invoiceDate.toDate(),
+                    dueDate: data.dueDate.toDate(),
+                } as Invoice
+            }));
 
         } catch (e) {
             toast({ title: 'Error', description: 'Failed to fetch data.', variant: 'destructive' });
@@ -260,8 +268,8 @@ export default function InvoicesPage() {
                             </div>
                             <div className="space-y-2">
                                 <div className="hidden md:grid md:grid-cols-[2fr_3fr_1fr_1.5fr_1.5fr_2fr_1.5fr_0.5fr] gap-2 text-xs font-semibold px-2">
-                                    <span>Account</span>
-                                    <span>Description</span>
+                                    <span className="text-left">Account</span>
+                                    <span className="text-left">Description</span>
                                     <span className="text-center">Qty</span>
                                     <span className="text-center">Unit Price</span>
                                     <span className="text-center">Total</span>
@@ -312,5 +320,3 @@ export default function InvoicesPage() {
         </div>
     );
 }
-
-    
