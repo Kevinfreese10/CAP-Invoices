@@ -125,8 +125,6 @@ export default function AIAccountantClientDashboardPage() {
             
             if (clientSnap.exists()) {
                 setClient({ id: clientSnap.id, ...clientSnap.data() } as User);
-            } else {
-                console.error("Client not found");
             }
 
         } catch (error) {
