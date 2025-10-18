@@ -96,7 +96,7 @@ export default function InvoicesPage() {
             update(index, {
                 ...currentLine,
                 accountId: value,
-                description: selectedAccount.description,
+                description: currentLine.description || selectedAccount.description,
                 vatType: newVatType
             });
         }
@@ -254,35 +254,35 @@ export default function InvoicesPage() {
                                     )}
                                 />
                                 <div className="grid grid-cols-2 gap-4">
-                                    <FormField control={form.control} name="invoiceDate" render={({ field }) => ( <FormItem><FormLabel>Invoice Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem> )}/>
-                                    <FormField control={form.control} name="dueDate" render={({ field }) => ( <FormItem><FormLabel>Due Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem> )}/>
+                                    <FormField control={form.control} name="invoiceDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Invoice Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem> )}/>
+                                    <FormField control={form.control} name="dueDate" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Due Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem> )}/>
                                 </div>
                             </div>
                             <div className="space-y-2">
-                                <div className="hidden md:grid grid-cols-[3fr_3fr_1fr_1.5fr_1.5fr_2fr_1.5fr_1fr] gap-2 text-xs font-semibold px-2">
-                                    <div className="col-span-1">Account</div>
-                                    <div className="col-span-1">Description</div>
-                                    <div className="col-span-1 text-center">Qty</div>
-                                    <div className="col-span-1 text-right">Unit Price</div>
-                                    <div className="col-span-1 text-right">Total</div>
-                                    <div className="col-span-1">Tax Code</div>
-                                    <div className="col-span-1 text-right">Tax</div>
-                                    <div className="col-span-1 text-right"></div>
+                                <div className="hidden md:grid md:grid-cols-[2.5fr_3fr_1fr_1.5fr_1.5fr_2fr_1fr_0.5fr] gap-2 text-xs font-semibold px-2">
+                                    <span>Account</span>
+                                    <span>Description</span>
+                                    <span className="text-center">Qty</span>
+                                    <span className="text-right">Unit Price</span>
+                                    <span className="text-right">Total</span>
+                                    <span className="pl-2">Tax Code</span>
+                                    <span className="text-right">Tax</span>
+                                    <span></span>
                                 </div>
                                 {fields.map((field, index) => {
                                     const line = watchedLines[index];
                                     const lineSubtotal = (line.quantity || 0) * (line.rate || 0);
                                     const taxAmount = getVatPercentage(line.vatType) ? lineSubtotal * 0.15 : 0;
                                     return (
-                                        <div key={field.id} className="grid grid-cols-12 gap-2 items-start p-2 border rounded-md">
-                                            <div className="col-span-12 md:col-span-3"><FormField control={form.control} name={`lineItems.${index}.accountId`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Account</FormLabel><Select onValueChange={(value) => handleAccountChange(value, index)} defaultValue={field.value}><FormControl><SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Account..." /></SelectTrigger></FormControl><SelectContent>{accounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )}/></div>
-                                            <div className="col-span-12 md:col-span-3"><FormField control={form.control} name={`lineItems.${index}.description`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Description</FormLabel><FormControl><Input {...field} className="h-9 text-xs" /></FormControl><FormMessage /></FormItem> )}/></div>
-                                            <div className="col-span-4 md:col-span-1"><FormField control={form.control} name={`lineItems.${index}.quantity`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Qty</FormLabel><FormControl><Input type="number" {...field} className="h-9 text-xs text-center" /></FormControl><FormMessage /></FormItem> )}/></div>
-                                            <div className="col-span-4 md:col-span-1"><FormField control={form.control} name={`lineItems.${index}.rate`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Unit Price</FormLabel><FormControl><Input type="number" step="0.01" {...field} className="h-9 text-xs text-right" /></FormControl><FormMessage /></FormItem> )}/></div>
-                                            <div className="col-span-4 md:col-span-1 flex flex-col items-end justify-center h-9"><FormLabel className="md:hidden">Total</FormLabel><span className="font-mono text-xs">{formatPrice(lineSubtotal)}</span></div>
-                                            <div className="col-span-6 md:col-span-1 flex flex-col items-start justify-center h-9"><FormLabel className="md:hidden">Tax Code</FormLabel><span className="text-xs text-muted-foreground">{getVatLabel(line.vatType)}</span></div>
-                                            <div className="col-span-3 md:col-span-1 flex flex-col items-end justify-center h-9"><FormLabel className="md:hidden">Tax</FormLabel><span className="font-mono text-xs">{formatPrice(taxAmount)}</span></div>
-                                            <div className="col-span-3 md:col-span-1 flex justify-end items-center h-9">
+                                        <div key={field.id} className="grid grid-cols-1 md:grid-cols-[2.5fr_3fr_1fr_1.5fr_1.5fr_2fr_1fr_0.5fr] gap-x-3 gap-y-2 items-start p-2 border rounded-md">
+                                            <FormField control={form.control} name={`lineItems.${index}.accountId`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Account</FormLabel><Select onValueChange={(value) => handleAccountChange(value, index)} defaultValue={field.value}><FormControl><SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Account..." /></SelectTrigger></FormControl><SelectContent>{accounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )}/>
+                                            <FormField control={form.control} name={`lineItems.${index}.description`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Description</FormLabel><FormControl><Input {...field} className="h-9 text-xs" /></FormControl><FormMessage /></FormItem> )}/>
+                                            <FormField control={form.control} name={`lineItems.${index}.quantity`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Qty</FormLabel><FormControl><Input type="number" {...field} className="h-9 text-xs text-center" /></FormControl><FormMessage /></FormItem> )}/>
+                                            <FormField control={form.control} name={`lineItems.${index}.rate`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Unit Price</FormLabel><FormControl><Input type="number" step="0.01" {...field} className="h-9 text-xs text-right" /></FormControl><FormMessage /></FormItem> )}/>
+                                            <div className="flex flex-col"><FormLabel className="md:hidden">Total</FormLabel><Input value={formatPrice(lineSubtotal)} readOnly className="h-9 text-xs text-right bg-muted" /></div>
+                                            <div className="flex flex-col"><FormLabel className="md:hidden">Tax Code</FormLabel><Input value={getVatLabel(line.vatType)} readOnly className="h-9 text-xs bg-muted" /></div>
+                                            <div className="flex flex-col"><FormLabel className="md:hidden">Tax</FormLabel><Input value={formatPrice(taxAmount)} readOnly className="h-9 text-xs text-right bg-muted" /></div>
+                                            <div className="flex justify-end items-end h-9">
                                                 <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => remove(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                                             </div>
                                         </div>
