@@ -2,11 +2,11 @@
 'use client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Order } from '@/lib/types';
-import { useState, useEffect } from 'react';
-import { getFirestore, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { Order, Service } from '@/lib/types';
+import { useState, useEffect, useMemo } from 'react';
+import { getFirestore, collection, query, where, getDocs, orderBy, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, ArrowRight, CheckCircle } from 'lucide-react';
+import { Loader2, ArrowRight, CheckCircle, Clock } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,9 +16,18 @@ import { Separator } from '@/components/ui/separator';
 
 const db = getFirestore(firebaseApp);
 
+type Category = { 
+    id: string; 
+    name: string; 
+    description: string; 
+    order: number; 
+};
+
+
 export default function DashboardPage() {
     const { user } = useAuth();
-    const [orders, setOrders] = useState<Order[]>([]);
+    const [services, setServices] = useState<Service[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     const monthlyPackages = [
@@ -65,44 +74,38 @@ export default function DashboardPage() {
     ];
 
     useEffect(() => {
-        const fetchOrders = async () => {
-            if (!user?.uid) return;
-            setIsLoading(true);
-            try {
-                const q = query(collection(db, 'orders'), where('userId', '==', user.uid), orderBy('date', 'desc'));
-                const querySnapshot = await getDocs(q);
-                const fetchedOrders = querySnapshot.docs.map(doc => {
-                    const data = doc.data();
-                    return {
-                        ...data,
-                        id: doc.id,
-                        date: data.date.toDate(),
-                    } as Order;
-                });
-                setOrders(fetchedOrders);
-            } catch (error) {
-                console.error("Error fetching orders:", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        fetchOrders();
-    }, [user]);
+        const servicesUnsubscribe = onSnapshot(query(collection(db, 'services'), orderBy('title')), (snapshot) => {
+            const fetchedServices = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
+            setServices(fetchedServices);
+            setIsLoading(false);
+        });
+        
+        const categoriesUnsubscribe = onSnapshot(query(collection(db, 'categories'), orderBy('order')), (snapshot) => {
+            const fetchedCategories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category));
+            setCategories(fetchedCategories);
+        });
 
-    const getStatusVariant = (status: Order['status']) => {
-        switch (status) {
-            case 'Completed': return 'success';
-            case 'Processing': return 'info';
-            case 'Pending Payment': return 'warning';
-            case 'Cancelled': return 'destructive';
-            default: return 'secondary';
+        return () => {
+        servicesUnsubscribe();
+        categoriesUnsubscribe();
         }
-    };
+  }, []);
+
+    const categorizedServices = useMemo(() => {
+        return categories
+        .map(category => ({
+            ...category,
+            data: services.filter(s => s.category === category.name)
+        }))
+        .filter(c => c.data.length > 0);
+    }, [categories, services]);
     
      const formatPrice = (price: number) => {
         return new Intl.NumberFormat('en-ZA', {
           style: 'currency',
           currency: 'ZAR',
+          minimumFractionDigits: price % 1 === 0 ? 0 : 2,
+          maximumFractionDigits: 2,
         }).format(price);
     };
 
@@ -152,57 +155,44 @@ export default function DashboardPage() {
 
             <Separator />
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>My Orders</CardTitle>
-                    <CardDescription>A list of your recent product orders.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {isLoading ? (
-                        <div className="flex justify-center items-center h-40">
-                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+             <div className="space-y-12">
+                {isLoading ? (
+                    <div className="flex justify-center items-center h-40">
+                        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                    </div>
+                ) : (
+                categorizedServices.map(category => (
+                    <section key={category.name}>
+                        <h2 className="text-2xl font-bold mb-6">{category.name}</h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {category.data.map(service => (
+                            <Card
+                            key={service.id}
+                            className="flex flex-col overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
+                            >
+                            <CardHeader>
+                                <CardTitle>{service.title}</CardTitle>
+                                <p className="text-2xl font-bold text-primary pt-2">{formatPrice(service.price)}</p>
+                                <div className="flex items-center text-muted-foreground pt-1">
+                                    <Clock className="h-4 w-4 mr-1.5" />
+                                    <span className="text-xs font-medium">{service.turnaroundTime}</span>
+                                </div>
+                            </CardHeader>
+                            <CardContent className="flex-grow">
+                                <CardDescription>{service.description}</CardDescription>
+                            </CardContent>
+                            <CardFooter>
+                                <Button asChild className="w-full">
+                                <Link href={`/services/${service.slug}`}>Learn More</Link>
+                                </Button>
+                            </CardFooter>
+                            </Card>
+                        ))}
                         </div>
-                    ) : orders.length === 0 ? (
-                        <div className="text-center py-10">
-                            <p className="text-muted-foreground">You haven't placed any orders yet.</p>
-                            <Button asChild className="mt-4">
-                                <Link href="/products">Browse Products</Link>
-                            </Button>
-                        </div>
-                    ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Order ID</TableHead>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead className="text-right">Total</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {orders.map(order => (
-                                    <TableRow key={order.id}>
-                                        <TableCell className="font-medium">{order.id}</TableCell>
-                                        <TableCell>{format(order.date, 'dd MMMM yyyy')}</TableCell>
-                                        <TableCell>
-                                            <Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
-                                        </TableCell>
-                                        <TableCell className="text-right">{formatPrice(order.total)}</TableCell>
-                                        <TableCell className="text-right">
-                                            <Button variant="ghost" size="sm" asChild>
-                                                <Link href={`/dashboard/orders/${order.id}`}>
-                                                    View <ArrowRight className="ml-2 h-4 w-4" />
-                                                </Link>
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    )}
-                </CardContent>
-            </Card>
+                    </section>
+                ))
+                )}
+            </div>
         </div>
     );
 }
