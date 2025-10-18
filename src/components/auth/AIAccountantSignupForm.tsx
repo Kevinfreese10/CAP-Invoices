@@ -33,7 +33,9 @@ const db = getFirestore(firebaseApp);
 const months = [ "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" ];
 
 const formSchema = z.object({
-  companyName: z.string().min(2, 'Company name is required.'),
+  name: z.string().min(2, 'First name is required.'),
+  surname: z.string().min(2, 'Surname is required.'),
+  cellNumber: z.string().min(10, 'A valid cell number is required.'),
   email: z.string().email('Please enter a valid email.'),
   password: z.string().min(6, 'Password must be at least 6 characters.'),
   yearEnd: z.string().min(1, 'Financial year end is required.'),
@@ -71,7 +73,9 @@ export default function AIAccountantSignupForm() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      companyName: '',
+      name: '',
+      surname: '',
+      cellNumber: '',
       email: '',
       password: '',
       yearEnd: 'February',
@@ -150,7 +154,8 @@ export default function AIAccountantSignupForm() {
         const newUserDocRef = doc(db, "aiAccountantClients", authUid);
         await setDoc(newUserDocRef, {
             ...clientData,
-            name: values.companyName,
+            name: `${values.name} ${values.surname}`,
+            companyName: `${values.name} ${values.surname}`,
             id: authUid,
             uid: authUid,
             role: 'client',
@@ -195,7 +200,7 @@ export default function AIAccountantSignupForm() {
   };
   
   const handleNextStep = async () => {
-    const isValid = await form.trigger(['companyName', 'email', 'password', 'yearEnd']);
+    const isValid = await form.trigger(['name', 'surname', 'cellNumber', 'email', 'password', 'yearEnd']);
     if (isValid) {
       setStep(2);
     }
@@ -215,7 +220,11 @@ export default function AIAccountantSignupForm() {
             >
                 {step === 1 && (
                     <div className="space-y-6">
-                        <FormField control={form.control} name="companyName" render={({ field }) => ( <FormItem><FormLabel>Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                           <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>First Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                           <FormField control={form.control} name="surname" render={({ field }) => ( <FormItem><FormLabel>Surname</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        </div>
+                        <FormField control={form.control} name="cellNumber" render={({ field }) => ( <FormItem><FormLabel>Cell Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Login Email Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <FormField control={form.control} name="password" render={({ field }) => ( <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <div className="grid grid-cols-2 gap-4">
@@ -293,16 +302,8 @@ export default function AIAccountantSignupForm() {
                                 </FormItem>
                             )}
                         />
-                        <Separator />
-                        <div className="space-y-4">
-                            <h4 className="font-medium">Optional Add-ons</h4>
-                            <FormField control={form.control} name="extraUsers" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel>Additional Users (+R50 per user)</FormLabel><FormControl><Input type="number" className="w-24" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                            <FormField control={form.control} name="includeSubmissions" render={({ field }) => (<FormItem className="flex items-center justify-between"><FormLabel>Monthly Payroll Submissions (EMP201)<br/><span className="text-xs text-muted-foreground">(+R550 per month)</span></FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
-                            <FormField control={form.control} name="includePayslips" render={({ field }) => (<FormItem className="flex items-center justify-between"><FormLabel>Process Payslips<br/><span className="text-xs text-muted-foreground">(+R110 per payslip)</span></FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
-                            {watchedValues.includePayslips && (<FormField control={form.control} name="payslipCount" render={({ field }) => ( <FormItem className="flex items-center justify-between pl-6"><FormLabel>Number of Payslips</FormLabel><FormControl><Input type="number" className="w-24" {...field} /></FormControl><FormMessage /></FormItem>)} />)}
-                        </div>
                         
-                        {(watchedValues.serviceLevel === 'monthly_non_vat' || watchedValues.serviceLevel === 'monthly_vat') && (
+                         {(watchedValues.serviceLevel === 'monthly_non_vat' || watchedValues.serviceLevel === 'monthly_vat') && (
                             <div className="p-3 border rounded-md">
                                 <FormField
                                     control={form.control}
@@ -324,6 +325,15 @@ export default function AIAccountantSignupForm() {
                             </div>
                         )}
 
+                        <Separator />
+                        <div className="space-y-4">
+                            <h4 className="font-medium">Optional Add-ons</h4>
+                            <FormField control={form.control} name="extraUsers" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel>Additional Users (+R50 per user)</FormLabel><FormControl><Input type="number" className="w-24" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="includeSubmissions" render={({ field }) => (<FormItem className="flex items-center justify-between"><FormLabel>Monthly Payroll Submissions (EMP201)<br/><span className="text-xs text-muted-foreground">(+R550 per month)</span></FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                            <FormField control={form.control} name="includePayslips" render={({ field }) => (<FormItem className="flex items-center justify-between"><FormLabel>Process Payslips<br/><span className="text-xs text-muted-foreground">(+R110 per payslip)</span></FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                            {watchedValues.includePayslips && (<FormField control={form.control} name="payslipCount" render={({ field }) => ( <FormItem className="flex items-center justify-between pl-6"><FormLabel>Number of Payslips</FormLabel><FormControl><Input type="number" className="w-24" {...field} /></FormControl><FormMessage /></FormItem>)} />)}
+                        </div>
+                        
                         <Separator />
                         <div className="space-y-3">
                             <div className="flex justify-between items-center bg-primary/10 p-4 rounded-lg"><h4 className="text-lg font-bold">Estimated Monthly Total:</h4><p className="text-2xl font-bold">{formatPrice(monthlyTotal)}</p></div>
