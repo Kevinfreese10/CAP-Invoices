@@ -51,7 +51,8 @@ export default function DashboardPage() {
             features: [
                 'Monthly payslips',
                 'EMP201 submissions (PAYE, UIF, SDL)',
-                'UIF Declaration'
+                'UIF Declaration',
+                'Included EMP501 recons x 2',
             ]
         },
     ];
