@@ -34,6 +34,7 @@ const formSchema = z.object({
   email: z.string().email('Please enter a valid email.'),
   password: z.string().min(6, 'Password must be at least 6 characters.'),
   yearEnd: z.string().min(1, 'Financial year end is required.'),
+  isVatRegistered: z.boolean().default(false),
   serviceLevel: z.enum(['free', 'ai_addon', 'monthly_non_vat', 'monthly_vat']).default('free'),
   extraUsers: z.preprocess(val => Number(val) || 0, z.number().min(0).optional()),
   includeSubmissions: z.boolean().default(false),
@@ -68,6 +69,7 @@ export default function AIAccountantSignupForm() {
       email: '',
       password: '',
       yearEnd: 'February',
+      isVatRegistered: false,
       serviceLevel: 'free',
       extraUsers: 0,
       includeSubmissions: false,
@@ -79,7 +81,7 @@ export default function AIAccountantSignupForm() {
   const watchedValues = form.watch();
 
   useEffect(() => {
-    const { serviceLevel, extraUsers, includeSubmissions, includePayslips, payslipCount, yearEnd } = watchedValues;
+    const { serviceLevel, extraUsers, includeSubmissions, includePayslips, payslipCount, yearEnd, isVatRegistered } = watchedValues;
     
     // Calculate Monthly Total
     let total = 0;
@@ -116,8 +118,15 @@ export default function AIAccountantSignupForm() {
     } else {
         setCatchUpFee(0);
     }
+    
+    // Auto-select plan based on VAT status
+    if (isVatRegistered && serviceLevel === 'monthly_non_vat') {
+      form.setValue('serviceLevel', 'monthly_vat');
+    } else if (!isVatRegistered && serviceLevel === 'monthly_vat') {
+      form.setValue('serviceLevel', 'monthly_non_vat');
+    }
 
-  }, [watchedValues]);
+  }, [watchedValues, form]);
 
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
@@ -203,7 +212,10 @@ export default function AIAccountantSignupForm() {
                         <FormField control={form.control} name="companyName" render={({ field }) => ( <FormItem><FormLabel>Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Login Email Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <FormField control={form.control} name="password" render={({ field }) => ( <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                        <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                        <div className="grid grid-cols-2 gap-4">
+                           <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                           <FormField control={form.control} name="isVatRegistered" render={({ field }) => ( <FormItem className="flex flex-col pt-2"><FormLabel>VAT Registered?</FormLabel><FormControl><Switch className="mt-2" checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem> )} />
+                        </div>
                         <Button type="button" onClick={handleNextStep} className="w-full">Next</Button>
                     </div>
                 )}
@@ -220,8 +232,12 @@ export default function AIAccountantSignupForm() {
                                     <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="space-y-2">
                                         <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer"><RadioGroupItem value="free" id="free" /><div><span className="font-semibold">Free Plan</span><p className="text-sm text-muted-foreground">1 company, 1 user, basic features.</p></div></Label>
                                         <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer"><RadioGroupItem value="ai_addon" id="ai_addon" /><div><span className="font-semibold">AI Accountant Add-on (R290 / month)</span><p className="text-sm text-muted-foreground">Unlock AI-powered automation for your company.</p></div></Label>
-                                        <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer"><RadioGroupItem value="monthly_non_vat" id="monthly_non_vat" /><div><span className="font-semibold">Monthly Accounting - Non-VAT (R950 / month)</span><p className="text-sm text-muted-foreground">Includes AI Accountant & full bookkeeping service.</p></div></Label>
-                                        <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer"><RadioGroupItem value="monthly_vat" id="monthly_vat" /><div><span className="font-semibold">Monthly Accounting - VAT (R1950 / month)</span><p className="text-sm text-muted-foreground">Full-suite service for VAT-registered companies.</p></div></Label>
+                                        {!watchedValues.isVatRegistered && (
+                                            <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer"><RadioGroupItem value="monthly_non_vat" id="monthly_non_vat" /><div><span className="font-semibold">Monthly Accounting - Non-VAT (R950 / month)</span><p className="text-sm text-muted-foreground">Includes AI Accountant & full bookkeeping service.</p></div></Label>
+                                        )}
+                                        {watchedValues.isVatRegistered && (
+                                            <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer"><RadioGroupItem value="monthly_vat" id="monthly_vat" /><div><span className="font-semibold">Monthly Accounting - VAT (R1950 / month)</span><p className="text-sm text-muted-foreground">Full-suite service for VAT-registered companies.</p></div></Label>
+                                        )}
                                     </RadioGroup>
                                 </FormControl>
                                 <FormMessage />
@@ -253,3 +269,5 @@ export default function AIAccountantSignupForm() {
     </Form>
   );
 }
+
+    
