@@ -27,7 +27,6 @@ export default function DashboardPage() {
             price: 'R850',
             priceDetail: '/month',
             features: [
-                'Monthly management accounts',
                 'Annual Financial Statements',
                 'Provisional tax returns (2 per year)',
                 'Annual income tax return',
@@ -42,7 +41,6 @@ export default function DashboardPage() {
             price: 'R1,950',
             priceDetail: '/month',
             features: [
-                'Monthly management accounts',
                 'Annual Financial Statements',
                 'Provisional tax returns (2 per year)',
                 'Annual income tax return',
