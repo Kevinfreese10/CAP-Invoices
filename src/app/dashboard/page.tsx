@@ -13,6 +13,9 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import ServicePreview from '@/components/admin/ServicePreview';
+import AddToCartButton from '@/components/cart/AddToCartButton';
 
 const db = getFirestore(firebaseApp);
 
@@ -29,6 +32,7 @@ export default function DashboardPage() {
     const [services, setServices] = useState<Service[]>([]);
     const [categories, setCategories] = useState<Category[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [viewingService, setViewingService] = useState<Service | null>(null);
 
     const monthlyPackages = [
         {
@@ -36,13 +40,13 @@ export default function DashboardPage() {
             price: 'R950',
             priceDetail: '/month',
             features: [
-                'Annual Financial Statements',
+                'Annual financial statements',
                 'Provisional tax returns (2 per year)',
                 'Annual income tax return',
                 'CIPC annual return',
                 'B-BBEE certificate or affidavit',
                 'Beneficial ownership declaration',
-                'Tax clearance certificate'
+                'Tax clearance certificate',
             ]
         },
         {
@@ -50,14 +54,14 @@ export default function DashboardPage() {
             price: 'R2,450',
             priceDetail: '/month',
             features: [
-                'Annual Financial Statements',
+                'Annual financial statements',
                 'Provisional tax returns (2 per year)',
                 'Annual income tax return',
                 'CIPC annual return',
                 'B-BBEE certificate or affidavit',
                 'Beneficial ownership declaration',
                 'Tax clearance certificate',
-                'Bi-monthly VAT201 submissions'
+                'Bi-monthly VAT201 submissions',
             ]
         },
         {
@@ -110,6 +114,7 @@ export default function DashboardPage() {
     };
 
     return (
+        <Dialog onOpenChange={(isOpen) => !isOpen && setViewingService(null)}>
         <div className="space-y-8">
             <div>
                 <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.name}!</h1>
@@ -187,9 +192,9 @@ export default function DashboardPage() {
                                                 </TableCell>
                                                 <TableCell className="text-right font-semibold">{formatPrice(service.price)}</TableCell>
                                                 <TableCell className="text-right">
-                                                    <Button asChild variant="outline" size="sm">
-                                                        <Link href={`/services/${service.slug}`}>Learn More</Link>
-                                                    </Button>
+                                                    <DialogTrigger asChild>
+                                                        <Button variant="outline" size="sm" onClick={() => setViewingService(service)}>Learn More</Button>
+                                                    </DialogTrigger>
                                                 </TableCell>
                                             </TableRow>
                                         ))}
@@ -202,5 +207,22 @@ export default function DashboardPage() {
                 )}
             </div>
         </div>
+         <DialogContent className="sm:max-w-2xl">
+              <DialogHeader>
+                  <DialogTitle>{viewingService?.title}</DialogTitle>
+                  <DialogDescription>
+                      {viewingService?.description}
+                  </DialogDescription>
+              </DialogHeader>
+              {viewingService && (
+                <>
+                    <ServicePreview service={viewingService} />
+                    <DialogFooter>
+                        <AddToCartButton service={viewingService}/>
+                    </DialogFooter>
+                </>
+              )}
+          </DialogContent>
+        </Dialog>
     );
 }

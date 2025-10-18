@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useCart } from '@/contexts/CartContext';
@@ -13,7 +14,7 @@ export default function AddToCartButton({ service }: AddToCartButtonProps) {
   const { addToCart } = useCart();
 
   return (
-    <Button onClick={() => addToCart(service)}>
+    <Button onClick={() => addToCart(service)} className="w-full">
       <ShoppingCart className="mr-2 h-4 w-4" /> Add to Cart
     </Button>
   );

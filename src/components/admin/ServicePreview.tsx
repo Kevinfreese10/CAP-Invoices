@@ -21,7 +21,6 @@ export default function ServicePreview({ service }: { service: Service }) {
     <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-4">
         <div className="space-y-3">
             <Badge variant="secondary" className="w-fit">{service.category}</Badge>
-            <h1 className="text-2xl font-bold tracking-tight">{service.title}</h1>
             <p className="text-2xl font-bold text-primary">{formatPrice(service.price)}</p>
             <div className="flex items-center text-muted-foreground">
                 <Clock className="h-4 w-4 mr-1.5" />
