@@ -69,7 +69,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
   };
 
   const clientId = user?.role === 'client' ? user.id : pathname.split('/')[3] || user.id;
-  const baseAiPath = user.role === 'client' ? '/dashboard' : '/admin';
 
   const navItems = [
      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['client'] },
@@ -89,15 +88,27 @@ export default function DashboardNav({ user }: { user: UserType }) {
   ];
   
   const aiAccountantItems = [
-     { href: `${baseAiPath}/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['admin', 'client', 'staff'] },
-     { href: `${baseAiPath}/ai-accountant/${clientId}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, roles: ['client', 'admin', 'staff'] },
-     { href: `${baseAiPath}/ai-accountant/${clientId}/customers`, label: 'Customers', icon: Users, roles: ['client', 'admin', 'staff'] },
-     { href: `${baseAiPath}/ai-accountant/${clientId}/invoices`, label: 'Invoices', icon: FileText, roles: ['client', 'admin', 'staff'] },
-     { href: `${baseAiPath}/ai-accountant/${clientId}/bank/transactions`, label: 'Bank Accounts', icon: Banknote, roles: ['client', 'admin', 'staff'] },
-     { href: `${baseAiPath}/ai-accountant/${clientId}/chart-of-accounts`, label: 'Chart of Accounts', icon: Book, roles: ['client', 'admin', 'staff'] },
-     { href: `${baseAiPath}/ai-accountant/${clientId}/journals`, label: 'Journals', icon: BookMarked, roles: ['client', 'admin', 'staff'] },
-     { href: `${baseAiPath}/ai-accountant/${clientId}/reports`, label: 'Reports', icon: FileSpreadsheet, roles: ['client', 'admin', 'staff'] },
+     { href: `/dashboard/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['admin', 'client', 'staff'] },
+     { href: `/admin/ai-accountant/${clientId}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'staff'] },
+     { href: `/admin/ai-accountant/${clientId}/customers`, label: 'Customers', icon: Users, roles: ['admin', 'staff'] },
+     { href: `/admin/ai-accountant/${clientId}/invoices`, label: 'Invoices', icon: FileText, roles: ['admin', 'staff'] },
+     { href: `/admin/ai-accountant/${clientId}/bank/transactions`, label: 'Bank Accounts', icon: Banknote, roles: ['admin', 'staff'] },
+     { href: `/admin/ai-accountant/${clientId}/chart-of-accounts`, label: 'Chart of Accounts', icon: Book, roles: ['admin', 'staff'] },
+     { href: `/admin/ai-accountant/${clientId}/journals`, label: 'Journals', icon: BookMarked, roles: ['admin', 'staff'] },
+     { href: `/admin/ai-accountant/${clientId}/reports`, label: 'Reports', icon: FileSpreadsheet, roles: ['admin', 'staff'] },
   ];
+  
+  const clientAiAccountantItems = [
+     { href: `/dashboard/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['client'] },
+     { href: `/admin/ai-accountant/${clientId}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, roles: ['client'] },
+     { href: `/admin/ai-accountant/${clientId}/customers`, label: 'Customers', icon: Users, roles: ['client'] },
+     { href: `/admin/ai-accountant/${clientId}/invoices`, label: 'Invoices', icon: FileText, roles: ['client'] },
+     { href: `/admin/ai-accountant/${clientId}/bank/transactions`, label: 'Bank Accounts', icon: Banknote, roles: ['client'] },
+     { href: `/admin/ai-accountant/${clientId}/chart-of-accounts`, label: 'Chart of Accounts', icon: Book, roles: ['client'] },
+     { href: `/admin/ai-accountant/${clientId}/journals`, label: 'Journals', icon: BookMarked, roles: ['client'] },
+     { href: `/admin/ai-accountant/${clientId}/reports`, label: 'Reports', icon: FileSpreadsheet, roles: ['client'] },
+  ];
+
 
   const capSupplierItems = [
     { href: '/admin/cap-suppliers/review', label: 'Review', icon: ClipboardCheck, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
@@ -133,10 +144,10 @@ export default function DashboardNav({ user }: { user: UserType }) {
 
   const hasAIAccountantProfile = user.hasAIAccountantProfile || user.source === 'AI Accountant';
 
-  const shouldShowAdminOrAI = user.role === 'admin' || user.role === 'staff' || (user.role === 'client' && hasAIAccountantProfile);
+  const shouldShowAdminOrAI = user.role === 'admin' || user.role === 'staff';
   const visibleNavItems = navItems.filter(item => item.roles.includes(user.role));
   const visibleAdminNavItems = adminNavItems.filter(item => item.roles.includes(user.role));
-  const visibleAiAccountantItems = aiAccountantItems.filter(item => item.roles.includes(user.role));
+  const visibleAiAccountantItems = user.role === 'client' ? clientAiAccountantItems : aiAccountantItems;
   const visibleCapSupplierItems = capSupplierItems.filter(item => item.roles.includes(user.role) && (!item.department || item.department === user.department));
   const visibleSettingsNavItems = settingsNavItems.filter(item => item.roles.includes(user.role));
   const visibleResellerNavItems = resellerNavItems.filter(item => item.roles.includes(user.role));
@@ -164,7 +175,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
         
         {shouldShowAdminOrAI ? (
           <>
-            {user.role !== 'client' && visibleAdminNavItems.map((item) => (
+            {visibleAdminNavItems.map((item) => (
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
                   <Link href={item.href}>
@@ -174,92 +185,8 @@ export default function DashboardNav({ user }: { user: UserType }) {
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}
-
-            <Collapsible open={isAiAccountantOpen} onOpenChange={setIsAiAccountantOpen}>
-              <SidebarMenuItem>
-                <CollapsibleTrigger asChild>
-                  <SidebarMenuButton isActive={pathname.startsWith('/admin/ai-accountant') || pathname.startsWith('/dashboard/ai-accountant')} tooltip="AI Accountant">
-                    <Book />
-                    <span>AI Accountant</span>
-                    <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200 group-[[data-state=open]]:rotate-180" />
-                  </SidebarMenuButton>
-                </CollapsibleTrigger>
-              </SidebarMenuItem>
-              <CollapsibleContent asChild>
-                <SidebarMenu className="pl-4">
-                  {visibleAiAccountantItems.map(item => (
-                    <SidebarMenuItem key={item.href}>
-                      <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label} className="h-8">
-                        <Link href={item.href}>
-                          <item.icon />
-                          <span>{item.label}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </CollapsibleContent>
-            </Collapsible>
-
-            {(user.role === 'admin' || user.role === 'staff') && (
-              <>
-                {visibleCapSupplierItems.length > 0 && (
-                  <Collapsible open={isCapSuppliersOpen} onOpenChange={setIsCapSuppliersOpen}>
-                    <SidebarMenuItem>
-                      <CollapsibleTrigger asChild>
-                        <SidebarMenuButton isActive={pathname.startsWith('/admin/cap-suppliers')} tooltip="CAP Suppliers">
-                          <FileText />
-                          <span>CAP Suppliers</span>
-                          <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200 group-[[data-state=open]]:rotate-180" />
-                        </SidebarMenuButton>
-                      </CollapsibleTrigger>
-                    </SidebarMenuItem>
-                    <CollapsibleContent asChild>
-                      <SidebarMenu className="pl-4">
-                        {visibleCapSupplierItems.map(item => (
-                          <SidebarMenuItem key={item.href}>
-                            <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label} className="h-8">
-                              <Link href={item.href}>
-                                <item.icon />
-                                <span>{item.label}</span>
-                              </Link>
-                            </SidebarMenuButton>
-                          </SidebarMenuItem>
-                        ))}
-                      </SidebarMenu>
-                    </CollapsibleContent>
-                  </Collapsible>
-                )}
-                <Collapsible open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-                  <SidebarMenuItem>
-                    <CollapsibleTrigger asChild>
-                      <SidebarMenuButton isActive={pathname.startsWith('/admin/settings') || pathname.startsWith('/admin/users') || pathname.startsWith('/admin/profile')} tooltip="Settings">
-                        <Settings />
-                        <span>Settings</span>
-                        <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200 group-[[data-state=open]]:rotate-180" />
-                      </SidebarMenuButton>
-                    </CollapsibleTrigger>
-                  </SidebarMenuItem>
-                  <CollapsibleContent asChild>
-                    <SidebarMenu className="pl-4">
-                      {visibleSettingsNavItems.map(item => (
-                        <SidebarMenuItem key={item.href}>
-                          <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label} className="h-8">
-                            <Link href={item.href}>
-                              <item.icon />
-                              <span>{item.label}</span>
-                            </Link>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      ))}
-                    </SidebarMenu>
-                  </CollapsibleContent>
-                </Collapsible>
-              </>
-            )}
           </>
-        ) : (
-          user.role === 'reseller' ? (
+        ) : user.role === 'reseller' ? (
           visibleResellerNavItems.map((item) => (
             <SidebarMenuItem key={item.href}>
               <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
@@ -270,18 +197,102 @@ export default function DashboardNav({ user }: { user: UserType }) {
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))
-          ) : (
-             visibleNavItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.label}>
-                    <Link href={item.href}>
-                    <item.icon />
-                    <span>{item.label}</span>
-                    </Link>
+        ) : (
+          visibleNavItems.map((item) => (
+            <SidebarMenuItem key={item.href}>
+              <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.label}>
+                <Link href={item.href}>
+                  <item.icon />
+                  <span>{item.label}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))
+        )}
+
+        {(hasAIAccountantProfile || shouldShowAdminOrAI) && (
+            <Collapsible open={isAiAccountantOpen} onOpenChange={setIsAiAccountantOpen}>
+            <SidebarMenuItem>
+                <CollapsibleTrigger asChild>
+                <SidebarMenuButton isActive={pathname.startsWith('/admin/ai-accountant') || pathname.startsWith('/dashboard/ai-accountant')} tooltip="AI Accountant">
+                    <Book />
+                    <span>AI Accountant</span>
+                    <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200 group-[[data-state=open]]:rotate-180" />
                 </SidebarMenuButton>
+                </CollapsibleTrigger>
+            </SidebarMenuItem>
+            <CollapsibleContent asChild>
+                <SidebarMenu className="pl-4">
+                {visibleAiAccountantItems.map(item => (
+                    <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label} className="h-8">
+                        <Link href={item.href}>
+                        <item.icon />
+                        <span>{item.label}</span>
+                        </Link>
+                    </SidebarMenuButton>
+                    </SidebarMenuItem>
+                ))}
+                </SidebarMenu>
+            </CollapsibleContent>
+            </Collapsible>
+        )}
+
+        {(user.role === 'admin' || user.role === 'staff') && (
+            <>
+            {visibleCapSupplierItems.length > 0 && (
+                <Collapsible open={isCapSuppliersOpen} onOpenChange={setIsCapSuppliersOpen}>
+                <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                    <SidebarMenuButton isActive={pathname.startsWith('/admin/cap-suppliers')} tooltip="CAP Suppliers">
+                        <FileText />
+                        <span>CAP Suppliers</span>
+                        <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200 group-[[data-state=open]]:rotate-180" />
+                    </SidebarMenuButton>
+                    </CollapsibleTrigger>
                 </SidebarMenuItem>
-            ))
-          )
+                <CollapsibleContent asChild>
+                    <SidebarMenu className="pl-4">
+                    {visibleCapSupplierItems.map(item => (
+                        <SidebarMenuItem key={item.href}>
+                        <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label} className="h-8">
+                            <Link href={item.href}>
+                            <item.icon />
+                            <span>{item.label}</span>
+                            </Link>
+                        </SidebarMenuButton>
+                        </SidebarMenuItem>
+                    ))}
+                    </SidebarMenu>
+                </CollapsibleContent>
+                </Collapsible>
+            )}
+            <Collapsible open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+                <SidebarMenuItem>
+                <CollapsibleTrigger asChild>
+                    <SidebarMenuButton isActive={pathname.startsWith('/admin/settings') || pathname.startsWith('/admin/users') || pathname.startsWith('/admin/profile')} tooltip="Settings">
+                    <Settings />
+                    <span>Settings</span>
+                    <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200 group-[[data-state=open]]:rotate-180" />
+                    </SidebarMenuButton>
+                </CollapsibleTrigger>
+                </SidebarMenuItem>
+                <CollapsibleContent asChild>
+                <SidebarMenu className="pl-4">
+                    {visibleSettingsNavItems.map(item => (
+                    <SidebarMenuItem key={item.href}>
+                        <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label} className="h-8">
+                        <Link href={item.href}>
+                            <item.icon />
+                            <span>{item.label}</span>
+                        </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    ))}
+                </SidebarMenu>
+                </CollapsibleContent>
+                </Collapsible>
+            </>
         )}
       </SidebarMenu>
 
