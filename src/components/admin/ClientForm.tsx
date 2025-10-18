@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
+import { Textarea } from '../ui/textarea';
 
 const clientStatuses: ('Active' | 'Inactive')[] = ['Active', 'Inactive'];
 const months = [ "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" ];
@@ -21,9 +22,11 @@ const formSchema = z.object({
   name: z.string().min(2, 'Client/Company name is required.'),
   contactPerson: z.string().min(2, 'Contact person name is required.'),
   email: z.string().email('A valid email address is required.'),
+  address: z.string().optional(),
+  vatNumber: z.string().optional(),
+  // Fields for non-AI clients
   yearEnd: z.string().optional(),
   isVatRegistered: z.boolean().default(false),
-  // The following fields are kept for schema compatibility but will be hidden for AI Accountant
   cellNumber: z.string().optional(),
   status: z.enum(clientStatuses).optional(),
 });
@@ -34,11 +37,10 @@ export default function ClientForm({
     onCancel, 
     isAIClient = false 
 }: { 
-    client: User | null, 
+    client: Partial<User> | null, 
     onSubmit: (data: any) => void, 
     onCancel: () => void, 
     isAIClient?: boolean,
-    isNumeraClient?: boolean,
 }) {
     
     const form = useForm<z.infer<typeof formSchema>>({
@@ -48,15 +50,15 @@ export default function ClientForm({
             name: client?.name || client?.companyName || '',
             contactPerson: client?.contactPerson || '',
             email: client?.email || '',
+            address: typeof client?.address === 'string' ? client.address : '',
+            vatNumber: (client as any)?.vatNumber || '',
+            // Non-AI Accountant fields
             yearEnd: client?.yearEnd || undefined,
             isVatRegistered: client?.isVatRegistered || false,
-            // Non-AI Accountant fields
             cellNumber: client?.contactNumber || '',
             status: client?.status || 'Active',
         },
     });
-
-    const watchIsVatRegistered = form.watch('isVatRegistered');
 
     const handleSubmit = (values: z.infer<typeof formSchema>) => {
         const finalValues = {
@@ -70,32 +72,40 @@ export default function ClientForm({
         <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 max-h-[70vh] overflow-y-auto p-1 pr-4">
                 <div className="space-y-4">
-                    <h3 className="text-lg font-medium">Client Details</h3>
-                    <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Client / Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <h3 className="text-lg font-medium">Customer Details</h3>
+                    <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Customer / Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                     <FormField control={form.control} name="contactPerson" render={({ field }) => ( <FormItem><FormLabel>Contact Person Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                     <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                     
-                    {!isAIClient && (
+                    {!isAIClient && ( <FormField control={form.control} name="cellNumber" render={({ field }) => ( <FormItem><FormLabel>Cell Number</FormLabel><FormControl><Input placeholder="e.g. 0821234567" {...field} /></FormControl><FormMessage /></FormItem>)} /> )}
+                    
+                    {isAIClient && (
                          <>
-                            <FormField control={form.control} name="cellNumber" render={({ field }) => ( <FormItem><FormLabel>Cell Number</FormLabel><FormControl><Input placeholder="e.g. 0821234567" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                            <FormField control={form.control} name="status" render={({ field }) => ( <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{clientStatuses.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
-                        </>
+                             <FormField control={form.control} name="address" render={({ field }) => ( <FormItem><FormLabel>Address</FormLabel><FormControl><Textarea placeholder="123 Main Street..." {...field} /></FormControl><FormMessage /></FormItem>)} />
+                             <FormField control={form.control} name="vatNumber" render={({ field }) => ( <FormItem><FormLabel>VAT Number</FormLabel><FormControl><Input placeholder="4..." {...field} /></FormControl><FormMessage /></FormItem>)} />
+                         </>
                     )}
+
+                    {!isAIClient && ( <FormField control={form.control} name="status" render={({ field }) => ( <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{clientStatuses.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />)}
                 </div>
 
-                <Separator />
-                
-                <div className="space-y-4">
-                    <h3 className="text-lg font-medium">Accounting Setup</h3>
-                    <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
-                    
-                    <FormField control={form.control} name="isVatRegistered" render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                            <div className="space-y-0.5"><FormLabel>Are you registered for VAT?</FormLabel></div>
-                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                        </FormItem>
-                    )} />
-                </div>
+                {!isAIClient && (
+                    <>
+                        <Separator />
+                        <div className="space-y-4">
+                            <h3 className="text-lg font-medium">Accounting Setup</h3>
+                            <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                            
+                            <FormField control={form.control} name="isVatRegistered" render={({ field }) => (
+                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                                    <div className="space-y-0.5"><FormLabel>Is the client registered for VAT?</FormLabel></div>
+                                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                                </FormItem>
+                            )} />
+                        </div>
+                    </>
+                )}
+
 
                 <div className="flex justify-end gap-2 pt-4">
                     <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>

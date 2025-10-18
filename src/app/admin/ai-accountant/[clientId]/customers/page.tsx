@@ -43,6 +43,8 @@ type ClientCustomer = {
     contactPerson?: string;
     email?: string;
     cellNumber?: string;
+    address?: string;
+    vatNumber?: string;
 }
 
 export default function ClientCustomersPage() {
@@ -96,6 +98,8 @@ export default function ClientCustomersPage() {
             contactPerson: data.contactPerson,
             email: data.email,
             cellNumber: data.cellNumber,
+            address: data.address,
+            vatNumber: data.vatNumber,
         };
 
         try {
@@ -156,10 +160,9 @@ export default function ClientCustomersPage() {
                                 </DialogDescription>
                             </DialogHeader>
                              <ClientForm 
-                                client={selectedCustomer as any} 
+                                client={selectedCustomer} 
                                 onSubmit={handleFormSubmit}
                                 onCancel={() => setIsFormOpen(false)}
-                                allStaff={[]}
                                 isAIClient={true}
                             />
                        </DialogContent>
@@ -186,7 +189,7 @@ export default function ClientCustomersPage() {
                                     <TableHead>Customer Name</TableHead>
                                     <TableHead>Contact Person</TableHead>
                                     <TableHead>Email</TableHead>
-                                    <TableHead>Cell Number</TableHead>
+                                    <TableHead>VAT Number</TableHead>
                                     <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -196,7 +199,7 @@ export default function ClientCustomersPage() {
                                         <TableCell className="font-medium">{customer.name}</TableCell>
                                         <TableCell>{customer.contactPerson || 'N/A'}</TableCell>
                                         <TableCell>{customer.email || 'N/A'}</TableCell>
-                                        <TableCell>{customer.cellNumber || 'N/A'}</TableCell>
+                                        <TableCell>{customer.vatNumber || 'N/A'}</TableCell>
                                         <TableCell className="text-right">
                                              <AlertDialog>
                                                 <DropdownMenu>
