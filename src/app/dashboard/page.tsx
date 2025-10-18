@@ -164,31 +164,39 @@ export default function DashboardPage() {
                 categorizedServices.map(category => (
                     <section key={category.name}>
                         <h2 className="text-2xl font-bold mb-6">{category.name}</h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                        {category.data.map(service => (
-                            <Card
-                            key={service.id}
-                            className="flex flex-col overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
-                            >
-                            <CardHeader>
-                                <CardTitle>{service.title}</CardTitle>
-                                <p className="text-2xl font-bold text-primary pt-2">{formatPrice(service.price)}</p>
-                                <div className="flex items-center text-muted-foreground pt-1">
-                                    <Clock className="h-4 w-4 mr-1.5" />
-                                    <span className="text-xs font-medium">{service.turnaroundTime}</span>
-                                </div>
-                            </CardHeader>
-                            <CardContent className="flex-grow">
-                                <CardDescription>{service.description}</CardDescription>
+                        <Card>
+                            <CardContent className="p-0">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Service</TableHead>
+                                            <TableHead>Turnaround Time</TableHead>
+                                            <TableHead className="text-right">Price</TableHead>
+                                            <TableHead className="text-right">Actions</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {category.data.map(service => (
+                                            <TableRow key={service.id}>
+                                                <TableCell className="font-medium">{service.title}</TableCell>
+                                                <TableCell>
+                                                    <div className="flex items-center text-sm text-muted-foreground">
+                                                        <Clock className="mr-1.5 h-4 w-4" />
+                                                        {service.turnaroundTime}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-right font-semibold">{formatPrice(service.price)}</TableCell>
+                                                <TableCell className="text-right">
+                                                    <Button asChild variant="outline" size="sm">
+                                                        <Link href={`/services/${service.slug}`}>Learn More</Link>
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
                             </CardContent>
-                            <CardFooter>
-                                <Button asChild className="w-full">
-                                <Link href={`/services/${service.slug}`}>Learn More</Link>
-                                </Button>
-                            </CardFooter>
-                            </Card>
-                        ))}
-                        </div>
+                        </Card>
                     </section>
                 ))
                 )}
