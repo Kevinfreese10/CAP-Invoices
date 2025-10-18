@@ -46,7 +46,7 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_PAYFAST_MERCHANT_KEY: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY,
     PAYFAST_PASSPHRASE: process.env.PAYFAST_PASSPHRASE,
     NEXT_PUBLIC_PAYFAST_URL: process.env.NEXT_PUBLIC_PAYFAST_URL,
-    NEXT_PUBLIC_APP_URL: "https://studio--studio-2604127518-57889.us-central1.hosted.app",
+    NEXT_PUBLIC_APP_URL: "https://www.myacc.co.za",
   },
 };
 
