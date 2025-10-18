@@ -27,11 +27,14 @@ export default function DashboardPage() {
             price: 'R850',
             priceDetail: '/month',
             features: [
-                'Up to 50 transactions',
-                'Bank reconciliations',
-                'Monthly management reports',
+                'Monthly management accounts',
                 'Annual Financial Statements',
-                'Company & Personal Tax Returns'
+                'Provisional tax returns (2 per year)',
+                'Annual income tax return',
+                'CIPC annual return',
+                'B-BBEE certificate or affidavit',
+                'Beneficial ownership declaration',
+                'Tax clearance certificate'
             ]
         },
         {
@@ -39,8 +42,14 @@ export default function DashboardPage() {
             price: 'R1,950',
             priceDetail: '/month',
             features: [
-                'Up to 100 transactions',
-                'Includes all Non-VAT features',
+                'Monthly management accounts',
+                'Annual Financial Statements',
+                'Provisional tax returns (2 per year)',
+                'Annual income tax return',
+                'CIPC annual return',
+                'B-BBEE certificate or affidavit',
+                'Beneficial ownership declaration',
+                'Tax clearance certificate',
                 'Bi-monthly VAT201 submissions'
             ]
         },
