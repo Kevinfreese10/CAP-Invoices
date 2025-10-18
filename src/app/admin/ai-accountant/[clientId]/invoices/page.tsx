@@ -73,31 +73,32 @@ export default function InvoicesPage() {
         return { subtotal, vat, total };
     }, [watchedLines]);
 
-    useEffect(() => {
-        const fetchData = async () => {
-            if (!clientId) return;
-            setIsLoading(true);
-            try {
-                const clientRef = doc(db, 'aiAccountantClients', clientId);
-                const clientSnap = await getDoc(clientRef);
-                if (clientSnap.exists()) {
-                    setClient({ id: clientSnap.id, ...clientSnap.data() } as User);
-                }
-                
-                const customersQuery = query(collection(db, `aiAccountantClients/${clientId}/customers`), orderBy("name"));
-                const customersSnapshot = await getDocs(customersQuery);
-                setCustomers(customersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClientCustomer)));
-                
-                const invoicesQuery = query(collection(db, `aiAccountantClients/${clientId}/invoices`), orderBy("invoiceDate", "desc"));
-                const invoicesSnapshot = await getDocs(invoicesQuery);
-                setInvoices(invoicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Invoice)));
-
-            } catch (e) {
-                toast({ title: 'Error', description: 'Failed to fetch data.', variant: 'destructive' });
-            } finally {
-                setIsLoading(false);
+    const fetchData = async () => {
+        if (!clientId) return;
+        setIsLoading(true);
+        try {
+            const clientRef = doc(db, 'aiAccountantClients', clientId);
+            const clientSnap = await getDoc(clientRef);
+            if (clientSnap.exists()) {
+                setClient({ id: clientSnap.id, ...clientSnap.data() } as User);
             }
-        };
+            
+            const customersQuery = query(collection(db, `aiAccountantClients/${clientId}/customers`), orderBy("name"));
+            const customersSnapshot = await getDocs(customersQuery);
+            setCustomers(customersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClientCustomer)));
+            
+            const invoicesQuery = query(collection(db, `aiAccountantClients/${clientId}/invoices`), orderBy("invoiceDate", "desc"));
+            const invoicesSnapshot = await getDocs(invoicesQuery);
+            setInvoices(invoicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Invoice)));
+
+        } catch (e) {
+            toast({ title: 'Error', description: 'Failed to fetch data.', variant: 'destructive' });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
         fetchData();
     }, [clientId, toast]);
 
@@ -117,6 +118,7 @@ export default function InvoicesPage() {
 
             toast({ title: 'Invoice Created', description: 'The new invoice has been saved as a draft.' });
             form.reset();
+            fetchData(); // Refetch invoices after creating a new one
         } catch (error) {
             toast({ title: 'Error', description: 'Failed to create invoice.', variant: 'destructive' });
             console.error(error);
@@ -134,28 +136,42 @@ export default function InvoicesPage() {
                         <CardDescription>A list of invoices created for {client?.name}.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                         <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Customer</TableHead>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead>Due Date</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead className="text-right">Total</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {invoices.map((invoice) => (
-                                    <TableRow key={invoice.id}>
-                                        <TableCell>{customers.find(c => c.id === invoice.customerId)?.name}</TableCell>
-                                        <TableCell>{format(invoice.invoiceDate, "dd/MM/yyyy")}</TableCell>
-                                        <TableCell>{format(invoice.dueDate, "dd/MM/yyyy")}</TableCell>
-                                        <TableCell>{invoice.status}</TableCell>
-                                        <TableCell className="text-right">{formatPrice(invoice.total)}</TableCell>
+                         {isLoading ? (
+                            <div className="flex justify-center items-center h-40">
+                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            </div>
+                         ) : (
+                             <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Customer</TableHead>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Due Date</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead className="text-right">Total</TableHead>
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                         </Table>
+                                </TableHeader>
+                                <TableBody>
+                                    {invoices.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">
+                                                No invoices created yet.
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        invoices.map((invoice) => (
+                                            <TableRow key={invoice.id}>
+                                                <TableCell>{customers.find(c => c.id === invoice.customerId)?.name}</TableCell>
+                                                <TableCell>{format(invoice.invoiceDate, "dd/MM/yyyy")}</TableCell>
+                                                <TableCell>{format(invoice.dueDate, "dd/MM/yyyy")}</TableCell>
+                                                <TableCell>{invoice.status}</TableCell>
+                                                <TableCell className="text-right">{formatPrice(invoice.total)}</TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                             </Table>
+                         )}
                     </CardContent>
                 </Card>
             </div>
