@@ -1,112 +1,115 @@
 
 'use client';
 import { useEffect, useState } from 'react';
-import { useParams, notFound } from 'next/navigation';
+import { useParams, notFound, useRouter } from 'next/navigation';
 import { getFirestore, doc, getDoc, collection, query, where, getDocs, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service, User, OrderNote } from '@/lib/types';
-import { Loader2, CheckCircle, Clock, ClipboardCheck, User as UserIcon } from 'lucide-react';
-import { services as allServices } from '@/lib/data';
+import { Loader2, CheckCircle, Banknote } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { sendEmail } from '@/lib/email';
+import { format } from 'date-fns';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from '@/hooks/use-toast';
+import { services as allServices } from '@/lib/data';
 import { render } from '@react-email/components';
 import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
-import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
+import { sendEmail } from '@/lib/email';
 
 const db = getFirestore(firebaseApp);
 
+const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
+    }).format(price);
+};
+
 export default function PaymentSuccessPage() {
     const params = useParams();
+    const router = useRouter();
+    const { user, isAuthenticated } = useAuth();
     const orderId = params.orderId as string;
     const [order, setOrder] = useState<Order | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [assignee, setAssignee] = useState<User | null>(null);
-    const { toast } = useToast();
 
     useEffect(() => {
-        if (orderId) {
-            const fetchOrderDetails = async () => {
-                setIsLoading(true);
-                const orderRef = doc(db, 'orders', orderId);
-                const orderSnap = await getDoc(orderRef);
+        if (!orderId) return;
 
-                if (orderSnap.exists()) {
-                    const orderData = orderSnap.data() as Order;
+        const fetchOrderDetails = async () => {
+            const orderRef = doc(db, 'orders', orderId);
+            const orderSnap = await getDoc(orderRef);
+
+            if (orderSnap.exists()) {
+                const orderData = orderSnap.data() as Order;
+                
+                 if (orderData.status !== 'Processing' && !orderData.notes?.some(n => n.subject === `Action Required for Your Order #${orderId}`)) {
+                    const itemsWithServices = orderData.items.map(item => {
+                        const service = allServices.find(s => s.id === item.id);
+                        return { ...item, service };
+                    }).filter(item => item.service) as { service: Service }[];
+
+                    const emailHtml = render(<DocumentRequestEmail order={orderData} items={itemsWithServices} replyTo="info@myacc.co.za" />);
                     
-                    if (orderData.status !== 'Processing' && !orderData.notes?.some(n => n.subject === `Action Required for Your Order #${orderId}`)) {
-                        // Order is not yet processed by ITN, or email not sent, let's process it client side
-                        
-                        const itemsWithServices = orderData.items.map(item => {
-                            const service = allServices.find(s => s.id === item.id);
-                            return { ...item, service };
-                        }).filter(item => item.service) as { service: Service }[];
-
-                        const emailHtml = render(<DocumentRequestEmail order={orderData} items={itemsWithServices} replyTo="info@myacc.co.za" />);
-                        
-                        const attachments = itemsWithServices
-                            .filter(item => item.service.attachmentUrl)
-                            .map(item => ({
-                                filename: `${item.service.title.replace(/\s/g, '_')}.pdf`,
-                                path: item.service.attachmentUrl!,
-                            }));
-                        
-                        try {
-                            await sendEmail({
-                                to: orderData.customerEmail,
-                                subject: `Action Required for Your Order #${orderId}`,
-                                html: emailHtml,
-                                attachments: attachments,
-                            });
-                             const emailNote: OrderNote = {
-                                text: 'Sent "Request Documents" email to client after payment.',
-                                date: Timestamp.now(),
-                                authorId: 'system', // System-sent
-                                type: 'email',
-                                subject: `Action Required for Your Order #${orderId}`,
-                            };
-                            await updateDoc(orderRef, { notes: arrayUnion(emailNote) });
-                        } catch(e) {
-                             console.error("Failed to send document request email:", e);
-                             toast({ title: 'Email Failed', description: 'Could not send document request email.', variant: 'destructive'});
-                        }
-
-                    }
+                    const attachments = itemsWithServices
+                        .filter(item => item.service.attachmentUrl)
+                        .map(item => ({
+                            filename: `${item.service.title.replace(/\s/g, '_')}.pdf`,
+                            path: item.service.attachmentUrl!,
+                        }));
                     
-                    setOrder(orderData);
-
-                    if (orderData.assignedTo && orderData.assignedTo.length > 0) {
-                         const staffQuery = query(collection(db, "users"), where('uid', '==', orderData.assignedTo[0]));
-                         const staffSnapshot = await getDocs(staffQuery);
-                         if (!staffSnapshot.empty) {
-                             setAssignee(staffSnapshot.docs[0].data() as User);
-                         }
+                    try {
+                        await sendEmail({
+                            to: orderData.customerEmail,
+                            subject: `Action Required for Your Order #${orderId}`,
+                            html: emailHtml,
+                            attachments: attachments,
+                        });
+                        const emailNote: OrderNote = {
+                            text: 'Sent "Request Documents" email to client after payment.',
+                            date: Timestamp.now(),
+                            authorId: 'system',
+                            type: 'email',
+                            subject: `Action Required for Your Order #${orderId}`,
+                        };
+                        await updateDoc(orderRef, { notes: arrayUnion(emailNote) });
+                    } catch(e) {
+                         console.error("Failed to send document request email:", e);
                     }
-                } else {
-                    notFound();
                 }
-                setIsLoading(false);
-            };
 
-            // It can take a moment for the ITN to update the order status.
-            // We'll poll a few times to give it a chance to complete.
-            let attempts = 0;
-            const interval = setInterval(() => {
+                setOrder(orderData);
+
+                if (isAuthenticated && user?.role === 'client') {
+                    // If user is logged in, redirect them immediately to the order page.
+                    router.replace(`/dashboard/orders/${orderId}`);
+                    return; // Stop further execution
+                }
+
+            } else {
+                notFound();
+            }
+            setIsLoading(false);
+        };
+        
+        let attempts = 0;
+        const interval = setInterval(() => {
+            if (attempts < 5 && !order) {
                 fetchOrderDetails();
                 attempts++;
-                if (attempts > 5 || (order && order.status === 'Processing')) {
-                    clearInterval(interval);
-                }
-            }, 2000);
-            
-            return () => clearInterval(interval);
+            } else {
+                clearInterval(interval);
+                if (!order) setIsLoading(false); 
+            }
+        }, 2000);
 
-        }
-    }, [orderId, order?.status, toast]);
-    
+        return () => clearInterval(interval);
+
+    }, [orderId, isAuthenticated, user, router, order]);
+
     if (isLoading) {
         return (
             <div className="container mx-auto px-4 py-20 text-center">
@@ -116,29 +119,20 @@ export default function PaymentSuccessPage() {
             </div>
         );
     }
-    
-    if (!order || order.status !== 'Processing') {
-        return (
-             <div className="container mx-auto px-4 py-20 text-center">
-                <h1 className="mt-4 text-2xl font-semibold">Waiting for Payment Confirmation</h1>
-                <p className="text-muted-foreground">We are waiting for the payment provider to confirm your transaction. This page will update automatically.</p>
-            </div>
-        );
+
+    if (!order) {
+        return notFound();
     }
-
-    const orderedServices = order.items.map(item => {
-        return allServices.find(s => s.id === item.id);
-    }).filter((s): s is Service => s !== undefined);
-
-
+    
+    // This view will only be shown to users who are not logged in.
     return (
         <div className="container mx-auto px-4 py-12 max-w-4xl">
             <Card>
                 <CardHeader className="text-center">
                     <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
-                    <CardTitle className="text-3xl mt-4">Payment Successful!</CardTitle>
+                    <CardTitle className="text-3xl mt-4">Order Placed Successfully!</CardTitle>
                     <CardDescription>
-                        Thank you for your order. We have received your payment and will begin processing your services shortly.
+                        Thank you for your order. We have received your payment and will begin processing your services shortly. An email confirmation has been sent to you.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-8">
@@ -149,58 +143,20 @@ export default function PaymentSuccessPage() {
                                 <span className="text-muted-foreground">Order ID:</span>
                                 <span className="font-mono">{order.id}</span>
                             </div>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-muted-foreground">Order Date:</span>
-                                <span>{format(new Date(order.date.seconds * 1000), 'dd/MM/yyyy')}</span>
-                            </div>
                             <Separator />
-                            {order.items.map((item, index) => (
+                            {order.items.map((item: any, index: number) => (
                                 <div key={index} className="flex justify-between items-center">
                                     <p>{item.title}</p>
-                                    <p className="font-semibold">R {item.price.toFixed(2)}</p>
+                                    <p className="font-semibold">{formatPrice(item.price)}</p>
                                 </div>
                             ))}
                              <Separator />
                             <div className="flex justify-between font-bold text-lg">
                                 <p>Total Paid</p>
-                                <p>R {order.total.toFixed(2)}</p>
+                                <p>{formatPrice(order.total)}</p>
                             </div>
                         </div>
                     </section>
-                    
-                    <section>
-                        <h3 className="font-semibold text-lg mb-2">Next Steps: Required Documents</h3>
-                         <p className="text-sm text-muted-foreground mb-4">
-                            To get started, please prepare the following documents. You will receive an email shortly with instructions on where to upload them.
-                        </p>
-                        <div className="space-y-4">
-                            {orderedServices.map(service => (
-                                <div key={service.id}>
-                                    <h4 className="font-semibold">{service.title}</h4>
-                                    <ul className="list-disc pl-5 mt-2 space-y-1 text-sm text-muted-foreground">
-                                        {service.clientRequirements.map((req, index) => (
-                                            <li key={index}>{req}</li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            ))}
-                        </div>
-                    </section>
-                    
-                    {assignee && (
-                         <section>
-                            <h3 className="font-semibold text-lg mb-2">Your Consultant</h3>
-                            <div className="border rounded-lg p-4 flex items-center gap-4">
-                                <UserIcon className="h-8 w-8 text-primary"/>
-                                <div>
-                                    <p className="font-semibold">{assignee.name}</p>
-                                    <p className="text-sm text-muted-foreground">
-                                        Your order has been assigned. You can contact them directly with any questions.
-                                    </p>
-                                </div>
-                            </div>
-                        </section>
-                    )}
                     
                     <div className="text-center pt-4">
                         <Button asChild>
