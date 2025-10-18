@@ -3,8 +3,9 @@
 
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Rocket, ShieldCheck, Wallet, Bot, FileInput, BarChart, Percent } from 'lucide-react';
+import { Rocket, ShieldCheck, Wallet, Bot, FileInput, BarChart, Percent, Building, Users, FileText, BadgeDollarSign, CheckCircle } from 'lucide-react';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function AiAccountantPage() {
 
@@ -48,6 +49,83 @@ export default function AiAccountantPage() {
         icon: Percent,
     }
   ];
+  
+   const pricingTiers = [
+    {
+      title: "Free Plan",
+      price: "R0",
+      description: "Perfect for getting started and managing one company.",
+      features: [
+        "1 Company Profile",
+        "1 User",
+        "Manual Transaction Processing",
+        "Basic Reporting",
+      ],
+      cta: "Get Started for Free",
+      href: "/ai-accountant-signup"
+    },
+    {
+      title: "AI Accountant Add-on",
+      price: "R290",
+      period: "/ company / month",
+      description: "Unlock the power of AI for full automation.",
+      features: [
+        "Includes all Free Plan features",
+        "Automated AI transaction allocation",
+        "Bank statement PDF reading",
+        "Advanced real-time reports",
+      ],
+      cta: "Add AI to Your Profile",
+       href: "/ai-accountant-signup"
+    },
+     {
+      title: "Payroll Services",
+      price: "From R110",
+      period: "/ payslip",
+      description: "Comprehensive payroll management.",
+      features: [
+        "R110 per payslip",
+        "Monthly Payroll Submissions (EMP201) for R550 p/m",
+        "Bi-annual Reconciliations (EMP501)",
+        "UIF Registrations & Submissions",
+      ],
+      cta: "Contact Us for Payroll",
+       href: "/contact"
+    },
+  ];
+
+  const subscriptionTiers = [
+    {
+      title: "Monthly Accounting (Non-VAT)",
+      price: "R950",
+      period: "/ month",
+      description: "Complete bookkeeping for non-VAT registered companies.",
+      features: [
+          "Includes the AI Accountant feature",
+          "Up to 150 transactions per month",
+          "Monthly management reports",
+          "Annual Financial Statements",
+          "Income Tax Submissions",
+      ],
+      cta: "Sign Up for Monthly Accounting",
+       href: "/ai-accountant-signup"
+    },
+     {
+      title: "Monthly Accounting (VAT Registered)",
+      price: "R1950",
+      period: "/ month",
+      description: "Full-suite accounting for VAT registered companies.",
+      features: [
+          "Includes the AI Accountant feature",
+          "Up to 300 transactions per month",
+          "Monthly management reports",
+          "Bi-monthly VAT201 Submissions",
+          "Annual Financial Statements & Tax",
+      ],
+      cta: "Sign Up for VAT Accounting",
+      href: "/ai-accountant-signup"
+    },
+  ]
 
 
   return (
@@ -116,6 +194,90 @@ export default function AiAccountantPage() {
                   </div>
               ))}
           </div>
+      </section>
+      
+       <section id="pricing" className="bg-background py-16 scroll-m-20">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold">Flexible Pricing for Every Need</h2>
+            <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
+              Choose the plan that's right for you. Start for free and add features as you grow.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-stretch">
+            {pricingTiers.map((tier) => (
+              <Card key={tier.title} className="flex flex-col">
+                <CardHeader>
+                  <CardTitle>{tier.title}</CardTitle>
+                  <CardDescription>{tier.description}</CardDescription>
+                  <div className="flex items-baseline pt-4">
+                    <span className="text-4xl font-bold">{tier.price}</span>
+                    {tier.period && <span className="text-sm text-muted-foreground">{tier.period}</span>}
+                  </div>
+                </CardHeader>
+                <CardContent className="flex-grow">
+                  <ul className="space-y-3">
+                    {tier.features.map((feature, index) => (
+                      <li key={index} className="flex items-center gap-2 text-sm">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+                <CardFooter>
+                  <Button asChild className="w-full">
+                    <Link href={tier.href}>{tier.cta}</Link>
+                  </Button>
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+          
+           <div className="text-center mt-12 mb-12">
+            <h3 className="text-2xl font-bold">All-Inclusive Monthly Subscriptions</h3>
+            <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
+              For complete peace of mind, choose a monthly package that includes the AI Accountant and all your compliance needs.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch max-w-4xl mx-auto">
+             {subscriptionTiers.map((tier) => (
+              <Card key={tier.title} className="flex flex-col bg-primary/5 border-primary/20">
+                <CardHeader>
+                  <CardTitle>{tier.title}</CardTitle>
+                   <div className="flex items-baseline pt-4">
+                    <span className="text-4xl font-bold">{tier.price}</span>
+                    {tier.period && <span className="text-sm text-muted-foreground">{tier.period}</span>}
+                  </div>
+                  <CardDescription>{tier.description}</CardDescription>
+                </CardHeader>
+                <CardContent className="flex-grow">
+                  <ul className="space-y-3">
+                    {tier.features.map((feature, index) => (
+                      <li key={index} className="flex items-center gap-2 text-sm">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+                <CardFooter>
+                  <Button asChild className="w-full">
+                    <Link href={tier.href}>{tier.cta}</Link>
+                  </Button>
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+
+           <div className="text-center mt-16">
+                <h3 className="text-2xl font-bold">Need to Add More Users?</h3>
+                <p className="text-muted-foreground mt-2">Additional users can be added to any plan for just <span className="font-bold text-primary">R50 per user, per month</span>.</p>
+            </div>
+
+        </div>
       </section>
     </div>
   );
