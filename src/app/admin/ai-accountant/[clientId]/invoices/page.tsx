@@ -259,7 +259,7 @@ export default function InvoicesPage() {
                                 </div>
                             </div>
                             <div className="space-y-2">
-                                <div className="hidden md:grid md:grid-cols-[2.5fr_3fr_1fr_1.5fr_1.5fr_2fr_1fr_0.5fr] gap-2 text-xs font-semibold px-2">
+                                <div className="hidden md:grid md:grid-cols-[2fr_3fr_1fr_1.5fr_1.5fr_2fr_1fr_0.5fr] gap-2 text-xs font-semibold px-2">
                                     <span>Account</span>
                                     <span>Description</span>
                                     <span className="text-center">Qty</span>
@@ -274,7 +274,7 @@ export default function InvoicesPage() {
                                     const lineSubtotal = (line.quantity || 0) * (line.rate || 0);
                                     const taxAmount = getVatPercentage(line.vatType) ? lineSubtotal * 0.15 : 0;
                                     return (
-                                        <div key={field.id} className="grid grid-cols-1 md:grid-cols-[2.5fr_3fr_1fr_1.5fr_1.5fr_2fr_1fr_0.5fr] gap-x-3 gap-y-2 items-start p-2 border rounded-md">
+                                        <div key={field.id} className="grid grid-cols-1 md:grid-cols-[2fr_3fr_1fr_1.5fr_1.5fr_2fr_1fr_0.5fr] gap-x-3 gap-y-2 items-start p-2 border rounded-md">
                                             <FormField control={form.control} name={`lineItems.${index}.accountId`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Account</FormLabel><Select onValueChange={(value) => handleAccountChange(value, index)} defaultValue={field.value}><FormControl><SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Account..." /></SelectTrigger></FormControl><SelectContent>{accounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )}/>
                                             <FormField control={form.control} name={`lineItems.${index}.description`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Description</FormLabel><FormControl><Input {...field} className="h-9 text-xs" /></FormControl><FormMessage /></FormItem> )}/>
                                             <FormField control={form.control} name={`lineItems.${index}.quantity`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Qty</FormLabel><FormControl><Input type="number" {...field} className="h-9 text-xs text-center" /></FormControl><FormMessage /></FormItem> )}/>
