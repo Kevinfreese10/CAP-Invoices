@@ -30,7 +30,8 @@ const formSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters.'),
   serviceLevel: z.enum(['free', 'ai_addon', 'monthly_non_vat', 'monthly_vat']).default('free'),
   extraUsers: z.preprocess(val => Number(val) || 0, z.number().min(0).optional()),
-  includePayroll: z.boolean().default(false),
+  includeSubmissions: z.boolean().default(false),
+  includePayslips: z.boolean().default(false),
   payslipCount: z.preprocess(val => Number(val) || 0, z.number().min(0).optional()),
 });
 
@@ -40,7 +41,7 @@ const pricing = {
   monthly_non_vat: 950,
   monthly_vat: 1950,
   extraUser: 50,
-  payrollBase: 550,
+  payrollSubmissions: 550,
   perPayslip: 110,
 };
 
@@ -60,7 +61,8 @@ export default function AIAccountantSignupForm() {
       password: '',
       serviceLevel: 'free',
       extraUsers: 0,
-      includePayroll: false,
+      includeSubmissions: false,
+      includePayslips: false,
       payslipCount: 0,
     },
   });
@@ -69,13 +71,15 @@ export default function AIAccountantSignupForm() {
 
   useEffect(() => {
     let total = 0;
-    const { serviceLevel, extraUsers, includePayroll, payslipCount } = watchedValues;
+    const { serviceLevel, extraUsers, includeSubmissions, includePayslips, payslipCount } = watchedValues;
     
     total += pricing[serviceLevel];
     total += (extraUsers || 0) * pricing.extraUser;
 
-    if (includePayroll) {
-      total += pricing.payrollBase;
+    if (includeSubmissions) {
+      total += pricing.payrollSubmissions;
+    }
+    if (includePayslips) {
       total += (payslipCount || 0) * pricing.perPayslip;
     }
 
@@ -205,16 +209,26 @@ export default function AIAccountantSignupForm() {
             <FormField control={form.control} name="extraUsers" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel>Additional Users (+R50 per user)</FormLabel><FormControl><Input type="number" className="w-24" {...field} /></FormControl><FormMessage /></FormItem>)} />
             <FormField
                 control={form.control}
-                name="includePayroll"
+                name="includeSubmissions"
                 render={({ field }) => (
                     <FormItem className="flex items-center justify-between">
-                    <FormLabel>Include Payroll Services?</FormLabel>
+                    <FormLabel>Monthly Payroll Submissions (EMP201)<br/><span className="text-xs text-muted-foreground">(+R550 per month)</span></FormLabel>
                     <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                     </FormItem>
                 )}
             />
-            {watchedValues.includePayroll && (
-                <FormField control={form.control} name="payslipCount" render={({ field }) => ( <FormItem className="flex items-center justify-between pl-6"><FormLabel>Number of Payslips (+R110 per payslip + R550 submission)</FormLabel><FormControl><Input type="number" className="w-24" {...field} /></FormControl><FormMessage /></FormItem>)} />
+             <FormField
+                control={form.control}
+                name="includePayslips"
+                render={({ field }) => (
+                    <FormItem className="flex items-center justify-between">
+                    <FormLabel>Process Payslips<br/><span className="text-xs text-muted-foreground">(+R110 per payslip)</span></FormLabel>
+                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                    </FormItem>
+                )}
+            />
+            {watchedValues.includePayslips && (
+                <FormField control={form.control} name="payslipCount" render={({ field }) => ( <FormItem className="flex items-center justify-between pl-6"><FormLabel>Number of Payslips</FormLabel><FormControl><Input type="number" className="w-24" {...field} /></FormControl><FormMessage /></FormItem>)} />
             )}
         </div>
         
