@@ -90,6 +90,7 @@ export default function AIAccountantClientLayout({ children }: { children: React
                     </MenubarContent>
                 </MenubarMenu>
                 <MenubarMenu><MenubarTrigger asChild><Link href={`/admin/ai-accountant/${clientId}/customers`}>Customers</Link></MenubarTrigger></MenubarMenu>
+                <MenubarMenu><MenubarTrigger asChild><Link href={`/admin/ai-accountant/${clientId}/invoices`}>Invoices</Link></MenubarTrigger></MenubarMenu>
                 <MenubarMenu><MenubarTrigger>Suppliers</MenubarTrigger></MenubarMenu>
                 <MenubarMenu><MenubarTrigger>Items</MenubarTrigger></MenubarMenu>
                 <MenubarMenu>

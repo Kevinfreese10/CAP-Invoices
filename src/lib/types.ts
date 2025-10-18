@@ -141,6 +141,20 @@ export type Order = {
   source?: 'Client' | 'Staff' | 'Reseller';
 };
 
+export type Invoice = {
+  id: string;
+  customerId: string;
+  invoiceDate: any;
+  dueDate: any;
+  lineItems: { description: string; quantity: number; rate: number; }[];
+  notes?: string;
+  subtotal: number;
+  vat: number;
+  total: number;
+  status: 'draft' | 'sent' | 'paid' | 'overdue';
+  createdAt: any;
+};
+
 export type User = {
   uid: string; // Firebase Authentication UID
   id: string; // Document ID
@@ -185,7 +199,6 @@ export type User = {
   financialsDueDate?: any;
   requiresManagementAccounts?: boolean;
   managementAccountsFrequency?: 'Monthly' | 'Quarterly' | 'Bi-Annually' | 'Annually';
-  managementAccountsDueDate?: any;
   isVatRegistered?: boolean;
   vatCategory?: 'A' | 'B' | 'C';
   submitsProvisionalTaxes?: boolean;
@@ -200,6 +213,16 @@ export type User = {
   importedTransactions?: ImportedTransaction[];
   allocatedTransactions?: AllocatedTransaction[];
 };
+
+export type ClientCustomer = {
+    id: string;
+    name: string;
+    contactPerson?: string;
+    email?: string;
+    cellNumber?: string;
+    address?: string;
+    vatNumber?: string;
+}
 
 export type DiscountCode = {
   id: string; // The code itself
