@@ -6,7 +6,7 @@ import { Order, Service, User } from '@/lib/types';
 import { useState, useEffect, useMemo } from 'react';
 import { getFirestore, collection, getDocs, orderBy, query, onSnapshot, setDoc, doc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, ArrowRight, CheckCircle, Clock, Banknote, FileSpreadsheet, TrendingUp, ShieldCheck, Users, Briefcase, BrainCircuit, UserPlus, BadgeDollarSign } from 'lucide-react';
+import { Loader2, ArrowRight, CheckCircle, Clock, Banknote, FileSpreadsheet, TrendingUp, ShieldCheck, Users, Briefcase, BrainCircuit, UserPlus, BadgeDollarSign, Search } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -16,6 +16,7 @@ import ServicePreview from '@/components/admin/ServicePreview';
 import { useToast } from '@/hooks/use-toast';
 import { getNextOrderId } from '@/lib/sequence';
 import { generatePayFastSignature } from '@/app/actions/payfast';
+import { Input } from '@/components/ui/input';
 
 
 const db = getFirestore(firebaseApp);
@@ -42,6 +43,7 @@ export default function DashboardPage() {
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
     const [payfastFormData, setPayfastFormData] = useState<{ [key: string]: string } | null>(null);
     const { toast } = useToast();
+    const [searchTerm, setSearchTerm] = useState('');
 
     const monthlyPackages = [
         {
@@ -60,7 +62,7 @@ export default function DashboardPage() {
         },
         {
             title: 'Monthly Accounting (VAT Registered)',
-            price: 'R2,450',
+            price: 'R2450',
             priceDetail: '/month',
             features: [
                 'Annual financial statements',
@@ -173,7 +175,7 @@ export default function DashboardPage() {
         .filter(c => c.data.length > 0);
     }, [categories, services]);
     
-     const formatPrice = (price: number) => {
+     const formatPriceFmt = (price: number) => {
         return new Intl.NumberFormat('en-ZA', {
           style: 'currency',
           currency: 'ZAR',
@@ -181,6 +183,21 @@ export default function DashboardPage() {
           maximumFractionDigits: 2,
         }).format(price);
     };
+
+     const filteredCategorizedServices = useMemo(() => {
+        if (!searchTerm) {
+            return categorizedServices;
+        }
+        return categorizedServices
+            .map(category => ({
+                ...category,
+                data: category.data.filter(service =>
+                    service.title.toLowerCase().includes(searchTerm.toLowerCase())
+                ),
+            }))
+            .filter(category => category.data.length > 0);
+    }, [categorizedServices, searchTerm]);
+
 
     return (
         <>
@@ -236,44 +253,66 @@ export default function DashboardPage() {
                             <Loader2 className="h-12 w-12 animate-spin text-primary" />
                         </div>
                     ) : (
-                    categorizedServices.map(category => (
-                        <section key={category.name}>
-                            <h2 className="text-2xl font-bold mb-6">{category.name}</h2>
-                            <Card>
-                                <CardContent className="p-0">
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Service</TableHead>
-                                                <TableHead>Turnaround Time</TableHead>
-                                                <TableHead className="text-right">Price</TableHead>
-                                                <TableHead className="text-right">Actions</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {category.data.map(service => (
-                                                <TableRow key={service.id}>
-                                                    <TableCell className="font-medium">{service.title}</TableCell>
-                                                    <TableCell>
-                                                        <div className="flex items-center text-sm text-muted-foreground">
-                                                            <Clock className="mr-1.5 h-4 w-4" />
-                                                            <span>{service.turnaroundTime}</span>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="text-right font-semibold">{formatPrice(service.price)}</TableCell>
-                                                    <TableCell className="text-right">
-                                                        <DialogTrigger asChild>
-                                                            <Button variant="outline" size="sm" onClick={() => setViewingService(service)}>Learn More</Button>
-                                                        </DialogTrigger>
-                                                    </TableCell>
+                    <Card>
+                        <CardHeader>
+                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                <div>
+                                    <CardTitle>Once-off Services</CardTitle>
+                                    <CardDescription>Browse and purchase individual services.</CardDescription>
+                                </div>
+                                <div className="relative w-full sm:max-w-xs">
+                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                     <Input
+                                        placeholder="Search for a service..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="pl-10"
+                                    />
+                                </div>
+                             </div>
+                        </CardHeader>
+                        <CardContent className="space-y-8">
+                             {filteredCategorizedServices.map(category => (
+                                <section key={category.name}>
+                                    <h3 className="text-xl font-semibold mb-4">{category.name}</h3>
+                                    <div className="border rounded-md">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Service</TableHead>
+                                                    <TableHead className="text-left w-48">Turnaround Time</TableHead>
+                                                    <TableHead className="text-right w-32">Price</TableHead>
+                                                    <TableHead className="text-right w-32">Actions</TableHead>
                                                 </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                </CardContent>
-                            </Card>
-                        </section>
-                    ))
+                                            </TableHeader>
+                                            <TableBody>
+                                                {category.data.map(service => (
+                                                    <TableRow key={service.id}>
+                                                        <TableCell className="font-medium">{service.title}</TableCell>
+                                                        <TableCell>
+                                                            <div className="flex items-center justify-start text-sm text-muted-foreground">
+                                                                <Clock className="mr-1.5 h-4 w-4" />
+                                                                <span>{service.turnaroundTime}</span>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="text-right font-semibold">{formatPriceFmt(service.price)}</TableCell>
+                                                        <TableCell className="text-right">
+                                                            <DialogTrigger asChild>
+                                                                <Button variant="outline" size="sm" onClick={() => setViewingService(service)}>Learn More</Button>
+                                                            </DialogTrigger>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                </section>
+                            ))}
+                            {filteredCategorizedServices.length === 0 && (
+                                <p className="text-center text-muted-foreground py-8">No services match your search.</p>
+                            )}
+                        </CardContent>
+                    </Card>
                     )}
                 </div>
             </div>
@@ -290,7 +329,7 @@ export default function DashboardPage() {
                         <DialogFooter>
                             <Button onClick={() => handleBuyNow(viewingService)} disabled={isProcessingPayment}>
                                 {isProcessingPayment ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                Buy Now ({formatPrice(viewingService.price)})
+                                Buy Now ({formatPriceFmt(viewingService.price)})
                             </Button>
                         </DialogFooter>
                     </>
@@ -308,3 +347,5 @@ export default function DashboardPage() {
         </>
     );
 }
+
+    
