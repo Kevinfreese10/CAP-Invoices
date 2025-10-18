@@ -12,7 +12,7 @@ import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { getFirestore, doc, setDoc, serverTimestamp, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useState, useEffect } from 'react';
-import { Loader2, Sparkles, CheckCheck } from 'lucide-react';
+import { Loader2, Sparkles, CheckCheck, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { allocationRules as initialAllocationRules } from '@/lib/allocation-rules';
 import { chartOfAccounts as initialChartOfAccounts } from '@/lib/chart-of-accounts';
@@ -22,6 +22,7 @@ import { Switch } from '../ui/switch';
 import { Separator } from '../ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { differenceInMonths, startOfMonth } from 'date-fns';
+import { AnimatePresence, motion } from 'framer-motion';
 
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
@@ -32,7 +33,7 @@ const formSchema = z.object({
   companyName: z.string().min(2, 'Company name is required.'),
   email: z.string().email('Please enter a valid email.'),
   password: z.string().min(6, 'Password must be at least 6 characters.'),
-  yearEnd: z.string().optional(),
+  yearEnd: z.string().min(1, 'Financial year end is required.'),
   serviceLevel: z.enum(['free', 'ai_addon', 'monthly_non_vat', 'monthly_vat']).default('free'),
   extraUsers: z.preprocess(val => Number(val) || 0, z.number().min(0).optional()),
   includeSubmissions: z.boolean().default(false),
@@ -55,6 +56,7 @@ export default function AIAccountantSignupForm() {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [step, setStep] = useState(1);
   const [monthlyTotal, setMonthlyTotal] = useState(0);
   const [catchUpFee, setCatchUpFee] = useState(0);
   const { login } = useAuth();
@@ -174,114 +176,77 @@ export default function AIAccountantSignupForm() {
       currency: 'ZAR',
     }).format(price);
   };
+  
+  const handleNextStep = async () => {
+    const isValid = await form.trigger(['companyName', 'email', 'password', 'yearEnd']);
+    if (isValid) {
+      setStep(2);
+    }
+  };
 
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <FormField control={form.control} name="companyName" render={({ field }) => ( <FormItem><FormLabel>Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-        <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Login Email Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-        <FormField control={form.control} name="password" render={({ field }) => ( <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
-        <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
-
-        <Separator />
-        
-        <FormField
-          control={form.control}
-          name="serviceLevel"
-          render={({ field }) => (
-            <FormItem className="space-y-3">
-              <FormLabel>Select Your Plan</FormLabel>
-              <FormControl>
-                <RadioGroup
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                  className="space-y-2"
-                >
-                  <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer">
-                    <RadioGroupItem value="free" id="free" />
-                    <div>
-                      <span className="font-semibold">Free Plan</span>
-                      <p className="text-sm text-muted-foreground">1 company, 1 user, basic features.</p>
+        <AnimatePresence mode="wait">
+            <motion.div
+                key={step}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.3 }}
+            >
+                {step === 1 && (
+                    <div className="space-y-6">
+                        <FormField control={form.control} name="companyName" render={({ field }) => ( <FormItem><FormLabel>Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Login Email Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="password" render={({ field }) => ( <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                        <Button type="button" onClick={handleNextStep} className="w-full">Next</Button>
                     </div>
-                  </Label>
-                   <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer">
-                    <RadioGroupItem value="ai_addon" id="ai_addon" />
-                    <div>
-                      <span className="font-semibold">AI Accountant Add-on (R290 / month)</span>
-                      <p className="text-sm text-muted-foreground">Unlock AI-powered automation for your company.</p>
-                    </div>
-                  </Label>
-                  <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer">
-                    <RadioGroupItem value="monthly_non_vat" id="monthly_non_vat" />
-                    <div>
-                      <span className="font-semibold">Monthly Accounting - Non-VAT (R950 / month)</span>
-                      <p className="text-sm text-muted-foreground">Includes AI Accountant & full bookkeeping service.</p>
-                    </div>
-                  </Label>
-                  <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer">
-                    <RadioGroupItem value="monthly_vat" id="monthly_vat" />
-                     <div>
-                      <span className="font-semibold">Monthly Accounting - VAT (R1950 / month)</span>
-                      <p className="text-sm text-muted-foreground">Full-suite service for VAT-registered companies.</p>
-                    </div>
-                  </Label>
-                </RadioGroup>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
-        <Separator />
-
-         <div className="space-y-4">
-            <h4 className="font-medium">Optional Add-ons</h4>
-            <FormField control={form.control} name="extraUsers" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel>Additional Users (+R50 per user)</FormLabel><FormControl><Input type="number" className="w-24" {...field} /></FormControl><FormMessage /></FormItem>)} />
-            <FormField
-                control={form.control}
-                name="includeSubmissions"
-                render={({ field }) => (
-                    <FormItem className="flex items-center justify-between">
-                    <FormLabel>Monthly Payroll Submissions (EMP201)<br/><span className="text-xs text-muted-foreground">(+R550 per month)</span></FormLabel>
-                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                    </FormItem>
                 )}
-            />
-             <FormField
-                control={form.control}
-                name="includePayslips"
-                render={({ field }) => (
-                    <FormItem className="flex items-center justify-between">
-                    <FormLabel>Process Payslips<br/><span className="text-xs text-muted-foreground">(+R110 per payslip)</span></FormLabel>
-                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                    </FormItem>
+                
+                {step === 2 && (
+                    <div className="space-y-6">
+                        <FormField
+                            control={form.control}
+                            name="serviceLevel"
+                            render={({ field }) => (
+                                <FormItem className="space-y-3">
+                                <FormLabel>Select Your Plan</FormLabel>
+                                <FormControl>
+                                    <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="space-y-2">
+                                        <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer"><RadioGroupItem value="free" id="free" /><div><span className="font-semibold">Free Plan</span><p className="text-sm text-muted-foreground">1 company, 1 user, basic features.</p></div></Label>
+                                        <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer"><RadioGroupItem value="ai_addon" id="ai_addon" /><div><span className="font-semibold">AI Accountant Add-on (R290 / month)</span><p className="text-sm text-muted-foreground">Unlock AI-powered automation for your company.</p></div></Label>
+                                        <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer"><RadioGroupItem value="monthly_non_vat" id="monthly_non_vat" /><div><span className="font-semibold">Monthly Accounting - Non-VAT (R950 / month)</span><p className="text-sm text-muted-foreground">Includes AI Accountant & full bookkeeping service.</p></div></Label>
+                                        <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer"><RadioGroupItem value="monthly_vat" id="monthly_vat" /><div><span className="font-semibold">Monthly Accounting - VAT (R1950 / month)</span><p className="text-sm text-muted-foreground">Full-suite service for VAT-registered companies.</p></div></Label>
+                                    </RadioGroup>
+                                </FormControl>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <Separator />
+                        <div className="space-y-4">
+                            <h4 className="font-medium">Optional Add-ons</h4>
+                            <FormField control={form.control} name="extraUsers" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel>Additional Users (+R50 per user)</FormLabel><FormControl><Input type="number" className="w-24" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="includeSubmissions" render={({ field }) => (<FormItem className="flex items-center justify-between"><FormLabel>Monthly Payroll Submissions (EMP201)<br/><span className="text-xs text-muted-foreground">(+R550 per month)</span></FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                            <FormField control={form.control} name="includePayslips" render={({ field }) => (<FormItem className="flex items-center justify-between"><FormLabel>Process Payslips<br/><span className="text-xs text-muted-foreground">(+R110 per payslip)</span></FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                            {watchedValues.includePayslips && (<FormField control={form.control} name="payslipCount" render={({ field }) => ( <FormItem className="flex items-center justify-between pl-6"><FormLabel>Number of Payslips</FormLabel><FormControl><Input type="number" className="w-24" {...field} /></FormControl><FormMessage /></FormItem>)} />)}
+                        </div>
+                        <Separator />
+                        <div className="space-y-3">
+                            {catchUpFee > 0 && (<div className="flex justify-between items-center bg-amber-100 p-4 rounded-lg border border-amber-300"><h4 className="text-lg font-bold text-amber-800">Once-off Catch-up Fee:</h4><p className="text-2xl font-bold text-amber-900">{formatPrice(catchUpFee)}</p></div>)}
+                            <div className="flex justify-between items-center bg-primary/10 p-4 rounded-lg"><h4 className="text-lg font-bold">Estimated Monthly Total:</h4><p className="text-2xl font-bold">{formatPrice(monthlyTotal)}</p></div>
+                        </div>
+                        <div className="flex gap-2">
+                             <Button type="button" variant="outline" onClick={() => setStep(1)} className="w-full"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
+                             <Button type="submit" className="w-full" size="lg" disabled={isLoading}>{isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCheck className="mr-2 h-4 w-4"/>}Create My AI Accountant Profile</Button>
+                        </div>
+                    </div>
                 )}
-            />
-            {watchedValues.includePayslips && (
-                <FormField control={form.control} name="payslipCount" render={({ field }) => ( <FormItem className="flex items-center justify-between pl-6"><FormLabel>Number of Payslips</FormLabel><FormControl><Input type="number" className="w-24" {...field} /></FormControl><FormMessage /></FormItem>)} />
-            )}
-        </div>
-        
-        <Separator />
-
-        <div className="space-y-3">
-             {catchUpFee > 0 && (
-                <div className="flex justify-between items-center bg-amber-100 p-4 rounded-lg border border-amber-300">
-                    <h4 className="text-lg font-bold text-amber-800">Once-off Catch-up Fee:</h4>
-                    <p className="text-2xl font-bold text-amber-900">{formatPrice(catchUpFee)}</p>
-                </div>
-            )}
-            <div className="flex justify-between items-center bg-primary/10 p-4 rounded-lg">
-                <h4 className="text-lg font-bold">Estimated Monthly Total:</h4>
-                <p className="text-2xl font-bold">{formatPrice(monthlyTotal)}</p>
-            </div>
-        </div>
-
-        <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
-            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCheck className="mr-2 h-4 w-4"/>}
-            Create My AI Accountant Profile
-        </Button>
+            </motion.div>
+        </AnimatePresence>
       </form>
     </Form>
   );
