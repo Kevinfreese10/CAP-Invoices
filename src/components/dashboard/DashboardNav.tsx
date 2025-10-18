@@ -68,6 +68,8 @@ export default function DashboardNav({ user }: { user: UserType }) {
     router.push('/');
   };
 
+  const clientId = user?.role === 'client' ? user.id : pathname.split('/')[3] || user.id;
+  
   const navItems = [
      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['client'] },
      { href: '/dashboard/profile', label: 'My Profile', icon: User, roles: ['client'] },
@@ -85,8 +87,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/tools', label: 'Tools', icon: Wrench, roles: ['admin'] },
   ];
   
-  const clientId = user?.role === 'client' ? user.id : pathname.split('/')[3];
-
   const aiAccountantItems = [
      { href: `/admin/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['admin'] },
      { href: `/admin/ai-accountant/${clientId}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, roles: ['client', 'admin', 'staff'] },
@@ -130,14 +130,15 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/reseller/settings', label: 'API & Branding', icon: Settings, roles: ['reseller'] },
   ];
 
+  const hasAIAccountantProfile = user.hasNumeraProfile || user.source === 'AI Accountant';
+
+  const shouldShowAdminOrAI = user.role === 'admin' || user.role === 'staff' || (user.role === 'client' && hasAIAccountantProfile);
   const visibleNavItems = navItems.filter(item => item.roles.includes(user.role));
   const visibleAdminNavItems = adminNavItems.filter(item => item.roles.includes(user.role));
-  const visibleAiAccountantItems = aiAccountantItems.filter(item => item.roles.some(r => user.role === r));
+  const visibleAiAccountantItems = aiAccountantItems.filter(item => item.roles.includes(user.role));
   const visibleCapSupplierItems = capSupplierItems.filter(item => item.roles.includes(user.role) && (!item.department || item.department === user.department));
   const visibleSettingsNavItems = settingsNavItems.filter(item => item.roles.includes(user.role));
   const visibleResellerNavItems = resellerNavItems.filter(item => item.roles.includes(user.role));
-  const shouldShowAdminOrAI = user.role === 'admin' || user.role === 'staff' || (user.role === 'client' && user.hasNumeraProfile);
-
 
   return (
     <>
@@ -161,125 +162,124 @@ export default function DashboardNav({ user }: { user: UserType }) {
       <SidebarMenu className="flex-1">
         
         {shouldShowAdminOrAI ? (
-            <>
-                {user.role !== 'client' && visibleAdminNavItems.map((item) => (
+          <>
+            {user.role !== 'client' && visibleAdminNavItems.map((item) => (
+              <SidebarMenuItem key={item.href}>
+                <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
+                  <Link href={item.href}>
+                    <item.icon />
+                    <span>{item.label}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+
+            <Collapsible open={isAiAccountantOpen} onOpenChange={setIsAiAccountantOpen}>
+              <SidebarMenuItem>
+                <CollapsibleTrigger asChild>
+                  <SidebarMenuButton isActive={pathname.startsWith('/admin/ai-accountant')} tooltip="AI Accountant">
+                    <Book />
+                    <span>AI Accountant</span>
+                    <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200 group-[[data-state=open]]:rotate-180" />
+                  </SidebarMenuButton>
+                </CollapsibleTrigger>
+              </SidebarMenuItem>
+              <CollapsibleContent asChild>
+                <SidebarMenu className="pl-4">
+                  {visibleAiAccountantItems.map(item => (
                     <SidebarMenuItem key={item.href}>
-                        <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
-                            <Link href={item.href}>
-                                <item.icon />
-                                <span>{item.label}</span>
-                            </Link>
-                        </SidebarMenuButton>
+                      <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label} className="h-8">
+                        <Link href={item.href}>
+                          <item.icon />
+                          <span>{item.label}</span>
+                        </Link>
+                      </SidebarMenuButton>
                     </SidebarMenuItem>
-                ))}
+                  ))}
+                </SidebarMenu>
+              </CollapsibleContent>
+            </Collapsible>
 
-                 <Collapsible open={isAiAccountantOpen} onOpenChange={setIsAiAccountantOpen}>
-                    <SidebarMenuItem>
-                        <CollapsibleTrigger asChild>
-                            <SidebarMenuButton isActive={pathname.startsWith('/admin/ai-accountant')} tooltip="AI Accountant">
-                                <Book />
-                                <span>AI Accountant</span>
-                                <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200 group-[[data-state=open]]:rotate-180" />
-                            </SidebarMenuButton>
-                        </CollapsibleTrigger>
-                    </SidebarMenuItem>
-                     <CollapsibleContent asChild>
-                        <SidebarMenu className="pl-4">
-                            {visibleAiAccountantItems.map(item => (
-                                <SidebarMenuItem key={item.href}>
-                                    <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label} className="h-8">
-                                        <Link href={item.href}>
-                                            <item.icon />
-                                            <span>{item.label}</span>
-                                        </Link>
-                                    </SidebarMenuButton>
-                                </SidebarMenuItem>
-                            ))}
-                        </SidebarMenu>
-                    </CollapsibleContent>
-                 </Collapsible>
-
+            {(user.role === 'admin' || user.role === 'staff') && (
+              <>
                 {visibleCapSupplierItems.length > 0 && (
-                    <Collapsible open={isCapSuppliersOpen} onOpenChange={setIsCapSuppliersOpen}>
-                        <SidebarMenuItem>
-                            <CollapsibleTrigger asChild>
-                                <SidebarMenuButton isActive={pathname.startsWith('/admin/cap-suppliers')} tooltip="CAP Suppliers">
-                                    <FileText />
-                                    <span>CAP Suppliers</span>
-                                    <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200 group-[[data-state=open]]:rotate-180" />
-                                </SidebarMenuButton>
-                            </CollapsibleTrigger>
-                        </SidebarMenuItem>
-                        <CollapsibleContent asChild>
-                            <SidebarMenu className="pl-4">
-                                {visibleCapSupplierItems.map(item => (
-                                    <SidebarMenuItem key={item.href}>
-                                        <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label} className="h-8">
-                                            <Link href={item.href}>
-                                                <item.icon />
-                                                <span>{item.label}</span>
-                                            </Link>
-                                        </SidebarMenuButton>
-                                    </SidebarMenuItem>
-                                ))}
-                            </SidebarMenu>
-                        </CollapsibleContent>
-                    </Collapsible>
-                )}
-                 <Collapsible open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+                  <Collapsible open={isCapSuppliersOpen} onOpenChange={setIsCapSuppliersOpen}>
                     <SidebarMenuItem>
-                        <CollapsibleTrigger asChild>
-                            <SidebarMenuButton isActive={pathname.startsWith('/admin/settings') || pathname.startsWith('/admin/users') || pathname.startsWith('/admin/profile')} tooltip="Settings">
-                                <Settings />
-                                <span>Settings</span>
-                                <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200 group-[[data-state=open]]:rotate-180" />
-                            </SidebarMenuButton>
-                        </CollapsibleTrigger>
+                      <CollapsibleTrigger asChild>
+                        <SidebarMenuButton isActive={pathname.startsWith('/admin/cap-suppliers')} tooltip="CAP Suppliers">
+                          <FileText />
+                          <span>CAP Suppliers</span>
+                          <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200 group-[[data-state=open]]:rotate-180" />
+                        </SidebarMenuButton>
+                      </CollapsibleTrigger>
                     </SidebarMenuItem>
                     <CollapsibleContent asChild>
-                        <SidebarMenu className="pl-4">
-                            {visibleSettingsNavItems.map(item => (
-                                 <SidebarMenuItem key={item.href}>
-                                     <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label} className="h-8">
-                                         <Link href={item.href}>
-                                            <item.icon />
-                                            <span>{item.label}</span>
-                                         </Link>
-                                     </SidebarMenuButton>
-                                 </SidebarMenuItem>
-                            ))}
-                        </SidebarMenu>
+                      <SidebarMenu className="pl-4">
+                        {visibleCapSupplierItems.map(item => (
+                          <SidebarMenuItem key={item.href}>
+                            <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label} className="h-8">
+                              <Link href={item.href}>
+                                <item.icon />
+                                <span>{item.label}</span>
+                              </Link>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        ))}
+                      </SidebarMenu>
                     </CollapsibleContent>
-                 </Collapsible>
-            </>
+                  </Collapsible>
+                )}
+                <Collapsible open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton isActive={pathname.startsWith('/admin/settings') || pathname.startsWith('/admin/users') || pathname.startsWith('/admin/profile')} tooltip="Settings">
+                        <Settings />
+                        <span>Settings</span>
+                        <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200 group-[[data-state=open]]:rotate-180" />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                  </SidebarMenuItem>
+                  <CollapsibleContent asChild>
+                    <SidebarMenu className="pl-4">
+                      {visibleSettingsNavItems.map(item => (
+                        <SidebarMenuItem key={item.href}>
+                          <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label} className="h-8">
+                            <Link href={item.href}>
+                              <item.icon />
+                              <span>{item.label}</span>
+                            </Link>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      ))}
+                    </SidebarMenu>
+                  </CollapsibleContent>
+                </Collapsible>
+              </>
+            )}
+          </>
         ) : user.role === 'client' ? (
-             visibleNavItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                    asChild
-                    isActive={pathname === item.href}
-                    tooltip={item.label}
-                    >
-                    <Link href={item.href}>
-                        <item.icon />
-                        <span>{item.label}</span>
-                    </Link>
-                    </SidebarMenuButton>
-                </SidebarMenuItem>
-            ))
+          visibleNavItems.map((item) => (
+            <SidebarMenuItem key={item.href}>
+              <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.label}>
+                <Link href={item.href}>
+                  <item.icon />
+                  <span>{item.label}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))
         ) : user.role === 'reseller' ? (
-             visibleResellerNavItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
-                        <Link href={item.href}>
-                            <item.icon />
-                            <span>{item.label}</span>
-                        </Link>
-                    </SidebarMenuButton>
-                </SidebarMenuItem>
-            ))
+          visibleResellerNavItems.map((item) => (
+            <SidebarMenuItem key={item.href}>
+              <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
+                <Link href={item.href}>
+                  <item.icon />
+                  <span>{item.label}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))
         ) : null}
-
       </SidebarMenu>
 
       <SidebarFooter>
