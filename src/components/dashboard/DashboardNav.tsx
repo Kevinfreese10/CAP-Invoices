@@ -1,5 +1,4 @@
 
-
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -86,16 +85,17 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/tools', label: 'Tools', icon: Wrench, roles: ['admin'] },
   ];
   
+  const clientId = user?.role === 'client' ? user.id : router.pathname?.split('/')[3];
+
   const aiAccountantItems = [
-     { href: `/admin/ai-accountant/${user?.id}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, roles: ['client'] },
-     { href: '/admin/ai-accountant/customers', label: 'Client Profiles', icon: Users, roles: ['admin'] },
-     { href: `/admin/ai-accountant/${user?.id}/customers`, label: 'Customers', icon: Users, roles: ['client'] },
-     { href: `/admin/ai-accountant/${user?.id}/invoices`, label: 'Invoices', icon: FileText, roles: ['client'] },
-     { href: `/admin/ai-accountant/${user?.id}/bank/transactions`, label: 'Bank Accounts', icon: Banknote, roles: ['client', 'admin'] },
-     { href: `/admin/ai-accountant/${user?.id}/chart-of-accounts`, label: 'Chart of Accounts', icon: Book, roles: ['client', 'admin'] },
-     { href: `/admin/ai-accountant/${user?.id}/journals`, label: 'Journals', icon: BookMarked, roles: ['client', 'admin'] },
+     { href: `/admin/ai-accountant/${clientId}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, roles: ['client', 'admin'] },
+     { href: `/admin/ai-accountant/${clientId}/customers`, label: 'Customers', icon: Users, roles: ['client', 'admin'] },
+     { href: `/admin/ai-accountant/${clientId}/invoices`, label: 'Invoices', icon: FileText, roles: ['client', 'admin'] },
+     { href: `/admin/ai-accountant/${clientId}/bank/transactions`, label: 'Bank Accounts', icon: Banknote, roles: ['client', 'admin'] },
+     { href: `/admin/ai-accountant/${clientId}/chart-of-accounts`, label: 'Chart of Accounts', icon: Book, roles: ['client', 'admin'] },
+     { href: `/admin/ai-accountant/${clientId}/journals`, label: 'Journals', icon: BookMarked, roles: ['client', 'admin'] },
      { href: '/admin/ai-accountant/allocation-rules', label: 'Allocation Rules', icon: ArrowRightLeft, roles: ['admin'] },
-     { href: `/admin/ai-accountant/${user?.id}/reports/trial-balance`, label: 'Reports', icon: FileSpreadsheet, roles: ['client', 'admin'] },
+     { href: `/admin/ai-accountant/${clientId}/reports/trial-balance`, label: 'Reports', icon: FileSpreadsheet, roles: ['client', 'admin'] },
   ];
 
   const capSupplierItems = [
@@ -173,7 +173,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
         
         {(user.role === 'admin' || user.role === 'staff' || (user.role === 'client' && user.hasNumeraProfile)) && (
             <>
-                {visibleAdminNavItems.map((item) => (
+                {user.role !== 'client' && visibleAdminNavItems.map((item) => (
                     <SidebarMenuItem key={item.href}>
                         <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
                             <Link href={item.href}>
