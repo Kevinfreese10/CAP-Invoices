@@ -237,7 +237,7 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
     };
     
     const handleImport = async () => {
-        if (!client || !bankAccountId || extractedTransactions.length === 0) return;
+        if (!client || !client.uid || !bankAccountId || extractedTransactions.length === 0) return;
         setIsUploading(true);
         toast({ title: "Importing...", description: "Saving extracted transactions."});
 
@@ -257,10 +257,10 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
                 const dailyIndex = String(dailyCounters[dateString]).padStart(2, '0');
                 const reference = `${dateString}${dailyIndex}`;
                 
-                const newTransactionRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
+                const newTransactionRef = doc(collection(db, 'aiAccountantClients', client.uid, 'transactions'));
                 
                 const transaction: Omit<ImportedTransaction, 'id'> = {
-                    clientId: client.id,
+                    clientId: client.uid,
                     date: parsedDate.toISOString(),
                     reference: reference,
                     description: row.description,
@@ -511,7 +511,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
     };
     
     const handleImport = async () => {
-        if (!file || !client || !bankAccountId || parsedTransactions.length === 0) return;
+        if (!file || !client || !client.uid || !bankAccountId || parsedTransactions.length === 0) return;
         setIsUploading(true);
         toast({ title: "Importing...", description: "Processing your file and applying rules."});
 
@@ -533,10 +533,10 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
                 const dailyIndex = String(dailyCounters[dateString]).padStart(2, '0');
                 const reference = `${dateString}${dailyIndex}`;
                 
-                const newTransactionRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
+                const newTransactionRef = doc(collection(db, 'aiAccountantClients', client.uid, 'transactions'));
                 
                 let transaction: Omit<ImportedTransaction, 'id'> = {
-                    clientId: client.id,
+                    clientId: client.uid,
                     date: parsedDate.toISOString(),
                     reference: reference,
                     description: row.Description,
@@ -681,7 +681,7 @@ function EditAccountDialog({ account, client, onAccountUpdated, onOpenChange, op
                 acc.id === values.id ? { ...acc, description: values.name } : acc
             ) || [];
 
-            const clientRef = doc(db, 'aiAccountantClients', client.id);
+            const clientRef = doc(db, 'aiAccountantClients', client.uid);
             await updateDoc(clientRef, { chartOfAccounts: updatedAccounts });
 
             toast({ title: 'Bank Account Updated', description: `The account name has been changed to ${values.name}.` });
@@ -749,7 +749,7 @@ function CreateAccountDialog({ client, onAccountCreated, onOpenChange, open }: {
                 section: 'Balance Sheet',
             };
 
-            const clientRef = doc(db, 'aiAccountantClients', client.id);
+            const clientRef = doc(db, 'aiAccountantClients', client.uid);
             await updateDoc(clientRef, {
                 chartOfAccounts: arrayUnion(newAccount)
             });
@@ -823,7 +823,7 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
   }, [open, defaultValues, form]);
 
   const handleSaveRule = async (values: z.infer<typeof ruleFormSchema>) => {
-    if (!client) return;
+    if (!client || !client.uid) return;
     setIsSaving(true);
     
     const newRule: Partial<AllocationRule> = {
@@ -835,7 +835,7 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
     };
 
     try {
-      const clientRef = doc(db, 'aiAccountantClients', client.id);
+      const clientRef = doc(db, 'aiAccountantClients', client.uid);
       await updateDoc(clientRef, {
         allocationRules: arrayUnion(newRule),
       });
@@ -896,7 +896,7 @@ const NewTransactionsTab = React.forwardRef<
     const [ruleDefaultValues, setRuleDefaultValues] = useState<Partial<z.infer<typeof ruleFormSchema>> | undefined>();
     
     const newTransactionsQuery = useMemo(() => {
-        if (!client?.id || !bankAccountId) return null;
+        if (!client?.uid || !bankAccountId) return null;
         
         let constraints: QueryConstraint[] = [
             where('bankAccountId', '==', bankAccountId),
@@ -912,8 +912,8 @@ const NewTransactionsTab = React.forwardRef<
         constraints.push(orderBy('amount', 'asc'));
         constraints.push(orderBy('date', 'desc'));
         
-        return query(collection(db, 'aiAccountantClients', client.id, 'transactions'), ...constraints);
-    }, [client?.id, bankAccountId, activeSubTab]);
+        return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
+    }, [client?.uid, bankAccountId, activeSubTab]);
 
     const {
         documents: transactions,
@@ -936,11 +936,11 @@ const NewTransactionsTab = React.forwardRef<
 
 
     const handleBulkDelete = async () => {
-        if (!client || !client.id || selectedTransactions.length === 0) return;
+        if (!client || !client.uid || selectedTransactions.length === 0) return;
 
         const batch = writeBatch(db);
         selectedTransactions.forEach(txId => {
-            const docRef = doc(db, 'aiAccountantClients', client!.id, 'transactions', txId);
+            const docRef = doc(db, 'aiAccountantClients', client!.uid, 'transactions', txId);
             batch.delete(docRef);
         });
 
@@ -956,14 +956,14 @@ const NewTransactionsTab = React.forwardRef<
     };
 
     const handleBulkAllocate = async (accountId: string, vatType: VatType) => {
-        if (!client || !client.id || selectedTransactions.length === 0) return;
+        if (!client || !client.uid || selectedTransactions.length === 0) return;
         toast({ title: "Allocating...", description: `Allocating ${selectedTransactions.length} transactions.` });
 
         const batch = writeBatch(db);
         const transactionsToAllocate = transactions.filter(tx => selectedTransactions.includes(tx.id));
 
         for (const tx of transactionsToAllocate) {
-            const transactionRef = doc(db, 'aiAccountantClients', client.id, 'transactions', tx.id);
+            const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
             batch.update(transactionRef, {
                 status: 'allocated',
                 allocatedTo: { value: accountId, type: 'account' },
@@ -1216,15 +1216,15 @@ const ForReviewTab = React.forwardRef<
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     
     const reviewTransactionsQuery = useMemo(() => {
-        if (!client?.id || !bankAccountId) return null;
+        if (!client?.uid || !bankAccountId) return null;
         
         return query(
-            collection(db, 'aiAccountantClients', client.id, 'transactions'),
+            collection(db, 'aiAccountantClients', client.uid, 'transactions'),
             where('bankAccountId', '==', bankAccountId),
             where('status', '==', 'review'),
             orderBy('date', 'desc')
         );
-    }, [client?.id, bankAccountId]);
+    }, [client?.uid, bankAccountId]);
 
     const {
         documents: transactions,
@@ -1242,7 +1242,7 @@ const ForReviewTab = React.forwardRef<
     }));
     
     const handleBulkAction = async (action: 'approve' | 'reject') => {
-        if (!client || !client.id || selectedTransactions.length === 0) return;
+        if (!client || !client.uid || selectedTransactions.length === 0) return;
 
         toast({ title: "Processing...", description: `Updating ${selectedTransactions.length} transactions.` });
 
@@ -1250,7 +1250,7 @@ const ForReviewTab = React.forwardRef<
         const newStatus = action === 'approve' ? 'allocated' : 'new';
         
         selectedTransactions.forEach(txId => {
-            const transactionRef = doc(db, 'aiAccountantClients', client.id, 'transactions', txId);
+            const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', txId);
             if (action === 'approve') {
                 batch.update(transactionRef, { status: 'allocated', allocatedAt: new Date() });
             } else { // reject
@@ -1390,7 +1390,7 @@ export default function BankTransactionsPage() {
             const clientRef = doc(db, 'aiAccountantClients', clientId);
             const clientSnap = await getDoc(clientRef);
             if (clientSnap.exists()) {
-                const clientData = { id: clientSnap.id, ...clientSnap.data() } as User;
+                const clientData = { id: clientSnap.id, ...clientSnap.data(), uid: clientSnap.id } as User;
                 setClient(clientData);
 
                 const cashbookAccounts = clientData.chartOfAccounts?.filter(
@@ -1452,7 +1452,7 @@ export default function BankTransactionsPage() {
     }, [bankAccounts, selectedAccountId]);
     
     const handleDeleteBankAccount = async () => {
-        if (!client || !selectedAccountId) return;
+        if (!client || !client.uid || !selectedAccountId) return;
         
         setIsLoading(true);
         toast({ title: "Deleting Account...", description: "Removing the bank account and all its transactions."});
@@ -1461,10 +1461,10 @@ export default function BankTransactionsPage() {
             const batch = writeBatch(db);
 
             const updatedAccounts = client.chartOfAccounts?.filter(acc => acc.id !== selectedAccountId) || [];
-            const clientRef = doc(db, 'aiAccountantClients', client.id);
+            const clientRef = doc(db, 'aiAccountantClients', client.uid);
             batch.update(clientRef, { chartOfAccounts: updatedAccounts });
 
-            const transactionsQuery = query(collection(db, 'aiAccountantClients', client.id, 'transactions'), where('bankAccountId', '==', selectedAccountId));
+            const transactionsQuery = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), where('bankAccountId', '==', selectedAccountId));
             const transactionsSnapshot = await getDocs(transactionsQuery);
             transactionsSnapshot.forEach(doc => {
                 batch.delete(doc.ref);
