@@ -15,7 +15,7 @@ import { getFirestore, doc, addDoc, getDoc, collection, query, orderBy, getDocs 
 import { db } from '@/lib/firebase';
 import { useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { User, Invoice, ClientCustomer } from '@/lib/types';
+import { User, Invoice, ClientCustomer, ChartOfAccount } from '@/lib/types';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { CalendarIcon } from 'lucide-react';
@@ -24,11 +24,15 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { allVatTypes } from '@/lib/vat-types';
 
 const lineItemSchema = z.object({
-    description: z.string().min(1, "Description is required."),
+    accountId: z.string().optional(),
+    description: z.string().optional(),
     quantity: z.preprocess((val) => Number(val), z.number().min(1)),
     rate: z.preprocess((val) => Number(val), z.number().min(0)),
+    vatType: z.string().default('standard_rated_sales'),
 });
 
 const invoiceFormSchema = z.object({
@@ -41,6 +45,8 @@ const invoiceFormSchema = z.object({
 
 type InvoiceFormValues = z.infer<typeof invoiceFormSchema>;
 
+const formatPrice = (price: number) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(price);
+
 export default function InvoicesPage() {
     const params = useParams();
     const clientId = params.clientId as string;
@@ -49,13 +55,14 @@ export default function InvoicesPage() {
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
+    const [accounts, setAccounts] = useState<ChartOfAccount[]>([]);
 
     const form = useForm<InvoiceFormValues>({
         resolver: zodResolver(invoiceFormSchema),
         defaultValues: {
             invoiceDate: new Date(),
             dueDate: new Date(new Date().setDate(new Date().getDate() + 30)),
-            lineItems: [{ description: '', quantity: 1, rate: 0 }],
+            lineItems: [{ accountId: '', description: '', quantity: 1, rate: 0, vatType: 'standard_rated_sales' }],
             notes: '',
         },
     });
@@ -68,8 +75,15 @@ export default function InvoicesPage() {
     const watchedLines = form.watch("lineItems");
     
     const totals = useMemo(() => {
-        const subtotal = watchedLines.reduce((sum, line) => sum + (line.quantity * line.rate), 0);
-        const vat = subtotal * 0.15;
+        let subtotal = 0;
+        let vat = 0;
+        watchedLines.forEach(line => {
+            const lineSubtotal = (line.quantity || 0) * (line.rate || 0);
+            subtotal += lineSubtotal;
+            if (line.vatType === 'standard_rated_sales') {
+                vat += lineSubtotal * 0.15;
+            }
+        });
         const total = subtotal + vat;
         return { subtotal, vat, total };
     }, [watchedLines]);
@@ -81,7 +95,9 @@ export default function InvoicesPage() {
             const clientRef = doc(db, 'aiAccountantClients', clientId);
             const clientSnap = await getDoc(clientRef);
             if (clientSnap.exists()) {
-                setClient({ id: clientSnap.id, ...clientSnap.data() } as User);
+                const clientData = clientSnap.data() as User;
+                setClient(clientData);
+                setAccounts(clientData.chartOfAccounts?.filter(acc => acc.section === 'Income Statement').sort((a,b) => a.accountNumber.localeCompare(b.accountNumber)) || []);
             }
             
             const customersQuery = query(collection(db, `aiAccountantClients/${clientId}/customers`), orderBy("name"));
@@ -119,18 +135,18 @@ export default function InvoicesPage() {
 
             toast({ title: 'Invoice Created', description: 'The new invoice has been saved as a draft.' });
             form.reset();
-            fetchData(); // Refetch invoices after creating a new one
+            fetchData();
         } catch (error) {
             toast({ title: 'Error', description: 'Failed to create invoice.', variant: 'destructive' });
             console.error(error);
         }
     };
     
-    const formatPrice = (price: number) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(price);
+    const vatTypes = allVatTypes.filter(vt => vt.category === 'Output Tax');
 
     return (
         <div className="space-y-8">
-            <Card>
+             <Card>
                 <CardHeader>
                     <CardTitle>Invoices</CardTitle>
                     <CardDescription>A list of invoices created for {client?.name}.</CardDescription>
@@ -185,63 +201,80 @@ export default function InvoicesPage() {
                 <CardContent>
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                            <FormField
-                                control={form.control}
-                                name="customerId"
-                                render={({ field }) => (
-                                    <FormItem className="flex flex-col">
-                                    <FormLabel>Customer</FormLabel>
-                                    <Popover>
-                                        <PopoverTrigger asChild>
-                                        <FormControl>
-                                            <Button
-                                            variant="outline"
-                                            role="combobox"
-                                            className={cn("w-[300px] justify-between", !field.value && "text-muted-foreground")}
-                                            >
-                                            {field.value ? customers.find(c => c.id === field.value)?.name : "Select a customer"}
-                                            </Button>
-                                        </FormControl>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-[300px] p-0">
-                                            <Command>
-                                                <CommandInput placeholder="Search customer..."/>
-                                                <CommandList>
-                                                    <CommandEmpty>No customers found.</CommandEmpty>
-                                                    {customers.map(c => (
-                                                        <CommandItem key={c.id} onSelect={() => { form.setValue("customerId", c.id) }}>{c.name}</CommandItem>
-                                                    ))}
-                                                </CommandList>
-                                            </Command>
-                                        </PopoverContent>
-                                    </Popover>
-                                    <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <div className="grid grid-cols-2 gap-4 max-w-sm">
-                                <FormField control={form.control} name="invoiceDate" render={({ field }) => ( <FormItem><FormLabel>Invoice Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem> )}/>
-                                <FormField control={form.control} name="dueDate" render={({ field }) => ( <FormItem><FormLabel>Due Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem> )}/>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                                <FormField
+                                    control={form.control}
+                                    name="customerId"
+                                    render={({ field }) => (
+                                        <FormItem className="flex flex-col">
+                                        <FormLabel>Customer</FormLabel>
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                            <FormControl>
+                                                <Button
+                                                variant="outline"
+                                                role="combobox"
+                                                className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
+                                                >
+                                                {field.value ? customers.find(c => c.id === field.value)?.name : "Select a customer"}
+                                                </Button>
+                                            </FormControl>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                                <Command>
+                                                    <CommandInput placeholder="Search customer..."/>
+                                                    <CommandList>
+                                                        <CommandEmpty>No customers found.</CommandEmpty>
+                                                        {customers.map(c => (
+                                                            <CommandItem key={c.id} onSelect={() => { form.setValue("customerId", c.id) }}>{c.name}</CommandItem>
+                                                        ))}
+                                                    </CommandList>
+                                                </Command>
+                                            </PopoverContent>
+                                        </Popover>
+                                        <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <FormField control={form.control} name="invoiceDate" render={({ field }) => ( <FormItem><FormLabel>Invoice Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem> )}/>
+                                    <FormField control={form.control} name="dueDate" render={({ field }) => ( <FormItem><FormLabel>Due Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem> )}/>
+                                </div>
                             </div>
-
                             <div className="space-y-2">
-                                <FormLabel>Line Items</FormLabel>
-                                {fields.map((field, index) => (
-                                    <div key={field.id} className="grid grid-cols-12 gap-2 items-start border p-2 rounded-md">
-                                        <div className="col-span-12"><FormField control={form.control} name={`lineItems.${index}.description`} render={({ field }) => ( <FormItem><FormControl><Textarea placeholder="Description" {...field} rows={1} className="text-xs"/></FormControl><FormMessage /></FormItem> )}/></div>
-                                        <div className="col-span-4"><FormField control={form.control} name={`lineItems.${index}.quantity`} render={({ field }) => ( <FormItem><FormControl><Input type="number" placeholder="Qty" {...field} className="text-xs" /></FormControl><FormMessage /></FormItem> )}/></div>
-                                        <div className="col-span-5"><FormField control={form.control} name={`lineItems.${index}.rate`} render={({ field }) => ( <FormItem><FormControl><Input type="number" step="0.01" placeholder="Rate" {...field} className="text-xs" /></FormControl><FormMessage /></FormItem> )}/></div>
-                                        <div className="col-span-3 flex justify-end items-center h-full">
-                                            <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                <div className="grid grid-cols-12 gap-2 text-xs font-semibold px-2">
+                                    <div className="col-span-3">Account</div>
+                                    <div className="col-span-1 text-center">Qty</div>
+                                    <div className="col-span-2 text-right">Unit Price</div>
+                                    <div className="col-span-2 text-right">Total</div>
+                                    <div className="col-span-2">Tax Code</div>
+                                    <div className="col-span-1 text-right">Tax</div>
+                                    <div className="col-span-1 text-right"></div>
+                                </div>
+                                {fields.map((field, index) => {
+                                    const line = watchedLines[index];
+                                    const lineSubtotal = (line.quantity || 0) * (line.rate || 0);
+                                    const taxAmount = line.vatType === 'standard_rated_sales' ? lineSubtotal * 0.15 : 0;
+                                    return (
+                                        <div key={field.id} className="grid grid-cols-12 gap-2 items-start">
+                                            <div className="col-span-3"><FormField control={form.control} name={`lineItems.${index}.accountId`} render={({ field }) => ( <FormItem><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Account..." /></SelectTrigger></FormControl><SelectContent>{accounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )}/></div>
+                                            <div className="col-span-1"><FormField control={form.control} name={`lineItems.${index}.quantity`} render={({ field }) => ( <FormItem><FormControl><Input type="number" {...field} className="h-9 text-xs text-center" /></FormControl><FormMessage /></FormItem> )}/></div>
+                                            <div className="col-span-2"><FormField control={form.control} name={`lineItems.${index}.rate`} render={({ field }) => ( <FormItem><FormControl><Input type="number" step="0.01" {...field} className="h-9 text-xs text-right" /></FormControl><FormMessage /></FormItem> )}/></div>
+                                            <div className="col-span-2 flex items-center justify-end h-9 font-mono text-xs">{formatPrice(lineSubtotal)}</div>
+                                            <div className="col-span-2"><FormField control={form.control} name={`lineItems.${index}.vatType`} render={({ field }) => ( <FormItem><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger></FormControl><SelectContent>{vatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/></div>
+                                            <div className="col-span-1 flex items-center justify-end h-9 font-mono text-xs">{formatPrice(taxAmount)}</div>
+                                            <div className="col-span-1 flex justify-end items-center h-9">
+                                                <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => remove(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
-                                <Button type="button" variant="outline" size="sm" onClick={() => append({ description: '', quantity: 1, rate: 0 })}>
+                                    )
+                                })}
+                                <Button type="button" variant="outline" size="sm" onClick={() => append({ accountId: '', description: '', quantity: 1, rate: 0, vatType: 'standard_rated_sales' })}>
                                     <Plus className="mr-2 h-4 w-4" /> Add Line
                                 </Button>
                             </div>
                             
-                            <CardFooter className="p-4 bg-muted rounded-lg mt-4 flex flex-col items-end gap-2 max-w-sm">
+                            <CardFooter className="p-4 bg-muted rounded-lg mt-4 flex flex-col items-end gap-2 max-w-sm ml-auto">
                                 <div className="flex justify-between w-full text-sm"><span className="text-muted-foreground">Subtotal:</span><span>{formatPrice(totals.subtotal)}</span></div>
                                 <div className="flex justify-between w-full text-sm"><span className="text-muted-foreground">VAT (15%):</span><span>{formatPrice(totals.vat)}</span></div>
                                 <div className="flex justify-between w-full font-bold text-lg"><span >Total:</span><span>{formatPrice(totals.total)}</span></div>
