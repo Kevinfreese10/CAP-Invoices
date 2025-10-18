@@ -88,7 +88,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   ];
   
   const aiAccountantItems = [
-     { href: `/admin/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['admin'] },
+     { href: `/admin/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['admin', 'client', 'staff'] },
      { href: `/admin/ai-accountant/${clientId}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, roles: ['client', 'admin', 'staff'] },
      { href: `/admin/ai-accountant/${clientId}/customers`, label: 'Customers', icon: Users, roles: ['client', 'admin', 'staff'] },
      { href: `/admin/ai-accountant/${clientId}/invoices`, label: 'Invoices', icon: FileText, roles: ['client', 'admin', 'staff'] },
@@ -257,18 +257,8 @@ export default function DashboardNav({ user }: { user: UserType }) {
               </>
             )}
           </>
-        ) : user.role === 'client' ? (
-          visibleNavItems.map((item) => (
-            <SidebarMenuItem key={item.href}>
-              <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.label}>
-                <Link href={item.href}>
-                  <item.icon />
-                  <span>{item.label}</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))
-        ) : user.role === 'reseller' ? (
+        ) : (
+          user.role === 'reseller' ? (
           visibleResellerNavItems.map((item) => (
             <SidebarMenuItem key={item.href}>
               <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
@@ -279,7 +269,19 @@ export default function DashboardNav({ user }: { user: UserType }) {
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))
-        ) : null}
+          ) : (
+             visibleNavItems.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.label}>
+                    <Link href={item.href}>
+                    <item.icon />
+                    <span>{item.label}</span>
+                    </Link>
+                </SidebarMenuButton>
+                </SidebarMenuItem>
+            ))
+          )
+        )}
       </SidebarMenu>
 
       <SidebarFooter>
