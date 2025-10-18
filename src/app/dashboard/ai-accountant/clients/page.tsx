@@ -174,10 +174,13 @@ export default function AIAccountantClientsPage() {
             await setDoc(doc(db, "aiAccountantClients", selectedClient.id), clientData, { merge: true });
             toast({ title: 'Client Updated'});
         } else {
-            const newDocRef = await addDoc(collection(db, "aiAccountantClients"), { 
-                ...clientData, 
-                createdAt: Timestamp.now(),
-                createdBy: currentUser.uid,
+            const newDocRef = doc(collection(db, 'aiAccountantClients'));
+            await setDoc(newDocRef, {
+              ...clientData,
+              id: newDocRef.id,
+              uid: newDocRef.id,
+              createdAt: Timestamp.now(),
+              createdBy: currentUser.uid,
             });
             toast({ title: 'Client Created' });
         }
