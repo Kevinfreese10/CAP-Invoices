@@ -151,11 +151,11 @@ export default function AIAccountantSignupForm() {
     }
   }, [payfastFormData]);
 
+  const totalOnceOffFees = catchUpFee + payrollSetupFee;
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
-    const totalOnceOffFees = catchUpFee + payrollSetupFee;
-
+    
     if (totalOnceOffFees > 0) {
         // Create an order and redirect to PayFast
         toast({ title: 'Redirecting to Payment...', description: 'Please wait while we prepare your secure payment.' });
@@ -352,13 +352,13 @@ export default function AIAccountantSignupForm() {
                                                         <p className="font-medium text-foreground pb-1">Includes:</p>
                                                         <ul className="list-disc list-inside space-y-1">
                                                             <li>Monthly management accounts</li>
-                                                            <li>Annual financial statements preparation</li>
-                                                            <li>2 × provisional tax returns</li>
-                                                            <li>1 × tax return</li>
+                                                            <li>Annual financial statements</li>
+                                                            <li>Provisional tax returns</li>
+                                                            <li>Annual income tax return</li>
                                                             <li>CIPC annual return</li>
-                                                            <li>BEE certificate</li>
+                                                            <li>B-BBEE certificate or affidavit</li>
                                                             <li>Beneficial ownership declaration</li>
-                                                            <li>Tax clearance</li>
+                                                            <li>Tax clearance certificate</li>
                                                             <li>VAT returns</li>
                                                         </ul>
                                                     </div>
@@ -406,10 +406,10 @@ export default function AIAccountantSignupForm() {
                             <div className="space-y-3">
                                 <div className="flex justify-between items-center bg-primary/10 p-4 rounded-lg"><h4 className="text-lg font-bold">Estimated Monthly Total:</h4><p className="text-2xl font-bold">{formatPrice(monthlyTotal)}</p></div>
                                 
-                                {(catchUpFee > 0 || payrollSetupFee > 0) && (
+                                {totalOnceOffFees > 0 && (
                                     <div className="flex justify-between items-center bg-amber-100 p-4 rounded-lg border border-amber-300">
                                         <h4 className="text-lg font-bold text-amber-800">Total Once-Off Fees:</h4>
-                                        <p className="text-2xl font-bold text-amber-900">{formatPrice(catchUpFee + payrollSetupFee)}</p>
+                                        <p className="text-2xl font-bold text-amber-900">{formatPrice(totalOnceOffFees)}</p>
                                     </div>
                                 )}
                             </div>
