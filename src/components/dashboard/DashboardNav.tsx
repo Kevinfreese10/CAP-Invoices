@@ -61,7 +61,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const { state, toggleSidebar } = useSidebar();
   const [isSettingsOpen, setIsSettingsOpen] = useState(pathname.startsWith('/admin/settings') || pathname.startsWith('/admin/users') || pathname.startsWith('/admin/staff'));
   const [isCapSuppliersOpen, setIsCapSuppliersOpen] = useState(pathname.startsWith('/admin/cap-suppliers'));
-  const [isAiAccountantOpen, setIsAiAccountantOpen] = useState(pathname.startsWith('/admin/ai-accountant'));
+  const [isAiAccountantOpen, setIsAiAccountantOpen] = useState(pathname.startsWith('/admin/ai-accountant') || pathname.startsWith('/dashboard/ai-accountant'));
 
   const handleLogout = () => {
     logout();
@@ -69,7 +69,8 @@ export default function DashboardNav({ user }: { user: UserType }) {
   };
 
   const clientId = user?.role === 'client' ? user.id : pathname.split('/')[3] || user.id;
-  
+  const baseAiPath = user.role === 'client' ? '/dashboard' : '/admin';
+
   const navItems = [
      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['client'] },
      { href: '/dashboard/profile', label: 'My Profile', icon: User, roles: ['client'] },
@@ -88,14 +89,14 @@ export default function DashboardNav({ user }: { user: UserType }) {
   ];
   
   const aiAccountantItems = [
-     { href: `/admin/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['admin', 'client', 'staff'] },
-     { href: `/admin/ai-accountant/${clientId}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, roles: ['client', 'admin', 'staff'] },
-     { href: `/admin/ai-accountant/${clientId}/customers`, label: 'Customers', icon: Users, roles: ['client', 'admin', 'staff'] },
-     { href: `/admin/ai-accountant/${clientId}/invoices`, label: 'Invoices', icon: FileText, roles: ['client', 'admin', 'staff'] },
-     { href: `/admin/ai-accountant/${clientId}/bank/transactions`, label: 'Bank Accounts', icon: Banknote, roles: ['client', 'admin', 'staff'] },
-     { href: `/admin/ai-accountant/${clientId}/chart-of-accounts`, label: 'Chart of Accounts', icon: Book, roles: ['client', 'admin', 'staff'] },
-     { href: `/admin/ai-accountant/${clientId}/journals`, label: 'Journals', icon: BookMarked, roles: ['client', 'admin', 'staff'] },
-     { href: `/admin/ai-accountant/${clientId}/reports`, label: 'Reports', icon: FileSpreadsheet, roles: ['client', 'admin', 'staff'] },
+     { href: `${baseAiPath}/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['admin', 'client', 'staff'] },
+     { href: `${baseAiPath}/ai-accountant/${clientId}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, roles: ['client', 'admin', 'staff'] },
+     { href: `${baseAiPath}/ai-accountant/${clientId}/customers`, label: 'Customers', icon: Users, roles: ['client', 'admin', 'staff'] },
+     { href: `${baseAiPath}/ai-accountant/${clientId}/invoices`, label: 'Invoices', icon: FileText, roles: ['client', 'admin', 'staff'] },
+     { href: `${baseAiPath}/ai-accountant/${clientId}/bank/transactions`, label: 'Bank Accounts', icon: Banknote, roles: ['client', 'admin', 'staff'] },
+     { href: `${baseAiPath}/ai-accountant/${clientId}/chart-of-accounts`, label: 'Chart of Accounts', icon: Book, roles: ['client', 'admin', 'staff'] },
+     { href: `${baseAiPath}/ai-accountant/${clientId}/journals`, label: 'Journals', icon: BookMarked, roles: ['client', 'admin', 'staff'] },
+     { href: `${baseAiPath}/ai-accountant/${clientId}/reports`, label: 'Reports', icon: FileSpreadsheet, roles: ['client', 'admin', 'staff'] },
   ];
 
   const capSupplierItems = [
@@ -177,7 +178,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
             <Collapsible open={isAiAccountantOpen} onOpenChange={setIsAiAccountantOpen}>
               <SidebarMenuItem>
                 <CollapsibleTrigger asChild>
-                  <SidebarMenuButton isActive={pathname.startsWith('/admin/ai-accountant')} tooltip="AI Accountant">
+                  <SidebarMenuButton isActive={pathname.startsWith('/admin/ai-accountant') || pathname.startsWith('/dashboard/ai-accountant')} tooltip="AI Accountant">
                     <Book />
                     <span>AI Accountant</span>
                     <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200 group-[[data-state=open]]:rotate-180" />
