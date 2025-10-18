@@ -23,6 +23,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Separator } from '@/components/ui/separator';
 
 const lineItemSchema = z.object({
     description: z.string().min(1, "Description is required."),
@@ -128,53 +129,54 @@ export default function InvoicesPage() {
     const formatPrice = (price: number) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(price);
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-            <div className="lg:col-span-2">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Invoices</CardTitle>
-                        <CardDescription>A list of invoices created for {client?.name}.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                         {isLoading ? (
-                            <div className="flex justify-center items-center h-40">
-                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                            </div>
-                         ) : (
-                             <Table>
-                                <TableHeader>
+        <div className="space-y-8">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Invoices</CardTitle>
+                    <CardDescription>A list of invoices created for {client?.name}.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                     {isLoading ? (
+                        <div className="flex justify-center items-center h-40">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        </div>
+                     ) : (
+                         <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Customer</TableHead>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Due Date</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead className="text-right">Total</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {invoices.length === 0 ? (
                                     <TableRow>
-                                        <TableHead>Customer</TableHead>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead>Due Date</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead className="text-right">Total</TableHead>
+                                        <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">
+                                            No invoices created yet.
+                                        </TableCell>
                                     </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {invoices.length === 0 ? (
-                                        <TableRow>
-                                            <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">
-                                                No invoices created yet.
-                                            </TableCell>
+                                ) : (
+                                    invoices.map((invoice) => (
+                                        <TableRow key={invoice.id}>
+                                            <TableCell>{customers.find(c => c.id === invoice.customerId)?.name}</TableCell>
+                                            <TableCell>{format(invoice.invoiceDate, "dd/MM/yyyy")}</TableCell>
+                                            <TableCell>{format(invoice.dueDate, "dd/MM/yyyy")}</TableCell>
+                                            <TableCell>{invoice.status}</TableCell>
+                                            <TableCell className="text-right">{formatPrice(invoice.total)}</TableCell>
                                         </TableRow>
-                                    ) : (
-                                        invoices.map((invoice) => (
-                                            <TableRow key={invoice.id}>
-                                                <TableCell>{customers.find(c => c.id === invoice.customerId)?.name}</TableCell>
-                                                <TableCell>{format(invoice.invoiceDate, "dd/MM/yyyy")}</TableCell>
-                                                <TableCell>{format(invoice.dueDate, "dd/MM/yyyy")}</TableCell>
-                                                <TableCell>{invoice.status}</TableCell>
-                                                <TableCell className="text-right">{formatPrice(invoice.total)}</TableCell>
-                                            </TableRow>
-                                        ))
-                                    )}
-                                </TableBody>
-                             </Table>
-                         )}
-                    </CardContent>
-                </Card>
-            </div>
+                                    ))
+                                )}
+                            </TableBody>
+                         </Table>
+                     )}
+                </CardContent>
+            </Card>
+
+             <Separator />
+
              <Card>
                 <CardHeader>
                     <CardTitle>Create New Invoice</CardTitle>
@@ -195,7 +197,7 @@ export default function InvoicesPage() {
                                             <Button
                                             variant="outline"
                                             role="combobox"
-                                            className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
+                                            className={cn("w-[300px] justify-between", !field.value && "text-muted-foreground")}
                                             >
                                             {field.value ? customers.find(c => c.id === field.value)?.name : "Select a customer"}
                                             </Button>
@@ -217,7 +219,7 @@ export default function InvoicesPage() {
                                     </FormItem>
                                 )}
                             />
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-4 max-w-sm">
                                 <FormField control={form.control} name="invoiceDate" render={({ field }) => ( <FormItem><FormLabel>Invoice Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem> )}/>
                                 <FormField control={form.control} name="dueDate" render={({ field }) => ( <FormItem><FormLabel>Due Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem> )}/>
                             </div>
@@ -239,7 +241,7 @@ export default function InvoicesPage() {
                                 </Button>
                             </div>
                             
-                            <CardFooter className="p-4 bg-muted rounded-lg mt-4 flex flex-col items-end gap-2">
+                            <CardFooter className="p-4 bg-muted rounded-lg mt-4 flex flex-col items-end gap-2 max-w-sm">
                                 <div className="flex justify-between w-full text-sm"><span className="text-muted-foreground">Subtotal:</span><span>{formatPrice(totals.subtotal)}</span></div>
                                 <div className="flex justify-between w-full text-sm"><span className="text-muted-foreground">VAT (15%):</span><span>{formatPrice(totals.vat)}</span></div>
                                 <div className="flex justify-between w-full font-bold text-lg"><span >Total:</span><span>{formatPrice(totals.total)}</span></div>
@@ -247,7 +249,7 @@ export default function InvoicesPage() {
 
                              <FormField control={form.control} name="notes" render={({ field }) => ( <FormItem><FormLabel>Notes</FormLabel><FormControl><Textarea {...field} placeholder="Optional notes to appear on the invoice" /></FormControl><FormMessage /></FormItem> )}/>
                             
-                             <Button type="submit" disabled={isLoading} className="w-full">
+                             <Button type="submit" disabled={isLoading}>
                                 {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4"/>}
                                 Create Invoice
                             </Button>
