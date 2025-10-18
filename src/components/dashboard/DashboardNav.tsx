@@ -89,7 +89,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
 
   const aiAccountantItems = [
      { href: `/admin/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['admin', 'staff'] },
-     { href: `/admin/ai-accountant/${clientId}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, roles: ['client'] },
+     { href: `/admin/ai-accountant/${clientId}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, roles: ['client', 'admin', 'staff'] },
      { href: `/admin/ai-accountant/${clientId}/customers`, label: 'Customers', icon: Users, roles: ['client', 'admin', 'staff'] },
      { href: `/admin/ai-accountant/${clientId}/invoices`, label: 'Invoices', icon: FileText, roles: ['client', 'admin', 'staff'] },
      { href: `/admin/ai-accountant/${clientId}/bank/transactions`, label: 'Bank Accounts', icon: Banknote, roles: ['client', 'admin', 'staff'] },
@@ -137,6 +137,9 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const visibleSettingsNavItems = settingsNavItems.filter(item => item.roles.includes(user.role));
   const visibleResellerNavItems = resellerNavItems.filter(item => item.roles.includes(user.role));
 
+  const shouldShowAdminOrAI = user.role === 'admin' || user.role === 'staff' || (user.role === 'client' && user.hasAIAccountantProfile);
+
+
   return (
     <>
       <SidebarHeader>
@@ -172,7 +175,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
           </SidebarMenuItem>
         ))}
         
-        {(user.role === 'admin' || user.role === 'staff' || (user.role === 'client' && user.hasAIAccountantProfile)) && (
+        {shouldShowAdminOrAI && (
             <>
                 {user.role !== 'client' && visibleAdminNavItems.map((item) => (
                     <SidebarMenuItem key={item.href}>
