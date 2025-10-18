@@ -4,7 +4,7 @@ import { getFirestore, doc, updateDoc, getDoc, arrayUnion, Timestamp, setDoc, co
 import { firebaseApp } from '@/lib/firebase';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import crypto from 'crypto';
-import { Order, ItnLog, User } from '@/lib/types';
+import { Order, ItnLog, User, SubscriptionData } from '@/lib/types';
 import dns from 'dns';
 import { promisify } from 'util';
 import { allocationRules as initialAllocationRules } from '@/lib/allocation-rules';
@@ -12,6 +12,7 @@ import { chartOfAccounts as initialChartOfAccounts } from '@/lib/chart-of-accoun
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import WelcomeDiscountEmail from '@/components/emails/WelcomeDiscountEmail';
+import { add } from 'date-fns';
 
 const db = getFirestore(firebaseApp);
 const auth = getAuth(firebaseApp);
@@ -124,6 +125,7 @@ export async function POST(req: NextRequest) {
         await logItnAttempt('Success', 'Security Check 4 PASSED: Server-to-server confirmation successful.');
 
         if (data.payment_status === 'COMPLETE') {
+            // Handle different order sources
             if (order.source === 'AI Accountant Signup') {
                 const signupData = (order as any).signupData;
                 if (signupData) {
@@ -136,6 +138,8 @@ export async function POST(req: NextRequest) {
                     const rulesSnapshot = await getDocs(rulesQuery);
                     const globalRules = rulesSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
 
+                    const subscriptionEndDate = add(new Date(), { days: 30 });
+
                     await setDoc(newUserDocRef, {
                         ...signupData,
                         name: `${signupData.name} ${signupData.surname}`,
@@ -145,15 +149,16 @@ export async function POST(req: NextRequest) {
                         createdAt: serverTimestamp(),
                         subscription: {
                             ...signupData,
-                            monthlyTotal: order.total, // Simplified, main monthly logic is client-side
+                            monthlyTotal: order.total,
                             catchUpFee: order.items.find(i => i.id === 'catch-up-fee')?.price || 0,
                             payrollSetupFee: order.items.find(i => i.id === 'payroll-setup')?.price || 0,
+                            subscriptionEndDate: Timestamp.fromDate(subscriptionEndDate),
+                            subscriptionStatus: 'active',
                         }
                     });
 
-                    // Send welcome email after user is created
                     try {
-                        const emailHtml = render(<WelcomeDiscountEmail name={signupData.name} discountCode={"SIGNUP-WELCOME"} />); // Placeholder code, as original is lost
+                        const emailHtml = render(<WelcomeDiscountEmail name={signupData.name} discountCode={"SIGNUP-WELCOME"} />);
                         await sendEmail({
                             to: signupData.email,
                             subject: `Welcome to My Accountant!`,
@@ -164,9 +169,29 @@ export async function POST(req: NextRequest) {
                         console.error("Failed to send welcome email after payment:", emailError);
                     }
                 }
+                 await updateDoc(orderRef, { status: 'Completed' }); // Complete the signup order
+            } else if (order.renewalForClientId) {
+                // Handle a subscription renewal
+                const clientRef = doc(db, 'aiAccountantClients', order.renewalForClientId);
+                const clientSnap = await getDoc(clientRef);
+                if (clientSnap.exists()) {
+                    const clientData = clientSnap.data() as User;
+                    const currentSub = clientData.subscription || {};
+                    
+                    const newEndDate = add(new Date(), { days: 30 });
+
+                    await updateDoc(clientRef, {
+                        'subscription.subscriptionStatus': 'active',
+                        'subscription.subscriptionEndDate': Timestamp.fromDate(newEndDate),
+                    });
+                     await updateDoc(orderRef, { status: 'Completed' }); // Mark renewal order as complete
+                }
+            } else {
+                 // Handle a standard product/service order
+                await updateDoc(orderRef, { status: 'Processing' });
             }
-            await updateDoc(orderRef, { status: 'Processing' });
-            await logItnAttempt('Success', `Payment complete. Order status updated to 'Processing'.`);
+
+            await logItnAttempt('Success', `Payment complete. Order status updated.`);
         } else {
             await logItnAttempt('Failed', `Payment status was '${data.payment_status}', not 'COMPLETE'.`);
         }

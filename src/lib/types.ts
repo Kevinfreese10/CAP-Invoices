@@ -139,6 +139,7 @@ export type Order = {
   documentUploads?: DocumentUpload[];
   itnHistory?: ItnLog[];
   source?: 'Client' | 'Staff' | 'Reseller' | 'AI Accountant Signup';
+  renewalForClientId?: string;
 };
 
 export type Invoice = {
@@ -153,6 +154,20 @@ export type Invoice = {
   total: number;
   status: 'draft' | 'sent' | 'paid' | 'overdue';
   createdAt: any;
+};
+
+export type SubscriptionData = {
+    serviceLevel: 'free' | 'ai_addon' | 'monthly_non_vat' | 'monthly_vat';
+    extraUsers: number;
+    includeSubmissions: boolean;
+    includePayslips: boolean;
+    payslipCount: number;
+    includeCatchUp: boolean;
+    monthlyTotal: number;
+    catchUpFee: number;
+    payrollSetupFee: number;
+    subscriptionEndDate?: any; // Firestore Timestamp
+    subscriptionStatus?: 'active' | 'lapsed';
 };
 
 export type User = {
@@ -212,6 +227,7 @@ export type User = {
   hasAIAccountantProfile?: boolean;
   importedTransactions?: ImportedTransaction[];
   allocatedTransactions?: AllocatedTransaction[];
+  subscription?: SubscriptionData;
 };
 
 export type ClientCustomer = {
