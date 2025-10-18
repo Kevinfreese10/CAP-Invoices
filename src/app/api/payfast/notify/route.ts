@@ -168,7 +168,7 @@ export async function POST(req: NextRequest) {
                     } catch (emailError) {
                         console.error("Failed to send welcome email after payment:", emailError);
                     }
-                     await updateDoc(orderRef, { status: 'Completed' }); // Complete the signup order
+                     await updateDoc(orderRef, { status: 'Completed', userId: authUid });
                 } else if (order.renewalForClientId) { // This is a RENEWAL payment
                      const clientRef = doc(db, 'aiAccountantClients', order.renewalForClientId);
                      const clientSnap = await getDoc(clientRef);

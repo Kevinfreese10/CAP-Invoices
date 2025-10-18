@@ -26,6 +26,9 @@ import { Order } from '@/lib/types';
 import { getNextOrderId } from '@/lib/sequence';
 import { Timestamp } from 'firebase/firestore';
 import { generatePayFastSignature } from '@/app/actions/payfast';
+import { sendEmail } from '@/lib/email';
+import { render } from '@react-email/components';
+import WelcomeDiscountEmail from '../emails/WelcomeDiscountEmail';
 
 
 const auth = getAuth(firebaseApp);
@@ -134,6 +137,20 @@ export default function AIAccountantSignupForm() {
                 monthlyTotal: monthlyTotal,
             }
         });
+
+        // Send welcome email
+        try {
+            const emailHtml = render(<WelcomeDiscountEmail name={values.name} discountCode={"SIGNUP-WELCOME"} />);
+            await sendEmail({
+                to: values.email,
+                subject: `Welcome to My Accountant!`,
+                html: emailHtml,
+                bcc: 'kev@thinkestry.co.za',
+            });
+        } catch (emailError) {
+            console.error("Failed to send welcome email:", emailError);
+            // Don't block the user flow if email fails, just log it.
+        }
         
         await login(values.email, values.password);
 
