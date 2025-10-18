@@ -10,7 +10,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Plus, Trash2 } from 'lucide-react';
+import { Loader2, Plus, Trash2, CalendarIcon, PlusCircle } from 'lucide-react';
 import { getFirestore, doc, addDoc, getDoc, collection, query, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useParams } from 'next/navigation';
@@ -18,8 +18,6 @@ import { useToast } from '@/hooks/use-toast';
 import { User, Invoice, ClientCustomer, ChartOfAccount } from '@/lib/types';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { CalendarIcon } from 'lucide-react';
-import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -267,7 +265,7 @@ export default function InvoicesPage() {
                                 </div>
                             </div>
                             <div className="space-y-2">
-                                <div className="hidden md:grid md:grid-cols-[2fr_3fr_1fr_1.5fr_1.5fr_2fr_1.5fr_0.5fr] gap-2 text-xs font-semibold px-2">
+                                <div className="hidden md:grid md:grid-cols-[2fr_3fr_1fr_1.5fr_1.5fr_2fr_1.5fr_0.5fr] gap-x-3 text-xs font-semibold px-2">
                                     <span className="text-left">Account</span>
                                     <span className="text-left">Description</span>
                                     <span className="text-center">Qty</span>
