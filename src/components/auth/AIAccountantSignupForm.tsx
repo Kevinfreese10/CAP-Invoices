@@ -81,11 +81,13 @@ export default function AIAccountantSignupForm() {
   const watchedValues = form.watch();
 
   useEffect(() => {
-    const { serviceLevel, extraUsers, includeSubmissions, includePayslips, payslipCount, yearEnd, isVatRegistered } = watchedValues;
+    const { serviceLevel, extraUsers, includeSubmissions, includePayslips, payslipCount, yearEnd } = watchedValues;
     
     // Calculate Monthly Total
     let total = 0;
-    total += pricing[serviceLevel];
+    if (serviceLevel in pricing) {
+      total += pricing[serviceLevel as keyof typeof pricing];
+    }
     total += (extraUsers || 0) * pricing.extraUser;
     if (includeSubmissions) {
       total += pricing.payrollSubmissions;
@@ -97,9 +99,9 @@ export default function AIAccountantSignupForm() {
 
     // Calculate Catch-up Fee
     const isMonthlyAccountingPlan = serviceLevel === 'monthly_non_vat' || serviceLevel === 'monthly_vat';
-    const planFeeForCatchup = isMonthlyAccountingPlan ? pricing[serviceLevel] : 0;
-
-    if (planFeeForCatchup > 0 && yearEnd) {
+    
+    if (isMonthlyAccountingPlan && yearEnd) {
+        const planFeeForCatchup = pricing[serviceLevel];
         const today = new Date();
         const currentYear = today.getFullYear();
         const yearEndMonthIndex = months.indexOf(yearEnd);
@@ -118,15 +120,8 @@ export default function AIAccountantSignupForm() {
     } else {
         setCatchUpFee(0);
     }
-    
-    // Auto-select plan based on VAT status
-    if (isVatRegistered && serviceLevel === 'monthly_non_vat') {
-      form.setValue('serviceLevel', 'monthly_vat');
-    } else if (!isVatRegistered && serviceLevel === 'monthly_vat') {
-      form.setValue('serviceLevel', 'monthly_non_vat');
-    }
 
-  }, [watchedValues, form]);
+  }, [watchedValues]);
 
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
@@ -247,7 +242,7 @@ export default function AIAccountantSignupForm() {
                                                 <div className="pl-8 pt-2 text-sm text-muted-foreground">
                                                     <p className="font-medium text-foreground pb-1">Includes:</p>
                                                     <ul className="list-disc list-inside space-y-1">
-                                                        <li>Annual financial preparation</li>
+                                                        <li>Annual financial statements preparation</li>
                                                         <li>2 × provisional tax returns</li>
                                                         <li>1 × tax return</li>
                                                         <li>CIPC annual return</li>
@@ -290,5 +285,3 @@ export default function AIAccountantSignupForm() {
     </Form>
   );
 }
-
-    
