@@ -257,7 +257,7 @@ export default function DashboardPage() {
                                                     <TableCell>
                                                         <div className="flex items-center text-sm text-muted-foreground">
                                                             <Clock className="mr-1.5 h-4 w-4" />
-                                                            {service.turnaroundTime}
+                                                            <span>{service.turnaroundTime}</span>
                                                         </div>
                                                     </TableCell>
                                                     <TableCell className="text-right font-semibold">{formatPrice(service.price)}</TableCell>
