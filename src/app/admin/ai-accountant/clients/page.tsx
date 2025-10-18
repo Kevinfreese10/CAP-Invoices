@@ -121,7 +121,7 @@ export default function AIAccountantClientsPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">AI Accountant Clients</h1>
-         <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
            <DialogTrigger asChild>
                 <Button onClick={handleAdd}>
                     <PlusCircle className="mr-2 h-4 w-4" />
