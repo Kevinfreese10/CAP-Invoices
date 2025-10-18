@@ -263,7 +263,7 @@ export default function AIAccountantSignupForm() {
                                             </Label>
                                         )}
                                         {watchedValues.isVatRegistered && (
-                                            <Label className="flex flex-col items-start space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer">
+                                             <Label className="flex flex-col items-start space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer">
                                                 <div className="flex items-center space-x-3">
                                                     <RadioGroupItem value="monthly_vat" id="monthly_vat" />
                                                     <div>
