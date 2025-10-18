@@ -4,15 +4,19 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { CheckCircle, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { SubscriptionData } from '@/lib/types';
+import { SubscriptionData, Order } from '@/lib/types';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
+import { getNextOrderId } from '@/lib/sequence';
+import { generatePayFastSignature } from '@/app/actions/payfast';
+import { doc, setDoc, Timestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -25,28 +29,17 @@ const pricing = {
   free: 0,
   ai_addon: 450,
   extraUser: 50,
-  extraCompany: 140, // Assuming a price for extra companies
+  extraCompany: 140,
 };
 
 const planDetails = {
     free: {
         title: 'Free Plan',
         description: 'Manage one company manually. Perfect for getting started.',
-        features: [
-            '1 Company Profile',
-            '1 User',
-            'Manual Transaction Processing',
-            'Basic Reporting',
-        ],
     },
     ai_addon: {
         title: 'AI Accountant Add-on',
         description: 'Unlock the power of AI for full automation.',
-        features: [
-            'Automated AI transaction allocation',
-            'Bank statement PDF reading',
-            'Advanced real-time reports',
-        ],
     },
 };
 
@@ -55,10 +48,12 @@ export default function SubscriptionsPage() {
     const { user, updateUser } = useAuth();
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
+    const [payfastFormData, setPayfastFormData] = useState<{ [key: string]: string } | null>(null);
+
     
     const [isAiActive, setIsAiActive] = useState(user?.subscription?.serviceLevel === 'ai_addon');
     const [extraUsers, setExtraUsers] = useState(user?.subscription?.extraUsers || 0);
-    const [extraCompanies, setExtraCompanies] = useState(0); // Add state for companies
+    const [extraCompanies, setExtraCompanies] = useState(0); 
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
     const planPrice = isAiActive ? pricing.ai_addon : pricing.free;
@@ -66,29 +61,75 @@ export default function SubscriptionsPage() {
     const companiesPrice = extraCompanies * pricing.extraCompany;
     const newTotal = planPrice + usersPrice + companiesPrice;
 
-    
+    useEffect(() => {
+        if (payfastFormData) {
+            const formElement = document.getElementById('payfast-redirect-form');
+            if (formElement) {
+                (formElement as HTMLFormElement).submit();
+            }
+        }
+    }, [payfastFormData]);
+
     const handleSave = async () => {
         if (!user) return;
         setIsLoading(true);
         
-        const newSubscriptionData: SubscriptionData = {
-            ...(user.subscription || {}),
-            serviceLevel: isAiActive ? 'ai_addon' : 'free',
-            extraUsers: extraUsers,
-            // You would also save extraCompanies here if it were part of the data model
-            monthlyTotal: newTotal,
-        };
-
-        // This is a simulation. In a real app, you'd save this to your backend.
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        updateUser({ ...user, subscription: newSubscriptionData });
-        
         toast({
-            title: 'Subscription Updated',
-            description: 'Your plan has been successfully updated.',
-        })
-        setIsLoading(false);
-        setIsConfirmOpen(false);
+            title: 'Processing Subscription Change...',
+            description: 'Please wait while we redirect you to payment.',
+        });
+
+        try {
+            const orderId = await getNextOrderId();
+            const items = [];
+            if (isAiActive) {
+                items.push({ id: 'ai_addon', title: 'AI Accountant Add-on', price: pricing.ai_addon, quantity: 1 });
+            }
+            if (extraUsers > 0) {
+                items.push({ id: 'extra_user', title: 'Additional Users', price: pricing.extraUser, quantity: extraUsers });
+            }
+             if (extraCompanies > 0) {
+                items.push({ id: 'extra_company', title: 'Additional Companies', price: pricing.extraCompany, quantity: extraCompanies });
+            }
+
+            const orderData: Order = {
+                id: orderId,
+                userId: user.uid,
+                customerName: user.name,
+                customerEmail: user.email,
+                items: items,
+                total: newTotal,
+                discountCode: null,
+                discountAmount: null,
+                status: 'Pending Payment',
+                date: Timestamp.now(),
+                source: 'AI Accountant Signup',
+                renewalForClientId: user.uid,
+            };
+            
+            await setDoc(doc(db, 'orders', orderId), orderData);
+            
+            const dataForSignature = {
+                merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID,
+                merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY,
+                return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success/${orderId}`,
+                cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/subscriptions`,
+                notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
+                email_address: user.email,
+                m_payment_id: orderId,
+                amount: newTotal.toFixed(2),
+                item_name: `Subscription Update for ${user.name}`,
+            };
+
+            const signature = await generatePayFastSignature(dataForSignature);
+            setPayfastFormData({ ...dataForSignature, signature });
+
+        } catch (e) {
+            console.error(e);
+            toast({ title: 'Error', description: 'Could not create subscription order.', variant: 'destructive'});
+            setIsLoading(false);
+            setIsConfirmOpen(false);
+        }
     }
     
     if (!user) {
@@ -98,6 +139,7 @@ export default function SubscriptionsPage() {
     const currentPlan = user.subscription?.serviceLevel || 'free';
     
     return (
+        <>
         <div className="space-y-8">
             <h1 className="text-3xl font-bold tracking-tight">My Subscription</h1>
             <Card>
@@ -211,7 +253,7 @@ export default function SubscriptionsPage() {
                                 <Button variant="ghost" onClick={() => setIsConfirmOpen(false)}>Cancel</Button>
                                 <Button onClick={handleSave} disabled={isLoading}>
                                      {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                    Confirm Changes
+                                    Proceed to Payment
                                 </Button>
                             </DialogFooter>
                         </DialogContent>
@@ -219,5 +261,14 @@ export default function SubscriptionsPage() {
                 </CardFooter>
             </Card>
         </div>
+        {payfastFormData && (
+            <form id="payfast-redirect-form" action={process.env.NEXT_PUBLIC_PAYFAST_URL} method="post" style={{ display: 'none' }}>
+                {Object.entries(payfastFormData).map(([key, value]) => (
+                    <input key={key} type="hidden" name={key} value={value as string} />
+                ))}
+            </form>
+        )}
+        </>
     );
 }
+
