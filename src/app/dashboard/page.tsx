@@ -27,6 +27,11 @@ type Category = {
     order: number; 
 };
 
+const formatPrice = (price: number) => {
+    // Use simple formatting to avoid hydration mismatch between server/client
+    return `R ${price.toLocaleString('en-US')}`;
+};
+
 
 export default function DashboardPage() {
     const { user } = useAuth();
