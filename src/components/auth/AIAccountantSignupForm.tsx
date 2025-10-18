@@ -23,6 +23,9 @@ import { Separator } from '../ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { differenceInMonths, startOfMonth } from 'date-fns';
 import { AnimatePresence, motion } from 'framer-motion';
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
+import { Checkbox } from '../ui/checkbox';
+
 
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
@@ -40,6 +43,7 @@ const formSchema = z.object({
   includeSubmissions: z.boolean().default(false),
   includePayslips: z.boolean().default(false),
   payslipCount: z.preprocess(val => Number(val) || 0, z.number().min(0).optional()),
+  includeCatchUp: z.boolean().default(true),
 });
 
 const pricing = {
@@ -48,6 +52,7 @@ const pricing = {
   monthly_non_vat: 950,
   monthly_vat: 1950,
   extraUser: 50,
+  payrollSetup: 950,
   payrollSubmissions: 550,
   perPayslip: 110,
 };
@@ -60,6 +65,7 @@ export default function AIAccountantSignupForm() {
   const [step, setStep] = useState(1);
   const [monthlyTotal, setMonthlyTotal] = useState(0);
   const [catchUpFee, setCatchUpFee] = useState(0);
+  const [payrollSetupFee, setPayrollSetupFee] = useState(0);
   const { login } = useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -75,13 +81,14 @@ export default function AIAccountantSignupForm() {
       includeSubmissions: false,
       includePayslips: false,
       payslipCount: 0,
+      includeCatchUp: true,
     },
   });
 
   const watchedValues = form.watch();
 
   useEffect(() => {
-    const { serviceLevel, extraUsers, includeSubmissions, includePayslips, payslipCount, yearEnd } = watchedValues;
+    const { serviceLevel, extraUsers, includeSubmissions, includePayslips, payslipCount, yearEnd, includeCatchUp } = watchedValues;
     
     // Calculate Monthly Total
     let total = 0;
@@ -97,10 +104,13 @@ export default function AIAccountantSignupForm() {
     }
     setMonthlyTotal(total);
 
+    // Calculate Payroll Setup Fee
+    setPayrollSetupFee(includePayslips ? pricing.payrollSetup : 0);
+    
     // Calculate Catch-up Fee
     const isMonthlyAccountingPlan = serviceLevel === 'monthly_non_vat' || serviceLevel === 'monthly_vat';
     
-    if (isMonthlyAccountingPlan && yearEnd) {
+    if (isMonthlyAccountingPlan && yearEnd && includeCatchUp) {
         const planFeeForCatchup = pricing[serviceLevel as 'monthly_non_vat' | 'monthly_vat'];
         const today = new Date();
         const currentYear = today.getFullYear();
@@ -153,6 +163,7 @@ export default function AIAccountantSignupForm() {
                 ...values,
                 monthlyTotal: monthlyTotal,
                 catchUpFee: catchUpFee,
+                payrollSetupFee: payrollSetupFee,
             }
         });
         
@@ -243,9 +254,9 @@ export default function AIAccountantSignupForm() {
                                                     <p className="font-medium text-foreground pb-1">Includes:</p>
                                                     <ul className="list-disc list-inside space-y-1">
                                                         <li>Monthly management accounts</li>
-                                                        <li>Annual financial statements</li>
-                                                        <li>Provisional tax returns</li>
-                                                        <li>Annual income tax return</li>
+                                                        <li>Annual financial statements preparation</li>
+                                                        <li>2 × provisional tax returns</li>
+                                                        <li>1 × tax return</li>
                                                         <li>CIPC annual return</li>
                                                         <li>B-BBEE certificate or affidavit</li>
                                                         <li>Beneficial ownership declaration</li>
@@ -271,8 +282,40 @@ export default function AIAccountantSignupForm() {
                         </div>
                         <Separator />
                         <div className="space-y-3">
-                            {catchUpFee > 0 && (<div className="flex justify-between items-center bg-amber-100 p-4 rounded-lg border border-amber-300"><h4 className="text-lg font-bold text-amber-800">Once-off Catch-up Fee:</h4><p className="text-2xl font-bold text-amber-900">{formatPrice(catchUpFee)}</p></div>)}
+                             {(watchedValues.serviceLevel === 'monthly_non_vat' || watchedValues.serviceLevel === 'monthly_vat') && (
+                                <div className="p-3 border rounded-md">
+                                    <FormField
+                                        control={form.control}
+                                        name="includeCatchUp"
+                                        render={({ field }) => (
+                                            <FormItem className="flex items-start space-x-3">
+                                                <FormControl><Checkbox className="mt-1" checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                                                <div className="grid gap-1.5 leading-none">
+                                                    <FormLabel>Include Once-off Catch-up Fee?</FormLabel>
+                                                    <FormMessage />
+                                                </div>
+                                            </FormItem>
+                                        )}
+                                    />
+                                    {!watchedValues.includeCatchUp && (
+                                        <Alert variant="destructive" className="mt-2 text-xs">
+                                        <AlertDescription>
+                                            By opting out, bookkeeping services will only commence from the current month. Prior months will not be processed.
+                                        </AlertDescription>
+                                        </Alert>
+                                    )}
+                                </div>
+                             )}
+
                             <div className="flex justify-between items-center bg-primary/10 p-4 rounded-lg"><h4 className="text-lg font-bold">Estimated Monthly Total:</h4><p className="text-2xl font-bold">{formatPrice(monthlyTotal)}</p></div>
+                            
+                             {(catchUpFee > 0 || payrollSetupFee > 0) && (
+                                <div className="flex justify-between items-center bg-amber-100 p-4 rounded-lg border border-amber-300">
+                                    <h4 className="text-lg font-bold text-amber-800">Total Once-Off Fees:</h4>
+                                    <p className="text-2xl font-bold text-amber-900">{formatPrice(catchUpFee + payrollSetupFee)}</p>
+                                </div>
+                            )}
+
                         </div>
                         <div className="flex gap-2">
                              <Button type="button" variant="outline" onClick={() => setStep(1)} className="w-full"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
