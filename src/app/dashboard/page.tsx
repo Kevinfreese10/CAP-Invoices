@@ -73,6 +73,7 @@ export default function DashboardPage() {
                 'EMP201 submissions (PAYE, UIF, SDL)',
                 'UIF Declaration',
                 'Included EMP501 recons x 2',
+                'IRP5s',
             ]
         },
     ];
