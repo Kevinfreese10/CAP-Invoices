@@ -12,7 +12,7 @@ import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { getFirestore, doc, setDoc, serverTimestamp, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useState, useEffect } from 'react';
-import { Loader2, Sparkles, CheckCheck, ArrowLeft } from 'lucide-react';
+import { Loader2, Sparkles, CheckCheck, ArrowLeft, CheckCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { allocationRules as initialAllocationRules } from '@/lib/allocation-rules';
 import { chartOfAccounts as initialChartOfAccounts } from '@/lib/chart-of-accounts';
@@ -214,7 +214,7 @@ export default function AIAccountantSignupForm() {
                         <FormField control={form.control} name="password" render={({ field }) => ( <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <div className="grid grid-cols-2 gap-4">
                            <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
-                           <FormField control={form.control} name="isVatRegistered" render={({ field }) => ( <FormItem className="flex flex-col pt-2"><FormLabel>VAT Registered?</FormLabel><FormControl><Switch className="mt-2" checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem> )} />
+                           <FormField control={form.control} name="isVatRegistered" render={({ field }) => ( <FormItem className="flex flex-col pt-2"><FormLabel>Are you VAT registered?</FormLabel><FormControl><Switch className="mt-2" checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem> )} />
                         </div>
                         <Button type="button" onClick={handleNextStep} className="w-full">Next</Button>
                     </div>
@@ -236,7 +236,28 @@ export default function AIAccountantSignupForm() {
                                             <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer"><RadioGroupItem value="monthly_non_vat" id="monthly_non_vat" /><div><span className="font-semibold">Monthly Accounting - Non-VAT (R950 / month)</span><p className="text-sm text-muted-foreground">Includes AI Accountant & full bookkeeping service.</p></div></Label>
                                         )}
                                         {watchedValues.isVatRegistered && (
-                                            <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer"><RadioGroupItem value="monthly_vat" id="monthly_vat" /><div><span className="font-semibold">Monthly Accounting - VAT (R1950 / month)</span><p className="text-sm text-muted-foreground">Full-suite service for VAT-registered companies.</p></div></Label>
+                                            <Label className="flex flex-col items-start space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer">
+                                                <div className="flex items-center space-x-3">
+                                                    <RadioGroupItem value="monthly_vat" id="monthly_vat" />
+                                                    <div>
+                                                        <span className="font-semibold">Monthly Accounting - VAT (R1950 / month)</span>
+                                                        <p className="text-sm text-muted-foreground">Full-suite service for VAT-registered companies.</p>
+                                                    </div>
+                                                </div>
+                                                <div className="pl-8 pt-2 text-sm text-muted-foreground">
+                                                    <p className="font-medium text-foreground pb-1">Includes:</p>
+                                                    <ul className="list-disc list-inside space-y-1">
+                                                        <li>Annual financial preparation</li>
+                                                        <li>2 × provisional tax returns</li>
+                                                        <li>1 × tax return</li>
+                                                        <li>CIPC annual return</li>
+                                                        <li>BEE certificate</li>
+                                                        <li>Beneficial ownership declaration</li>
+                                                        <li>Tax clearance</li>
+                                                        <li>VAT returns</li>
+                                                    </ul>
+                                                </div>
+                                            </Label>
                                         )}
                                     </RadioGroup>
                                 </FormControl>
