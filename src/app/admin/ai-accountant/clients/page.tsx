@@ -1,3 +1,4 @@
+
 'use client';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -30,9 +31,14 @@ export default function AIAccountantClientsPage() {
   const { user: currentUser } = useAuth();
   
   const fetchClients = async () => {
+    if (!currentUser?.uid) return;
     setIsLoading(true);
     try {
-        const clientsQuery = query(collection(db, "aiAccountantClients"), orderBy("name"));
+        const clientsQuery = query(
+            collection(db, "aiAccountantClients"), 
+            where("createdBy", "==", currentUser.uid),
+            orderBy("name")
+        );
         const clientsSnapshot = await getDocs(clientsQuery);
         const fetchedClients = clientsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
         setClients(fetchedClients);
@@ -45,8 +51,10 @@ export default function AIAccountantClientsPage() {
   };
 
   useEffect(() => {
-    fetchClients();
-  }, []);
+    if(currentUser) {
+        fetchClients();
+    }
+  }, [currentUser]);
 
   const handleAdd = () => {
     setSelectedClient(null);
@@ -90,8 +98,11 @@ export default function AIAccountantClientsPage() {
             await setDoc(doc(db, "aiAccountantClients", selectedClient.id), clientData, { merge: true });
             toast({ title: 'Client Updated'});
         } else {
-            // This form is for management, not creation. Creation happens via signup.
-            const newDocRef = await addDoc(collection(db, "aiAccountantClients"), { ...clientData, createdAt: Timestamp.now()});
+            const newDocRef = await addDoc(collection(db, "aiAccountantClients"), { 
+                ...clientData, 
+                createdAt: Timestamp.now(),
+                createdBy: currentUser.uid,
+            });
             toast({ title: 'Client Created' });
         }
 
