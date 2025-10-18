@@ -28,7 +28,7 @@ import { Timestamp } from 'firebase/firestore';
 import { generatePayFastSignature } from '@/app/actions/payfast';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
-import WelcomeDiscountEmail from '../emails/WelcomeDiscountEmail';
+import AIAccountantWelcomeEmail from '../emails/AIAccountantWelcomeEmail';
 
 
 const auth = getAuth(firebaseApp);
@@ -140,7 +140,7 @@ export default function AIAccountantSignupForm() {
 
         // Send welcome email
         try {
-            const emailHtml = render(<WelcomeDiscountEmail name={values.name} discountCode={"SIGNUP-WELCOME"} />);
+            const emailHtml = render(<AIAccountantWelcomeEmail name={values.name} loginUrl={`${process.env.NEXT_PUBLIC_APP_URL}/login`} />);
             await sendEmail({
                 to: values.email,
                 subject: `Welcome to My Accountant!`,
