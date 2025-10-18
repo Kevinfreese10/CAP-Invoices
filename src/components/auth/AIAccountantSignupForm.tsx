@@ -94,8 +94,10 @@ export default function AIAccountantSignupForm() {
     setMonthlyTotal(total);
 
     // Calculate Catch-up Fee
-    const planFee = pricing[serviceLevel];
-    if (planFee > 0 && yearEnd) {
+    const isMonthlyAccountingPlan = serviceLevel === 'monthly_non_vat' || serviceLevel === 'monthly_vat';
+    const planFeeForCatchup = isMonthlyAccountingPlan ? pricing[serviceLevel] : 0;
+
+    if (planFeeForCatchup > 0 && yearEnd) {
         const today = new Date();
         const currentYear = today.getFullYear();
         const yearEndMonthIndex = months.indexOf(yearEnd);
@@ -109,7 +111,7 @@ export default function AIAccountantSignupForm() {
         
         const monthsPassed = differenceInMonths(today, financialYearStart);
         
-        const calculatedFee = (planFee * Math.max(0, monthsPassed)) / 2;
+        const calculatedFee = (planFeeForCatchup * Math.max(0, monthsPassed)) / 2;
         setCatchUpFee(calculatedFee);
     } else {
         setCatchUpFee(0);
@@ -162,7 +164,7 @@ export default function AIAccountantSignupForm() {
     } catch (error: any) {
         let description = 'There was a problem creating your account. Please try again.';
         if (error.code === 'auth/email-already-in-use') {
-            description = 'An account with this email address already exists. Please log in instead.';
+            description = 'An account with this email already exists. Please log in instead.';
         }
         toast({ title: 'Signup Failed', description, variant: 'destructive' });
     } finally {
