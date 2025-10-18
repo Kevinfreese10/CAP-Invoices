@@ -19,7 +19,7 @@ const lookup = promisify(dns.lookup);
  * @returns The MD5 signature hash.
  */
 function generateSignature(data: { [key: string]: any }, passphrase?: string): string {
-    // Create the parameter string by concatenating key-value pairs from the data object
+    // Create a parameter string by concatenating key-value pairs from the data object
     let pfParamString = '';
     for (const key in data) {
         if (data.hasOwnProperty(key) && key !== 'signature') {
