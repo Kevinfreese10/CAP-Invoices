@@ -263,10 +263,10 @@ export default function InvoicesPage() {
                                     <span>Account</span>
                                     <span>Description</span>
                                     <span className="text-center">Qty</span>
-                                    <span className="text-right">Unit Price</span>
-                                    <span className="text-right">Total</span>
-                                    <span>Tax Code</span>
-                                    <span className="text-right">Tax</span>
+                                    <span className="text-center">Unit Price</span>
+                                    <span className="text-center">Total</span>
+                                    <span className="text-center">Tax Code</span>
+                                    <span className="text-center">Tax</span>
                                     <span></span>
                                 </div>
                                 {fields.map((field, index) => {
@@ -312,3 +312,5 @@ export default function InvoicesPage() {
         </div>
     );
 }
+
+    
