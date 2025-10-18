@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Rocket, ShieldCheck, Wallet, Bot, FileInput, BarChart, Percent, Building, Users, FileText, BadgeDollarSign, CheckCircle } from 'lucide-react';
 import TrustIndexWidget from '@/components/shared/TrustIndexWidget';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import AIAccountantSignupForm from '@/components/auth/AIAccountantSignupForm';
 
 export default function AiAccountantPage() {
 
@@ -275,6 +277,18 @@ export default function AiAccountantPage() {
            <div className="text-center mt-16">
                 <h3 className="text-2xl font-bold">Need to Add More Users?</h3>
                 <p className="text-muted-foreground mt-2">Additional users can be added to any plan for just <span className="font-bold text-primary">R50 per user, per month</span>.</p>
+                <Dialog>
+                    <DialogTrigger asChild>
+                        <Button className="mt-4">Sign Up Now</Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-2xl">
+                        <DialogHeader>
+                            <DialogTitle className="text-2xl font-bold tracking-tight">AI Accountant Signup</DialogTitle>
+                            <DialogDescription>Create an account to start automating your bookkeeping.</DialogDescription>
+                        </DialogHeader>
+                        <AIAccountantSignupForm />
+                    </DialogContent>
+                </Dialog>
             </div>
 
         </div>
