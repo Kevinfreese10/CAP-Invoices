@@ -8,14 +8,15 @@ import { firebaseApp } from '@/lib/firebase';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, User as FirebaseUser, signOut, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
+import { isPast } from 'date-fns';
 
 const db = getFirestore(firebaseApp);
 const auth = getAuth(firebaseApp);
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password?: string) => Promise<User | 'invalid_role' | 'invalid_credentials' | undefined>;
-  reauthenticate: (firebaseUser: FirebaseUser) => Promise<User | 'invalid_credentials' | undefined>;
+  login: (email: string, password?: string) => Promise<User | 'invalid_role' | 'invalid_credentials' | 'subscription_lapsed' | undefined>;
+  reauthenticate: (firebaseUser: FirebaseUser) => Promise<User | 'invalid_credentials' | 'subscription_lapsed' | undefined>;
   logout: () => void;
   signup: (email: string, password: string, name: string) => Promise<User | string>;
   updateUser: (updatedUser: User | null) => void;
@@ -54,7 +55,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
-  const login = async (email: string, password?: string): Promise<User | 'invalid_role' | 'invalid_credentials' | undefined> => {
+  const login = async (email: string, password?: string): Promise<User | 'invalid_role' | 'invalid_credentials' | 'subscription_lapsed' | undefined> => {
     if (!password) return 'invalid_credentials';
     try {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
@@ -71,20 +72,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const reauthenticate = async (firebaseUser: FirebaseUser): Promise<User | 'invalid_credentials' | undefined> => {
+  const reauthenticate = async (firebaseUser: FirebaseUser): Promise<User | 'invalid_credentials' | 'subscription_lapsed' | undefined> => {
         if (!firebaseUser.email) return 'invalid_credentials';
         
         try {
-            const userDocRef = doc(db, 'users', firebaseUser.uid);
-            const userDocSnap = await getDoc(userDocRef);
+            const collectionsToTry = ['users', 'aiAccountantClients'];
+            let userDocSnap;
+            let foundUser: User | null = null;
             
-            if (userDocSnap.exists()) {
-                 const foundUser = { ...userDocSnap.data(), id: userDocSnap.id, uid: userDocSnap.id } as User;
+            for (const collectionName of collectionsToTry) {
+                const userDocRef = doc(db, collectionName, firebaseUser.uid);
+                userDocSnap = await getDoc(userDocRef);
+                if (userDocSnap.exists()) {
+                    foundUser = { ...userDocSnap.data(), id: userDocSnap.id, uid: userDocSnap.id } as User;
+                    break;
+                }
+            }
+
+            if (foundUser) {
+                // Check for lapsed AI Accountant subscription
+                if (foundUser.source === 'AI Accountant' && foundUser.subscription) {
+                    const endDate = foundUser.subscription.subscriptionEndDate?.toDate();
+                    if (endDate && isPast(endDate) && foundUser.subscription.subscriptionStatus !== 'active') {
+                        setUser(foundUser); // Set user temporarily to allow renewal
+                        return 'subscription_lapsed';
+                    }
+                }
                  updateUser(foundUser);
                  setIsAuthenticated(true);
                  return foundUser;
             } else {
-                console.warn(`User document not found for UID: ${firebaseUser.uid}. This may happen if the user was created in Auth but their Firestore document creation failed.`)
+                console.warn(`User document not found for UID: ${firebaseUser.uid} in any collection.`)
                 await signOut(auth);
                 return 'invalid_credentials';
             }

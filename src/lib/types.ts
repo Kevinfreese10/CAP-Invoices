@@ -359,4 +359,3 @@ export type AIAllocationJob = {
     completedAt?: any;
     error?: string;
 }
-    

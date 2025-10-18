@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
             // Handle different order sources
             if (order.source === 'AI Accountant Signup') {
                 const signupData = (order as any).signupData;
-                if (signupData) {
+                if (signupData) { // This is a NEW signup with once-off fees
                     const userCredential = await createUserWithEmailAndPassword(auth, signupData.email, signupData.password);
                     const newFirebaseUser = userCredential.user;
                     const authUid = newFirebaseUser.uid;
@@ -168,23 +168,21 @@ export async function POST(req: NextRequest) {
                     } catch (emailError) {
                         console.error("Failed to send welcome email after payment:", emailError);
                     }
-                }
-                 await updateDoc(orderRef, { status: 'Completed' }); // Complete the signup order
-            } else if (order.renewalForClientId) {
-                // Handle a subscription renewal
-                const clientRef = doc(db, 'aiAccountantClients', order.renewalForClientId);
-                const clientSnap = await getDoc(clientRef);
-                if (clientSnap.exists()) {
-                    const clientData = clientSnap.data() as User;
-                    const currentSub = clientData.subscription || {};
-                    
-                    const newEndDate = add(new Date(), { days: 30 });
+                     await updateDoc(orderRef, { status: 'Completed' }); // Complete the signup order
+                } else if (order.renewalForClientId) { // This is a RENEWAL payment
+                     const clientRef = doc(db, 'aiAccountantClients', order.renewalForClientId);
+                     const clientSnap = await getDoc(clientRef);
+                     if (clientSnap.exists()) {
+                         const clientData = clientSnap.data() as User;
+                         const currentSub = clientData.subscription || {};
+                         const newEndDate = add(new Date(), { days: 30 });
 
-                    await updateDoc(clientRef, {
-                        'subscription.subscriptionStatus': 'active',
-                        'subscription.subscriptionEndDate': Timestamp.fromDate(newEndDate),
-                    });
-                     await updateDoc(orderRef, { status: 'Completed' }); // Mark renewal order as complete
+                         await updateDoc(clientRef, {
+                             'subscription.subscriptionStatus': 'active',
+                             'subscription.subscriptionEndDate': Timestamp.fromDate(newEndDate),
+                         });
+                         await updateDoc(orderRef, { status: 'Completed' });
+                     }
                 }
             } else {
                  // Handle a standard product/service order

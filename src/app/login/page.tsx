@@ -9,7 +9,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Portal Login</CardTitle>
-          <CardDescription>Enter your email to log in. This portal is for staff, admins, and resellers. For this demo, try `admin@test.com` or `reseller@test.com`.</CardDescription>
+          <CardDescription>Enter your email and password to access your dashboard.</CardDescription>
         </CardHeader>
         <CardContent>
           <LoginForm />
