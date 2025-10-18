@@ -82,14 +82,18 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/compliance', label: 'Compliance', icon: ShieldCheck, roles: ['admin'] },
     { href: '/admin/community/questions', label: 'Community Q&A', icon: MessageCircleQuestion, roles: ['admin'] },
     { href: '/admin/clients', label: 'Manage Clients', icon: BookUser, roles: ['admin'] },
-    { href: '/admin/services', label: 'Manage Services', icon: Briefcase, roles: ['admin'] },
+    { href: '/admin/services', label: 'Manage Products', icon: Briefcase, roles: ['admin'] },
     { href: '/admin/tools', label: 'Tools', icon: Wrench, roles: ['admin'] },
   ];
   
   const aiAccountantItems = [
-     { href: `/admin/ai-accountant/${user?.id}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'client'] },
+     { href: `/admin/ai-accountant/${user?.id}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, roles: ['client'] },
      { href: '/admin/ai-accountant/customers', label: 'Client Profiles', icon: Users, roles: ['admin'] },
-     { href: '/admin/ai-accountant/chart-of-accounts', label: 'Chart of Accounts', icon: Book, roles: ['admin'] },
+     { href: `/admin/ai-accountant/${user?.id}/customers`, label: 'Customers', icon: Users, roles: ['client'] },
+     { href: `/admin/ai-accountant/${user?.id}/invoices`, label: 'Invoices', icon: FileText, roles: ['client'] },
+     { href: `/admin/ai-accountant/${user?.id}/bank/transactions`, label: 'Bank Accounts', icon: Banknote, roles: ['client', 'admin'] },
+     { href: `/admin/ai-accountant/${user?.id}/chart-of-accounts`, label: 'Chart of Accounts', icon: Book, roles: ['client', 'admin'] },
+     { href: `/admin/ai-accountant/${user?.id}/journals`, label: 'Journals', icon: BookMarked, roles: ['client', 'admin'] },
      { href: '/admin/ai-accountant/allocation-rules', label: 'Allocation Rules', icon: ArrowRightLeft, roles: ['admin'] },
   ];
 
@@ -118,7 +122,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
 
   const resellerNavItems = [
     { href: '/reseller/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['reseller'] },
-    { href: '/reseller/services', label: 'View Services', icon: Briefcase, roles: ['reseller'] },
+    { href: '/reseller/services', label: 'View Products', icon: Briefcase, roles: ['reseller'] },
     { href: '/reseller/orders', label: 'Client Orders', icon: ShieldCheck, roles: ['reseller'] },
     { href: '/reseller/profile', label: 'My Profile', icon: User, roles: ['reseller'] },
     { href: '/reseller/settings', label: 'API & Branding', icon: Settings, roles: ['reseller'] },
