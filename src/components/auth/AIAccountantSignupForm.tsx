@@ -20,14 +20,19 @@ import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Label } from '../ui/label';
 import { Switch } from '../ui/switch';
 import { Separator } from '../ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { differenceInMonths, startOfMonth } from 'date-fns';
 
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
+
+const months = [ "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" ];
 
 const formSchema = z.object({
   companyName: z.string().min(2, 'Company name is required.'),
   email: z.string().email('Please enter a valid email.'),
   password: z.string().min(6, 'Password must be at least 6 characters.'),
+  yearEnd: z.string().optional(),
   serviceLevel: z.enum(['free', 'ai_addon', 'monthly_non_vat', 'monthly_vat']).default('free'),
   extraUsers: z.preprocess(val => Number(val) || 0, z.number().min(0).optional()),
   includeSubmissions: z.boolean().default(false),
@@ -51,6 +56,7 @@ export default function AIAccountantSignupForm() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [monthlyTotal, setMonthlyTotal] = useState(0);
+  const [catchUpFee, setCatchUpFee] = useState(0);
   const { login } = useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -59,6 +65,7 @@ export default function AIAccountantSignupForm() {
       companyName: '',
       email: '',
       password: '',
+      yearEnd: 'February',
       serviceLevel: 'free',
       extraUsers: 0,
       includeSubmissions: false,
@@ -70,20 +77,42 @@ export default function AIAccountantSignupForm() {
   const watchedValues = form.watch();
 
   useEffect(() => {
-    let total = 0;
-    const { serviceLevel, extraUsers, includeSubmissions, includePayslips, payslipCount } = watchedValues;
+    const { serviceLevel, extraUsers, includeSubmissions, includePayslips, payslipCount, yearEnd } = watchedValues;
     
+    // Calculate Monthly Total
+    let total = 0;
     total += pricing[serviceLevel];
     total += (extraUsers || 0) * pricing.extraUser;
-
     if (includeSubmissions) {
       total += pricing.payrollSubmissions;
     }
     if (includePayslips) {
       total += (payslipCount || 0) * pricing.perPayslip;
     }
-
     setMonthlyTotal(total);
+
+    // Calculate Catch-up Fee
+    const planFee = pricing[serviceLevel];
+    if (planFee > 0 && yearEnd) {
+        const today = new Date();
+        const currentYear = today.getFullYear();
+        const yearEndMonthIndex = months.indexOf(yearEnd);
+        
+        let prevYearEnd = new Date(currentYear, yearEndMonthIndex, 1);
+        if (today < prevYearEnd) {
+            prevYearEnd.setFullYear(currentYear - 1);
+        }
+
+        const financialYearStart = startOfMonth(new Date(prevYearEnd.getFullYear(), prevYearEnd.getMonth() + 1, 1));
+        
+        const monthsPassed = differenceInMonths(today, financialYearStart);
+        
+        const calculatedFee = (planFee * Math.max(0, monthsPassed)) / 2;
+        setCatchUpFee(calculatedFee);
+    } else {
+        setCatchUpFee(0);
+    }
+
   }, [watchedValues]);
 
 
@@ -115,6 +144,7 @@ export default function AIAccountantSignupForm() {
             subscription: {
                 ...values,
                 monthlyTotal: monthlyTotal,
+                catchUpFee: catchUpFee,
             }
         });
         
@@ -152,6 +182,7 @@ export default function AIAccountantSignupForm() {
         <FormField control={form.control} name="companyName" render={({ field }) => ( <FormItem><FormLabel>Company Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
         <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Login Email Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
         <FormField control={form.control} name="password" render={({ field }) => ( <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
+        <FormField control={form.control} name="yearEnd" render={({ field }) => ( <FormItem><FormLabel>Financial Year End</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a month" /></SelectTrigger></FormControl><SelectContent>{months.map(month => <SelectItem key={month} value={month}>{month}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
 
         <Separator />
         
@@ -234,11 +265,18 @@ export default function AIAccountantSignupForm() {
         
         <Separator />
 
-        <div className="flex justify-between items-center bg-primary/10 p-4 rounded-lg">
-            <h4 className="text-lg font-bold">Estimated Monthly Total:</h4>
-            <p className="text-2xl font-bold">{formatPrice(monthlyTotal)}</p>
+        <div className="space-y-3">
+             {catchUpFee > 0 && (
+                <div className="flex justify-between items-center bg-amber-100 p-4 rounded-lg border border-amber-300">
+                    <h4 className="text-lg font-bold text-amber-800">Once-off Catch-up Fee:</h4>
+                    <p className="text-2xl font-bold text-amber-900">{formatPrice(catchUpFee)}</p>
+                </div>
+            )}
+            <div className="flex justify-between items-center bg-primary/10 p-4 rounded-lg">
+                <h4 className="text-lg font-bold">Estimated Monthly Total:</h4>
+                <p className="text-2xl font-bold">{formatPrice(monthlyTotal)}</p>
+            </div>
         </div>
-
 
         <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
             {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCheck className="mr-2 h-4 w-4"/>}
