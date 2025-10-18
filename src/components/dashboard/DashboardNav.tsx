@@ -91,14 +91,14 @@ export default function DashboardNav({ user }: { user: UserType }) {
   ];
   
   const aiAccountantItems = [
-     { href: `${basePath}/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['admin', 'client', 'staff', 'reseller'] },
-     { href: `${basePath}/ai-accountant/${clientId}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'staff', 'client'] },
-     { href: `${basePath}/ai-accountant/${clientId}/customers`, label: 'Customers', icon: Users, roles: ['admin', 'staff', 'client'] },
-     { href: `${basePath}/ai-accountant/${clientId}/invoices`, label: 'Invoices', icon: FileText, roles: ['admin', 'staff', 'client'] },
-     { href: `${basePath}/ai-accountant/${clientId}/bank/transactions`, label: 'Bank Accounts', icon: Banknote, roles: ['admin', 'staff', 'client'] },
-     { href: `${basePath}/ai-accountant/${clientId}/chart-of-accounts`, label: 'Chart of Accounts', icon: Book, roles: ['admin', 'staff', 'client'] },
-     { href: `${basePath}/ai-accountant/${clientId}/journals`, label: 'Journals', icon: BookMarked, roles: ['admin', 'staff', 'client'] },
-     { href: `${basePath}/ai-accountant/${clientId}/reports`, label: 'Reports', icon: FileSpreadsheet, roles: ['admin', 'staff', 'client'] },
+     { href: `${basePath}/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['admin', 'client', 'reseller'] },
+     { href: `${basePath}/ai-accountant/${clientId}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'client'] },
+     { href: `${basePath}/ai-accountant/${clientId}/customers`, label: 'Customers', icon: Users, roles: ['admin', 'client'] },
+     { href: `${basePath}/ai-accountant/${clientId}/invoices`, label: 'Invoices', icon: FileText, roles: ['admin', 'client'] },
+     { href: `${basePath}/ai-accountant/${clientId}/bank/transactions`, label: 'Bank Accounts', icon: Banknote, roles: ['admin', 'client'] },
+     { href: `${basePath}/ai-accountant/${clientId}/chart-of-accounts`, label: 'Chart of Accounts', icon: Book, roles: ['admin', 'client'] },
+     { href: `${basePath}/ai-accountant/${clientId}/journals`, label: 'Journals', icon: BookMarked, roles: ['admin', 'client'] },
+     { href: `${basePath}/ai-accountant/${clientId}/reports`, label: 'Reports', icon: FileSpreadsheet, roles: ['admin', 'client'] },
   ];
 
   const capSupplierItems = [
@@ -197,7 +197,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
         ))}
 
 
-        {(hasAIAccountantProfile || user.role === 'admin' || user.role === 'staff' || user.role === 'reseller') && (
+        {(hasAIAccountantProfile || user.role === 'admin' || user.role === 'reseller') && (
             <Collapsible open={isAiAccountantOpen} onOpenChange={setIsAiAccountantOpen}>
             <SidebarMenuItem>
                 <CollapsibleTrigger asChild>
