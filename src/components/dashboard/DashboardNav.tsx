@@ -134,7 +134,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
   ];
 
   const hasAIAccountantProfile = user.hasAIAccountantProfile || user.source === 'AI Accountant';
-  const shouldShowAdminOrAI = user.role === 'admin' || user.role === 'staff' || (user.role === 'client' && hasAIAccountantProfile);
   
   const visibleNavItems = navItems.filter(item => item.roles.includes(user.role));
   const visibleAdminNavItems = adminNavItems.filter(item => item.roles.includes(user.role));
@@ -164,44 +163,41 @@ export default function DashboardNav({ user }: { user: UserType }) {
 
       <SidebarMenu className="flex-1">
         
-        {shouldShowAdminOrAI ? (
-            <>
-                {visibleAdminNavItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
-                    <Link href={item.href}>
-                        <item.icon />
-                        <span>{item.label}</span>
-                    </Link>
-                    </SidebarMenuButton>
-                </SidebarMenuItem>
-                ))}
-            </>
-        ) : user.role === 'reseller' ? (
-            visibleResellerNavItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
-                    <Link href={item.href}>
-                    <item.icon />
-                    <span>{item.label}</span>
-                    </Link>
-                </SidebarMenuButton>
-                </SidebarMenuItem>
-            ))
-        ) : (
-             visibleNavItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.label}>
-                    <Link href={item.href}>
-                    <item.icon />
-                    <span>{item.label}</span>
-                    </Link>
-                </SidebarMenuButton>
-                </SidebarMenuItem>
-            ))
-        )}
+        {user.role === 'client' && visibleNavItems.map((item) => (
+            <SidebarMenuItem key={item.href}>
+            <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
+                <Link href={item.href}>
+                <item.icon />
+                <span>{item.label}</span>
+                </Link>
+            </SidebarMenuButton>
+            </SidebarMenuItem>
+        ))}
 
-        {hasAIAccountantProfile && (
+        {(user.role === 'admin' || user.role === 'staff') && visibleAdminNavItems.map((item) => (
+            <SidebarMenuItem key={item.href}>
+                <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
+                <Link href={item.href}>
+                    <item.icon />
+                    <span>{item.label}</span>
+                </Link>
+                </SidebarMenuButton>
+            </SidebarMenuItem>
+        ))}
+
+        {user.role === 'reseller' && visibleResellerNavItems.map((item) => (
+            <SidebarMenuItem key={item.href}>
+            <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
+                <Link href={item.href}>
+                <item.icon />
+                <span>{item.label}</span>
+                </Link>
+            </SidebarMenuButton>
+            </SidebarMenuItem>
+        ))}
+
+
+        {hasAIAccountantProfile && (user.role === 'client' || user.role === 'admin' || user.role === 'staff') && (
             <Collapsible open={isAiAccountantOpen} onOpenChange={setIsAiAccountantOpen}>
             <SidebarMenuItem>
                 <CollapsibleTrigger asChild>
