@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -521,7 +520,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
             const dailyCounters: { [key: string]: number } = {};
 
             parsedTransactions.forEach((row, index) => {
-                const parsedDate = new Date(row.Date.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1'));
+                const parsedDate = new Date(row.Date.replace(/(\\d{2})\\/(\\d{2})\\/(\\d{4})/, '$3-$2-$1'));
 
                 if (isNaN(parsedDate.getTime())) {
                     console.warn(`Skipping row ${index + 2}: Invalid date format.`);
@@ -720,7 +719,7 @@ const createAccountSchema = z.object({
   name: z.string().min(3, "Bank account name is required."),
 });
 
-function CreateAccountDialog({ client, onAccountCreated, onOpenChange, open }: { client: User, onAccountCreated: () => void, open: boolean, onOpenChange: (open: boolean) => void }) {
+function CreateAccountDialog({ client, onAccountCreated, onOpenChange, open }: { client: User | null, onAccountCreated: () => void, open: boolean, onOpenChange: (open: boolean) => void }) {
     const { toast } = useToast();
     const [isSaving, setIsSaving] = useState(false);
     const form = useForm<z.infer<typeof createAccountSchema>>({
@@ -729,7 +728,7 @@ function CreateAccountDialog({ client, onAccountCreated, onOpenChange, open }: {
     });
 
     const handleCreateAccount = async (values: z.infer<typeof createAccountSchema>) => {
-        if (!client.uid) return;
+        if (!client || !client.uid) return;
         setIsSaving(true);
         try {
             const existingBankAccounts = client.chartOfAccounts?.filter(
@@ -1597,5 +1596,4 @@ export default function BankTransactionsPage() {
     );
 }
 
-
-
+    
