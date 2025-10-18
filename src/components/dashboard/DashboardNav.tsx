@@ -68,6 +68,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     router.push('/');
   };
 
+  const basePath = (user.role === 'admin' || user.role === 'staff') ? '/admin' : '/dashboard';
   const clientId = user?.role === 'client' ? user.id : pathname.split('/')[3] || user.id;
 
   const navItems = [
@@ -88,27 +89,15 @@ export default function DashboardNav({ user }: { user: UserType }) {
   ];
   
   const aiAccountantItems = [
-     { href: `/dashboard/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['admin', 'client', 'staff'] },
-     { href: `/admin/ai-accountant/${clientId}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'staff'] },
-     { href: `/admin/ai-accountant/${clientId}/customers`, label: 'Customers', icon: Users, roles: ['admin', 'staff'] },
-     { href: `/admin/ai-accountant/${clientId}/invoices`, label: 'Invoices', icon: FileText, roles: ['admin', 'staff'] },
-     { href: `/admin/ai-accountant/${clientId}/bank/transactions`, label: 'Bank Accounts', icon: Banknote, roles: ['admin', 'staff'] },
-     { href: `/admin/ai-accountant/${clientId}/chart-of-accounts`, label: 'Chart of Accounts', icon: Book, roles: ['admin', 'staff'] },
-     { href: `/admin/ai-accountant/${clientId}/journals`, label: 'Journals', icon: BookMarked, roles: ['admin', 'staff'] },
-     { href: `/admin/ai-accountant/${clientId}/reports`, label: 'Reports', icon: FileSpreadsheet, roles: ['admin', 'staff'] },
+     { href: `${basePath}/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['admin', 'client', 'staff'] },
+     { href: `${basePath}/ai-accountant/${clientId}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'staff', 'client'] },
+     { href: `${basePath}/ai-accountant/${clientId}/customers`, label: 'Customers', icon: Users, roles: ['admin', 'staff', 'client'] },
+     { href: `${basePath}/ai-accountant/${clientId}/invoices`, label: 'Invoices', icon: FileText, roles: ['admin', 'staff', 'client'] },
+     { href: `${basePath}/ai-accountant/${clientId}/bank/transactions`, label: 'Bank Accounts', icon: Banknote, roles: ['admin', 'staff', 'client'] },
+     { href: `${basePath}/ai-accountant/${clientId}/chart-of-accounts`, label: 'Chart of Accounts', icon: Book, roles: ['admin', 'staff', 'client'] },
+     { href: `${basePath}/ai-accountant/${clientId}/journals`, label: 'Journals', icon: BookMarked, roles: ['admin', 'staff', 'client'] },
+     { href: `${basePath}/ai-accountant/${clientId}/reports`, label: 'Reports', icon: FileSpreadsheet, roles: ['admin', 'staff', 'client'] },
   ];
-  
-  const clientAiAccountantItems = [
-     { href: `/dashboard/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['client'] },
-     { href: `/admin/ai-accountant/${clientId}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, roles: ['client'] },
-     { href: `/admin/ai-accountant/${clientId}/customers`, label: 'Customers', icon: Users, roles: ['client'] },
-     { href: `/admin/ai-accountant/${clientId}/invoices`, label: 'Invoices', icon: FileText, roles: ['client'] },
-     { href: `/admin/ai-accountant/${clientId}/bank/transactions`, label: 'Bank Accounts', icon: Banknote, roles: ['client'] },
-     { href: `/admin/ai-accountant/${clientId}/chart-of-accounts`, label: 'Chart of Accounts', icon: Book, roles: ['client'] },
-     { href: `/admin/ai-accountant/${clientId}/journals`, label: 'Journals', icon: BookMarked, roles: ['client'] },
-     { href: `/admin/ai-accountant/${clientId}/reports`, label: 'Reports', icon: FileSpreadsheet, roles: ['client'] },
-  ];
-
 
   const capSupplierItems = [
     { href: '/admin/cap-suppliers/review', label: 'Review', icon: ClipboardCheck, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
@@ -143,11 +132,11 @@ export default function DashboardNav({ user }: { user: UserType }) {
   ];
 
   const hasAIAccountantProfile = user.hasAIAccountantProfile || user.source === 'AI Accountant';
-
-  const shouldShowAdminOrAI = user.role === 'admin' || user.role === 'staff';
+  const shouldShowAdminOrAI = user.role === 'admin' || user.role === 'staff' || (user.role === 'client' && hasAIAccountantProfile);
+  
   const visibleNavItems = navItems.filter(item => item.roles.includes(user.role));
   const visibleAdminNavItems = adminNavItems.filter(item => item.roles.includes(user.role));
-  const visibleAiAccountantItems = user.role === 'client' ? clientAiAccountantItems : aiAccountantItems;
+  const visibleAiAccountantItems = aiAccountantItems.filter(item => item.roles.includes(user.role));
   const visibleCapSupplierItems = capSupplierItems.filter(item => item.roles.includes(user.role) && (!item.department || item.department === user.department));
   const visibleSettingsNavItems = settingsNavItems.filter(item => item.roles.includes(user.role));
   const visibleResellerNavItems = resellerNavItems.filter(item => item.roles.includes(user.role));
@@ -174,43 +163,43 @@ export default function DashboardNav({ user }: { user: UserType }) {
       <SidebarMenu className="flex-1">
         
         {shouldShowAdminOrAI ? (
-          <>
-            {visibleAdminNavItems.map((item) => (
-              <SidebarMenuItem key={item.href}>
+            <>
+                {visibleAdminNavItems.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
+                    <Link href={item.href}>
+                        <item.icon />
+                        <span>{item.label}</span>
+                    </Link>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
+                ))}
+            </>
+        ) : user.role === 'reseller' ? (
+            visibleResellerNavItems.map((item) => (
+                <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
-                  <Link href={item.href}>
+                    <Link href={item.href}>
                     <item.icon />
                     <span>{item.label}</span>
-                  </Link>
+                    </Link>
                 </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
-          </>
-        ) : user.role === 'reseller' ? (
-          visibleResellerNavItems.map((item) => (
-            <SidebarMenuItem key={item.href}>
-              <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
-                <Link href={item.href}>
-                  <item.icon />
-                  <span>{item.label}</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))
+                </SidebarMenuItem>
+            ))
         ) : (
-          visibleNavItems.map((item) => (
-            <SidebarMenuItem key={item.href}>
-              <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.label}>
-                <Link href={item.href}>
-                  <item.icon />
-                  <span>{item.label}</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))
+             visibleNavItems.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.label}>
+                    <Link href={item.href}>
+                    <item.icon />
+                    <span>{item.label}</span>
+                    </Link>
+                </SidebarMenuButton>
+                </SidebarMenuItem>
+            ))
         )}
 
-        {(hasAIAccountantProfile || shouldShowAdminOrAI) && (
+        {hasAIAccountantProfile && (
             <Collapsible open={isAiAccountantOpen} onOpenChange={setIsAiAccountantOpen}>
             <SidebarMenuItem>
                 <CollapsibleTrigger asChild>
