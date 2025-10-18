@@ -85,7 +85,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   ];
   
   const aiAccountantItems = [
-     { href: '/admin/ai-accountant', label: 'Client Profiles', icon: Users, roles: ['admin'] },
+     { href: '/admin/ai-accountant/customers', label: 'Client Profiles', icon: Users, roles: ['admin'] },
      { href: '/admin/ai-accountant/chart-of-accounts', label: 'Chart of Accounts', icon: Book, roles: ['admin'] },
      { href: '/admin/ai-accountant/allocation-rules', label: 'Allocation Rules', icon: ArrowRightLeft, roles: ['admin'] },
   ];
