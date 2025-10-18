@@ -78,7 +78,7 @@ export default function AIAccountantSignupForm() {
 
   const watchedValues = form.watch();
   
-  const totalOnceOffFees = 0; // Removed once-off fees
+  const totalOnceOffFees = 0;
 
   useEffect(() => {
     const { serviceLevel, extraUsers } = watchedValues;
@@ -142,7 +142,7 @@ export default function AIAccountantSignupForm() {
             description: `Welcome! Your AI Accountant profile is ready. Redirecting to your dashboard...`,
         });
         
-        router.push('/admin/ai-accountant');
+        router.push(`/admin/ai-accountant/${authUid}/dashboard`);
 
     } catch (error: any) {
         let description = 'There was a problem creating your account. Please try again.';
@@ -210,7 +210,7 @@ export default function AIAccountantSignupForm() {
                                     <FormControl>
                                         <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="space-y-2">
                                             <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer"><RadioGroupItem value="free" id="free" /><div><span className="font-semibold">Free Plan</span><p className="text-sm text-muted-foreground">1 company, 1 user, basic features.</p></div></Label>
-                                            <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer"><RadioGroupItem value="ai_addon" id="ai_addon" /><div><span className="font-semibold">AI Accountant Add-on (R450 / month)</span><p className="text-sm text-muted-foreground">Unlock AI-powered automation for your company.</p></div></Label>
+                                            <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer"><RadioGroupItem value="ai_addon" id="ai_addon" /><div><span className="font-semibold">AI Accountant Add-on ({formatPrice(pricing.ai_addon)} / month)</span><p className="text-sm text-muted-foreground">Unlock AI-powered automation for your company.</p></div></Label>
                                         </RadioGroup>
                                     </FormControl>
                                     <FormMessage />
@@ -221,7 +221,7 @@ export default function AIAccountantSignupForm() {
                             <Separator />
                             <div className="space-y-4">
                                 <h4 className="font-medium">Optional Add-ons</h4>
-                                <FormField control={form.control} name="extraUsers" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel>Additional Users (+R50 per user)</FormLabel><FormControl><Input type="number" className="w-24" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                <FormField control={form.control} name="extraUsers" render={({ field }) => ( <FormItem className="flex items-center justify-between"><FormLabel>Additional Users (+{formatPrice(pricing.extraUser)} per user)</FormLabel><FormControl><Input type="number" className="w-24" {...field} /></FormControl><FormMessage /></FormItem>)} />
                             </div>
                             
                             <Separator />
@@ -230,7 +230,7 @@ export default function AIAccountantSignupForm() {
                             </div>
                             <div className="flex gap-2">
                                 <Button type="button" variant="outline" onClick={() => setStep(1)} className="w-full"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
-                                <Button type="submit" className="w-full" size="lg" disabled={isLoading}>{isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCheck className="mr-2 h-4 w-4"/>}Create My Profile</Button>
+                                <Button type="submit" className="w-full" size="lg" disabled={isLoading}>{isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCheck className="mr-2 h-4 w-4"/>}{totalOnceOffFees > 0 ? `Pay Once-Off Fees & Create Profile` : 'Create My Profile'}</Button>
                             </div>
                         </div>
                     )}

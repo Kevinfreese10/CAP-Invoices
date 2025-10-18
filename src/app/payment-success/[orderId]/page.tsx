@@ -61,7 +61,7 @@ export default function PaymentSuccessPage() {
                         }
                     }
                     // Redirect to dashboard after login or if already logged in.
-                    router.replace('/admin/ai-accountant');
+                    router.replace(`/admin/ai-accountant/${orderData.userId}/dashboard`);
                     return;
                 }
                 
