@@ -22,8 +22,6 @@ const formatPrice = (price: number) => {
 const pricing = {
   free: 0,
   ai_addon: 450,
-  monthly_non_vat: 950,
-  monthly_vat: 2450,
   extraUser: 50,
   submissions: 150,
   payslip: 110,
@@ -51,27 +49,6 @@ const planDetails = {
             'Advanced real-time reports',
         ],
     },
-    monthly_non_vat: {
-        title: 'Monthly Accounting (Non-VAT)',
-        description: 'Comprehensive accounting for non-VAT registered companies.',
-        features: [
-            'Annual financial statements',
-            'Provisional tax returns (2 per year)',
-            'Annual income tax return',
-            'CIPC annual return',
-            'B-BBEE certificate or affidavit',
-            'Beneficial ownership declaration',
-            'Tax clearance certificate',
-        ],
-    },
-    monthly_vat: {
-        title: 'Monthly Accounting (VAT Registered)',
-        description: 'Full-service accounting for VAT registered companies.',
-        features: [
-            'All features of the Non-VAT plan',
-            'Bi-monthly VAT201 submissions',
-        ],
-    },
 };
 
 
@@ -82,7 +59,7 @@ export default function SubscriptionsPage() {
     // Local state to manage UI changes before saving
     const [currentSubscription, setCurrentSubscription] = useState<SubscriptionData | undefined>(user?.subscription);
 
-    const handlePlanChange = (newPlan: 'free' | 'ai_addon' | 'monthly_non_vat' | 'monthly_vat') => {
+    const handlePlanChange = (newPlan: 'free' | 'ai_addon') => {
         // Here you would handle the logic for plan changes,
         // which might involve proration, confirmation modals, etc.
         // For now, we'll just optimistically update the state.
@@ -120,8 +97,8 @@ export default function SubscriptionsPage() {
                 <CardContent className="space-y-4">
                     <div className="flex justify-between items-center bg-primary/10 p-4 rounded-lg">
                         <div>
-                            <p className="font-semibold text-lg">{planDetails[currentPlan].title}</p>
-                             <p className="text-sm text-muted-foreground">{planDetails[currentPlan].description}</p>
+                            <p className="font-semibold text-lg">{planDetails[currentPlan as keyof typeof planDetails].title}</p>
+                             <p className="text-sm text-muted-foreground">{planDetails[currentPlan as keyof typeof planDetails].description}</p>
                         </div>
                         <p className="text-2xl font-bold text-primary">{formatPrice(user.subscription?.monthlyTotal || 0)}/month</p>
                     </div>
@@ -138,7 +115,7 @@ export default function SubscriptionsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
                 {Object.entries(planDetails).map(([planKey, plan]) => {
                     const isCurrent = currentPlan === planKey;
-                    const isUpgrade = pricing[planKey as keyof typeof pricing] > pricing[currentPlan];
+                    const isUpgrade = pricing[planKey as keyof typeof pricing] > pricing[currentPlan as keyof typeof pricing];
                     return (
                         <Card key={planKey} className={`flex flex-col ${isCurrent ? 'border-primary' : ''}`}>
                             <CardHeader>
