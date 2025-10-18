@@ -88,7 +88,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const clientId = user?.role === 'client' ? user.id : pathname.split('/')[3];
 
   const aiAccountantItems = [
-     { href: `/admin/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['admin', 'staff'] },
+     { href: `/admin/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['admin'] },
      { href: `/admin/ai-accountant/${clientId}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, roles: ['client', 'admin', 'staff'] },
      { href: `/admin/ai-accountant/${clientId}/customers`, label: 'Customers', icon: Users, roles: ['client', 'admin', 'staff'] },
      { href: `/admin/ai-accountant/${clientId}/invoices`, label: 'Invoices', icon: FileText, roles: ['client', 'admin', 'staff'] },
@@ -136,8 +136,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const visibleCapSupplierItems = capSupplierItems.filter(item => item.roles.includes(user.role) && (!item.department || item.department === user.department));
   const visibleSettingsNavItems = settingsNavItems.filter(item => item.roles.includes(user.role));
   const visibleResellerNavItems = resellerNavItems.filter(item => item.roles.includes(user.role));
-
-  const shouldShowAdminOrAI = user.role === 'admin' || user.role === 'staff' || (user.role === 'client' && user.hasAIAccountantProfile);
+  const shouldShowAdminOrAI = user.role === 'admin' || user.role === 'staff' || (user.role === 'client' && user.hasNumeraProfile);
 
 
   return (
@@ -160,22 +159,8 @@ export default function DashboardNav({ user }: { user: UserType }) {
       </SidebarHeader>
 
       <SidebarMenu className="flex-1">
-        {user.role === 'client' && !user.hasAIAccountantProfile && visibleNavItems.map((item) => (
-          <SidebarMenuItem key={item.href}>
-            <SidebarMenuButton
-              asChild
-              isActive={pathname === item.href}
-              tooltip={item.label}
-            >
-              <Link href={item.href}>
-                <item.icon />
-                <span>{item.label}</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        ))}
         
-        {shouldShowAdminOrAI && (
+        {shouldShowAdminOrAI ? (
             <>
                 {user.role !== 'client' && visibleAdminNavItems.map((item) => (
                     <SidebarMenuItem key={item.href}>
@@ -267,22 +252,34 @@ export default function DashboardNav({ user }: { user: UserType }) {
                     </CollapsibleContent>
                  </Collapsible>
             </>
-        )}
+        ) : user.role === 'client' ? (
+             visibleNavItems.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton
+                    asChild
+                    isActive={pathname === item.href}
+                    tooltip={item.label}
+                    >
+                    <Link href={item.href}>
+                        <item.icon />
+                        <span>{item.label}</span>
+                    </Link>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
+            ))
+        ) : user.role === 'reseller' ? (
+             visibleResellerNavItems.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
+                        <Link href={item.href}>
+                            <item.icon />
+                            <span>{item.label}</span>
+                        </Link>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
+            ))
+        ) : null}
 
-        {user.role === 'reseller' && (
-            <>
-                {visibleResellerNavItems.map((item) => (
-                    <SidebarMenuItem key={item.href}>
-                        <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
-                            <Link href={item.href}>
-                                <item.icon />
-                                <span>{item.label}</span>
-                            </Link>
-                        </SidebarMenuButton>
-                    </SidebarMenuItem>
-                ))}
-            </>
-        )}
       </SidebarMenu>
 
       <SidebarFooter>
