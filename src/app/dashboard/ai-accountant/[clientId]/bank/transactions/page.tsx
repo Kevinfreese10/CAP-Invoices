@@ -521,7 +521,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
             const dailyCounters: { [key: string]: number } = {};
 
             parsedTransactions.forEach((row, index) => {
-                const parsedDate = new Date(row.Date.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1'));
+                const parsedDate = new Date(row.Date.replace(/(\\d{2})\\/(\\d{2})\\/(\\d{4})/, '$3-$2-$1'));
 
                 if (isNaN(parsedDate.getTime())) {
                     console.warn(`Skipping row ${index + 2}: Invalid date format.`);
@@ -675,6 +675,7 @@ function EditAccountDialog({ account, client, onAccountUpdated, onOpenChange, op
     });
 
     const handleEditAccount = async (values: z.infer<typeof editAccountSchema>) => {
+        if (!client.uid) return;
         setIsSaving(true);
         try {
             const updatedAccounts = client.chartOfAccounts?.map(acc =>
@@ -728,6 +729,7 @@ function CreateAccountDialog({ client, onAccountCreated, onOpenChange, open }: {
     });
 
     const handleCreateAccount = async (values: z.infer<typeof createAccountSchema>) => {
+        if (!client.uid) return;
         setIsSaving(true);
         try {
             const existingBankAccounts = client.chartOfAccounts?.filter(
@@ -1076,7 +1078,7 @@ const NewTransactionsTab = React.forwardRef<
                         </DropdownMenuContent>
                      </DropdownMenu>
 
-                     <Button variant="outline" asChild><Link href={`/admin/ai-accountant/${client?.id}/allocation-rules`}>Allocation Rules</Link></Button>
+                     <Button variant="outline" asChild><Link href={`/dashboard/ai-accountant/${client?.id}/allocation-rules`}>Allocation Rules</Link></Button>
                      <Button variant="outline">AI Allocate Selected <Sparkles className="ml-2 h-4 w-4"/></Button>
                 </div>
             </CardHeader>
@@ -1594,4 +1596,5 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
+
 
