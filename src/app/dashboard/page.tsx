@@ -2,20 +2,21 @@
 'use client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Order, Service } from '@/lib/types';
+import { Order, Service, User } from '@/lib/types';
 import { useState, useEffect, useMemo } from 'react';
-import { getFirestore, collection, query, where, getDocs, orderBy, onSnapshot } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, orderBy, query, onSnapshot, setDoc, doc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, ArrowRight, CheckCircle, Clock } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { format } from 'date-fns';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import ServicePreview from '@/components/admin/ServicePreview';
-import AddToCartButton from '@/components/cart/AddToCartButton';
+import { useToast } from '@/hooks/use-toast';
+import { getNextOrderId } from '@/lib/sequence';
+import { generatePayFastSignature } from '@/app/actions/payfast';
+
 
 const db = getFirestore(firebaseApp);
 
@@ -33,6 +34,9 @@ export default function DashboardPage() {
     const [categories, setCategories] = useState<Category[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [viewingService, setViewingService] = useState<Service | null>(null);
+    const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+    const [payfastFormData, setPayfastFormData] = useState<{ [key: string]: string } | null>(null);
+    const { toast } = useToast();
 
     const monthlyPackages = [
         {
@@ -94,7 +98,66 @@ export default function DashboardPage() {
         servicesUnsubscribe();
         categoriesUnsubscribe();
         }
-  }, []);
+    }, []);
+
+    useEffect(() => {
+        if (payfastFormData) {
+          const formElement = document.getElementById('payfast-redirect-form') as HTMLFormElement;
+          if (formElement) {
+            formElement.submit();
+          }
+        }
+    }, [payfastFormData]);
+
+    const handleBuyNow = async (service: Service) => {
+        if (!user) {
+            toast({ title: 'Not Logged In', description: 'Please log in to make a purchase.', variant: 'destructive'});
+            return;
+        }
+
+        setIsProcessingPayment(true);
+        toast({ title: "Processing Order...", description: "Please wait while we redirect you to payment."});
+
+        try {
+            const orderId = await getNextOrderId();
+            const orderData: Order = {
+                id: orderId,
+                userId: user.uid,
+                customerName: user.name,
+                customerEmail: user.email,
+                items: [{ id: service.id, title: service.title, price: service.price, quantity: 1 }],
+                total: service.price,
+                discountCode: null,
+                discountAmount: null,
+                status: 'Pending Payment',
+                date: Timestamp.now(),
+                source: 'Client',
+                department: service.department || null,
+            };
+
+            await setDoc(doc(db, 'orders', orderId), orderData);
+
+            const dataForSignature = {
+                merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID,
+                merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY,
+                return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success/${orderId}`,
+                cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
+                notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
+                email_address: user.email,
+                m_payment_id: orderId,
+                amount: service.price.toFixed(2),
+                item_name: service.title,
+            };
+
+            const signature = await generatePayFastSignature(dataForSignature);
+            setPayfastFormData({ ...dataForSignature, signature });
+
+        } catch (error) {
+            console.error("Error creating order:", error);
+            toast({ title: 'Error', description: 'Could not create your order.', variant: 'destructive'});
+            setIsProcessingPayment(false);
+        }
+    };
 
     const categorizedServices = useMemo(() => {
         return categories
@@ -115,115 +178,128 @@ export default function DashboardPage() {
     };
 
     return (
-        <Dialog onOpenChange={(isOpen) => !isOpen && setViewingService(null)}>
-        <div className="space-y-8">
-            <div>
-                <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.name}!</h1>
-                <p className="text-muted-foreground">Here's a summary of your recent activity and available services.</p>
-            </div>
-
-            <section id="packages">
-                <div className="space-y-8">
-                    <div>
-                        <h2 className="text-2xl font-bold tracking-tight">Monthly Service Packages</h2>
-                        <p className="text-muted-foreground">Automate your finances with our comprehensive monthly packages.</p>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-stretch">
-                        {monthlyPackages.map((pkg) => (
-                            <Card key={pkg.title} className="flex flex-col">
-                                <CardHeader>
-                                    <CardTitle>{pkg.title}</CardTitle>
-                                    <div className="flex items-baseline pt-2">
-                                        <span className="text-3xl font-bold">{pkg.price}</span>
-                                        {pkg.priceDetail && <span className="ml-1.5 text-sm text-muted-foreground">{pkg.priceDetail}</span>}
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="flex-grow">
-                                    <ul className="space-y-3">
-                                        {pkg.features.map((feature, index) => (
-                                            <li key={index} className="flex items-center gap-2 text-sm">
-                                                <CheckCircle className="h-4 w-4 text-green-500" />
-                                                <span>{feature}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </CardContent>
-                                <CardFooter>
-                                    <Button className="w-full" asChild>
-                                        <Link href="/contact">Contact Us</Link>
-                                    </Button>
-                                </CardFooter>
-                            </Card>
-                        ))}
-                    </div>
+        <>
+            <Dialog onOpenChange={(isOpen) => !isOpen && setViewingService(null)}>
+            <div className="space-y-8">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.name}!</h1>
+                    <p className="text-muted-foreground">Here's a summary of your recent activity and available services.</p>
                 </div>
-            </section>
 
-            <Separator />
-
-             <div className="space-y-12">
-                {isLoading ? (
-                    <div className="flex justify-center items-center h-40">
-                        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <section id="packages">
+                    <div className="space-y-8">
+                        <div>
+                            <h2 className="text-2xl font-bold tracking-tight">Monthly Service Packages</h2>
+                            <p className="text-muted-foreground">Automate your finances with our comprehensive monthly packages.</p>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-stretch">
+                            {monthlyPackages.map((pkg) => (
+                                <Card key={pkg.title} className="flex flex-col">
+                                    <CardHeader>
+                                        <CardTitle>{pkg.title}</CardTitle>
+                                        <div className="flex items-baseline pt-2">
+                                            <span className="text-3xl font-bold">{pkg.price}</span>
+                                            {pkg.priceDetail && <span className="ml-1.5 text-sm text-muted-foreground">{pkg.priceDetail}</span>}
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent className="flex-grow">
+                                        <ul className="space-y-3">
+                                            {pkg.features.map((feature, index) => (
+                                                <li key={index} className="flex items-center gap-2 text-sm">
+                                                    <CheckCircle className="h-4 w-4 text-green-500" />
+                                                    <span>{feature}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </CardContent>
+                                    <CardFooter>
+                                        <Button className="w-full" asChild>
+                                            <Link href="/contact">Contact Us</Link>
+                                        </Button>
+                                    </CardFooter>
+                                </Card>
+                            ))}
+                        </div>
                     </div>
-                ) : (
-                categorizedServices.map(category => (
-                    <section key={category.name}>
-                        <h2 className="text-2xl font-bold mb-6">{category.name}</h2>
-                        <Card>
-                            <CardContent className="p-0">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Service</TableHead>
-                                            <TableHead>Turnaround Time</TableHead>
-                                            <TableHead className="text-right">Price</TableHead>
-                                            <TableHead className="text-right">Actions</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {category.data.map(service => (
-                                            <TableRow key={service.id}>
-                                                <TableCell className="font-medium">{service.title}</TableCell>
-                                                <TableCell>
-                                                    <div className="flex items-center text-sm text-muted-foreground">
-                                                        <Clock className="mr-1.5 h-4 w-4" />
-                                                        {service.turnaroundTime}
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className="text-right font-semibold">{formatPrice(service.price)}</TableCell>
-                                                <TableCell className="text-right">
-                                                    <DialogTrigger asChild>
-                                                        <Button variant="outline" size="sm" onClick={() => setViewingService(service)}>Learn More</Button>
-                                                    </DialogTrigger>
-                                                </TableCell>
+                </section>
+
+                <Separator />
+
+                <div className="space-y-12">
+                    {isLoading ? (
+                        <div className="flex justify-center items-center h-40">
+                            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                        </div>
+                    ) : (
+                    categorizedServices.map(category => (
+                        <section key={category.name}>
+                            <h2 className="text-2xl font-bold mb-6">{category.name}</h2>
+                            <Card>
+                                <CardContent className="p-0">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Service</TableHead>
+                                                <TableHead>Turnaround Time</TableHead>
+                                                <TableHead className="text-right">Price</TableHead>
+                                                <TableHead className="text-right">Actions</TableHead>
                                             </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </CardContent>
-                        </Card>
-                    </section>
-                ))
-                )}
+                                        </TableHeader>
+                                        <TableBody>
+                                            {category.data.map(service => (
+                                                <TableRow key={service.id}>
+                                                    <TableCell className="font-medium">{service.title}</TableCell>
+                                                    <TableCell>
+                                                        <div className="flex items-center text-sm text-muted-foreground">
+                                                            <Clock className="mr-1.5 h-4 w-4" />
+                                                            {service.turnaroundTime}
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-semibold">{formatPrice(service.price)}</TableCell>
+                                                    <TableCell className="text-right">
+                                                        <DialogTrigger asChild>
+                                                            <Button variant="outline" size="sm" onClick={() => setViewingService(service)}>Learn More</Button>
+                                                        </DialogTrigger>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </CardContent>
+                            </Card>
+                        </section>
+                    ))
+                    )}
+                </div>
             </div>
-        </div>
-         <DialogContent className="sm:max-w-2xl">
-              <DialogHeader>
-                  <DialogTitle>{viewingService?.title}</DialogTitle>
-                  <DialogDescription>
-                      {viewingService?.description}
-                  </DialogDescription>
-              </DialogHeader>
-              {viewingService && (
-                <>
-                    <ServicePreview service={viewingService} />
-                    <DialogFooter>
-                        <AddToCartButton service={viewingService}/>
-                    </DialogFooter>
-                </>
-              )}
-          </DialogContent>
-        </Dialog>
+            <DialogContent className="sm:max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>{viewingService?.title}</DialogTitle>
+                    <DialogDescription>
+                        {viewingService?.description}
+                    </DialogDescription>
+                </DialogHeader>
+                {viewingService && (
+                    <>
+                        <ServicePreview service={viewingService} />
+                        <DialogFooter>
+                            <Button onClick={() => handleBuyNow(viewingService)} disabled={isProcessingPayment}>
+                                {isProcessingPayment ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                Buy Now ({formatPrice(viewingService.price)})
+                            </Button>
+                        </DialogFooter>
+                    </>
+                )}
+            </DialogContent>
+            </Dialog>
+
+            {payfastFormData && (
+                <form id="payfast-redirect-form" action={process.env.NEXT_PUBLIC_PAYFAST_URL} method="post" style={{ display: 'none' }}>
+                    {Object.entries(payfastFormData).map(([key, value]) => (
+                        <input key={key} type="hidden" name={key} value={value as string} />
+                    ))}
+                </form>
+            )}
+        </>
     );
 }
