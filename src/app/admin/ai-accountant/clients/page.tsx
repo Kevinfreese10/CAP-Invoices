@@ -86,9 +86,10 @@ export default function AIAccountantClientsPage() {
     
     const clientData: Partial<User> = {
         ...data,
+        yearEnd: data.yearEnd || null,
         role: 'client',
         source: 'AI Accountant',
-        hasAIAccountantProfile: true, // Legacy field, keeping for compatibility
+        hasNumeraProfile: true, // Legacy field, keeping for compatibility
         chartOfAccounts: initialChartOfAccounts,
         allocationRules: initialAllocationRules,
     };
