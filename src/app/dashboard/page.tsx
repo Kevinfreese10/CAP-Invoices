@@ -24,7 +24,7 @@ export default function DashboardPage() {
     const accountingPackages = [
         {
             title: 'Monthly Accounting (Non-VAT)',
-            price: 'R1,500',
+            price: 'R850',
             features: [
                 'Up to 50 transactions',
                 'Bank reconciliations',
@@ -35,7 +35,7 @@ export default function DashboardPage() {
         },
         {
             title: 'Monthly Accounting (VAT)',
-            price: 'R2,500',
+            price: 'R1,950',
             features: [
                 'Up to 100 transactions',
                 'Includes all Non-VAT features',
@@ -46,17 +46,9 @@ export default function DashboardPage() {
 
     const payrollPackages = [
         {
-            title: 'Monthly Payroll (1-5 Employees)',
+            title: 'Monthly Payroll',
             price: 'R550',
-            features: [
-                'Monthly payslips',
-                'EMP201 submissions (PAYE, UIF, SDL)',
-                'UIF Declaration'
-            ]
-        },
-         {
-            title: 'Monthly Payroll (6-10 Employees)',
-            price: 'R950',
+            priceDetail: '+ R110 / employee',
             features: [
                 'Monthly payslips',
                 'EMP201 submissions (PAYE, UIF, SDL)',
@@ -157,12 +149,13 @@ export default function DashboardPage() {
                     </div>
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
                         {payrollPackages.map((pkg) => (
-                            <Card key={pkg.title} className="flex flex-col">
+                            <Card key={pkg.title} className="flex flex-col md:col-start-2">
                                 <CardHeader>
                                     <CardTitle>{pkg.title}</CardTitle>
                                     <div className="flex items-baseline pt-2">
                                         <span className="text-3xl font-bold">{pkg.price}</span>
                                         <span className="text-sm text-muted-foreground">/month</span>
+                                        {pkg.priceDetail && <span className="ml-2 text-sm font-semibold">{pkg.priceDetail}</span>}
                                     </div>
                                 </CardHeader>
                                 <CardContent className="flex-grow">
