@@ -61,14 +61,14 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const { state, toggleSidebar } = useSidebar();
   const [isSettingsOpen, setIsSettingsOpen] = useState(pathname.startsWith('/admin/settings') || pathname.startsWith('/admin/users') || pathname.startsWith('/admin/staff'));
   const [isCapSuppliersOpen, setIsCapSuppliersOpen] = useState(pathname.startsWith('/admin/cap-suppliers'));
-  const [isAiAccountantOpen, setIsAiAccountantOpen] = useState(pathname.startsWith('/admin/ai-accountant') || pathname.startsWith('/dashboard/ai-accountant'));
+  const [isAiAccountantOpen, setIsAiAccountantOpen] = useState(pathname.startsWith('/admin/ai-accountant') || pathname.startsWith('/dashboard/ai-accountant') || pathname.startsWith('/reseller/ai-accountant'));
 
   const handleLogout = () => {
     logout();
     router.push('/');
   };
 
-  const basePath = (user.role === 'admin' || user.role === 'staff') ? '/admin' : '/dashboard';
+  const basePath = user.role === 'client' ? '/dashboard' : user.role === 'reseller' ? '/reseller' : '/admin';
   const clientId = user?.role === 'client' ? user.id : pathname.split('/')[3] || user.id;
 
   const navItems = [
@@ -91,7 +91,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   ];
   
   const aiAccountantItems = [
-     { href: `${basePath}/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['admin', 'client', 'staff'] },
+     { href: `${basePath}/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['admin', 'client', 'staff', 'reseller'] },
      { href: `${basePath}/ai-accountant/${clientId}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'staff', 'client'] },
      { href: `${basePath}/ai-accountant/${clientId}/customers`, label: 'Customers', icon: Users, roles: ['admin', 'staff', 'client'] },
      { href: `${basePath}/ai-accountant/${clientId}/invoices`, label: 'Invoices', icon: FileText, roles: ['admin', 'staff', 'client'] },
@@ -197,11 +197,11 @@ export default function DashboardNav({ user }: { user: UserType }) {
         ))}
 
 
-        {hasAIAccountantProfile && (user.role === 'client' || user.role === 'admin' || user.role === 'staff') && (
+        {(hasAIAccountantProfile || user.role === 'admin' || user.role === 'staff' || user.role === 'reseller') && (
             <Collapsible open={isAiAccountantOpen} onOpenChange={setIsAiAccountantOpen}>
             <SidebarMenuItem>
                 <CollapsibleTrigger asChild>
-                <SidebarMenuButton isActive={pathname.startsWith('/admin/ai-accountant') || pathname.startsWith('/dashboard/ai-accountant')} tooltip="AI Accountant">
+                <SidebarMenuButton isActive={pathname.startsWith('/admin/ai-accountant') || pathname.startsWith('/dashboard/ai-accountant') || pathname.startsWith('/reseller/ai-accountant')} tooltip="AI Accountant">
                     <Book />
                     <span>AI Accountant</span>
                     <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200 group-[[data-state=open]]:rotate-180" />
