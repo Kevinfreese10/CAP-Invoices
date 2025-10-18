@@ -301,33 +301,31 @@ export default function AIAccountantSignupForm() {
                             <FormField control={form.control} name="includePayslips" render={({ field }) => (<FormItem className="flex items-center justify-between"><FormLabel>Process Payslips<br/><span className="text-xs text-muted-foreground">(+R110 per payslip)</span></FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
                             {watchedValues.includePayslips && (<FormField control={form.control} name="payslipCount" render={({ field }) => ( <FormItem className="flex items-center justify-between pl-6"><FormLabel>Number of Payslips</FormLabel><FormControl><Input type="number" className="w-24" {...field} /></FormControl><FormMessage /></FormItem>)} />)}
                         </div>
+                        
+                        {(watchedValues.serviceLevel === 'monthly_non_vat' || watchedValues.serviceLevel === 'monthly_vat') && (
+                            <div className="p-3 border rounded-md">
+                                <FormField
+                                    control={form.control}
+                                    name="includeCatchUp"
+                                    render={({ field }) => (
+                                        <FormItem className="flex items-center space-x-3">
+                                            <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                                            <FormLabel className="!mt-0">Include optional once-off catch-up fee?</FormLabel>
+                                        </FormItem>
+                                    )}
+                                />
+                                {!watchedValues.includeCatchUp && (
+                                    <Alert variant="destructive" className="mt-2 text-xs">
+                                    <AlertDescription>
+                                        By opting out, bookkeeping services will only commence from the current month. Prior months will not be processed.
+                                    </AlertDescription>
+                                    </Alert>
+                                )}
+                            </div>
+                        )}
+
                         <Separator />
                         <div className="space-y-3">
-                             {(watchedValues.serviceLevel === 'monthly_non_vat' || watchedValues.serviceLevel === 'monthly_vat') && (
-                                <div className="p-3 border rounded-md">
-                                    <FormField
-                                        control={form.control}
-                                        name="includeCatchUp"
-                                        render={({ field }) => (
-                                            <FormItem className="flex items-start space-x-3">
-                                                <FormControl><Checkbox className="mt-1" checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                                                <div className="grid gap-1.5 leading-none">
-                                                    <FormLabel>Include optional once-off catch-up fee?</FormLabel>
-                                                    <FormMessage />
-                                                </div>
-                                            </FormItem>
-                                        )}
-                                    />
-                                    {!watchedValues.includeCatchUp && (
-                                        <Alert variant="destructive" className="mt-2 text-xs">
-                                        <AlertDescription>
-                                            By opting out, bookkeeping services will only commence from the current month. Prior months will not be processed.
-                                        </AlertDescription>
-                                        </Alert>
-                                    )}
-                                </div>
-                             )}
-
                             <div className="flex justify-between items-center bg-primary/10 p-4 rounded-lg"><h4 className="text-lg font-bold">Estimated Monthly Total:</h4><p className="text-2xl font-bold">{formatPrice(monthlyTotal)}</p></div>
                             
                              {(catchUpFee > 0 || payrollSetupFee > 0) && (
@@ -336,7 +334,6 @@ export default function AIAccountantSignupForm() {
                                     <p className="text-2xl font-bold text-amber-900">{formatPrice(catchUpFee + payrollSetupFee)}</p>
                                 </div>
                             )}
-
                         </div>
                         <div className="flex gap-2">
                              <Button type="button" variant="outline" onClick={() => setStep(1)} className="w-full"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
