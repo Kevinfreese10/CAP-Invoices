@@ -239,7 +239,28 @@ export default function AIAccountantSignupForm() {
                                         <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer"><RadioGroupItem value="free" id="free" /><div><span className="font-semibold">Free Plan</span><p className="text-sm text-muted-foreground">1 company, 1 user, basic features.</p></div></Label>
                                         <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer"><RadioGroupItem value="ai_addon" id="ai_addon" /><div><span className="font-semibold">AI Accountant Add-on (R290 / month)</span><p className="text-sm text-muted-foreground">Unlock AI-powered automation for your company.</p></div></Label>
                                         {!watchedValues.isVatRegistered && (
-                                            <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer"><RadioGroupItem value="monthly_non_vat" id="monthly_non_vat" /><div><span className="font-semibold">Monthly Accounting - Non-VAT (R950 / month)</span><p className="text-sm text-muted-foreground">Includes AI Accountant & full bookkeeping service.</p></div></Label>
+                                            <Label className="flex flex-col items-start space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer">
+                                                <div className="flex items-center space-x-3">
+                                                    <RadioGroupItem value="monthly_non_vat" id="monthly_non_vat" />
+                                                    <div>
+                                                        <span className="font-semibold">Monthly Accounting - Non-VAT (R950 / month)</span>
+                                                        <p className="text-sm text-muted-foreground">Includes AI Accountant & full bookkeeping service.</p>
+                                                    </div>
+                                                </div>
+                                                <div className="pl-8 pt-2 text-sm text-muted-foreground">
+                                                    <p className="font-medium text-foreground pb-1">Includes:</p>
+                                                    <ul className="list-disc list-inside space-y-1">
+                                                        <li>Monthly management accounts</li>
+                                                        <li>Annual financial statements</li>
+                                                        <li>Provisional tax returns</li>
+                                                        <li>Annual income tax return</li>
+                                                        <li>CIPC annual return</li>
+                                                        <li>B-BBEE certificate or affidavit</li>
+                                                        <li>Beneficial ownership declaration</li>
+                                                        <li>Tax clearance certificate</li>
+                                                    </ul>
+                                                </div>
+                                            </Label>
                                         )}
                                         {watchedValues.isVatRegistered && (
                                             <Label className="flex flex-col items-start space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer">
@@ -254,9 +275,9 @@ export default function AIAccountantSignupForm() {
                                                     <p className="font-medium text-foreground pb-1">Includes:</p>
                                                     <ul className="list-disc list-inside space-y-1">
                                                         <li>Monthly management accounts</li>
-                                                        <li>Annual financial statements preparation</li>
-                                                        <li>2 × provisional tax returns</li>
-                                                        <li>1 × tax return</li>
+                                                        <li>Annual financial statements</li>
+                                                        <li>Provisional tax returns</li>
+                                                        <li>Annual income tax return</li>
                                                         <li>CIPC annual return</li>
                                                         <li>B-BBEE certificate or affidavit</li>
                                                         <li>Beneficial ownership declaration</li>
