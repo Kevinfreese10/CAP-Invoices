@@ -54,7 +54,7 @@ const formSchema = z.object({
 
 const pricing = {
   free: 0,
-  ai_addon: 290,
+  ai_addon: 450,
   monthly_non_vat: 950,
   monthly_vat: 1950,
   extraUser: 50,
@@ -95,6 +95,8 @@ export default function AIAccountantSignupForm() {
   });
 
   const watchedValues = form.watch();
+  
+  const totalOnceOffFees = catchUpFee + payrollSetupFee;
 
   useEffect(() => {
     const { serviceLevel, extraUsers, includeSubmissions, includePayslips, payslipCount, yearEnd, includeCatchUp } = watchedValues;
@@ -150,8 +152,6 @@ export default function AIAccountantSignupForm() {
       }
     }
   }, [payfastFormData]);
-
-  const totalOnceOffFees = catchUpFee + payrollSetupFee;
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
@@ -314,7 +314,7 @@ export default function AIAccountantSignupForm() {
                                     <FormControl>
                                         <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="space-y-2">
                                             <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer"><RadioGroupItem value="free" id="free" /><div><span className="font-semibold">Free Plan</span><p className="text-sm text-muted-foreground">1 company, 1 user, basic features.</p></div></Label>
-                                            <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer"><RadioGroupItem value="ai_addon" id="ai_addon" /><div><span className="font-semibold">AI Accountant Add-on (R290 / month)</span><p className="text-sm text-muted-foreground">Unlock AI-powered automation for your company.</p></div></Label>
+                                            <Label className="flex items-center space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer"><RadioGroupItem value="ai_addon" id="ai_addon" /><div><span className="font-semibold">AI Accountant Add-on (R450 / month)</span><p className="text-sm text-muted-foreground">Unlock AI-powered automation for your company.</p></div></Label>
                                             {!watchedValues.isVatRegistered && (
                                                 <Label className="flex flex-col items-start space-x-3 border rounded-md p-3 hover:bg-muted/50 cursor-pointer">
                                                     <div className="flex items-center space-x-3">

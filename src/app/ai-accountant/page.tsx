@@ -68,7 +68,7 @@ export default function AiAccountantPage() {
     },
     {
       title: "AI Accountant Add-on",
-      price: "R290",
+      price: "R450",
       period: "/ company / month",
       description: "Unlock the power of AI for full automation.",
       features: [
