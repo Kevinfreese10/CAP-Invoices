@@ -1,15 +1,15 @@
 
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { MoreHorizontal, PlusCircle, Loader2, ArrowRight, Banknote } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { User, Task } from '@/lib/types';
+import { User, Task, Order } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, writeBatch, Timestamp, query, orderBy, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -20,6 +20,9 @@ import { chartOfAccounts as initialChartOfAccounts } from '@/lib/chart-of-accoun
 import { allocationRules as initialAllocationRules } from '@/lib/allocation-rules';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
+import { getNextOrderId } from '@/lib/sequence';
+import { generatePayFastSignature } from '@/app/actions/payfast';
+
 
 const db = getFirestore(firebaseApp);
 
@@ -31,6 +34,8 @@ export default function AIAccountantClientsPage() {
   const [selectedClient, setSelectedClient] = useState<User | null>(null);
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [payfastFormData, setPayfastFormData] = useState<{ [key: string]: string } | null>(null);
   
   const fetchClients = async () => {
     if (!currentUser?.uid) return;
@@ -58,6 +63,16 @@ export default function AIAccountantClientsPage() {
     }
   }, [currentUser]);
 
+  useEffect(() => {
+    if (payfastFormData) {
+        const formElement = document.getElementById('payfast-redirect-form');
+        if (formElement) {
+            (formElement as HTMLFormElement).submit();
+        }
+    }
+  }, [payfastFormData]);
+
+
   const handleAddClick = () => {
     if (clients.length > 0) {
       setIsSubscriptionModalOpen(true);
@@ -66,6 +81,60 @@ export default function AIAccountantClientsPage() {
       setIsFormOpen(true);
     }
   };
+  
+  const handleCreateSubscriptionOrder = async () => {
+    if (!currentUser) return;
+    setIsProcessingPayment(true);
+    toast({ title: "Creating renewal order...", description: "Please wait while we redirect you to payment." });
+
+    const subscriptionPrice = 140;
+
+    try {
+        const orderId = await getNextOrderId();
+        const renewalOrderData: Order = {
+            id: orderId,
+            userId: currentUser.uid,
+            customerName: currentUser.name,
+            customerEmail: currentUser.email,
+            items: [{
+                id: 'additional_company_profile',
+                title: `AI Accountant - Additional Company Profile`,
+                price: subscriptionPrice,
+                quantity: 1,
+            }],
+            total: subscriptionPrice,
+            discountCode: null,
+            discountAmount: null,
+            status: 'Pending Payment',
+            date: Timestamp.now(),
+            source: 'AI Accountant Signup',
+            renewalForClientId: currentUser.uid,
+        };
+        
+        await setDoc(doc(db, 'orders', orderId), renewalOrderData);
+        
+        const dataForSignature = {
+            merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID,
+            merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY,
+            return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success/${orderId}`,
+            cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/ai-accountant/clients`,
+            notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
+            email_address: currentUser.email,
+            m_payment_id: orderId,
+            amount: subscriptionPrice.toFixed(2),
+            item_name: `AI Accountant - Additional Company Profile`,
+        };
+
+        const signature = await generatePayFastSignature(dataForSignature);
+        setPayfastFormData({ ...dataForSignature, signature });
+        
+    } catch(e) {
+        console.error(e);
+        toast({ title: 'Error', description: 'Could not create renewal order.', variant: 'destructive'});
+        setIsProcessingPayment(false);
+    }
+  };
+
 
   const handleEdit = (client: User) => {
     setSelectedClient(client);
@@ -136,9 +205,9 @@ export default function AIAccountantClientsPage() {
                     </Button>
                     <DialogContent className="sm:max-w-2xl">
                             <DialogHeader>
-                                <DialogTitle>{selectedClient ? 'Edit Client' : 'Create New Client'}</DialogTitle>
+                                <DialogTitle>{selectedClient ? 'Edit Client' : 'Create Your First Client'}</DialogTitle>
                                 <DialogDescription>
-                                    {selectedClient ? 'Update the details for this client.' : 'Fill out the form to add a new client to the AI Accountant module.'}
+                                    {selectedClient ? 'Update the details for this client.' : 'Your first client profile is free. Fill out the form to add a new client to the AI Accountant module.'}
                                 </DialogDescription>
                             </DialogHeader>
                             <ClientForm 
@@ -154,44 +223,15 @@ export default function AIAccountantClientsPage() {
                         <DialogHeader>
                             <DialogTitle>Add Another Company</DialogTitle>
                             <DialogDescription>
-                                Your first company is free. Each additional company profile requires a subscription of <strong>R140 per month</strong>.
+                                Your first company profile is free. Each additional company requires a subscription of <strong>R140 per month</strong>.
                             </DialogDescription>
                         </DialogHeader>
                         <div className="py-4 space-y-4">
-                            <p>To activate your new company profile, please make an EFT payment using the details below.</p>
-                            <Card>
-                                <CardHeader>
-                                    <div className="flex items-center gap-3">
-                                        <Banknote className="h-6 w-6 text-primary" />
-                                        <CardTitle>EFT Instructions</CardTitle>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="space-y-3 text-sm">
-                                    <div className="grid grid-cols-[auto_1fr] items-center gap-x-4">
-                                        <span className="font-medium text-muted-foreground">Bank Name:</span>
-                                        <span className="font-semibold">FNB</span>
-                                    </div>
-                                    <div className="grid grid-cols-[auto_1fr] items-center gap-x-4">
-                                        <span className="font-medium text-muted-foreground">Account Holder:</span>
-                                        <span className="font-semibold">My Accountant (Pty) Ltd</span>
-                                    </div>
-                                    <div className="grid grid-cols-[auto_1fr] items-center gap-x-4">
-                                        <span className="font-medium text-muted-foreground">Account Number:</span>
-                                        <span className="font-semibold">63084378223</span>
-                                    </div>
-                                     <div className="grid grid-cols-[auto_1fr] items-center gap-x-4">
-                                        <span className="font-medium text-muted-foreground">Reference:</span>
-                                        <span className="font-semibold text-destructive p-1 bg-destructive/10 rounded-sm">{currentUser?.email}</span>
-                                    </div>
-                                    <Separator className="my-4" />
-                                    <p className="font-semibold text-foreground">
-                                        Please send your proof of payment to{' '}
-                                        <a href="mailto:info@myacc.co.za" className="text-primary underline">
-                                            info@myacc.co.za
-                                        </a>. Your new company profile will be activated upon confirmation.
-                                    </p>
-                                </CardContent>
-                            </Card>
+                            <p>To activate a new company profile, please proceed with the payment below.</p>
+                             <Button onClick={handleCreateSubscriptionOrder} disabled={isProcessingPayment} className="w-full">
+                                {isProcessingPayment ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
+                                Proceed to Payment (R140.00)
+                            </Button>
                         </div>
                     </DialogContent>
                 </Dialog>
@@ -256,6 +296,13 @@ export default function AIAccountantClientsPage() {
           )}
         </CardContent>
       </Card>
+      {payfastFormData && (
+        <form id="payfast-redirect-form" action={process.env.NEXT_PUBLIC_PAYFAST_URL} method="post" style={{ display: 'none' }}>
+            {Object.entries(payfastFormData).map(([key, value]) => (
+                <input key={key} type="hidden" name={key} value={value as string} />
+            ))}
+        </form>
+      )}
     </div>
   );
 }

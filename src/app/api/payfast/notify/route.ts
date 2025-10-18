@@ -12,7 +12,8 @@ import { chartOfAccounts as initialChartOfAccounts } from '@/lib/chart-of-accoun
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import WelcomeDiscountEmail from '@/components/emails/WelcomeDiscountEmail';
-import { add } from 'date-fns';
+import { add, addMonths } from 'date-fns';
+import AIAccountantWelcomeEmail from '@/components/emails/AIAccountantWelcomeEmail';
 
 const db = getFirestore(firebaseApp);
 const auth = getAuth(firebaseApp);
@@ -128,7 +129,7 @@ export async function POST(req: NextRequest) {
             // Handle different order sources
             if (order.source === 'AI Accountant Signup') {
                 const signupData = (order as any).signupData;
-                if (signupData) { // This is a NEW signup with once-off fees
+                if (signupData) { // This is a NEW signup with once-off fees - DEPRECATED
                     const userCredential = await createUserWithEmailAndPassword(auth, signupData.email, signupData.password);
                     const newFirebaseUser = userCredential.user;
                     const authUid = newFirebaseUser.uid;
@@ -138,7 +139,7 @@ export async function POST(req: NextRequest) {
                     const rulesSnapshot = await getDocs(rulesQuery);
                     const globalRules = rulesSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
 
-                    const subscriptionEndDate = add(new Date(), { days: 30 });
+                    const subscriptionEndDate = addMonths(new Date(), 1);
 
                     await setDoc(newUserDocRef, {
                         ...signupData,
@@ -158,7 +159,7 @@ export async function POST(req: NextRequest) {
                     });
 
                     try {
-                        const emailHtml = render(<WelcomeDiscountEmail name={signupData.name} discountCode={"SIGNUP-WELCOME"} />);
+                        const emailHtml = render(<AIAccountantWelcomeEmail name={signupData.name} loginUrl={`${process.env.NEXT_PUBLIC_APP_URL}/login`} />);
                         await sendEmail({
                             to: signupData.email,
                             subject: `Welcome to My Accountant!`,
@@ -169,21 +170,37 @@ export async function POST(req: NextRequest) {
                         console.error("Failed to send welcome email after payment:", emailError);
                     }
                      await updateDoc(orderRef, { status: 'Completed', userId: authUid });
-                } else if (order.renewalForClientId) { // This is a RENEWAL payment
+                } else if (order.renewalForClientId) { // This is a RENEWAL payment for an additional company
                      const clientRef = doc(db, 'aiAccountantClients', order.renewalForClientId);
                      const clientSnap = await getDoc(clientRef);
                      if (clientSnap.exists()) {
                          const clientData = clientSnap.data() as User;
                          const currentSub = clientData.subscription || {};
-                         const newEndDate = add(new Date(), { days: 30 });
+                         const newEndDate = addMonths(new Date(), 1);
 
                          await updateDoc(clientRef, {
                              'subscription.subscriptionStatus': 'active',
                              'subscription.subscriptionEndDate': Timestamp.fromDate(newEndDate),
+                             // Here you would increment the number of allowed companies
+                             'subscription.companyLimit': (currentSub.companyLimit || 1) + 1,
                          });
                          await updateDoc(orderRef, { status: 'Completed' });
                      }
                 }
+            } else if (order.source === 'Free Compliance Check') { // From compliance form
+                const discountCode = (order as any).discountCode;
+                if (discountCode) {
+                    const discountData: Omit<DiscountCode, 'id'> = {
+                        percentage: 5,
+                        status: 'active',
+                        clientEmail: order.customerEmail,
+                        createdAt: serverTimestamp(),
+                    };
+                    await setDoc(doc(db, 'discounts', discountCode), discountData);
+                    const emailHtml = render(<WelcomeDiscountEmail name={order.customerName} discountCode={discountCode} />);
+                    await sendEmail({ to: order.customerEmail, subject: `Your Free Compliance Assessment & 5% Discount!`, html: emailHtml });
+                }
+                 await updateDoc(orderRef, { status: 'Completed' });
             } else {
                  // Handle a standard product/service order
                 await updateDoc(orderRef, { status: 'Processing' });
