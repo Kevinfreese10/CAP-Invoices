@@ -89,7 +89,7 @@ export default function AIAccountantClientLayout({ children }: { children: React
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/allocation-rules`}>Allocation Rules</Link></MenubarItem>
                     </MenubarContent>
                 </MenubarMenu>
-                <MenubarMenu><MenubarTrigger asChild><Link href={`/admin/ai-accountant/customers`}>Customers</Link></MenubarTrigger></MenubarMenu>
+                <MenubarMenu><MenubarTrigger asChild><Link href={`/admin/ai-accountant/${clientId}/customers`}>Customers</Link></MenubarTrigger></MenubarMenu>
                 <MenubarMenu><MenubarTrigger>Suppliers</MenubarTrigger></MenubarMenu>
                 <MenubarMenu><MenubarTrigger>Items</MenubarTrigger></MenubarMenu>
                 <MenubarMenu>
