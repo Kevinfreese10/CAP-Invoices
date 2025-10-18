@@ -312,7 +312,7 @@ export default function AIAccountantSignupForm() {
                                             <FormItem className="flex items-start space-x-3">
                                                 <FormControl><Checkbox className="mt-1" checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                                                 <div className="grid gap-1.5 leading-none">
-                                                    <FormLabel>Include Once-off Catch-up Fee?</FormLabel>
+                                                    <FormLabel>Include optional once-off catch-up fee?</FormLabel>
                                                     <FormMessage />
                                                 </div>
                                             </FormItem>
