@@ -1,17 +1,18 @@
 
 'use client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Order } from '@/lib/types';
 import { useState, useEffect } from 'react';
 import { getFirestore, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, ArrowRight } from 'lucide-react';
+import { Loader2, ArrowRight, CheckCircle } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { format } from 'date-fns';
+import { Separator } from '@/components/ui/separator';
 
 const db = getFirestore(firebaseApp);
 
@@ -19,6 +20,50 @@ export default function DashboardPage() {
     const { user } = useAuth();
     const [orders, setOrders] = useState<Order[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+
+    const accountingPackages = [
+        {
+            title: 'Monthly Accounting (Non-VAT)',
+            price: 'R1,500',
+            features: [
+                'Up to 50 transactions',
+                'Bank reconciliations',
+                'Monthly management reports',
+                'Annual Financial Statements',
+                'Company & Personal Tax Returns'
+            ]
+        },
+        {
+            title: 'Monthly Accounting (VAT)',
+            price: 'R2,500',
+            features: [
+                'Up to 100 transactions',
+                'Includes all Non-VAT features',
+                'Bi-monthly VAT201 submissions'
+            ]
+        },
+    ];
+
+    const payrollPackages = [
+        {
+            title: 'Monthly Payroll (1-5 Employees)',
+            price: 'R550',
+            features: [
+                'Monthly payslips',
+                'EMP201 submissions (PAYE, UIF, SDL)',
+                'UIF Declaration'
+            ]
+        },
+         {
+            title: 'Monthly Payroll (6-10 Employees)',
+            price: 'R950',
+            features: [
+                'Monthly payslips',
+                'EMP201 submissions (PAYE, UIF, SDL)',
+                'UIF Declaration'
+            ]
+        },
+    ];
 
     useEffect(() => {
         const fetchOrders = async () => {
@@ -66,8 +111,82 @@ export default function DashboardPage() {
         <div className="space-y-8">
             <div>
                 <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.name}!</h1>
-                <p className="text-muted-foreground">Here's a summary of your recent activity.</p>
+                <p className="text-muted-foreground">Here's a summary of your recent activity and available services.</p>
             </div>
+
+            <section id="packages">
+                <div className="space-y-8">
+                    <div>
+                        <h2 className="text-2xl font-bold tracking-tight">Monthly Accounting Packages</h2>
+                        <p className="text-muted-foreground">Automate your finances with our comprehensive monthly packages.</p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
+                        {accountingPackages.map((pkg) => (
+                            <Card key={pkg.title} className="flex flex-col">
+                                <CardHeader>
+                                    <CardTitle>{pkg.title}</CardTitle>
+                                    <div className="flex items-baseline pt-2">
+                                        <span className="text-3xl font-bold">{pkg.price}</span>
+                                        <span className="text-sm text-muted-foreground">/month</span>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="flex-grow">
+                                    <ul className="space-y-3">
+                                        {pkg.features.map((feature, index) => (
+                                            <li key={index} className="flex items-center gap-2 text-sm">
+                                                <CheckCircle className="h-4 w-4 text-green-500" />
+                                                <span>{feature}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </CardContent>
+                                <CardFooter>
+                                    <Button className="w-full" asChild>
+                                        <Link href="/contact">Contact Us</Link>
+                                    </Button>
+                                </CardFooter>
+                            </Card>
+                        ))}
+                    </div>
+
+                    <Separator />
+
+                    <div>
+                        <h2 className="text-2xl font-bold tracking-tight">Payroll Packages</h2>
+                        <p className="text-muted-foreground">Ensure your payroll is compliant and on time, every time.</p>
+                    </div>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
+                        {payrollPackages.map((pkg) => (
+                            <Card key={pkg.title} className="flex flex-col">
+                                <CardHeader>
+                                    <CardTitle>{pkg.title}</CardTitle>
+                                    <div className="flex items-baseline pt-2">
+                                        <span className="text-3xl font-bold">{pkg.price}</span>
+                                        <span className="text-sm text-muted-foreground">/month</span>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="flex-grow">
+                                    <ul className="space-y-3">
+                                        {pkg.features.map((feature, index) => (
+                                            <li key={index} className="flex items-center gap-2 text-sm">
+                                                <CheckCircle className="h-4 w-4 text-green-500" />
+                                                <span>{feature}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </CardContent>
+                                <CardFooter>
+                                    <Button className="w-full" asChild>
+                                        <Link href="/contact">Contact Us</Link>
+                                    </Button>
+                                </CardFooter>
+                            </Card>
+                        ))}
+                    </div>
+                </div>
+            </section>
+
+            <Separator />
 
             <Card>
                 <CardHeader>
