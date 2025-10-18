@@ -89,7 +89,7 @@ export default function AIAccountantClientsPage() {
         yearEnd: data.yearEnd || null,
         role: 'client',
         source: 'AI Accountant',
-        hasAIAccountantProfile: true, // Legacy field, keeping for compatibility
+        hasNumeraProfile: true, // Legacy field, keeping for compatibility
         chartOfAccounts: initialChartOfAccounts,
         allocationRules: initialAllocationRules,
     };
@@ -121,28 +121,30 @@ export default function AIAccountantClientsPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">AI Accountant Clients</h1>
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-           <DialogTrigger asChild>
-                <Button onClick={handleAdd}>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Create Client
-                </Button>
-           </DialogTrigger>
-           <DialogContent className="sm:max-w-2xl">
-                <DialogHeader>
-                    <DialogTitle>{selectedClient ? 'Edit Client' : 'Create New Client'}</DialogTitle>
-                    <DialogDescription>
-                        {selectedClient ? 'Update the details for this client.' : 'Fill out the form to add a new client to the AI Accountant module.'}
-                    </DialogDescription>
-                </DialogHeader>
-                <ClientForm 
-                    client={selectedClient} 
-                    onSubmit={handleFormSubmit}
-                    onCancel={() => setIsFormOpen(false)}
-                    isAIClient={true}
-                />
-           </DialogContent>
-        </Dialog>
+        {currentUser && (
+            <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+            <DialogTrigger asChild>
+                    <Button onClick={handleAdd}>
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Create Client
+                    </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle>{selectedClient ? 'Edit Client' : 'Create New Client'}</DialogTitle>
+                        <DialogDescription>
+                            {selectedClient ? 'Update the details for this client.' : 'Fill out the form to add a new client to the AI Accountant module.'}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <ClientForm 
+                        client={selectedClient} 
+                        onSubmit={handleFormSubmit}
+                        onCancel={() => setIsFormOpen(false)}
+                        isAIClient={true}
+                    />
+            </DialogContent>
+            </Dialog>
+        )}
       </div>
       <Card>
         <CardHeader>
@@ -167,33 +169,36 @@ export default function AIAccountantClientsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {clients.map(client => (
-                <TableRow key={client.id}>
-                  <TableCell className="font-medium">
-                    <div>
-                        <span>{client.name}</span>
-                        {client.contactPerson && <p className="text-xs text-muted-foreground">{client.contactPerson}</p>}
-                    </div>
-                  </TableCell>
-                  <TableCell>{client.email}</TableCell>
-                  <TableCell>{client.contactNumber}</TableCell>
-                   <TableCell>{client.yearEnd}</TableCell>
-                    <TableCell>
-                      {client.isVatRegistered ? (
-                          <Badge variant="success">Yes</Badge>
-                      ) : (
-                          <Badge variant="secondary">No</Badge>
-                      )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button asChild size="sm">
-                        <Link href={`/admin/ai-accountant/${client.id}/dashboard`}>
-                            Manage Client <ArrowRight className="ml-2 h-4 w-4" />
-                        </Link>
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {clients.map(client => {
+                const basePath = currentUser?.role === 'admin' ? '/admin' : '/dashboard';
+                return (
+                    <TableRow key={client.id}>
+                    <TableCell className="font-medium">
+                        <div>
+                            <span>{client.name}</span>
+                            {client.contactPerson && <p className="text-xs text-muted-foreground">{client.contactPerson}</p>}
+                        </div>
+                    </TableCell>
+                    <TableCell>{client.email}</TableCell>
+                    <TableCell>{client.contactNumber}</TableCell>
+                    <TableCell>{client.yearEnd}</TableCell>
+                        <TableCell>
+                        {client.isVatRegistered ? (
+                            <Badge variant="success">Yes</Badge>
+                        ) : (
+                            <Badge variant="secondary">No</Badge>
+                        )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                        <Button asChild size="sm">
+                            <Link href={`${basePath}/ai-accountant/${client.id}/dashboard`}>
+                                Manage Client <ArrowRight className="ml-2 h-4 w-4" />
+                            </Link>
+                        </Button>
+                    </TableCell>
+                    </TableRow>
+                )
+            })}
             </TableBody>
           </Table>
           )}
