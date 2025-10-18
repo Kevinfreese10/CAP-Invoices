@@ -63,7 +63,7 @@ export default function AiAccountantPage() {
             </p>
             <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
               <Button asChild size="lg">
-                <Link href="/reseller-signup">Sign Up Now</Link>
+                <Link href="/ai-accountant-signup">Sign Up Now</Link>
               </Button>
             </div>
           </div>
