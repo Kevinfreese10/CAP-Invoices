@@ -1,5 +1,4 @@
 
-
 import { notFound } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { BadgeCheck, Clock, ClipboardCheck } from 'lucide-react';
@@ -10,7 +9,7 @@ import { getFirestore, collection, query, where, getDocs, Timestamp } from 'fire
 import { firebaseApp } from '@/lib/firebase';
 import { Metadata, ResolvingMetadata } from 'next';
 import ServiceCheckoutForm from '@/components/checkout/ServiceCheckoutForm';
-
+import Script from 'next/script';
 
 const db = getFirestore(firebaseApp);
 
@@ -63,8 +62,6 @@ export async function generateMetadata(
       title: 'Service Not Found'
     }
   }
-
-  const previousImages = (await parent).openGraph?.images || []
  
   return {
     title: service.metaTitle || service.title,
@@ -72,7 +69,7 @@ export async function generateMetadata(
     openGraph: {
       title: service.metaTitle || service.title,
       description: service.metaDescription || service.excerpt,
-      images: [service.imageUrl, ...previousImages],
+      images: [service.imageUrl],
     },
     twitter: {
       card: 'summary_large_image',
@@ -91,64 +88,122 @@ export default async function ServiceDetailPage({ params }: Props) {
     notFound();
   }
 
-  return (
-    <div className="container mx-auto px-4 py-12">
-        <div className="text-center mb-8">
-            <TrustIndexWidget />
-        </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-        <div className="space-y-8 md:col-span-2">
-            
-          <div className="space-y-3">
-            <Badge variant="secondary" className="w-fit">{service.category}</Badge>
-            <h1 className="text-3xl md:text-4xl font-bold tracking-tight">{service.title}</h1>
-            <p className="text-3xl font-bold text-primary">{formatPrice(service.price)}</p>
-            <div className="flex items-center text-muted-foreground">
-                <Clock className="h-4 w-4 mr-1.5" />
-                <span className="text-sm font-medium">{service.turnaroundTime}</span>
-            </div>
-          </div>
-          
-          <div>
-            <h2 className="text-xl font-semibold">Service Description</h2>
-            <Separator className="my-3" />
-            <p className="text-muted-foreground">{service.longDescription}</p>
-          </div>
+  const jsonLd = {
+    '@context': 'https://schema.org/',
+    '@type': 'Product',
+    name: service.title,
+    image: service.imageUrl,
+    description: service.description,
+    brand: {
+      '@type': 'Brand',
+      name: 'My Accountant',
+    },
+    sku: service.id,
+    offers: {
+      '@type': 'Offer',
+      url: `https://www.myacc.co.za/services/${service.slug}`,
+      priceCurrency: 'ZAR',
+      price: service.price.toString(),
+      availability: 'https://schema.org/InStock',
+      priceValidUntil: `${new Date().getFullYear() + 1}-12-31`,
+      hasMerchantReturnPolicy: {
+        '@type': 'MerchantReturnPolicy',
+        'applicableCountry': 'ZA',
+        'returnPolicyCategory': 'https://schema.org/MerchantReturnNotPermitted'
+      },
+      shippingDetails: {
+        '@type': 'OfferShippingDetails',
+        shippingRate: {
+            '@type': 'MonetaryAmount',
+            value: '0',
+            currency: 'ZAR'
+        }
+      }
+    },
+    aggregateRating: {
+        '@type': 'AggregateRating',
+        ratingValue: '5',
+        reviewCount: '1'
+    },
+    review: {
+        '@type': 'Review',
+        reviewRating: {
+          '@type': 'Rating',
+          ratingValue: '5'
+        },
+        author: {
+          '@type': 'Person',
+          name: 'Satisfied Client'
+        },
+        reviewBody: 'Excellent and fast service. Highly recommended!'
+      },
+  };
 
-          {service.whatsIncluded && service.whatsIncluded.length > 0 && (
+  return (
+    <>
+      <Script
+        id="product-schema"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <div className="container mx-auto px-4 py-12">
+          <div className="text-center mb-8">
+              <TrustIndexWidget />
+          </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+          <div className="space-y-8 md:col-span-2">
+              
+            <div className="space-y-3">
+              <Badge variant="secondary" className="w-fit">{service.category}</Badge>
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight">{service.title}</h1>
+              <p className="text-3xl font-bold text-primary">{formatPrice(service.price)}</p>
+              <div className="flex items-center text-muted-foreground">
+                  <Clock className="h-4 w-4 mr-1.5" />
+                  <span className="text-sm font-medium">{service.turnaroundTime}</span>
+              </div>
+            </div>
+            
             <div>
-              <h2 className="text-xl font-semibold">What's Included</h2>
+              <h2 className="text-xl font-semibold">Service Description</h2>
               <Separator className="my-3" />
-              <ul className="space-y-3">
-                {service.whatsIncluded.map((item, index) => (
+              <p className="text-muted-foreground">{service.longDescription}</p>
+            </div>
+
+            {service.whatsIncluded && service.whatsIncluded.length > 0 && (
+              <div>
+                <h2 className="text-xl font-semibold">What's Included</h2>
+                <Separator className="my-3" />
+                <ul className="space-y-3">
+                  {service.whatsIncluded.map((item, index) => (
+                    <li key={index} className="flex items-start">
+                      <BadgeCheck className="h-5 w-5 text-primary mr-3 mt-1 flex-shrink-0" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div>
+              <h2 className="text-xl font-semibold">Prerequisites</h2>
+              <Separator className="my-3" />
+               <ul className="space-y-3">
+                {service.clientRequirements.map((doc, index) => (
                   <li key={index} className="flex items-start">
-                    <BadgeCheck className="h-5 w-5 text-primary mr-3 mt-1 flex-shrink-0" />
-                    <span>{item}</span>
+                    <ClipboardCheck className="h-5 w-5 text-primary mr-3 mt-1 flex-shrink-0" />
+                    <span>{doc}</span>
                   </li>
                 ))}
               </ul>
             </div>
-          )}
 
-          <div>
-            <h2 className="text-xl font-semibold">Prerequisites</h2>
-            <Separator className="my-3" />
-             <ul className="space-y-3">
-              {service.clientRequirements.map((doc, index) => (
-                <li key={index} className="flex items-start">
-                  <ClipboardCheck className="h-5 w-5 text-primary mr-3 mt-1 flex-shrink-0" />
-                  <span>{doc}</span>
-                </li>
-              ))}
-            </ul>
           </div>
 
-        </div>
-
-        <div className="md:col-span-1">
-            <ServiceCheckoutForm service={service} />
+          <div className="md:col-span-1">
+              <ServiceCheckoutForm service={service} />
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

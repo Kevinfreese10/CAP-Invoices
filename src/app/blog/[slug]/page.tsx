@@ -44,8 +44,6 @@ export async function generateMetadata(
       title: 'Post Not Found'
     }
   }
-
-  const previousImages = (await parent).openGraph?.images || []
  
   return {
     title: post.metaTitle || post.title,
@@ -53,7 +51,7 @@ export async function generateMetadata(
     openGraph: {
       title: post.metaTitle || post.title,
       description: post.metaDescription || post.excerpt,
-      images: [post.imageUrl, ...previousImages],
+      images: [post.imageUrl],
     },
     twitter: {
       card: 'summary_large_image',

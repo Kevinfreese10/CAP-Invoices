@@ -11,6 +11,7 @@ import WebsiteAIWidget from '@/components/shared/WebsiteAIWidget';
 
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://www.myacc.co.za'),
   title: {
     default: 'My Accountant | Professional Accounting & Tax Services',
     template: '%s | My Accountant',
