@@ -78,20 +78,6 @@ export default function AiAccountantPage() {
       cta: "Add AI to Your Profile",
        href: "/ai-accountant-signup"
     },
-     {
-      title: "Payroll Services",
-      price: "From R110",
-      period: "/ payslip",
-      description: "Comprehensive payroll management.",
-      features: [
-        "R110 per payslip",
-        "Monthly Payroll Submissions (EMP201) for R550 p/m",
-        "Bi-annual Reconciliations (EMP501)",
-        "UIF Registrations & Submissions",
-      ],
-      cta: "Contact Us for Payroll",
-       href: "/contact"
-    },
   ];
 
   const subscriptionTiers = [
@@ -124,6 +110,20 @@ export default function AiAccountantPage() {
       ],
       cta: "Sign Up for VAT Accounting",
       href: "/ai-accountant-signup"
+    },
+     {
+      title: "Payroll Services",
+      price: "From R110",
+      period: "/ payslip",
+      description: "Comprehensive payroll management.",
+      features: [
+        "R110 per payslip",
+        "Monthly Payroll Submissions (EMP201) for R550 p/m",
+        "Bi-annual Reconciliations (EMP501)",
+        "UIF Registrations & Submissions",
+      ],
+      cta: "Contact Us for Payroll",
+       href: "/contact"
     },
   ]
 
@@ -205,7 +205,7 @@ export default function AiAccountantPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-stretch">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch max-w-3xl mx-auto">
             {pricingTiers.map((tier) => (
               <Card key={tier.title} className="flex flex-col">
                 <CardHeader>
@@ -235,14 +235,14 @@ export default function AiAccountantPage() {
             ))}
           </div>
           
-           <div className="text-center mt-12 mb-12">
+           <div className="text-center mt-16 mb-12">
             <h3 className="text-2xl font-bold">All-Inclusive Monthly Subscriptions</h3>
             <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
               For complete peace of mind, choose a monthly package that includes the AI Accountant and all your compliance needs.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-stretch max-w-6xl mx-auto">
              {subscriptionTiers.map((tier) => (
               <Card key={tier.title} className="flex flex-col bg-primary/5 border-primary/20">
                 <CardHeader>
