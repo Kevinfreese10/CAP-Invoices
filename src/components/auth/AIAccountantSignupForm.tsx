@@ -101,7 +101,7 @@ export default function AIAccountantSignupForm() {
     const isMonthlyAccountingPlan = serviceLevel === 'monthly_non_vat' || serviceLevel === 'monthly_vat';
     
     if (isMonthlyAccountingPlan && yearEnd) {
-        const planFeeForCatchup = pricing[serviceLevel];
+        const planFeeForCatchup = pricing[serviceLevel as 'monthly_non_vat' | 'monthly_vat'];
         const today = new Date();
         const currentYear = today.getFullYear();
         const yearEndMonthIndex = months.indexOf(yearEnd);
@@ -242,13 +242,14 @@ export default function AIAccountantSignupForm() {
                                                 <div className="pl-8 pt-2 text-sm text-muted-foreground">
                                                     <p className="font-medium text-foreground pb-1">Includes:</p>
                                                     <ul className="list-disc list-inside space-y-1">
-                                                        <li>Annual financial statements preparation</li>
-                                                        <li>2 × provisional tax returns</li>
-                                                        <li>1 × tax return</li>
+                                                        <li>Monthly management accounts</li>
+                                                        <li>Annual financial statements</li>
+                                                        <li>Provisional tax returns</li>
+                                                        <li>Annual income tax return</li>
                                                         <li>CIPC annual return</li>
-                                                        <li>BEE certificate</li>
+                                                        <li>B-BBEE certificate or affidavit</li>
                                                         <li>Beneficial ownership declaration</li>
-                                                        <li>Tax clearance</li>
+                                                        <li>Tax clearance certificate</li>
                                                         <li>VAT returns</li>
                                                     </ul>
                                                 </div>
