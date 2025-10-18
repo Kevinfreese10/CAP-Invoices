@@ -104,14 +104,14 @@ export type OrderNote = {
   date: any;
   authorId: string;
   type?: 'note' | 'email';
-  subject?: string;
+  subject?: string | null;
 };
 
 export type ItnLog = {
   receivedAt: any;
   status: 'Success' | 'Failed';
   message: string;
-  payload: { [key: string]: string };
+  payload: { [key: string]: any };
 };
 
 export type Order = {
@@ -138,7 +138,7 @@ export type Order = {
   notes?: OrderNote[];
   documentUploads?: DocumentUpload[];
   itnHistory?: ItnLog[];
-  source?: 'Client' | 'Staff' | 'Reseller';
+  source?: 'Client' | 'Staff' | 'Reseller' | 'AI Accountant Signup';
 };
 
 export type Invoice = {
@@ -343,6 +343,4 @@ export type AIAllocationJob = {
     completedAt?: any;
     error?: string;
 }
-    
-
     

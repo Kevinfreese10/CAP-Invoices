@@ -12,11 +12,11 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
-import { toast } from '@/hooks/use-toast';
 import { services as allServices } from '@/lib/data';
 import { render } from '@react-email/components';
 import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
 import { sendEmail } from '@/lib/email';
+import { useToast } from '@/hooks/use-toast';
 
 const db = getFirestore(firebaseApp);
 
@@ -30,11 +30,12 @@ const formatPrice = (price: number) => {
 export default function PaymentSuccessPage() {
     const params = useParams();
     const router = useRouter();
-    const { user, isAuthenticated } = useAuth();
+    const { user, isAuthenticated, login } = useAuth();
     const orderId = params.orderId as string;
     const [order, setOrder] = useState<Order | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [assignee, setAssignee] = useState<User | null>(null);
+    const [isFinalizing, setIsFinalizing] = useState(true);
+    const { toast } = useToast();
 
     useEffect(() => {
         if (!orderId) return;
@@ -45,8 +46,27 @@ export default function PaymentSuccessPage() {
 
             if (orderSnap.exists()) {
                 const orderData = orderSnap.data() as Order;
+
+                if (orderData.status !== 'Processing' && orderData.status !== 'Completed') {
+                    // Still pending, ITN might be slow.
+                    return; // Wait for the next poll.
+                }
+
+                if (orderData.source === 'AI Accountant Signup') {
+                    // If it's a signup order and the user is not logged in, attempt to log them in.
+                    if (!isAuthenticated) {
+                        const signupData = (orderData as any).signupData;
+                        if (signupData?.email && signupData?.password) {
+                            await login(signupData.email, signupData.password);
+                        }
+                    }
+                    // Redirect to dashboard after login or if already logged in.
+                    router.replace('/admin/ai-accountant');
+                    return;
+                }
                 
-                 if (orderData.status !== 'Processing' && !orderData.notes?.some(n => n.subject === `Action Required for Your Order #${orderId}`)) {
+                // For regular orders, send document request if not already sent.
+                if (!orderData.notes?.some(n => n.subject === `Action Required for Your Order #${orderId}`)) {
                     const itemsWithServices = orderData.items.map(item => {
                         const service = allServices.find(s => s.id === item.id);
                         return { ...item, service };
@@ -54,42 +74,31 @@ export default function PaymentSuccessPage() {
 
                     const emailHtml = render(<DocumentRequestEmail order={orderData} items={itemsWithServices} replyTo="info@myacc.co.za" />);
                     
-                    const attachments = itemsWithServices
-                        .filter(item => item.service.attachmentUrl)
-                        .map(item => ({
-                            filename: `${item.service.title.replace(/\s/g, '_')}.pdf`,
-                            path: item.service.attachmentUrl!,
-                        }));
+                    const attachments = itemsWithServices.filter(item => item.service.attachmentUrl).map(item => ({
+                        filename: `${item.service.title.replace(/\s/g, '_')}.pdf`,
+                        path: item.service.attachmentUrl!,
+                    }));
                     
                     try {
-                        await sendEmail({
-                            to: orderData.customerEmail,
-                            subject: `Action Required for Your Order #${orderId}`,
-                            html: emailHtml,
-                            attachments: attachments,
-                        });
-                        const emailNote: OrderNote = {
-                            text: 'Sent "Request Documents" email to client after payment.',
-                            date: Timestamp.now(),
-                            authorId: 'system',
-                            type: 'email',
-                            subject: `Action Required for Your Order #${orderId}`,
-                        };
+                        await sendEmail({ to: orderData.customerEmail, subject: `Action Required for Your Order #${orderId}`, html: emailHtml, attachments });
+                        const emailNote: OrderNote = { text: 'Sent "Request Documents" email to client after payment.', date: Timestamp.now(), authorId: 'system', type: 'email', subject: `Action Required for Your Order #${orderId}` };
                         await updateDoc(orderRef, { notes: arrayUnion(emailNote) });
                     } catch(e) {
                          console.error("Failed to send document request email:", e);
                     }
                 }
-
+                
                 setOrder(orderData);
-
+                setIsFinalizing(false);
+                
+                // If a logged-in client lands here, redirect to their order details page.
                 if (isAuthenticated && user?.role === 'client') {
-                    // If user is logged in, redirect them immediately to the order page.
                     router.replace(`/dashboard/orders/${orderId}`);
-                    return; // Stop further execution
+                    return;
                 }
 
             } else {
+                setIsFinalizing(false);
                 notFound();
             }
             setIsLoading(false);
@@ -97,19 +106,24 @@ export default function PaymentSuccessPage() {
         
         let attempts = 0;
         const interval = setInterval(() => {
-            if (attempts < 5 && !order) {
+            if (attempts < 5 && isFinalizing) {
                 fetchOrderDetails();
                 attempts++;
             } else {
                 clearInterval(interval);
-                if (!order) setIsLoading(false); 
+                if (isFinalizing) {
+                  // If still finalizing after multiple attempts, stop loading and show the page.
+                  setIsLoading(false);
+                  setIsFinalizing(false);
+                  if(!order) fetchOrderDetails(); // One last try
+                }
             }
         }, 2000);
 
         return () => clearInterval(interval);
 
-    }, [orderId, isAuthenticated, user, router, order]);
-
+    }, [orderId, isAuthenticated, user, router, login, isFinalizing, order]);
+    
     if (isLoading) {
         return (
             <div className="container mx-auto px-4 py-20 text-center">
@@ -119,12 +133,17 @@ export default function PaymentSuccessPage() {
             </div>
         );
     }
-
+    
     if (!order) {
-        return notFound();
+        return (
+            <div className="container mx-auto px-4 py-20 text-center">
+                 <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
+                 <h1 className="mt-4 text-2xl font-semibold">Waiting for Payment Confirmation</h1>
+                 <p className="text-muted-foreground">We are still waiting for the payment notification from PayFast. This page will update automatically.</p>
+            </div>
+        )
     }
     
-    // This view will only be shown to users who are not logged in.
     return (
         <div className="container mx-auto px-4 py-12 max-w-4xl">
             <Card>
