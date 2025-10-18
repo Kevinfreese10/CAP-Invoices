@@ -130,7 +130,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/reseller/settings', label: 'API & Branding', icon: Settings, roles: ['reseller'] },
   ];
 
-  const hasAIAccountantProfile = user.hasNumeraProfile || user.source === 'AI Accountant';
+  const hasAIAccountantProfile = user.hasAIAccountantProfile || user.source === 'AI Accountant';
 
   const shouldShowAdminOrAI = user.role === 'admin' || user.role === 'staff' || (user.role === 'client' && hasAIAccountantProfile);
   const visibleNavItems = navItems.filter(item => item.roles.includes(user.role));
