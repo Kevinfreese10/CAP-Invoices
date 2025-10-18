@@ -95,6 +95,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
      { href: `/admin/ai-accountant/${user?.id}/chart-of-accounts`, label: 'Chart of Accounts', icon: Book, roles: ['client', 'admin'] },
      { href: `/admin/ai-accountant/${user?.id}/journals`, label: 'Journals', icon: BookMarked, roles: ['client', 'admin'] },
      { href: '/admin/ai-accountant/allocation-rules', label: 'Allocation Rules', icon: ArrowRightLeft, roles: ['admin'] },
+     { href: `/admin/ai-accountant/${user?.id}/reports/trial-balance`, label: 'Reports', icon: FileSpreadsheet, roles: ['client', 'admin'] },
   ];
 
   const capSupplierItems = [
