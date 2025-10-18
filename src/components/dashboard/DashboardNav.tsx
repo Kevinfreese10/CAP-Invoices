@@ -87,6 +87,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   ];
   
   const aiAccountantItems = [
+     { href: `/admin/ai-accountant/${user?.id}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'client'] },
      { href: '/admin/ai-accountant/customers', label: 'Client Profiles', icon: Users, roles: ['admin'] },
      { href: '/admin/ai-accountant/chart-of-accounts', label: 'Chart of Accounts', icon: Book, roles: ['admin'] },
      { href: '/admin/ai-accountant/allocation-rules', label: 'Allocation Rules', icon: ArrowRightLeft, roles: ['admin'] },
@@ -150,7 +151,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
       </SidebarHeader>
 
       <SidebarMenu className="flex-1">
-        {user.role === 'client' && visibleNavItems.map((item) => (
+        {user.role === 'client' && !user.hasNumeraProfile && visibleNavItems.map((item) => (
           <SidebarMenuItem key={item.href}>
             <SidebarMenuButton
               asChild
@@ -165,7 +166,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
           </SidebarMenuItem>
         ))}
         
-        {(user.role === 'admin' || user.role === 'staff') && (
+        {(user.role === 'admin' || user.role === 'staff' || (user.role === 'client' && user.hasNumeraProfile)) && (
             <>
                 {visibleAdminNavItems.map((item) => (
                     <SidebarMenuItem key={item.href}>
