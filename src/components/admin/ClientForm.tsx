@@ -14,8 +14,14 @@ import { Textarea } from '../ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import MediaLibrary from './MediaLibrary';
 import { useState } from 'react';
-import { Images } from 'lucide-react';
+import { Images, Loader2 } from 'lucide-react';
 import Image from 'next/image';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { firebaseApp } from '@/lib/firebase';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
+
+const storage = getStorage(firebaseApp);
 
 const clientStatuses: ('Active' | 'Inactive')[] = ['Active', 'Inactive'];
 const months = [ "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" ];
@@ -64,7 +70,9 @@ export default function ClientForm({
     onCancel: () => void, 
     isAIClient?: boolean,
 }) {
-    const [isMediaLibraryOpen, setIsMediaLibraryOpen] = useState(false);
+    const { user } = useAuth();
+    const { toast } = useToast();
+    const [isUploadingLogo, setIsUploadingLogo] = useState(false);
     
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -100,6 +108,35 @@ export default function ClientForm({
     const enableInvoicing = form.watch('enableInvoicing');
     const currentLogoUrl = form.watch('logoUrl');
 
+    const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file || !user) return;
+
+        setIsUploadingLogo(true);
+        toast({ title: 'Uploading Logo...', description: 'Please wait.' });
+
+        const storageRef = ref(storage, `logos/${user.uid}/${Date.now()}-${file.name}`);
+        const uploadTask = uploadBytesResumable(storageRef, file);
+
+        uploadTask.on('state_changed', 
+            (snapshot) => {
+                // Can be used to show progress
+            },
+            (error) => {
+                console.error("Logo upload error:", error);
+                toast({ title: "Upload Failed", description: "Could not upload the logo.", variant: "destructive" });
+                setIsUploadingLogo(false);
+            },
+            () => {
+                getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+                    form.setValue('logoUrl', downloadURL);
+                    toast({ title: "Upload Successful", description: "Logo has been uploaded." });
+                    setIsUploadingLogo(false);
+                });
+            }
+        );
+    };
+
     const handleSubmit = (values: z.infer<typeof formSchema>) => {
         const finalValues = {
             ...values,
@@ -110,19 +147,6 @@ export default function ClientForm({
     
     return (
         <Form {...form}>
-            <Dialog open={isMediaLibraryOpen} onOpenChange={setIsMediaLibraryOpen}>
-                <DialogContent className="max-w-4xl">
-                    <DialogHeader>
-                        <DialogTitle>Media Library</DialogTitle>
-                        <DialogDescription>Select an image for the company logo.</DialogDescription>
-                    </DialogHeader>
-                    <MediaLibrary onSelectImage={(url) => {
-                        form.setValue('logoUrl', url);
-                        setIsMediaLibraryOpen(false);
-                    }} />
-                </DialogContent>
-            </Dialog>
-
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 max-h-[70vh] overflow-y-auto p-1 pr-4">
                 <div className="space-y-4">
                     <h3 className="text-lg font-medium">Customer Details</h3>
@@ -167,15 +191,20 @@ export default function ClientForm({
 
                             {enableInvoicing && (
                                 <div className="space-y-4 pt-4 border-t">
-                                     <FormField control={form.control} name="logoUrl" render={({ field }) => ( <FormItem><FormLabel>Company Logo</FormLabel><div className="flex items-center gap-4">
+                                     <FormItem>
+                                        <FormLabel>Company Logo</FormLabel>
+                                        <div className="flex items-center gap-4">
                                             <div className="relative h-24 w-24 flex-shrink-0 border rounded-md overflow-hidden bg-muted">
-                                                {currentLogoUrl && <Image src={currentLogoUrl} alt="Company logo" fill className="object-contain p-2"/>}
+                                                {isUploadingLogo ? (
+                                                    <div className="flex items-center justify-center h-full"><Loader2 className="h-6 w-6 animate-spin"/></div>
+                                                ) : currentLogoUrl ? (
+                                                    <Image src={currentLogoUrl} alt="Company logo" fill className="object-contain p-2"/>
+                                                ) : null}
                                             </div>
-                                            <Button type="button" variant="outline" onClick={() => setIsMediaLibraryOpen(true)}>
-                                                <Images className="mr-2 h-4 w-4"/>
-                                                Select Logo
-                                            </Button>
-                                        </div><FormMessage /></FormItem>)} />
+                                            <FormControl><Input type="file" accept="image/*" onChange={handleLogoUpload} className="max-w-xs" /></FormControl>
+                                        </div>
+                                        <FormMessage />
+                                     </FormItem>
                                      <FormField control={form.control} name="address" render={({ field }) => ( <FormItem><FormLabel>Company Address</FormLabel><FormControl><Textarea placeholder="123 Main Street..." {...field} /></FormControl><FormMessage /></FormItem>)} />
                                      <FormField control={form.control} name="nextInvoiceNumber" render={({ field }) => ( <FormItem><FormLabel>Next Invoice Number</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
                                      
