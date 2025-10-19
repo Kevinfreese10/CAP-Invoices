@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Loader2, Inbox, RefreshCw, FileWarning, Paperclip, Sparkles, Bot } from 'lucide-react';
+import { Loader2, Inbox, RefreshCw, FileWarning, Paperclip, Sparkles, Bot, Pilcrow, MessageSquare, StickyNote, PlusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -11,6 +11,7 @@ import { format } from 'date-fns';
 import { analyzeEmail, type EmailAnalysisOutput } from '@/ai/flows/analyze-email';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Textarea } from '@/components/ui/textarea';
 
 interface Attachment {
     filename: string;
@@ -153,10 +154,12 @@ export default function AIEmailInboxPage() {
                                 <div className="p-4 border-b space-y-2">
                                     <div className="flex justify-between items-center">
                                       <h2 className="font-semibold text-lg">{selectedEmail.subject}</h2>
-                                      <Button onClick={handleAnalyze} size="sm" variant="outline" disabled={isAnalyzing}>
-                                        {isAnalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4 text-primary"/>}
-                                        Analyze
-                                      </Button>
+                                      <div className="flex gap-2">
+                                        <Button onClick={handleAnalyze} size="sm" variant="outline" disabled={isAnalyzing}>
+                                            {isAnalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4 text-primary"/>}
+                                            Analyze
+                                        </Button>
+                                      </div>
                                     </div>
                                     <p className="text-sm"><strong>From:</strong> {selectedEmail.from}</p>
                                     <p className="text-sm text-muted-foreground"><strong>Date:</strong> {format(new Date(selectedEmail.date), 'dd MMMM yyyy, HH:mm')}</p>
@@ -200,14 +203,14 @@ export default function AIEmailInboxPage() {
                 </CardHeader>
                 <CardContent>
                     {isAnalyzing ? (
-                         <div className="flex items-center justify-center h-24">
+                         <div className="flex items-center justify-center h-48">
                             <Loader2 className="h-8 w-8 animate-spin" />
                         </div>
                     ) : analysisResult ? (
-                        <div className="space-y-4">
+                        <div className="space-y-6">
                             <Alert>
                                 <Bot className="h-4 w-4"/>
-                                <AlertTitle>AI Summary</AlertTitle>
+                                <AlertTitle className="font-semibold">AI Summary</AlertTitle>
                                 <AlertDescription>{analysisResult.summary}</AlertDescription>
                             </Alert>
                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
@@ -238,9 +241,38 @@ export default function AIEmailInboxPage() {
                             )}
                             <div>
                                 <h4 className="font-semibold text-sm mb-2">Recommended Next Step:</h4>
-                                <p className="text-sm">{analysisResult.nextStep}</p>
+                                <p className="text-sm p-3 bg-muted rounded-md">{analysisResult.nextStep}</p>
                             </div>
+                            
+                            {analysisResult.draftReply?.body && (
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="flex items-center gap-2 text-lg"><MessageSquare /> Draft Reply</CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="space-y-2">
+                                        <p className="text-sm font-medium">Subject: {analysisResult.draftReply.subject}</p>
+                                        <Textarea readOnly value={analysisResult.draftReply.body} rows={8} className="text-sm" />
+                                    </CardContent>
+                                    <CardFooter>
+                                        <Button>Send Email</Button>
+                                    </CardFooter>
+                                </Card>
+                            )}
 
+                             {analysisResult.suggestedTask?.title && (
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="flex items-center gap-2 text-lg"><StickyNote /> Suggested Task</CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="space-y-2">
+                                        <p className="text-sm font-medium">{analysisResult.suggestedTask.title}</p>
+                                        <p className="text-sm text-muted-foreground">{analysisResult.suggestedTask.description}</p>
+                                    </CardContent>
+                                    <CardFooter>
+                                        <Button><PlusCircle className="mr-2 h-4 w-4"/> Create Task</Button>
+                                    </CardFooter>
+                                </Card>
+                            )}
                         </div>
                     ) : (
                         <div className="text-center py-10 border-2 border-dashed rounded-lg">
