@@ -13,12 +13,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   
   useEffect(() => {
-    if (isAuthenticated && user?.role === 'client') {
+    if (isAuthenticated && (user?.role === 'client' || user?.role === 'ai_accountant')) {
       router.push('/home');
     }
   }, [isAuthenticated, user, router]);
   
-  if (isAuthenticated === undefined || (isAuthenticated && user?.role === 'client')) {
+  if (isAuthenticated === undefined || (isAuthenticated && (user?.role === 'client' || user?.role === 'ai_accountant'))) {
      return (
         <div className="flex min-h-screen">
             <Skeleton className="hidden md:block w-16 lg:w-64" />

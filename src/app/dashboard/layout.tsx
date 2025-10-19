@@ -13,7 +13,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   
   useEffect(() => {
-    if (isAuthenticated && user?.role !== 'client') {
+    if (isAuthenticated && (user?.role !== 'client' && user?.role !== 'ai_accountant')) {
       // Redirect non-clients away from this dashboard
       if (user?.role === 'admin' || user?.role === 'staff') {
         router.push('/admin/dashboard');
@@ -25,7 +25,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     }
   }, [isAuthenticated, user, router]);
 
-  if (isAuthenticated === undefined || (isAuthenticated && user?.role !== 'client')) {
+  if (isAuthenticated === undefined || (isAuthenticated && (user?.role !== 'client' && user?.role !== 'ai_accountant'))) {
      return (
         <div className="flex min-h-screen">
             <Skeleton className="hidden md:block w-16 lg:w-64" />

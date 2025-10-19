@@ -68,7 +68,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     router.push('/');
   };
 
-  const basePath = user.role === 'client' ? '/dashboard' : user.role === 'reseller' ? '/reseller' : '/admin';
+  const basePath = user.role === 'client' ? '/dashboard' : user.role === 'reseller' ? '/reseller' : user.role === 'ai_accountant' ? '/dashboard' : '/admin';
   const clientId = user?.role === 'client' ? user.id : pathname.split('/')[3] || user.id;
 
   const navItems = [
@@ -91,7 +91,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   ];
   
   const aiAccountantItems = [
-     { href: `${basePath}/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['admin', 'client', 'reseller'] },
+     { href: `${basePath}/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['admin', 'client', 'reseller', 'ai_accountant'] },
      { href: `${basePath}/ai-accountant/${clientId}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'client'] },
      { href: `${basePath}/ai-accountant/${clientId}/customers`, label: 'Customers', icon: Users, roles: ['admin', 'client'] },
      { href: `${basePath}/ai-accountant/${clientId}/invoices`, label: 'Invoices', icon: FileText, roles: ['admin', 'client'] },
@@ -148,7 +148,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
         <div className={cn("flex items-center gap-3 p-2", state === 'collapsed' && 'p-0')}>
             <div className={cn("flex-1 overflow-hidden", state === 'collapsed' && 'hidden')}>
                 <p className="font-semibold text-sm truncate">{user.companyName || user.name}</p>
-                <p className="text-xs text-muted-foreground capitalize truncate">{user.role}</p>
+                <p className="text-xs text-muted-foreground capitalize truncate">{user.role.replace('_', ' ')}</p>
             </div>
              <Button
                 variant="ghost"
@@ -197,7 +197,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
         ))}
 
 
-        {(hasAIAccountantProfile || user.role === 'admin' || user.role === 'reseller') && (
+        {(hasAIAccountantProfile || user.role === 'admin' || user.role === 'reseller' || user.role === 'ai_accountant') && (
             <Collapsible open={isAiAccountantOpen} onOpenChange={setIsAiAccountantOpen}>
             <SidebarMenuItem>
                 <CollapsibleTrigger asChild>

@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -144,6 +144,8 @@ export default function LoginForm() {
         router.push('/admin/dashboard');
     } else if (result.role === 'reseller') {
         router.push('/reseller/dashboard');
+    } else if (result.role === 'ai_accountant') {
+        router.push('/dashboard/ai-accountant/clients');
     } else {
         router.push('/dashboard');
     }

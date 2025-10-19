@@ -28,7 +28,7 @@ import { Label } from '@/components/ui/label';
 const db = getFirestore(firebaseApp);
 const auth = getAuth(firebaseApp);
 
-const roles = ['client', 'staff', 'admin', 'reseller'] as const;
+const roles = ['client', 'staff', 'admin', 'reseller', 'ai_accountant'] as const;
 
 const formSchema = z.object({
   id: z.string().optional(),
@@ -87,7 +87,7 @@ function UserForm({ user, onSubmit, onCancel }: { user: User | null, onSubmit: (
                         </FormItem>
                     )}
                 />
-                 <FormField control={form.control} name="role" render={({ field }) => ( <FormItem><FormLabel>Role</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a role" /></SelectTrigger></FormControl><SelectContent>{roles.map(role => <SelectItem key={role} value={role} className="capitalize">{role}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )}/>
+                 <FormField control={form.control} name="role" render={({ field }) => ( <FormItem><FormLabel>Role</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a role" /></SelectTrigger></FormControl><SelectContent>{roles.map(role => <SelectItem key={role} value={role} className="capitalize">{role.replace('_', ' ')}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem> )}/>
                 <div className="flex justify-end gap-2">
                     <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
                     <Button type="submit">Save User</Button>
@@ -366,7 +366,7 @@ export default function ManageUsersPage() {
                    <TableCell className="font-mono text-xs">{user.uid}</TableCell>
                   <TableCell>
                     <Badge variant={user.role === 'admin' ? 'default' : 'secondary'} className="capitalize">
-                      {user.role}
+                      {user.role.replace('_', ' ')}
                     </Badge>
                   </TableCell>
                   <TableCell>{formatDate(user.createdAt)}</TableCell>
