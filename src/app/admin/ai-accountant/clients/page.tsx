@@ -195,6 +195,11 @@ export default function AIAccountantClientsPage() {
         chartOfAccounts: initialChartOfAccounts,
         allocationRules: initialAllocationRules,
     };
+
+    if (!data.isVatRegistered) {
+      clientData.vatNumber = null;
+      clientData.vatCategory = null;
+    }
     
     try {
         if (selectedClient?.id) {
