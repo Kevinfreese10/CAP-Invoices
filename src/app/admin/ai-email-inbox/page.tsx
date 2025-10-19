@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Loader2, Inbox, RefreshCw, FileWarning, Paperclip, Sparkles, Bot, Pilcrow, MessageSquare, StickyNote, PlusCircle } from 'lucide-react';
+import { Loader2, Inbox, RefreshCw, FileWarning, Paperclip, Sparkles, Bot, MessageSquare, StickyNote, PlusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
