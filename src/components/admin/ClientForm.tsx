@@ -157,6 +157,7 @@ export default function ClientForm({
                         <Separator />
                          <div className="space-y-4">
                             <h3 className="text-lg font-medium">Invoicing Setup</h3>
+                            <p className="text-sm text-muted-foreground">Only complete this section if you want to generate invoices from this company profile.</p>
                              <FormField control={form.control} name="enableInvoicing" render={({ field }) => (
                                 <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
                                     <div className="space-y-0.5"><FormLabel>Enable Invoicing</FormLabel><FormDescription>Allow invoices to be generated for this client.</FormDescription></div>
