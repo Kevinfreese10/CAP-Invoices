@@ -10,7 +10,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Plus, Trash2, CalendarIcon, PlusCircle, MoreHorizontal, Eye, Copy, FileText, Mail, Download } from 'lucide-react';
+import { Loader2, Plus, Trash2, CalendarIcon, PlusCircle, MoreHorizontal, Eye, Copy, FileText, Mail, Download, CheckCircle } from 'lucide-react';
 import { getFirestore, doc, addDoc, getDoc, collection, query, orderBy, getDocs, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useParams } from 'next/navigation';
@@ -178,6 +178,19 @@ export default function InvoicesPage() {
         fetchData();
     }, [clientId, toast]);
 
+    const handleUpdateStatus = async (invoiceId: string, status: 'final') => {
+        if (!client || !client.id) return;
+        try {
+            const invoiceRef = doc(db, 'aiAccountantClients', client.id, 'invoices', invoiceId);
+            await updateDoc(invoiceRef, { status: status });
+            toast({ title: 'Invoice Status Updated', description: 'The invoice is now final.' });
+            fetchData();
+        } catch (error) {
+            console.error("Error updating invoice status:", error);
+            toast({ title: 'Error', description: 'Failed to update invoice status.', variant: 'destructive' });
+        }
+    }
+
     const onSubmit = async (data: InvoiceFormValues) => {
         if (!client || !client.id) return;
         
@@ -326,6 +339,11 @@ export default function InvoicesPage() {
                                                             <DropdownMenuItem><FileText className="mr-2 h-4 w-4" />Issue Credit Note</DropdownMenuItem>
                                                             <DropdownMenuItem><Mail className="mr-2 h-4 w-4" />Email to Client</DropdownMenuItem>
                                                             <DropdownMenuItem onSelect={() => handleDownloadPdf(invoice)}><Download className="mr-2 h-4 w-4" />Download as PDF</DropdownMenuItem>
+                                                            {invoice.status !== 'final' && (
+                                                                <DropdownMenuItem onSelect={() => handleUpdateStatus(invoice.id, 'final')}>
+                                                                    <CheckCircle className="mr-2 h-4 w-4" /> Mark as Final
+                                                                </DropdownMenuItem>
+                                                            )}
                                                         </DropdownMenuContent>
                                                     </DropdownMenu>
                                                 </TableCell>
