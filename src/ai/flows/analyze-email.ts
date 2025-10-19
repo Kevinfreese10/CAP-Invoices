@@ -35,7 +35,7 @@ const EmailAnalysisOutputSchema = z.object({
     nextStep: z.string().describe("The immediate next action to be taken, e.g., 'Forward to tax department' or 'Draft response requesting missing documents'."),
     draftReply: z.object({
         subject: z.string().optional().describe("A suggested subject line for the reply. Should start with 'Re: ' followed by the original subject."),
-        body: z.string().optional().describe("A drafted email response. Use a friendly yet professional tone. Address the sender by name if possible. Structure the email with proper paragraphs and line breaks for readability. If you use information about a service, provide the price and turnaround time."),
+        body: z.string().optional().describe("A drafted email response. Use a friendly yet professional tone. Address the sender by name. **MUST** be well-structured with proper paragraphs separated by double line breaks ('\\n\\n') for readability. If you use information about a service, provide the price and turnaround time."),
     }).optional().describe("A drafted response to the email if a reply is appropriate. If no reply is needed, this can be omitted."),
     suggestedTask: z.object({
         title: z.string().optional().describe("A concise title for a task that should be created from this email (e.g., 'File VAT201 for ABC Corp')."),
@@ -107,7 +107,7 @@ Based on all the provided information, provide a structured analysis.
 5.  **Sender Name**: Identify the name of the person or company sending the email.
 6.  **Detected Attachments**: If attachments are present, identify the type of document (e.g., 'ID Document', 'CIPC Document', 'Bank Statement', 'SARS Tax Pin', 'Proof of Payment', 'Invoice').
 7.  **Next Step**: Recommend the immediate next action. Be specific (e.g., "Draft a response to request the client's IRP5," or "Forward to the tax department for review.").
-8.  **Draft Reply**: If a reply is appropriate, draft a concise, professional, and friendly response using the provided CONTEXT. Address the sender by name. If the request is for documents, list the required documents clearly. If it's about a service, include its price and turnaround time. **IMPORTANT: Format the body of the email with proper paragraphs and line breaks (\n) for readability.**
+8.  **Draft Reply**: If a reply is appropriate, draft a concise, professional, and friendly response. Address the sender by name. If the request is for documents, list them clearly. If it's about a service, include its price and turnaround time from the CONTEXT. **CRITICAL: The email body must be perfectly formatted with proper paragraphs. Use double line breaks ('\\n\\n') between paragraphs for readability.**
 9.  **Suggested Task**: If the email implies a clear action is needed (e.g., "Please file my VAT return"), suggest a task with a clear title and a brief description. Otherwise, omit this field.
 `,
       });
@@ -122,3 +122,5 @@ Based on all the provided information, provide a structured analysis.
 
 export type AnalyzeEmailInput = z.infer<typeof AnalyzeEmailInputSchema>;
 export type EmailAnalysisOutput = z.infer<typeof EmailAnalysisOutputSchema>;
+
+    
