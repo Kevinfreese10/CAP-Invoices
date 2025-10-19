@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +17,20 @@ export default function AIEmailInboxPage() {
                     <div className="text-center py-10 border-2 border-dashed rounded-lg">
                         <h3 className="text-lg font-medium">Coming Soon</h3>
                         <p className="text-sm text-muted-foreground">The AI-powered email inbox will be available here.</p>
+                    </div>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Summaries</CardTitle>
+                    <CardDescription>
+                        AI-generated summaries of your emails will appear here.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="text-center py-10 border-2 border-dashed rounded-lg">
+                        <h3 className="text-lg font-medium">No Summaries Yet</h3>
+                        <p className="text-sm text-muted-foreground">Analyze an email to see its summary here.</p>
                     </div>
                 </CardContent>
             </Card>
