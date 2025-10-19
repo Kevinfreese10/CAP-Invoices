@@ -9,6 +9,13 @@ const formatPrice = (price: number) => new Intl.NumberFormat('en-ZA', { style: '
 
 export default function InvoicePreview({ invoice, client, customer }: { invoice: Invoice, client: User | null, customer: ClientCustomer | undefined }) {
     if (!invoice || !client || !customer) return null;
+    
+    const getVatAmount = (lineItem: { rate: number, quantity: number, vatType: string }) => {
+        if (lineItem.vatType === 'standard_rated_sales') {
+            return (lineItem.rate * lineItem.quantity) * 0.15;
+        }
+        return 0;
+    };
 
     return (
         <div className="p-8 bg-white text-gray-800 max-h-[80vh] overflow-y-auto">
@@ -53,18 +60,23 @@ export default function InvoicePreview({ invoice, client, customer }: { invoice:
                             <th className="p-3">Description</th>
                             <th className="p-3 text-center">Qty</th>
                             <th className="p-3 text-right">Unit Price</th>
+                            <th className="p-3 text-right">VAT</th>
                             <th className="p-3 text-right">Total</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {invoice.lineItems.map((item, index) => (
-                            <tr key={index} className="border-b border-gray-200">
-                                <td className="p-3">{item.description}</td>
-                                <td className="p-3 text-center">{item.quantity}</td>
-                                <td className="p-3 text-right">{formatPrice(item.rate)}</td>
-                                <td className="p-3 text-right font-semibold">{formatPrice(item.rate * item.quantity)}</td>
-                            </tr>
-                        ))}
+                        {invoice.lineItems.map((item, index) => {
+                            const vatAmount = getVatAmount(item);
+                            return (
+                                <tr key={index} className="border-b border-gray-200">
+                                    <td className="p-3">{item.description}</td>
+                                    <td className="p-3 text-center">{item.quantity}</td>
+                                    <td className="p-3 text-right">{formatPrice(item.rate)}</td>
+                                    <td className="p-3 text-right">{formatPrice(vatAmount)}</td>
+                                    <td className="p-3 text-right font-semibold">{formatPrice(item.rate * item.quantity)}</td>
+                                </tr>
+                            )
+                        })}
                     </tbody>
                 </table>
             </section>

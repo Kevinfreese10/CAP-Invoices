@@ -147,7 +147,13 @@ export type Invoice = {
   customerId: string;
   invoiceDate: any;
   dueDate: any;
-  lineItems: { description: string; quantity: number; rate: number; }[];
+  lineItems: { 
+    accountId: string;
+    description: string; 
+    quantity: number; 
+    rate: number;
+    vatType: string;
+  }[];
   notes?: string;
   subtotal: number;
   vat: number;
