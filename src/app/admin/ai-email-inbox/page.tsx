@@ -12,6 +12,8 @@ import { analyzeEmail, type EmailAnalysisOutput } from '@/ai/flows/analyze-email
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface Attachment {
     filename: string;
@@ -249,9 +251,19 @@ export default function AIEmailInboxPage() {
                                     <CardHeader>
                                         <CardTitle className="flex items-center gap-2 text-lg"><MessageSquare /> Draft Reply</CardTitle>
                                     </CardHeader>
-                                    <CardContent className="space-y-2">
-                                        <p className="text-sm font-medium">Subject: {analysisResult.draftReply.subject}</p>
-                                        <Textarea readOnly value={analysisResult.draftReply.body} rows={8} className="text-sm" />
+                                    <CardContent className="space-y-4">
+                                        <div className="space-y-1">
+                                            <Label htmlFor="reply-subject">Subject</Label>
+                                            <Input id="reply-subject" readOnly value={analysisResult.draftReply.subject} className="font-semibold"/>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label htmlFor="reply-body">Body</Label>
+                                            <Textarea readOnly value={analysisResult.draftReply.body} rows={8} className="text-sm" id="reply-body" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label htmlFor="reply-attachment">Attachment</Label>
+                                            <Input id="reply-attachment" type="file" />
+                                        </div>
                                     </CardContent>
                                     <CardFooter>
                                         <Button>Send Email</Button>
