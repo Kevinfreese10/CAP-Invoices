@@ -16,6 +16,34 @@ import { Service, BlogPost } from '@/lib/types';
 
 const db = getFirestore(firebaseApp);
 
+const AnalyzeEmailInputSchema = z.object({
+    subject: z.string().describe("The subject line of the email."),
+    body: z.string().describe("The plain text or HTML body of the email."),
+    attachments: z.array(z.object({
+      dataUri: z.string().describe("The attachment content as a data URI."),
+      mimeType: z.string().describe("The MIME type of the attachment, e.g., 'application/pdf' or 'image/jpeg'."),
+    })).optional().describe("An array of attachments, each as a data URI."),
+  });
+
+const EmailAnalysisOutputSchema = z.object({
+    summary: z.string().describe("A concise, one-paragraph summary of the entire email content, including key points from attachments."),
+    category: z.enum(['Client Inquiry', 'SARS Document', 'Invoice Submission', 'Payment Notification', 'Legal/Compliance', 'Internal Communication', 'Spam/Marketing', 'Other']).describe("The best-fitting category for the email."),
+    priority: z.enum(['High', 'Medium', 'Low']).describe("The urgency of the email. Use 'High' for keywords like 'Final Demand', 'Urgent', or legal threats."),
+    sla: z.enum(['4-hour', '24-hour', '72-hour', 'None']).describe("The suggested Service Level Agreement for a response based on urgency and content."),
+    senderName: z.string().optional().describe("The name of the client or sender, if identifiable."),
+    detectedAttachments: z.array(z.string()).optional().describe("A list of detected important documents from the attachments (e.g., 'ID Document', 'CIPC Document', 'Bank Statement', 'SARS Tax Pin')."),
+    nextStep: z.string().describe("The immediate next action to be taken, e.g., 'Forward to tax department' or 'Draft response requesting missing documents'."),
+    draftReply: z.object({
+        subject: z.string().optional().describe("A suggested subject line for the reply. Should start with 'Re: ' followed by the original subject."),
+        body: z.string().optional().describe("A drafted email response. Use a friendly yet professional tone. Address the sender by name if possible. Structure the email with proper paragraphs and line breaks for readability. If you use information about a service, provide the price and turnaround time."),
+    }).optional().describe("A drafted response to the email if a reply is appropriate. If no reply is needed, this can be omitted."),
+    suggestedTask: z.object({
+        title: z.string().optional().describe("A concise title for a task that should be created from this email (e.g., 'File VAT201 for ABC Corp')."),
+        description: z.string().optional().describe("A brief description of the task, including any relevant details from the email."),
+    }).optional().describe("A suggested task to be created in a project management tool if the email requires action. If no task is needed, this can be omitted."),
+  });
+
+
 export async function analyzeEmail(input: AnalyzeEmailInput): Promise<EmailAnalysisOutput> {
 
   // Fetch live data from Firestore to provide context to the AI
@@ -34,33 +62,6 @@ export async function analyzeEmail(input: AnalyzeEmailInput): Promise<EmailAnaly
     ${blogPosts.map(p => `Title: ${p.title}, Excerpt: ${p.excerpt}`).join('\n\n')}
   `;
 
-
-  const AnalyzeEmailInputSchema = z.object({
-    subject: z.string().describe("The subject line of the email."),
-    body: z.string().describe("The plain text or HTML body of the email."),
-    attachments: z.array(z.object({
-      dataUri: z.string().describe("The attachment content as a data URI."),
-      mimeType: z.string().describe("The MIME type of the attachment, e.g., 'application/pdf' or 'image/jpeg'."),
-    })).optional().describe("An array of attachments, each as a data URI."),
-  });
-
-  const EmailAnalysisOutputSchema = z.object({
-    summary: z.string().describe("A concise, one-paragraph summary of the entire email content, including key points from attachments."),
-    category: z.enum(['Client Inquiry', 'SARS Document', 'Invoice Submission', 'Payment Notification', 'Legal/Compliance', 'Internal Communication', 'Spam/Marketing', 'Other']).describe("The best-fitting category for the email."),
-    priority: z.enum(['High', 'Medium', 'Low']).describe("The urgency of the email. Use 'High' for keywords like 'Final Demand', 'Urgent', or legal threats."),
-    sla: z.enum(['4-hour', '24-hour', '72-hour', 'None']).describe("The suggested Service Level Agreement for a response based on urgency and content."),
-    senderName: z.string().optional().describe("The name of the client or sender, if identifiable."),
-    detectedAttachments: z.array(z.string()).optional().describe("A list of detected important documents from the attachments (e.g., 'ID Document', 'CIPC Document', 'Bank Statement', 'SARS Tax Pin')."),
-    nextStep: z.string().describe("The immediate next action to be taken, e.g., 'Forward to tax department' or 'Draft response requesting missing documents'."),
-    draftReply: z.object({
-        subject: z.string().optional().describe("A suggested subject line for the reply. Should start with 'Re: ' followed by the original subject."),
-        body: z.string().optional().describe("A drafted email response. Use a friendly yet professional tone. Address the sender by name if possible. Structure the email with proper paragraphs and line breaks for readability. If you use information about a service, provide the price and turnaround time."),
-    }).optional().describe("A drafted response to the email if a reply is appropriate. If no reply is needed, this can be omitted."),
-    suggestedTask: z.object({
-        title: z.string().optional().describe("A concise title for a task that should be created from this email (e.g., 'File VAT201 for ABC Corp')."),
-        description: z.string().optional().describe("A brief description of the task, including any relevant details from the email."),
-    }).optional().describe("A suggested task to be created in a project management tool if the email requires action. If no task is needed, this can be omitted."),
-  });
 
   const analyzeEmailFlow = ai.defineFlow(
     {
@@ -119,5 +120,5 @@ Based on all the provided information, provide a structured analysis.
   return analyzeEmailFlow(input);
 }
 
-export type AnalyzeEmailInput = z.infer<Awaited<ReturnType<typeof analyzeEmail>>['inputSchema']>;
-export type EmailAnalysisOutput = z.infer<Awaited<ReturnType<typeof analyzeEmail>>['outputSchema']>;
+export type AnalyzeEmailInput = z.infer<typeof AnalyzeEmailInputSchema>;
+export type EmailAnalysisOutput = z.infer<typeof EmailAnalysisOutputSchema>;

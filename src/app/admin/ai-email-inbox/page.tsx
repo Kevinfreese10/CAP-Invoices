@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { doc, setDoc, serverTimestamp, updateDoc, arrayUnion } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, updateDoc, arrayUnion, addDoc, collection, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { sendEmail } from '@/lib/email';
@@ -214,6 +214,30 @@ export default function AIEmailInboxPage() {
         }
     };
 
+    const handleCreateTask = async () => {
+        if (!analysisResult?.suggestedTask || !user?.uid) return;
+
+        const { title, description } = analysisResult.suggestedTask;
+        
+        try {
+            await addDoc(collection(db, 'tasks'), {
+                title,
+                description,
+                status: 'To-Do',
+                priority: 'Medium',
+                assignedTo: [user.uid], // Assign to current user by default
+                createdBy: user.uid,
+                createdAt: Timestamp.now(),
+                dueDate: Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+                comments: [],
+            });
+            toast({ title: 'Task Created!', description: 'The suggested task has been added to your task list.' });
+        } catch(error) {
+            console.error("Error creating task:", error);
+            toast({ title: 'Error', description: 'Could not create the task.', variant: 'destructive' });
+        }
+    }
+
 
     return (
         <Dialog>
@@ -333,7 +357,7 @@ export default function AIEmailInboxPage() {
                                                                         <p className="text-xs font-medium">{analysisResult.suggestedTask.title}</p>
                                                                         <p className="text-xs text-muted-foreground">{analysisResult.suggestedTask.description}</p>
                                                                     </CardContent>
-                                                                    <CardFooter className="p-2"><Button size="sm" className="text-xs"><PlusCircle className="mr-1 h-3 w-3"/> Create Task</Button></CardFooter>
+                                                                    <CardFooter className="p-2"><Button size="sm" className="text-xs" onClick={handleCreateTask}><PlusCircle className="mr-1 h-3 w-3"/> Create Task</Button></CardFooter>
                                                                 </Card>
                                                             )}
                                                         </div>
