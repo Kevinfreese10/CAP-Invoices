@@ -4,10 +4,11 @@
 import { Invoice, ClientCustomer, User } from "@/lib/types";
 import { format } from 'date-fns';
 import Image from "next/image";
+import React from "react";
 
 const formatPrice = (price: number) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(price);
 
-export default function InvoicePreview({ invoice, client, customer }: { invoice: Invoice, client: User | null, customer: ClientCustomer | undefined }) {
+const InvoicePreview = React.forwardRef<HTMLDivElement, { invoice: Invoice, client: User | null, customer: ClientCustomer | undefined }>(({ invoice, client, customer }, ref) => {
     if (!invoice || !client || !customer) return null;
     
     const getVatAmount = (lineItem: { rate: number, quantity: number, vatType: string }) => {
@@ -18,12 +19,12 @@ export default function InvoicePreview({ invoice, client, customer }: { invoice:
     };
 
     return (
-        <div className="p-8 bg-white text-gray-800 max-h-[80vh] overflow-y-auto">
+        <div ref={ref} className="p-8 bg-white text-gray-800 max-h-[80vh] overflow-y-auto">
             <header className="flex justify-between items-start mb-10">
                 <div className="space-y-1">
                     {client.logoUrl && (
                         <div className="relative h-20 w-48 mb-4">
-                            <Image src={client.logoUrl} alt={`${client.companyName} Logo`} fill className="object-contain object-left"/>
+                            <Image src={client.logoUrl} alt={`${client.companyName || client.name} Logo`} fill className="object-contain object-left"/>
                         </div>
                     )}
                     <h1 className="text-3xl font-bold text-gray-900">{client.companyName || client.name}</h1>
@@ -113,4 +114,8 @@ export default function InvoicePreview({ invoice, client, customer }: { invoice:
             </footer>
         </div>
     );
-}
+});
+
+InvoicePreview.displayName = 'InvoicePreview';
+
+export default InvoicePreview;

@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +28,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import InvoicePreview from '@/components/admin/InvoicePreview';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 const lineItemSchema = z.object({
     accountId: z.string().min(1, "Please select an account."),
@@ -59,6 +61,34 @@ export default function InvoicesPage() {
     const { toast } = useToast();
     const [accounts, setAccounts] = useState<ChartOfAccount[]>([]);
     const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
+    const invoicePreviewRef = useRef<HTMLDivElement>(null);
+
+
+    const handleDownloadPdf = async (invoiceToDownload: Invoice) => {
+        const customer = customers.find(c => c.id === invoiceToDownload.customerId);
+        if (!client || !customer) {
+            toast({ title: "Error", description: "Cannot generate PDF without client or customer data.", variant: "destructive" });
+            return;
+        }
+
+        const report = new jsPDF('portrait','pt','a4');
+        const element = document.createElement("div");
+        document.body.appendChild(element);
+        
+        const ReactDOM = await import('react-dom');
+        ReactDOM.render(<InvoicePreview invoice={invoiceToDownload} client={client} customer={customer} />, element);
+
+        const canvas = await html2canvas(element.children[0] as HTMLElement, { scale: 2 });
+        const data = canvas.toDataURL('image/png');
+        
+        const pdfWidth = report.internal.pageSize.getWidth();
+        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+        
+        report.addImage(data, 'PNG', 0, 0, pdfWidth, pdfHeight);
+        report.save(`Invoice-${invoiceToDownload.id}.pdf`);
+        
+        document.body.removeChild(element);
+    };
 
     const form = useForm<InvoiceFormValues>({
         resolver: zodResolver(invoiceFormSchema),
@@ -226,7 +256,7 @@ export default function InvoicesPage() {
                                                             <DropdownMenuItem><Copy className="mr-2 h-4 w-4" />Duplicate</DropdownMenuItem>
                                                             <DropdownMenuItem><FileText className="mr-2 h-4 w-4" />Issue Credit Note</DropdownMenuItem>
                                                             <DropdownMenuItem><Mail className="mr-2 h-4 w-4" />Email to Client</DropdownMenuItem>
-                                                            <DropdownMenuItem><Download className="mr-2 h-4 w-4" />Download as PDF</DropdownMenuItem>
+                                                            <DropdownMenuItem onSelect={() => handleDownloadPdf(invoice)}><Download className="mr-2 h-4 w-4" />Download as PDF</DropdownMenuItem>
                                                         </DropdownMenuContent>
                                                     </DropdownMenu>
                                                 </TableCell>
@@ -347,6 +377,7 @@ export default function InvoicesPage() {
                 </DialogHeader>
                 {viewingInvoice && (
                     <InvoicePreview 
+                        ref={invoicePreviewRef}
                         invoice={viewingInvoice} 
                         client={client}
                         customer={customers.find(c => c.id === viewingInvoice.customerId)}
