@@ -28,40 +28,22 @@ export async function GET() {
     const connection = await imaps.connect(config);
     await connection.openBox('INBOX');
 
-    // Fetch only unseen emails to improve efficiency
-    const searchCriteria = ['UNSEEN']; 
+    // Fetch all emails to ensure we don't miss any that are "seen" but not processed.
+    const searchCriteria = ['ALL']; 
     const fetchOptions = {
       bodies: [''],
-      markSeen: false, // We won't mark them as seen automatically
+      markSeen: false,
     };
 
     const messages = await connection.search(searchCriteria, fetchOptions);
     connection.end();
     
-    // Fetch already processed emails to show them in the list as well
-    const processedMessagesPromises = Array.from(processedUids).map(async (uid) => {
-        try {
-            const connection = await imaps.connect(config);
-            await connection.openBox('INBOX');
-            const criteria = [['UID', uid]];
-            const processedMessage = await connection.search(criteria, fetchOptions);
-            connection.end();
-            return processedMessage[0];
-        } catch (e) {
-            console.warn(`Could not fetch processed email with UID ${uid}:`, e);
-            return null;
-        }
-    });
-
-    const processedMessagesRaw = (await Promise.all(processedMessagesPromises)).filter(m => m);
-    const allMessages = [...messages, ...processedMessagesRaw];
-    
-    // Deduplicate messages based on UID
-    const uniqueMessages = Array.from(new Map(allMessages.map(m => [m.attributes.uid, m])).values());
-
     const emails = await Promise.all(
-      uniqueMessages.map(async (item) => {
-        if (!item) return null;
+      messages.map(async (item) => {
+        if (!item || processedUids.has(item.attributes.uid)) {
+            return null; // Skip emails that have already been processed
+        }
+        
         const all = item.parts.find((part) => part.which === '');
         const id = item.attributes.uid;
         const idHeader = 'Imap-Id: ' + id + '\r\n';
@@ -82,15 +64,60 @@ export async function GET() {
           date: mail.date?.toISOString() || new Date().toISOString(),
           body: mail.html || mail.textAsHtml || 'No content',
           attachments: attachments,
-          isProcessed: processedUids.has(id),
+          isProcessed: false, // It's unprocessed if it's being returned from here
         };
       })
     );
     
+    // Filter out nulls (processed emails)
     const validEmails = emails.filter(e => e !== null) as NonNullable<typeof emails>[number][];
-    validEmails.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    // Fetch details for processed emails separately to show in archive
+    const processedMessagesPromises = Array.from(processedUids).map(async (uid: any) => {
+        try {
+            const processedConnection = await imaps.connect(config);
+            await processedConnection.openBox('INBOX');
+            const criteria = [['UID', uid]];
+            const processedMessage = await processedConnection.search(criteria, { bodies: [''], markSeen: false });
+            processedConnection.end();
 
-    return NextResponse.json(validEmails);
+            if (processedMessage[0]) {
+                const item = processedMessage[0];
+                const all = item.parts.find((part) => part.which === '');
+                const id = item.attributes.uid;
+                const idHeader = 'Imap-Id: ' + id + '\r\n';
+                const mail = await simpleParser(idHeader + all?.body);
+                const attachments = mail.attachments.map(att => ({
+                    filename: att.filename,
+                    contentType: att.contentType,
+                    dataUrl: `data:${att.contentType};base64,${att.content.toString('base64')}`,
+                    size: att.size,
+                }));
+                return {
+                    uid: id,
+                    from: mail.from?.text || 'No Sender',
+                    to: mail.to?.text || '',
+                    subject: mail.subject || 'No Subject',
+                    date: mail.date?.toISOString() || new Date().toISOString(),
+                    body: mail.html || mail.textAsHtml || 'No content',
+                    attachments: attachments,
+                    isProcessed: true,
+                };
+            }
+            return null;
+        } catch (e) {
+            console.warn(`Could not fetch processed email with UID ${uid}:`, e);
+            return null;
+        }
+    });
+
+    const processedEmails = (await Promise.all(processedMessagesPromises)).filter(e => e !== null) as NonNullable<typeof processedEmails>[number][];
+    
+    const allEmails = [...validEmails, ...processedEmails];
+
+    allEmails.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    return NextResponse.json(allEmails);
   } catch (error: any) {
     console.error('IMAP connection error for kev@myacc.co.za:', error);
     return NextResponse.json({ error: `Failed to connect to mail server: ${error.message}` }, { status: 500 });
