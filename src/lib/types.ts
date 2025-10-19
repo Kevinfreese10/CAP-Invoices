@@ -228,6 +228,7 @@ export type User = {
   importedTransactions?: ImportedTransaction[];
   allocatedTransactions?: AllocatedTransaction[];
   subscription?: SubscriptionData;
+  sharedWith?: string[];
 };
 
 export type ClientCustomer = {
