@@ -75,7 +75,7 @@ export default function AIEmailInboxPage() {
         setError(null);
         try {
             const staffSnapshot = await getDocs(collection(db, 'users'));
-            const staffMap = staffSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data()} as User));
+            const staffMap = staffSnapshot.docs.map(doc => ({ id: doc.id, uid: doc.id, ...doc.data()} as User));
             setAllStaff(staffMap);
 
             const processedSnapshot = await getDocs(collection(db, 'processedEmails'));
@@ -137,8 +137,8 @@ export default function AIEmailInboxPage() {
     
     const handleSelectEmail = (email: Email) => {
         setSelectedEmail(email);
-        setAnalysisResult(null);
         setAnalyzedEmailId(null);
+        setAnalysisResult(null);
     }
 
     const handleMarkAsProcessed = async (email: Email, action: 'Archived' | 'Replied' | 'Task Created' = 'Archived') => {
@@ -153,7 +153,7 @@ export default function AIEmailInboxPage() {
                 processedBy: user.uid,
                 processedAction: action,
             });
-            toast({ title: "Email Archived" });
+            toast({ title: "Email Processed" });
             fetchEmailsAndStaff(); // Refresh the list
         } catch (error) {
             toast({ title: "Error", description: "Could not archive email.", variant: "destructive" });
@@ -190,6 +190,8 @@ export default function AIEmailInboxPage() {
             await sendEmail({ to: email.from, subject: draft.subject, html: draft.body.replace(/\\n\\n/g, '<br><br>').replace(/\\n/g, '<br>'), attachments: attachmentPayload });
             toast({ title: "Email Sent!", description: `Your reply has been sent to ${email.from}` });
             await handleMarkAsProcessed(email, 'Replied');
+            setAnalyzedEmailId(null);
+            setAnalysisResult(null);
         } catch (error) {
             console.error("Failed to send email:", error);
             toast({ title: "Send Failed", description: "There was an error sending the email.", variant: 'destructive'});
@@ -210,6 +212,8 @@ export default function AIEmailInboxPage() {
             });
             toast({ title: 'Task Created!', description: 'The suggested task has been added to your task list.' });
             await handleMarkAsProcessed(email, 'Task Created');
+            setAnalyzedEmailId(null);
+            setAnalysisResult(null);
         } catch(error) {
             console.error("Error creating task:", error);
             toast({ title: 'Error', description: 'Could not create the task.', variant: 'destructive' });
