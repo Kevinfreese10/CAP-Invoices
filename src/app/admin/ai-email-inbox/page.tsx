@@ -45,6 +45,7 @@ export default function AIEmailInboxPage() {
     const [analysisResult, setAnalysisResult] = useState<EmailAnalysisOutput | null>(null);
     const [error, setError] = useState<string | null>(null);
     const { toast } = useToast();
+    const [analyzedEmailId, setAnalyzedEmailId] = useState<number | null>(null);
 
     const fetchEmails = useCallback(async () => {
         setIsLoading(true);
@@ -74,7 +75,7 @@ export default function AIEmailInboxPage() {
     const handleAnalyze = async (email: Email) => {
         if (!email) return;
 
-        setSelectedEmail(email);
+        setAnalyzedEmailId(email.uid);
         setIsAnalyzing(true);
         setAnalysisResult(null);
 
@@ -102,6 +103,7 @@ export default function AIEmailInboxPage() {
     const handleSelectEmail = (email: Email) => {
         setSelectedEmail(email);
         setAnalysisResult(null); // Clear previous analysis
+        setAnalyzedEmailId(null);
     }
 
     const handleMarkAsProcessed = async (email: Email) => {
@@ -157,144 +159,96 @@ export default function AIEmailInboxPage() {
                                 <p className="mt-4">The inbox is empty.</p>
                             </div>
                         ) : (
-                             <ScrollArea className="h-[calc(100vh-28rem)]">
+                             <ScrollArea className="h-[calc(100vh-22rem)]">
                                 <div className="flex flex-col">
                                     {emails.map((email) => (
                                          <div
                                             key={email.uid}
-                                            className={`flex items-center p-4 border-b hover:bg-muted/50 ${email.isProcessed ? 'bg-muted/30' : ''}`}
+                                            className={`border-b ${email.isProcessed ? 'bg-muted/30' : ''}`}
                                         >
-                                            <div className="flex-grow">
-                                                <p className="font-semibold truncate">{email.from}</p>
-                                                <p className="text-sm truncate">{email.subject}</p>
-                                                <div className="flex justify-between items-center">
-                                                    <p className="text-xs text-muted-foreground mt-1">
-                                                        {format(new Date(email.date), 'dd MMM yyyy, HH:mm')}
-                                                    </p>
-                                                    {email.isProcessed && <Badge variant="secondary">Processed</Badge>}
+                                            <div className="flex items-center p-4 hover:bg-muted/50">
+                                                <div className="flex-grow">
+                                                    <p className="font-semibold truncate">{email.from}</p>
+                                                    <p className="text-sm truncate">{email.subject}</p>
+                                                    <div className="flex justify-between items-center">
+                                                        <p className="text-xs text-muted-foreground mt-1">
+                                                            {format(new Date(email.date), 'dd MMM yyyy, HH:mm')}
+                                                        </p>
+                                                        {email.isProcessed && <Badge variant="secondary">Processed</Badge>}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4"/></Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent>
-                                                    <DialogTrigger asChild>
-                                                        <DropdownMenuItem onSelect={() => handleSelectEmail(email)}>
-                                                            <Eye className="mr-2 h-4 w-4"/>View
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4"/></Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent>
+                                                        <DialogTrigger asChild>
+                                                            <DropdownMenuItem onSelect={() => handleSelectEmail(email)}>
+                                                                <Eye className="mr-2 h-4 w-4"/>View
+                                                            </DropdownMenuItem>
+                                                        </DialogTrigger>
+                                                        <DropdownMenuItem onSelect={() => handleAnalyze(email)} disabled={isAnalyzing && analyzedEmailId === email.uid}>
+                                                            {isAnalyzing && analyzedEmailId === email.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}
+                                                            Analyze
                                                         </DropdownMenuItem>
-                                                    </DialogTrigger>
-                                                    <DropdownMenuItem onSelect={() => handleAnalyze(email)} disabled={isAnalyzing}>
-                                                         {isAnalyzing && selectedEmail?.uid === email.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}
-                                                        Analyze
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem onSelect={() => handleMarkAsProcessed(email)} disabled={email.isProcessed}>
-                                                        <Archive className="mr-2 h-4 w-4"/>Archive
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
+                                                        <DropdownMenuItem onSelect={() => handleMarkAsProcessed(email)} disabled={email.isProcessed}>
+                                                            <Archive className="mr-2 h-4 w-4"/>Archive
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </div>
+                                            {analyzedEmailId === email.uid && (
+                                                <div className="p-4 border-t bg-muted/20">
+                                                    {isAnalyzing ? (
+                                                        <div className="flex items-center justify-center py-8">
+                                                            <Loader2 className="h-8 w-8 animate-spin" />
+                                                        </div>
+                                                    ) : analysisResult ? (
+                                                        <div className="space-y-4">
+                                                            <Alert>
+                                                                <Bot className="h-4 w-4"/>
+                                                                <AlertTitle className="font-semibold">AI Summary</AlertTitle>
+                                                                <AlertDescription>{analysisResult.summary}</AlertDescription>
+                                                            </Alert>
+                                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
+                                                                <div className="p-1 border rounded-lg"><p className="text-xs font-semibold text-muted-foreground">Priority</p><Badge variant={analysisResult.priority === 'High' ? 'destructive' : analysisResult.priority === 'Medium' ? 'warning' : 'secondary'}>{analysisResult.priority}</Badge></div>
+                                                                <div className="p-1 border rounded-lg"><p className="text-xs font-semibold text-muted-foreground">Category</p><Badge>{analysisResult.category}</Badge></div>
+                                                                <div className="p-1 border rounded-lg"><p className="text-xs font-semibold text-muted-foreground">SLA</p><Badge variant="outline">{analysisResult.sla}</Badge></div>
+                                                                <div className="p-1 border rounded-lg"><p className="text-xs font-semibold text-muted-foreground">Sender</p><p className="text-xs font-medium truncate">{analysisResult.senderName || 'Unknown'}</p></div>
+                                                            </div>
+                                                            {analysisResult.detectedAttachments && analysisResult.detectedAttachments.length > 0 && (<div><h4 className="font-semibold text-xs mb-1">Attachments:</h4><ul className="list-disc pl-5 text-xs space-y-1">{analysisResult.detectedAttachments.map((att, i) => <li key={i}>{att}</li>)}</ul></div>)}
+                                                            <div><h4 className="font-semibold text-xs mb-1">Next Step:</h4><p className="text-xs p-2 bg-muted rounded-md">{analysisResult.nextStep}</p></div>
+                                                            
+                                                            {analysisResult.draftReply?.body && (
+                                                                <Card>
+                                                                    <CardHeader className="p-2"><CardTitle className="flex items-center gap-2 text-sm"><MessageSquare /> Draft Reply</CardTitle></CardHeader>
+                                                                    <CardContent className="p-2 space-y-2">
+                                                                        <Input readOnly value={analysisResult.draftReply.subject} className="font-semibold h-8 text-xs"/>
+                                                                        <Textarea readOnly value={analysisResult.draftReply.body} rows={4} className="text-xs" />
+                                                                        <Input type="file" className="h-8 text-xs"/>
+                                                                    </CardContent>
+                                                                    <CardFooter className="p-2"><Button size="sm" className="text-xs">Send</Button></CardFooter>
+                                                                </Card>
+                                                            )}
+
+                                                            {analysisResult.suggestedTask?.title && (
+                                                                <Card>
+                                                                    <CardHeader className="p-2"><CardTitle className="flex items-center gap-2 text-sm"><StickyNote /> Suggested Task</CardTitle></CardHeader>
+                                                                    <CardContent className="p-2 space-y-1">
+                                                                        <p className="text-xs font-medium">{analysisResult.suggestedTask.title}</p>
+                                                                        <p className="text-xs text-muted-foreground">{analysisResult.suggestedTask.description}</p>
+                                                                    </CardContent>
+                                                                    <CardFooter className="p-2"><Button size="sm" className="text-xs"><PlusCircle className="mr-1 h-3 w-3"/> Create Task</Button></CardFooter>
+                                                                </Card>
+                                                            )}
+                                                        </div>
+                                                    ) : <p className="text-xs text-muted-foreground text-center py-4">No analysis available.</p>}
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
                                 </div>
                              </ScrollArea>
-                        )}
-                    </CardContent>
-                </Card>
-                 <Card>
-                    <CardHeader>
-                        <CardTitle>AI Analysis</CardTitle>
-                        <CardDescription>
-                            AI-generated analysis of the selected email will appear here.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {isAnalyzing ? (
-                            <div className="flex items-center justify-center h-48">
-                                <Loader2 className="h-8 w-8 animate-spin" />
-                            </div>
-                        ) : analysisResult ? (
-                            <div className="space-y-6">
-                                <Alert>
-                                    <Bot className="h-4 w-4"/>
-                                    <AlertTitle className="font-semibold">AI Summary</AlertTitle>
-                                    <AlertDescription>{analysisResult.summary}</AlertDescription>
-                                </Alert>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                                    <div className="p-2 border rounded-lg">
-                                        <p className="text-xs font-semibold text-muted-foreground">Priority</p>
-                                        <Badge variant={analysisResult.priority === 'High' ? 'destructive' : analysisResult.priority === 'Medium' ? 'warning' : 'secondary'}>{analysisResult.priority}</Badge>
-                                    </div>
-                                    <div className="p-2 border rounded-lg">
-                                        <p className="text-xs font-semibold text-muted-foreground">Category</p>
-                                        <Badge>{analysisResult.category}</Badge>
-                                    </div>
-                                    <div className="p-2 border rounded-lg">
-                                        <p className="text-xs font-semibold text-muted-foreground">SLA</p>
-                                        <Badge variant="outline">{analysisResult.sla}</Badge>
-                                    </div>
-                                    <div className="p-2 border rounded-lg">
-                                        <p className="text-xs font-semibold text-muted-foreground">Sender</p>
-                                        <p className="text-sm font-medium truncate">{analysisResult.senderName || 'Unknown'}</p>
-                                    </div>
-                                </div>
-                                {analysisResult.detectedAttachments && analysisResult.detectedAttachments.length > 0 && (
-                                    <div>
-                                        <h4 className="font-semibold text-sm mb-2">Detected Attachments:</h4>
-                                        <ul className="list-disc pl-5 text-sm space-y-1">
-                                            {analysisResult.detectedAttachments.map((att, i) => <li key={i}>{att}</li>)}
-                                        </ul>
-                                    </div>
-                                )}
-                                <div>
-                                    <h4 className="font-semibold text-sm mb-2">Recommended Next Step:</h4>
-                                    <p className="text-sm p-3 bg-muted rounded-md">{analysisResult.nextStep}</p>
-                                </div>
-                                
-                                {analysisResult.draftReply?.body && (
-                                    <Card>
-                                        <CardHeader>
-                                            <CardTitle className="flex items-center gap-2 text-lg"><MessageSquare /> Draft Reply</CardTitle>
-                                        </CardHeader>
-                                        <CardContent className="space-y-4">
-                                            <div className="space-y-1">
-                                                <Label htmlFor="reply-subject">Subject</Label>
-                                                <Input id="reply-subject" readOnly value={analysisResult.draftReply.subject} className="font-semibold"/>
-                                            </div>
-                                            <div className="space-y-1">
-                                                <Label htmlFor="reply-body">Body</Label>
-                                                <Textarea readOnly value={analysisResult.draftReply.body} rows={8} className="text-sm" id="reply-body" />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <Label htmlFor="reply-attachment">Attachment</Label>
-                                                <Input id="reply-attachment" type="file" />
-                                            </div>
-                                        </CardContent>
-                                        <CardFooter>
-                                            <Button>Send Email</Button>
-                                        </CardFooter>
-                                    </Card>
-                                )}
-
-                                {analysisResult.suggestedTask?.title && (
-                                    <Card>
-                                        <CardHeader>
-                                            <CardTitle className="flex items-center gap-2 text-lg"><StickyNote /> Suggested Task</CardTitle>
-                                        </CardHeader>
-                                        <CardContent className="space-y-2">
-                                            <p className="text-sm font-medium">{analysisResult.suggestedTask.title}</p>
-                                            <p className="text-sm text-muted-foreground">{analysisResult.suggestedTask.description}</p>
-                                        </CardContent>
-                                        <CardFooter>
-                                            <Button><PlusCircle className="mr-2 h-4 w-4"/> Create Task</Button>
-                                        </CardFooter>
-                                    </Card>
-                                )}
-                            </div>
-                        ) : (
-                            <div className="text-center py-10 border-2 border-dashed rounded-lg">
-                                <h3 className="text-lg font-medium">No Analysis Yet</h3>
-                                <p className="text-sm text-muted-foreground">Select an email and click 'Analyze' to see its summary here.</p>
-                            </div>
                         )}
                     </CardContent>
                 </Card>
@@ -351,4 +305,3 @@ export default function AIEmailInboxPage() {
         </Dialog>
     );
 }
-
