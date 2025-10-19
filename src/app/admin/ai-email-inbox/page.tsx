@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, ChangeEvent } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Loader2, Inbox, RefreshCw, FileWarning, Paperclip, Sparkles, Bot, MessageSquare, StickyNote, PlusCircle, CheckCircle, MoreHorizontal, Eye, Archive, Send } from 'lucide-react';
+import { Loader2, Inbox, RefreshCw, FileWarning, Paperclip, Sparkles, Bot, MessageSquare, StickyNote, PlusCircle, CheckCircle, MoreHorizontal, Eye, Archive, Send, Reply, CircleDot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -33,6 +33,7 @@ interface Attachment {
 interface ProcessedInfo {
     processedBy: string;
     processedAt: any;
+    processedAction: 'Replied' | 'Task Created' | 'Archived';
 }
 
 interface Email {
@@ -95,6 +96,7 @@ export default function AIEmailInboxPage() {
                     processedInfo: processedData ? {
                         processedBy: processedData.processedBy,
                         processedAt: processedData.processedAt,
+                        processedAction: processedData.processedAction || 'Archived',
                     } : undefined,
                 };
             });
@@ -139,7 +141,7 @@ export default function AIEmailInboxPage() {
         setAnalyzedEmailId(null);
     }
 
-    const handleMarkAsProcessed = async (email: Email) => {
+    const handleMarkAsProcessed = async (email: Email, action: 'Archived' | 'Replied' | 'Task Created' = 'Archived') => {
         if (!email || !user) return;
         try {
             const processedEmailRef = doc(db, 'processedEmails', String(email.uid));
@@ -149,6 +151,7 @@ export default function AIEmailInboxPage() {
                 subject: email.subject,
                 from: email.from,
                 processedBy: user.uid,
+                processedAction: action,
             });
             toast({ title: "Email Archived" });
             fetchEmailsAndStaff(); // Refresh the list
@@ -186,7 +189,7 @@ export default function AIEmailInboxPage() {
         try {
             await sendEmail({ to: email.from, subject: draft.subject, html: draft.body.replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>'), attachments: attachmentPayload });
             toast({ title: "Email Sent!", description: `Your reply has been sent to ${email.from}` });
-            await handleMarkAsProcessed(email);
+            await handleMarkAsProcessed(email, 'Replied');
         } catch (error) {
             console.error("Failed to send email:", error);
             toast({ title: "Send Failed", description: "There was an error sending the email.", variant: 'destructive'});
@@ -206,7 +209,7 @@ export default function AIEmailInboxPage() {
                 comments: [],
             });
             toast({ title: 'Task Created!', description: 'The suggested task has been added to your task list.' });
-            await handleMarkAsProcessed(email);
+            await handleMarkAsProcessed(email, 'Task Created');
         } catch(error) {
             console.error("Error creating task:", error);
             toast({ title: 'Error', description: 'Could not create the task.', variant: 'destructive' });
@@ -216,6 +219,15 @@ export default function AIEmailInboxPage() {
     const unprocessedEmails = allEmails.filter(e => !e.isProcessed);
     const processedEmails = allEmails.filter(e => e.isProcessed);
     const getStaffName = (uid: string) => allStaff.find(s => s.uid === uid)?.name || 'Unknown User';
+
+    const getActionIcon = (action?: string) => {
+        switch (action) {
+            case 'Replied': return <Reply className="h-4 w-4 text-blue-500" />;
+            case 'Task Created': return <PlusCircle className="h-4 w-4 text-purple-500" />;
+            case 'Archived': return <Archive className="h-4 w-4 text-gray-500" />;
+            default: return <CircleDot className="h-4 w-4 text-gray-500" />;
+        }
+    }
 
 
     return (
@@ -256,7 +268,7 @@ export default function AIEmailInboxPage() {
                                                     <DropdownMenuContent>
                                                         <DialogTrigger asChild><DropdownMenuItem onSelect={() => handleSelectEmail(email)}><Eye className="mr-2 h-4 w-4"/>View</DropdownMenuItem></DialogTrigger>
                                                         <DropdownMenuItem onSelect={() => handleAnalyze(email)} disabled={isAnalyzing && analyzedEmailId === email.uid}>{isAnalyzing && analyzedEmailId === email.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}Analyze</DropdownMenuItem>
-                                                        <DropdownMenuItem onSelect={() => handleMarkAsProcessed(email)}><Archive className="mr-2 h-4 w-4"/>Archive</DropdownMenuItem>
+                                                        <DropdownMenuItem onSelect={() => handleMarkAsProcessed(email, 'Archived')}><Archive className="mr-2 h-4 w-4"/>Archive</DropdownMenuItem>
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
                                             </div>
@@ -303,9 +315,12 @@ export default function AIEmailInboxPage() {
                                 <div className="space-y-2">
                                      {processedEmails.map((email) => (
                                         <div key={email.uid} className="flex items-center justify-between p-3 border rounded-md bg-muted/50">
-                                            <div>
-                                                <p className="font-medium text-sm truncate">{email.subject}</p>
-                                                <p className="text-xs text-muted-foreground">From: {email.from}</p>
+                                            <div className="flex items-center gap-3">
+                                                {getActionIcon(email.processedInfo?.processedAction)}
+                                                <div>
+                                                    <p className="font-medium text-sm truncate">{email.subject}</p>
+                                                    <p className="text-xs text-muted-foreground">From: {email.from}</p>
+                                                </div>
                                             </div>
                                             <div className="text-right text-xs text-muted-foreground">
                                                 <p>Archived {email.processedInfo?.processedAt ? formatDistanceToNow(email.processedInfo.processedAt.toDate(), { addSuffix: true }) : ''}</p>
@@ -332,7 +347,7 @@ export default function AIEmailInboxPage() {
                             <div className="p-4 text-sm prose max-w-none" dangerouslySetInnerHTML={{ __html: selectedEmail.body.replace(/(<hr\s*\/?>)/gi, '<br class="hidden" />$1') }} />
                         </ScrollArea>
                         <DialogFooter className="pt-4 border-t flex justify-between w-full">
-                            <Button onClick={() => handleMarkAsProcessed(selectedEmail)} size="sm" variant="secondary" disabled={selectedEmail.isProcessed}><CheckCircle className="mr-2 h-4 w-4" />{selectedEmail.isProcessed ? 'Archived' : 'Archive'}</Button>
+                            <Button onClick={() => handleMarkAsProcessed(selectedEmail, 'Archived')} size="sm" variant="secondary" disabled={selectedEmail.isProcessed}><CheckCircle className="mr-2 h-4 w-4" />{selectedEmail.isProcessed ? 'Archived' : 'Archive'}</Button>
                         </DialogFooter>
                     </div>
                 )}
