@@ -91,15 +91,15 @@ export default function AIAccountantClientsPage() {
         
         const clientsRef = collection(db, "aiAccountantClients");
         
-        let createdQuery, sharedQuery;
-
+        let createdQuery;
+        
         if (currentUser.role === 'admin') {
             createdQuery = query(clientsRef, orderBy("name"));
         } else {
             createdQuery = query(clientsRef, where("createdBy", "==", currentUser.uid), orderBy("name"));
         }
-
-        sharedQuery = query(clientsRef, where("sharedWith", "array-contains", currentUser.uid), orderBy("name"));
+        
+        const sharedQuery = query(clientsRef, where("sharedWith", "array-contains", currentUser.uid), orderBy("name"));
         
         const [createdSnapshot, sharedSnapshot] = await Promise.all([
              getDocs(createdQuery),
