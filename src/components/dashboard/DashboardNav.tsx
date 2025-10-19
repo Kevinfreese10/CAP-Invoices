@@ -62,6 +62,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(pathname.startsWith('/admin/settings') || pathname.startsWith('/admin/users') || pathname.startsWith('/admin/staff'));
   const [isCapSuppliersOpen, setIsCapSuppliersOpen] = useState(pathname.startsWith('/admin/cap-suppliers'));
   const [isAiAccountantOpen, setIsAiAccountantOpen] = useState(pathname.startsWith('/admin/ai-accountant') || pathname.startsWith('/dashboard/ai-accountant') || pathname.startsWith('/reseller/ai-accountant'));
+  const [isAiEmailInboxOpen, setIsAiEmailInboxOpen] = useState(pathname.startsWith('/admin/ai-email-inbox'));
 
   const handleLogout = () => {
     logout();
@@ -108,12 +109,12 @@ export default function DashboardNav({ user }: { user: UserType }) {
 
   const capSupplierItems = [
     { href: '/admin/cap-suppliers/review', label: 'Review', icon: ClipboardCheck, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
+    { href: '/admin/cap-suppliers/inbox', label: 'Inbox', icon: Inbox, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
     { href: '/admin/cap-suppliers/control-sheet', label: '2nd Review', icon: FileText, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
     { href: '/admin/cap-suppliers/payment-control-sheet', label: 'Payment Control Sheet', icon: FileSpreadsheet, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
     { href: '/admin/cap-suppliers/payment-batches', label: 'Payment Batches', icon: Banknote, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
     { href: '/admin/cap-suppliers/rejected', label: 'Rejected', icon: FileX2, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
     { href: '/admin/cap-suppliers/chart-of-accounts', label: 'Chart of Accounts', icon: Book, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
-    { href: '/admin/cap-suppliers/inbox', label: 'Inbox', icon: Inbox, roles: ['admin', 'staff'], isSubItem: true, department: 'Accounting and Tax' },
   ]
 
   const settingsNavItems = [
@@ -228,6 +229,32 @@ export default function DashboardNav({ user }: { user: UserType }) {
                 </SidebarMenu>
             </CollapsibleContent>
             </Collapsible>
+        )}
+        
+        {(user.role === 'admin' || user.role === 'staff') && (
+          <Collapsible open={isAiEmailInboxOpen} onOpenChange={setIsAiEmailInboxOpen}>
+            <SidebarMenuItem>
+                <CollapsibleTrigger asChild>
+                <SidebarMenuButton isActive={pathname.startsWith('/admin/ai-email-inbox')} tooltip="AI Email Inbox">
+                    <Inbox />
+                    <span>AI Email Inbox</span>
+                    <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200 group-[[data-state=open]]:rotate-180" />
+                </SidebarMenuButton>
+                </CollapsibleTrigger>
+            </SidebarMenuItem>
+            <CollapsibleContent asChild>
+                <SidebarMenu className="pl-4">
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname.startsWith('/admin/ai-email-inbox')} tooltip="Inbox" className="h-8">
+                      <Link href="/admin/ai-email-inbox">
+                        <Inbox />
+                        <span>Inbox</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+            </CollapsibleContent>
+          </Collapsible>
         )}
 
         {(user.role === 'admin' || user.role === 'staff') && (
