@@ -66,8 +66,7 @@ export default function AIEmailInboxPage() {
     const fetchEmails = useCallback(async () => {
         setIsLoading(true);
         setError(null);
-        setAnalysisResult(null);
-        setSelectedEmail(null); 
+        // Don't clear selected email or analysis result on refresh
         try {
             const response = await fetch('/api/ai-inbox');
             if (!response.ok) {
@@ -133,7 +132,7 @@ export default function AIEmailInboxPage() {
     }
 
     const handleMarkAsProcessed = async (email: Email) => {
-        if (!email) return;
+        if (!email || !user) return;
 
         try {
             const processedEmailRef = doc(db, 'processedEmails', String(email.uid));
@@ -142,6 +141,7 @@ export default function AIEmailInboxPage() {
                 processedAt: serverTimestamp(),
                 subject: email.subject,
                 from: email.from,
+                processedBy: user.uid,
             });
             toast({ title: "Email Marked as Processed" });
             fetchEmails(); // Refresh the list
@@ -202,10 +202,8 @@ export default function AIEmailInboxPage() {
             });
 
             toast({ title: "Email Sent!", description: `Your reply has been sent to ${email.from}` });
+            await handleMarkAsProcessed(email);
             
-            // Optionally, add a note to the order if applicable
-            // This part requires linking email to order, which is not implemented here.
-
         } catch (error) {
             console.error("Failed to send email:", error);
             toast({ title: "Send Failed", description: "There was an error sending the email.", variant: 'destructive'});
@@ -214,7 +212,7 @@ export default function AIEmailInboxPage() {
         }
     };
 
-    const handleCreateTask = async () => {
+    const handleCreateTask = async (email: Email) => {
         if (!analysisResult?.suggestedTask || !user?.uid) return;
 
         const { title, description } = analysisResult.suggestedTask;
@@ -232,6 +230,7 @@ export default function AIEmailInboxPage() {
                 comments: [],
             });
             toast({ title: 'Task Created!', description: 'The suggested task has been added to your task list.' });
+            await handleMarkAsProcessed(email);
         } catch(error) {
             console.error("Error creating task:", error);
             toast({ title: 'Error', description: 'Could not create the task.', variant: 'destructive' });
@@ -357,7 +356,7 @@ export default function AIEmailInboxPage() {
                                                                         <p className="text-xs font-medium">{analysisResult.suggestedTask.title}</p>
                                                                         <p className="text-xs text-muted-foreground">{analysisResult.suggestedTask.description}</p>
                                                                     </CardContent>
-                                                                    <CardFooter className="p-2"><Button size="sm" className="text-xs" onClick={handleCreateTask}><PlusCircle className="mr-1 h-3 w-3"/> Create Task</Button></CardFooter>
+                                                                    <CardFooter className="p-2"><Button size="sm" className="text-xs" onClick={() => handleCreateTask(email)}><PlusCircle className="mr-1 h-3 w-3"/> Create Task</Button></CardFooter>
                                                                 </Card>
                                                             )}
                                                         </div>
