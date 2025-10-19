@@ -197,7 +197,7 @@ export default function AIEmailInboxPage() {
             await sendEmail({
                 to: email.from,
                 subject: draft.subject,
-                html: draft.body.replace(/\n/g, '<br>'),
+                html: draft.body.replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>'),
                 attachments: attachmentPayload,
             });
 

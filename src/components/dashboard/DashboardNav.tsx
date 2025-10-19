@@ -231,7 +231,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
             </Collapsible>
         )}
         
-        {(user.role === 'admin' || user.role === 'staff') && (
+        {user.role === 'admin' && (
           <Collapsible open={isAiEmailInboxOpen} onOpenChange={setIsAiEmailInboxOpen}>
             <SidebarMenuItem>
                 <CollapsibleTrigger asChild>
