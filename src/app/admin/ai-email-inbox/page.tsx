@@ -43,6 +43,7 @@ export default function AIEmailInboxPage() {
         setIsLoading(true);
         setError(null);
         setAnalysisResult(null);
+        setSelectedEmail(null); // Ensure no email is selected on refresh
         try {
             const response = await fetch('/api/ai-inbox');
             if (!response.ok) {
@@ -51,20 +52,17 @@ export default function AIEmailInboxPage() {
             }
             const data: Email[] = await response.json();
             setEmails(data);
-            if (data.length > 0 && !selectedEmail) {
-                setSelectedEmail(data[0]);
-            }
         } catch (err: any) {
             console.error("Error fetching emails:", err);
             setError(err.message);
         } finally {
             setIsLoading(false);
         }
-    }, [selectedEmail]);
+    }, []);
 
     useEffect(() => {
         fetchEmails();
-    }, []);
+    }, [fetchEmails]);
 
     const handleAnalyze = async () => {
         if (!selectedEmail) return;
@@ -185,7 +183,7 @@ export default function AIEmailInboxPage() {
                                 <ScrollArea className="flex-grow">
                                      <div
                                         className="p-4 text-sm prose max-w-none"
-                                        dangerouslySetInnerHTML={{ __html: selectedEmail.body.replace(/(<hr\s*\/?>)/i, '<br class="hidden" />$1') }}
+                                        dangerouslySetInnerHTML={{ __html: selectedEmail.body.replace(/(<hr\s*\/?>)/gi, '<br class="hidden" />$1') }}
                                     />
                                 </ScrollArea>
                             </div>
