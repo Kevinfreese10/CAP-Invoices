@@ -87,14 +87,13 @@ export default function ClientForm({
                     {isAIClient && (
                          <>
                              <FormField control={form.control} name="address" render={({ field }) => ( <FormItem><FormLabel>Address</FormLabel><FormControl><Textarea placeholder="123 Main Street..." {...field} /></FormControl><FormMessage /></FormItem>)} />
-                             <FormField control={form.control} name="vatNumber" render={({ field }) => ( <FormItem><FormLabel>VAT Number</FormLabel><FormControl><Input placeholder="4..." {...field} /></FormControl><FormMessage /></FormItem>)} />
                          </>
                     )}
 
                     {!isAIClient && ( <FormField control={form.control} name="status" render={({ field }) => ( <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{clientStatuses.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />)}
                 </div>
 
-                {!isAIClient && (
+                {isAIClient && (
                     <>
                         <Separator />
                         <div className="space-y-4">
