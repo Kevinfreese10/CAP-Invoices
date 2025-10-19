@@ -8,3 +8,5 @@ export default function ClientInvoicesRedirectPage({ params }: { params: { clien
   redirect(`/admin/ai-accountant/${params.clientId}/invoices`);
   return null;
 }
+
+    
