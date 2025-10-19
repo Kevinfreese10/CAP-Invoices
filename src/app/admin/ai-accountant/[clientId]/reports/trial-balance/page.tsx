@@ -67,16 +67,14 @@ function TrialBalanceReport({ client, transactions, dateRange }: { client: User,
         const reportEndDate = dateRange?.to;
         
         const retainedIncomeAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '9000-004');
-        const suspenseAccountId = client.chartOfAccounts?.find(acc => acc.accountNumber === '9500-001')?.id;
         
         let priorPeriodNetIncome = 0;
 
         // Process all transactions
         transactions.forEach(tx => {
-            const txDate = new Date(tx.date);
-            const isAllocated = 'allocatedTo' in tx;
+            if (!('allocatedTo' in tx)) return; // Skip unallocated transactions for TB
 
-            // Determine if transaction falls in prior period or current period
+            const txDate = new Date(tx.date);
             const isPriorPeriod = txDate < reportStartDate;
 
             const processEntry = (accountId: string, amount: number) => {
@@ -87,38 +85,14 @@ function TrialBalanceReport({ client, transactions, dateRange }: { client: User,
                     } else if (balances.has(accountId)) {
                         balances.set(accountId, (balances.get(accountId) || 0) + amount);
                     }
-                } else if (!reportEndDate || txDate <= reportEndDate) {
+                } else if (!reportEndDate || txDate <= endOfDay(reportEndDate)) {
                     if (balances.has(accountId)) {
                         balances.set(accountId, (balances.get(accountId) || 0) + amount);
                     }
                 }
             };
-            
-            if (isAllocated) {
-                const allocatedTx = tx as AllocatedTransaction;
-                // For journals, amount is already split into debit/credit legs
-                 if (allocatedTx.bankAccountId === 'JOURNAL') {
-                    processEntry(allocatedTx.allocatedTo.value, allocatedTx.amount);
-                 } else { // For bank transactions
-                    // Bank leg
-                    processEntry(allocatedTx.bankAccountId, allocatedTx.amount);
-                    // Contra leg (exclusive amount)
-                    const exclusiveAmount = allocatedTx.amount - (allocatedTx.vatAmount || 0);
-                    processEntry(allocatedTx.allocatedTo.value, -exclusiveAmount);
-                    // VAT leg
-                    if (allocatedTx.vatAmount && client.chartOfAccounts) {
-                        const vatControlId = client.chartOfAccounts.find(a => a.accountNumber === '7000-008')?.id;
-                        if(vatControlId) processEntry(vatControlId, -allocatedTx.vatAmount);
-                    }
-                 }
-            } else { // Unallocated
-                // Bank leg
-                processEntry(tx.bankAccountId, tx.amount);
-                // Suspense leg
-                if (suspenseAccountId) {
-                    processEntry(suspenseAccountId, -tx.amount);
-                }
-            }
+
+            processEntry(tx.allocatedTo.value, tx.amount);
         });
         
         if (retainedIncomeAccount) {
@@ -324,3 +298,5 @@ export default function TrialBalancePage() {
         </div>
     );
 }
+
+    

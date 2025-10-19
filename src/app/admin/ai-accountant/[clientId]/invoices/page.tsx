@@ -11,7 +11,7 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, Plus, Trash2, CalendarIcon, PlusCircle, MoreHorizontal, Eye, Copy, FileText, Mail, Download, CheckCircle } from 'lucide-react';
-import { getFirestore, doc, addDoc, getDoc, collection, query, orderBy, getDocs, updateDoc, arrayUnion } from 'firebase/firestore';
+import { getFirestore, doc, addDoc, getDoc, collection, query, orderBy, getDocs, updateDoc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -191,7 +191,8 @@ export default function InvoicesPage() {
 
         try {
             const invoiceRef = doc(db, 'aiAccountantClients', client.id, 'invoices', invoiceId);
-            
+            const batch = writeBatch(db);
+
             // Post to GL if marking as final
             if (status === 'final') {
                 const customerControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '8000-001')?.id;
@@ -200,11 +201,9 @@ export default function InvoicesPage() {
                 if (!customerControlAccount || !vatControlAccount) {
                     throw new Error("Control accounts not found in Chart of Accounts.");
                 }
-    
-                const transactions: Omit<AllocatedTransaction, 'id'>[] = [];
-    
+
                 // 1. Debit Customer Control for the full amount
-                transactions.push({
+                 batch.set(doc(collection(db, 'aiAccountantClients', client.id, 'transactions')), {
                     clientId: client.id,
                     date: invoiceToUpdate.invoiceDate.toISOString(),
                     reference: `INV-${invoiceId}`,
@@ -214,16 +213,16 @@ export default function InvoicesPage() {
                     allocatedTo: { value: customerControlAccount, type: 'account' },
                     vatType: 'no_vat',
                     vatAmount: 0,
+                    status: 'allocated',
                     allocatedAt: new Date(),
                 });
-    
-                // 2. Credit Sales Accounts & VAT
+
                 const totalVat = invoiceToUpdate.lineItems.reduce((acc, line) => {
                     const lineTotal = line.quantity * line.rate;
                     const vatAmount = line.vatType === 'standard_rated_sales' ? lineTotal * 0.15 : 0;
                     
-                    // Credit Sales Account
-                    transactions.push({
+                    // 2. Credit Sales Account
+                    batch.set(doc(collection(db, 'aiAccountantClients', client.id, 'transactions')), {
                         clientId: client.id,
                         date: invoiceToUpdate.invoiceDate.toISOString(),
                         reference: `INV-${invoiceId}`,
@@ -233,6 +232,7 @@ export default function InvoicesPage() {
                         allocatedTo: { value: line.accountId, type: 'account' },
                         vatType: line.vatType as any,
                         vatAmount: 0,
+                        status: 'allocated',
                         allocatedAt: new Date(),
                     });
                     
@@ -241,7 +241,7 @@ export default function InvoicesPage() {
     
                 // 3. Credit VAT Control for the total VAT amount
                 if (totalVat > 0) {
-                     transactions.push({
+                     batch.set(doc(collection(db, 'aiAccountantClients', client.id, 'transactions')), {
                         clientId: client.id,
                         date: invoiceToUpdate.invoiceDate.toISOString(),
                         reference: `INV-${invoiceId}`,
@@ -251,18 +251,15 @@ export default function InvoicesPage() {
                         allocatedTo: { value: vatControlAccount, type: 'account' },
                         vatType: 'no_vat',
                         vatAmount: 0,
+                        status: 'allocated',
                         allocatedAt: new Date(),
                     });
                 }
-                
-                const clientRef = doc(db, 'aiAccountantClients', client.id);
-                await updateDoc(clientRef, {
-                    allocatedTransactions: arrayUnion(...transactions)
-                });
             }
 
             // Update invoice status
-            await updateDoc(invoiceRef, { status });
+            batch.update(invoiceRef, { status });
+            await batch.commit();
 
             toast({ title: 'Invoice Status Updated', description: 'The invoice is now final and posted.' });
             fetchData();
@@ -276,7 +273,10 @@ export default function InvoicesPage() {
         if (!client || !client.id) return;
         
         try {
-            const invoiceRef = await addDoc(collection(db, `aiAccountantClients/${clientId}/invoices`), {
+            const batch = writeBatch(db);
+            const invoiceRef = doc(collection(db, `aiAccountantClients/${clientId}/invoices`));
+
+            batch.set(invoiceRef, {
                 ...data,
                 status: 'final',
                 subtotal: totals.subtotal,
@@ -291,11 +291,10 @@ export default function InvoicesPage() {
             if (!customerControlAccount || !vatControlAccount) {
                 throw new Error("Control accounts not found in Chart of Accounts.");
             }
-
-            const transactions: Omit<AllocatedTransaction, 'id'>[] = [];
-
+            
             // 1. Debit Customer Control
-            transactions.push({
+            const debitTxRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
+            batch.set(debitTxRef, {
                 clientId: client.id,
                 date: data.invoiceDate.toISOString(),
                 reference: `INV-${invoiceRef.id}`,
@@ -305,28 +304,33 @@ export default function InvoicesPage() {
                 allocatedTo: { value: customerControlAccount, type: 'account' },
                 vatType: 'no_vat',
                 vatAmount: 0,
+                status: 'allocated',
                 allocatedAt: new Date(),
             });
 
-            // 2. Credit Sales Accounts
+            // 2. Credit Sales Accounts & VAT
             data.lineItems.forEach(line => {
-                transactions.push({
+                const lineTotal = line.quantity * line.rate;
+                const salesCreditRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
+                batch.set(salesCreditRef, {
                     clientId: client.id,
                     date: data.invoiceDate.toISOString(),
                     reference: `INV-${invoiceRef.id}`,
                     description: line.description,
-                    amount: -(line.quantity * line.rate),
+                    amount: -lineTotal,
                     bankAccountId: 'JOURNAL',
                     allocatedTo: { value: line.accountId, type: 'account' },
                     vatType: line.vatType as any,
                     vatAmount: 0,
+                    status: 'allocated',
                     allocatedAt: new Date(),
                 });
             });
             
             // 3. Credit VAT Control
             if (totals.vat > 0) {
-                transactions.push({
+                 const vatCreditRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
+                batch.set(vatCreditRef, {
                     clientId: client.id,
                     date: data.invoiceDate.toISOString(),
                     reference: `INV-${invoiceRef.id}`,
@@ -336,14 +340,12 @@ export default function InvoicesPage() {
                     allocatedTo: { value: vatControlAccount, type: 'account' },
                     vatType: 'no_vat',
                     vatAmount: 0,
+                    status: 'allocated',
                     allocatedAt: new Date(),
                 });
             }
-            
-            const clientRef = doc(db, 'aiAccountantClients', client.id);
-            await updateDoc(clientRef, {
-                allocatedTransactions: arrayUnion(...transactions)
-            });
+
+            await batch.commit();
 
             toast({ title: 'Invoice Finalized', description: 'The invoice has been created and posted to the general ledger.' });
             form.reset({
@@ -554,3 +556,5 @@ export default function InvoicesPage() {
         </Dialog>
     );
 }
+
+    

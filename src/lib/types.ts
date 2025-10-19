@@ -1,5 +1,4 @@
 
-
 export type VatType =
   // Output Tax
   | 'standard_rated_sales'
@@ -232,8 +231,6 @@ export type User = {
   chartOfAccounts?: ChartOfAccount[];
   allocationRules?: AllocationRule[];
   hasAIAccountantProfile?: boolean;
-  importedTransactions?: ImportedTransaction[];
-  allocatedTransactions?: AllocatedTransaction[];
   subscription?: SubscriptionData;
   sharedWith?: string[];
   enableInvoicing?: boolean;
@@ -294,6 +291,11 @@ export type ImportedTransaction = {
     amount: number;
     bankAccountId: string;
     status: 'new' | 'allocated' | 'review' | 'reviewed';
+    allocatedTo?: { // Optional for imported, required for allocated
+        value: string;
+        type: 'account' | 'customer' | 'supplier';
+    };
+    vatType?: VatType; // Optional for imported
 };
 
 export type AllocatedTransaction = {
@@ -310,6 +312,7 @@ export type AllocatedTransaction = {
     };
     vatType: VatType;
     vatAmount: number;
+    status: 'allocated';
     allocatedAt: any; // Using `any` for Firestore Timestamp compatibility
 };
 
@@ -370,3 +373,5 @@ export type AIAllocationJob = {
     completedAt?: any;
     error?: string;
 }
+
+    
