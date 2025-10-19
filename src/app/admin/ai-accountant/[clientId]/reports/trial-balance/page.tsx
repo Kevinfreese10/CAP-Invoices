@@ -28,7 +28,7 @@ import {
   TableRow,
   TableFooter,
 } from "@/components/ui/table";
-import { format, startOfDay } from 'date-fns';
+import { format, startOfDay, endOfDay } from 'date-fns';
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
 import * as XLSX from 'xlsx';
@@ -64,7 +64,7 @@ function TrialBalanceReport({ client, transactions, dateRange }: { client: User,
         client.chartOfAccounts?.forEach(acc => balances.set(acc.id, 0));
 
         const reportStartDate = dateRange?.from ? startOfDay(dateRange.from) : getFinancialYearStart(new Date(), client.yearEnd);
-        const reportEndDate = dateRange?.to;
+        const reportEndDate = dateRange?.to ? endOfDay(dateRange.to) : new Date();
         
         const retainedIncomeAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '9000-004');
         
@@ -72,31 +72,56 @@ function TrialBalanceReport({ client, transactions, dateRange }: { client: User,
 
         // Process all transactions
         transactions.forEach(tx => {
-            if (!('allocatedTo' in tx)) return; // Skip unallocated transactions for TB
-
             const txDate = new Date(tx.date);
             const isPriorPeriod = txDate < reportStartDate;
 
             const processEntry = (accountId: string, amount: number) => {
+                const account = client.chartOfAccounts?.find(a => a.id === accountId);
+                if (!account) return;
+
                 if (isPriorPeriod) {
-                    const account = client.chartOfAccounts?.find(a => a.id === accountId);
-                    if (account?.section === 'Income Statement') {
-                        priorPeriodNetIncome += amount;
+                    if (account.section === 'Income Statement') {
+                        // For prior periods, P&L items contribute to retained income.
+                        // We credit retained income for profits (income > expenses), so income (negative amount) becomes positive, and expenses (positive amount) become negative.
+                        priorPeriodNetIncome -= amount;
                     } else if (balances.has(accountId)) {
+                        // Balance sheet items just accumulate.
                         balances.set(accountId, (balances.get(accountId) || 0) + amount);
                     }
-                } else if (!reportEndDate || txDate <= endOfDay(reportEndDate)) {
+                } else if (txDate <= reportEndDate) {
+                    // For the current period, all transactions affect their respective accounts.
                     if (balances.has(accountId)) {
                         balances.set(accountId, (balances.get(accountId) || 0) + amount);
                     }
                 }
             };
+            
+            // For journal entries, amount is already directional (debit/credit)
+            if (tx.bankAccountId === 'JOURNAL') {
+                if (tx.allocatedTo?.value) {
+                    processEntry(tx.allocatedTo.value, tx.amount);
+                }
+            } 
+            // For bank transactions, we create the double entry
+            else {
+                // Bank account entry
+                processEntry(tx.bankAccountId, tx.amount);
 
-            processEntry(tx.allocatedTo.value, tx.amount);
+                // Contra-entry
+                if (tx.status === 'allocated' && tx.allocatedTo) {
+                    // Normal allocated transaction
+                     processEntry(tx.allocatedTo.value, -tx.amount);
+                } else {
+                    // Unallocated transaction -> Suspense Account
+                    const suspenseAccountId = '9500-001'; 
+                    processEntry(suspenseAccountId, -tx.amount);
+                }
+            }
         });
         
+        // Add the calculated prior period profit/loss to the retained income account for the current period.
         if (retainedIncomeAccount) {
-            balances.set(retainedIncomeAccount.id, (balances.get(retainedIncomeAccount.id) || 0) - priorPeriodNetIncome);
+            balances.set(retainedIncomeAccount.id, (balances.get(retainedIncomeAccount.id) || 0) + priorPeriodNetIncome);
         }
 
         return balances;
@@ -228,13 +253,14 @@ export default function TrialBalancePage() {
              if (docSnap.exists()) {
                 setClient({ id: docSnap.id, ...docSnap.data() } as User);
              }
+             setIsLoading(false);
         };
 
         const unsubscribe = onSnapshot(query(collection(db, 'aiAccountantClients', clientId, 'transactions')), 
             (snapshot) => {
                 const fetchedTransactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as (ImportedTransaction | AllocatedTransaction)));
                 setTransactions(fetchedTransactions);
-                setIsLoading(false);
+                if (isLoading) setIsLoading(false);
             },
             (error) => {
                 console.error("Error fetching transactions:", error);
@@ -298,5 +324,3 @@ export default function TrialBalancePage() {
         </div>
     );
 }
-
-    

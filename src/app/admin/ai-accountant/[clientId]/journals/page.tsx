@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -12,11 +11,11 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, Plus, Trash2 } from 'lucide-react';
-import { getFirestore, doc, updateDoc, arrayUnion, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, addDoc, getDoc, collection, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { User, ChartOfAccount, AllocatedTransaction } from '@/lib/types';
+import { User, ChartOfAccount } from '@/lib/types';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { CalendarIcon } from 'lucide-react';
@@ -103,24 +102,28 @@ export default function JournalsPage() {
         setIsLoading(true);
         
         try {
-            const journalTransactions: AllocatedTransaction[] = data.lines.map((line, index) => ({
-                id: `journal-${Date.now()}-${index}`,
-                clientId: client.id,
-                date: data.date.toISOString(),
-                reference: 'MANUAL_JOURNAL',
-                description: data.description,
-                amount: (line.debit || 0) - (line.credit || 0),
-                bankAccountId: 'JOURNAL', // Special identifier for journals
-                allocatedTo: { value: line.accountId, type: 'account' },
-                vatType: 'no_vat',
-                vatAmount: 0,
-                allocatedAt: new Date(),
-            }));
-            
-            const clientRef = doc(db, 'aiAccountantClients', client.id);
-            await updateDoc(clientRef, {
-                allocatedTransactions: arrayUnion(...journalTransactions)
+            const batch = writeBatch(db);
+            const journalRef = `JNL-${Date.now()}`;
+
+            data.lines.forEach((line) => {
+                if((line.debit || 0) > 0 || (line.credit || 0) > 0) {
+                    const transRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
+                    batch.set(transRef, {
+                        clientId: client.id,
+                        date: data.date.toISOString(),
+                        reference: journalRef,
+                        description: data.description,
+                        amount: (line.debit || 0) - (line.credit || 0),
+                        bankAccountId: 'JOURNAL', // Special identifier for journals
+                        allocatedTo: { value: line.accountId, type: 'account' },
+                        vatType: 'no_vat',
+                        status: 'allocated',
+                        allocatedAt: new Date(),
+                    });
+                }
             });
+
+            await batch.commit();
 
             toast({ title: 'Journal Posted', description: 'The journal entry has been successfully recorded.' });
             form.reset({

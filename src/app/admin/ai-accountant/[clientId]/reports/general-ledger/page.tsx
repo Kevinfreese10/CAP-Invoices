@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { useState, useEffect, useMemo } from "react";
 import { User, ChartOfAccount, AllocatedTransaction, ImportedTransaction } from "@/lib/types";
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, query, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, Download } from "lucide-react";
 import { useParams } from 'next/navigation';
@@ -27,23 +27,20 @@ const formatPrice = (price: number) => {
     }).format(price);
 };
 
-function GeneralLedgerReport({ client, dateRange, fromAccount, toAccount }: { client: User, dateRange?: DateRange, fromAccount?: string, toAccount?: string }) {
+function GeneralLedgerReport({ client, transactions, dateRange, fromAccount, toAccount }: { client: User, transactions: (ImportedTransaction | AllocatedTransaction)[], dateRange?: DateRange, fromAccount?: string, toAccount?: string }) {
     
-    const transactions = useMemo(() => {
-        let allTransactions: (AllocatedTransaction | ImportedTransaction)[] = [
-            ...(client.allocatedTransactions || []),
-            ...(client.importedTransactions || [])
-        ];
-
-        if (dateRange?.from) {
-            allTransactions = allTransactions.filter(tx => new Date(tx.date) >= dateRange.from!);
+    const filteredTransactions = useMemo(() => {
+        if (!dateRange) return transactions;
+        
+        let filtered = transactions;
+        if (dateRange.from) {
+            filtered = filtered.filter(tx => new Date(tx.date) >= dateRange.from!);
         }
-        if (dateRange?.to) {
-            allTransactions = allTransactions.filter(tx => new Date(tx.date) <= dateRange.to!);
+        if (dateRange.to) {
+            filtered = filtered.filter(tx => new Date(tx.date) <= dateRange.to!);
         }
-
-        return allTransactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    }, [client, dateRange]);
+        return filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    }, [transactions, dateRange]);
     
     const accountsToDisplay = useMemo(() => {
         let accounts = client.chartOfAccounts || [];
@@ -62,8 +59,7 @@ function GeneralLedgerReport({ client, dateRange, fromAccount, toAccount }: { cl
 
 
     const groupedTransactions = useMemo(() => {
-        const suspenseAccountId = client.chartOfAccounts?.find(acc => acc.accountNumber === '9950/000')?.id;
-        const vatControlAccountId = client.chartOfAccounts?.find(acc => acc.accountNumber === '9500/000')?.id;
+        const suspenseAccountId = '9500-001';
 
         const grouped = new Map<string, { account: ChartOfAccount; transactions: any[], totalDebit: number; totalCredit: number }>();
 
@@ -71,64 +67,50 @@ function GeneralLedgerReport({ client, dateRange, fromAccount, toAccount }: { cl
             grouped.set(acc.id, { account: acc, transactions: [], totalDebit: 0, totalCredit: 0 });
         });
 
-        transactions.forEach(tx => {
+        filteredTransactions.forEach(tx => {
             const txDate = new Date(tx.date);
-            const isAllocated = 'allocatedTo' in tx;
-            
-            // Debit bank account if amount is negative (payment), Credit if positive (income)
-            const bankEntry = grouped.get(tx.bankAccountId);
-            if (bankEntry) {
-                 bankEntry.transactions.push({
-                    date: txDate,
-                    description: isAllocated ? `Contra to ${tx.allocatedTo.value}` : 'Unallocated Transaction',
-                    ref: tx.description,
-                    debit: tx.amount > 0 ? tx.amount : 0,
-                    credit: tx.amount < 0 ? -tx.amount : 0,
-                 });
-            }
+            const isJournal = tx.bankAccountId === 'JOURNAL';
 
-            if (isAllocated) {
-                const allocatedTx = tx as AllocatedTransaction;
-                const exclusiveAmount = allocatedTx.amount - (allocatedTx.vatAmount || 0);
-
-                // Post exclusive amount to allocated account
-                const allocatedAccountEntry = grouped.get(allocatedTx.allocatedTo.value);
-                if (allocatedAccountEntry) {
-                    allocatedAccountEntry.transactions.push({
+            if(isJournal) {
+                 const entry = grouped.get(tx.allocatedTo!.value);
+                 if (entry) {
+                     entry.transactions.push({
                         date: txDate,
-                        description: `Bank: ${tx.description}`,
-                        ref: tx.bankAccountId,
-                        debit: exclusiveAmount < 0 ? -exclusiveAmount : 0,
-                        credit: exclusiveAmount > 0 ? exclusiveAmount : 0,
+                        description: tx.description,
+                        ref: tx.reference,
+                        debit: tx.amount > 0 ? tx.amount : 0,
+                        credit: tx.amount < 0 ? -tx.amount : 0,
+                     });
+                 }
+            } else {
+                 // Debit/Credit Bank Account
+                const bankEntry = grouped.get(tx.bankAccountId);
+                if (bankEntry) {
+                    const contraAccount = tx.status === 'allocated' 
+                        ? accountsToDisplay.find(a => a.id === tx.allocatedTo?.value)?.description || 'Unallocated'
+                        : 'Suspense Account';
+                    
+                    bankEntry.transactions.push({
+                        date: txDate,
+                        description: `${tx.description} (Contra: ${contraAccount})`,
+                        ref: tx.reference,
+                        debit: tx.amount > 0 ? tx.amount : 0,
+                        credit: tx.amount < 0 ? -tx.amount : 0,
                     });
                 }
                 
-                // Post VAT amount
-                if (vatControlAccountId && allocatedTx.vatAmount !== 0) {
-                     const vatAccountEntry = grouped.get(vatControlAccountId);
-                     if (vatAccountEntry) {
-                        vatAccountEntry.transactions.push({
-                            date: txDate,
-                            description: `VAT from: ${tx.description}`,
-                            ref: allocatedTx.allocatedTo.value,
-                            debit: allocatedTx.vatAmount < 0 ? -allocatedTx.vatAmount : 0,
-                            credit: allocatedTx.vatAmount > 0 ? allocatedTx.vatAmount : 0,
-                        });
-                     }
-                }
-
-            } else { // Unallocated
-                if (suspenseAccountId) {
-                    const suspenseEntry = grouped.get(suspenseAccountId);
-                    if (suspenseEntry) {
-                        suspenseEntry.transactions.push({
-                            date: txDate,
-                            description: `Suspense: ${tx.description}`,
-                            ref: tx.bankAccountId,
-                            debit: tx.amount < 0 ? -tx.amount : 0,
-                            credit: tx.amount > 0 ? tx.amount : 0,
-                        });
-                    }
+                 // Debit/Credit Contra Account
+                const contraAccountId = tx.status === 'allocated' ? tx.allocatedTo!.value : suspenseAccountId;
+                const contraEntry = grouped.get(contraAccountId);
+                if(contraEntry) {
+                    const bankAccountName = accountsToDisplay.find(a => a.id === tx.bankAccountId)?.description || 'Bank';
+                    contraEntry.transactions.push({
+                         date: txDate,
+                         description: `${tx.description} (Bank: ${bankAccountName})`,
+                         ref: tx.reference,
+                         debit: tx.amount < 0 ? -tx.amount : 0,
+                         credit: tx.amount > 0 ? tx.amount : 0,
+                    });
                 }
             }
         });
@@ -146,7 +128,7 @@ function GeneralLedgerReport({ client, dateRange, fromAccount, toAccount }: { cl
 
         return Array.from(grouped.values()).filter(g => g.transactions.length > 0);
 
-    }, [transactions, accountsToDisplay, client.chartOfAccounts]);
+    }, [filteredTransactions, accountsToDisplay]);
 
     const handleDownloadExcel = () => {
         let excelData: any[] = [];
@@ -259,8 +241,8 @@ export default function GeneralLedgerPage() {
     const params = useParams();
     const clientId = params.clientId as string;
     const [client, setClient] = useState<User | null>(null);
+    const [transactions, setTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [accounts, setAccounts] = useState<ChartOfAccount[]>([]);
     const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
     const [fromAccount, setFromAccount] = useState<string | undefined>();
     const [toAccount, setToAccount] = useState<string | undefined>();
@@ -276,7 +258,6 @@ export default function GeneralLedgerPage() {
                 if (clientSnap.exists()) {
                     const clientData = { id: clientSnap.id, ...clientSnap.data() } as User;
                     setClient(clientData);
-                    setAccounts(clientData.chartOfAccounts?.sort((a,b) => a.accountNumber.localeCompare(b.accountNumber)) || []);
                 }
             } catch (error) {
                 console.error("Error fetching client data:", error);
@@ -285,7 +266,16 @@ export default function GeneralLedgerPage() {
             }
         };
         fetchClientData();
+        
+        const transUnsubscribe = onSnapshot(query(collection(db, 'aiAccountantClients', clientId, 'transactions')), snapshot => {
+            const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as (ImportedTransaction | AllocatedTransaction)));
+            setTransactions(fetched);
+        });
+        
+        return () => transUnsubscribe();
     }, [clientId]);
+    
+    const accounts = useMemo(() => client?.chartOfAccounts?.sort((a,b) => a.accountNumber.localeCompare(b.accountNumber)) || [], [client]);
     
     const getReportDateString = () => {
         if (!dateRange || (!dateRange.from && !dateRange.to)) {
@@ -350,7 +340,7 @@ export default function GeneralLedgerPage() {
                                                 General Ledger {getReportDateString()}
                                             </DialogDescription>
                                         </DialogHeader>
-                                        <GeneralLedgerReport client={client} dateRange={dateRange} fromAccount={fromAccount} toAccount={toAccount} />
+                                        <GeneralLedgerReport client={client} transactions={transactions} dateRange={dateRange} fromAccount={fromAccount} toAccount={toAccount} />
                                     </DialogContent>
                                 </Dialog>
                             ) : (
