@@ -11,19 +11,18 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 
-const AttachmentSchema = z.object({
-  dataUri: z.string().describe("The attachment content as a data URI."),
-  mimeType: z.string().describe("The MIME type of the attachment, e.g., 'application/pdf' or 'image/jpeg'."),
-});
-
-export const AnalyzeEmailInputSchema = z.object({
+// Define schema types for external use, but don't export the schema objects directly
+const AnalyzeEmailInputSchema = z.object({
   subject: z.string().describe("The subject line of the email."),
   body: z.string().describe("The plain text or HTML body of the email."),
-  attachments: z.array(AttachmentSchema).optional().describe("An array of attachments, each as a data URI."),
+  attachments: z.array(z.object({
+    dataUri: z.string().describe("The attachment content as a data URI."),
+    mimeType: z.string().describe("The MIME type of the attachment, e.g., 'application/pdf' or 'image/jpeg'."),
+  })).optional().describe("An array of attachments, each as a data URI."),
 });
 export type AnalyzeEmailInput = z.infer<typeof AnalyzeEmailInputSchema>;
 
-export const EmailAnalysisOutputSchema = z.object({
+const EmailAnalysisOutputSchema = z.object({
   summary: z.string().describe("A concise, one-paragraph summary of the entire email content, including key points from attachments."),
   category: z.enum(['Client Inquiry', 'SARS Document', 'Invoice Submission', 'Payment Notification', 'Legal/Compliance', 'Internal Communication', 'Spam/Marketing', 'Other']).describe("The best-fitting category for the email."),
   priority: z.enum(['High', 'Medium', 'Low']).describe("The urgency of the email. Use 'High' for keywords like 'Final Demand', 'Urgent', or legal threats."),
@@ -36,14 +35,18 @@ export type EmailAnalysisOutput = z.infer<typeof EmailAnalysisOutputSchema>;
 
 
 export async function analyzeEmail(input: AnalyzeEmailInput): Promise<EmailAnalysisOutput> {
-  return analyzeEmailFlow(input);
-}
-
-const prompt = ai.definePrompt({
-  name: 'analyzeEmailPrompt',
-  input: { schema: AnalyzeEmailInputSchema },
-  output: { schema: EmailAnalysisOutputSchema },
-  prompt: `You are an expert inbox management AI for an accounting firm. Analyze the following email, including its subject, body, and any attachments, to perform triage and prioritization.
+  const analyzeEmailFlow = ai.defineFlow(
+    {
+      name: 'analyzeEmailFlow',
+      inputSchema: AnalyzeEmailInputSchema,
+      outputSchema: EmailAnalysisOutputSchema,
+    },
+    async (input) => {
+      const prompt = ai.definePrompt({
+        name: 'analyzeEmailPrompt',
+        input: { schema: AnalyzeEmailInputSchema },
+        output: { schema: EmailAnalysisOutputSchema },
+        prompt: `You are an expert inbox management AI for an accounting firm. Analyze the following email, including its subject, body, and any attachments, to perform triage and prioritization.
 
 **Email Subject**: {{{subject}}}
 
@@ -70,16 +73,12 @@ Based on all the provided information, provide a structured analysis.
 6.  **Detected Attachments**: If attachments are present, identify the type of document (e.g., 'ID Document', 'CIPC Document', 'Bank Statement', 'SARS Tax Pin', 'Proof of Payment', 'Invoice').
 7.  **Next Step**: Recommend the immediate next action. Be specific (e.g., "Draft a response to request the client's IRP5," or "Forward to the tax department for review.").
 `,
-});
+      });
 
-const analyzeEmailFlow = ai.defineFlow(
-  {
-    name: 'analyzeEmailFlow',
-    inputSchema: AnalyzeEmailInputSchema,
-    outputSchema: EmailAnalysisOutputSchema,
-  },
-  async (input) => {
-    const { output } = await prompt(input);
-    return output!;
-  }
-);
+      const { output } = await prompt(input);
+      return output!;
+    }
+  );
+
+  return analyzeEmailFlow(input);
+}
