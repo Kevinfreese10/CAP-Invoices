@@ -85,9 +85,6 @@ export default function AIEmailInboxPage() {
             const staffMap = staffSnapshot.docs.map(doc => ({ id: doc.id, uid: doc.id, ...doc.data()} as User));
             setAllStaff(staffMap);
 
-            const processedSnapshot = await getDocs(collection(db, 'processedEmails'));
-            const processedEmailsMap = new Map(processedSnapshot.docs.map(doc => [doc.data().uid, doc.data()]));
-
             const response = await fetch('/api/ai-inbox');
             if (!response.ok) {
                 const errorData = await response.json();
@@ -95,19 +92,7 @@ export default function AIEmailInboxPage() {
             }
             const data: Email[] = await response.json();
             
-            const emailsWithStatus = data.map(email => {
-                const processedData = processedEmailsMap.get(email.uid);
-                return {
-                    ...email,
-                    isProcessed: !!processedData,
-                    processedInfo: processedData ? {
-                        processedBy: processedData.processedBy,
-                        processedAt: processedData.processedAt,
-                        processedAction: processedData.processedAction || 'Archived',
-                    } : undefined,
-                };
-            });
-            setAllEmails(emailsWithStatus);
+            setAllEmails(data);
 
         } catch (err: any) {
             console.error("Error fetching data:", err);
@@ -240,10 +225,9 @@ export default function AIEmailInboxPage() {
         }
     }
 
-
     return (
-        <Dialog>
-            <div className="space-y-8">
+        <div className="space-y-8">
+            <Dialog>
                 <div className="flex items-center justify-between">
                     <h1 className="text-3xl font-bold tracking-tight">AI Email Inbox</h1>
                     <Button onClick={fetchEmailsAndStaff} variant="outline" disabled={isLoading}>
@@ -344,25 +328,26 @@ export default function AIEmailInboxPage() {
                         )}
                     </CardContent>
                 </Card>
-            </div>
-            <DialogContent className="sm:max-w-4xl h-[90vh]">
-                {selectedEmail && (
-                    <div className="flex flex-col h-full">
-                        <DialogHeader>
-                           <DialogTitle>{selectedEmail.subject}</DialogTitle>
-                           <DialogDescription><strong>From:</strong> {selectedEmail.from}<br /><strong>Date:</strong> {format(new Date(selectedEmail.date), 'dd MMMM yyyy, HH:mm')}</DialogDescription>
-                        </DialogHeader>
-                        {selectedEmail.attachments && selectedEmail.attachments.length > 0 && (<><Separator className="my-2" /><div className="flex flex-wrap items-center gap-2">{selectedEmail.attachments.map((att, index) => (<Button key={index} asChild variant="outline" size="sm"><a href={att.dataUrl} download={att.filename}><Paperclip className="mr-2 h-4 w-4" />{att.filename}</a></Button>))}</div></>)}
-                        <Separator className="my-2" />
-                        <ScrollArea className="flex-grow">
-                            <div className="p-4 text-sm prose max-w-none" dangerouslySetInnerHTML={{ __html: selectedEmail.body.replace(/(<hr\\s*\\/?>)/gi, '<br class="hidden" />$1') }} />
-                        </ScrollArea>
-                        <DialogFooter className="pt-4 border-t flex justify-between w-full">
-                            <Button onClick={() => handleMarkAsProcessed(selectedEmail, 'Archived')} size="sm" variant="secondary" disabled={selectedEmail.isProcessed}><CheckCircle className="mr-2 h-4 w-4" />{selectedEmail.isProcessed ? 'Archived' : 'Archive'}</Button>
-                        </DialogFooter>
-                    </div>
-                )}
-            </DialogContent>
-        </Dialog>
+
+                <DialogContent className="sm:max-w-4xl h-[90vh]">
+                    {selectedEmail && (
+                        <div className="flex flex-col h-full">
+                            <DialogHeader>
+                               <DialogTitle>{selectedEmail.subject}</DialogTitle>
+                               <DialogDescription><strong>From:</strong> {selectedEmail.from}<br /><strong>Date:</strong> {format(new Date(selectedEmail.date), 'dd MMMM yyyy, HH:mm')}</DialogDescription>
+                            </DialogHeader>
+                            {selectedEmail.attachments && selectedEmail.attachments.length > 0 && (<><Separator className="my-2" /><div className="flex flex-wrap items-center gap-2">{selectedEmail.attachments.map((att, index) => (<Button key={index} asChild variant="outline" size="sm"><a href={att.dataUrl} download={att.filename}><Paperclip className="mr-2 h-4 w-4" />{att.filename}</a></Button>))}</div></>)}
+                            <Separator className="my-2" />
+                            <ScrollArea className="flex-grow">
+                                <div className="p-4 text-sm prose max-w-none" dangerouslySetInnerHTML={{ __html: selectedEmail.body.replace(/(<hr\\s*\\/?>)/gi, '<br class="hidden" />$1') }} />
+                            </ScrollArea>
+                            <DialogFooter className="pt-4 border-t flex justify-between w-full">
+                                <Button onClick={() => handleMarkAsProcessed(selectedEmail, 'Archived')} size="sm" variant="secondary" disabled={selectedEmail.isProcessed}><CheckCircle className="mr-2 h-4 w-4" />{selectedEmail.isProcessed ? 'Archived' : 'Archive'}</Button>
+                            </DialogFooter>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
+        </div>
     );
 }
