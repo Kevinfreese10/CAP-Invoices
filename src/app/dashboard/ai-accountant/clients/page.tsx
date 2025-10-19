@@ -41,11 +41,16 @@ export default function AIAccountantClientsPage() {
     if (!currentUser?.uid) return;
     setIsLoading(true);
     try {
-        const clientsQuery = query(
-            collection(db, "aiAccountantClients"), 
-            where("createdBy", "==", currentUser.uid),
-            orderBy("name")
-        );
+        let clientsQuery;
+        if (currentUser?.role === 'admin') {
+            clientsQuery = query(collection(db, "aiAccountantClients"), orderBy("name"));
+        } else {
+            clientsQuery = query(
+                collection(db, "aiAccountantClients"), 
+                where("createdBy", "==", currentUser.uid),
+                orderBy("name")
+            );
+        }
         const clientsSnapshot = await getDocs(clientsQuery);
         const fetchedClients = clientsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
         setClients(fetchedClients);
@@ -74,7 +79,7 @@ export default function AIAccountantClientsPage() {
 
 
   const handleAddClick = () => {
-    if (clients.length > 0) {
+    if (clients.length > 0 && currentUser?.role !== 'admin') {
       setIsSubscriptionModalOpen(true);
     } else {
       setSelectedClient(null);
@@ -202,15 +207,17 @@ export default function AIAccountantClientsPage() {
         {currentUser && (
             <>
                 <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-                    <Button onClick={handleAddClick}>
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        Create Client
-                    </Button>
+                     <DialogTrigger asChild>
+                        <Button onClick={handleAddClick}>
+                            <PlusCircle className="mr-2 h-4 w-4" />
+                            Create Client
+                        </Button>
+                    </DialogTrigger>
                     <DialogContent className="sm:max-w-2xl">
                             <DialogHeader>
-                                <DialogTitle>{selectedClient ? 'Edit Client' : 'Create Your First Client'}</DialogTitle>
+                                <DialogTitle>{selectedClient ? 'Edit Client' : 'Create New Client'}</DialogTitle>
                                 <DialogDescription>
-                                    {selectedClient ? 'Update the details for this client.' : 'Your first client profile is free. Fill out the form to add a new client to the AI Accountant module.'}
+                                    {selectedClient ? 'Update the details for this client.' : 'Fill out the form to add a new client to the AI Accountant module.'}
                                 </DialogDescription>
                             </DialogHeader>
                             <ClientForm 
