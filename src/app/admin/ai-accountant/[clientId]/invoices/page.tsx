@@ -11,11 +11,11 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, Plus, Trash2, CalendarIcon, PlusCircle, MoreHorizontal, Eye, Copy, FileText, Mail, Download } from 'lucide-react';
-import { getFirestore, doc, addDoc, getDoc, collection, query, orderBy, getDocs } from 'firebase/firestore';
+import { getFirestore, doc, addDoc, getDoc, collection, query, orderBy, getDocs, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { User, Invoice, ClientCustomer, ChartOfAccount } from '@/lib/types';
+import { User, Invoice, ClientCustomer, ChartOfAccount, AllocatedTransaction } from '@/lib/types';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
@@ -179,20 +179,85 @@ export default function InvoicesPage() {
     }, [clientId, toast]);
 
     const onSubmit = async (data: InvoiceFormValues) => {
-        if (!client) return;
+        if (!client || !client.id) return;
         
         try {
-            const invoiceData: Omit<Invoice, 'id'> = {
+            const invoiceRef = await addDoc(collection(db, `aiAccountantClients/${clientId}/invoices`), {
                 ...data,
-                status: 'draft',
+                status: 'final',
                 subtotal: totals.subtotal,
                 vat: totals.vat,
                 total: totals.total,
                 createdAt: new Date(),
-            }
-            await addDoc(collection(db, `aiAccountantClients/${clientId}/invoices`), invoiceData);
+            });
 
-            toast({ title: 'Invoice Created', description: 'The new invoice has been saved as a draft.' });
+            const customerControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '8000-001')?.id;
+            const vatControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '7000-008')?.id;
+
+            if (!customerControlAccount || !vatControlAccount) {
+                throw new Error("Control accounts not found in Chart of Accounts.");
+            }
+
+            // Create transactions for GL
+            const transactions: Omit<AllocatedTransaction, 'id'>[] = [];
+
+            // 1. Debit Customer Control
+            transactions.push({
+                clientId: client.id,
+                date: data.invoiceDate.toISOString(),
+                reference: `INV-${invoiceRef.id}`,
+                description: `Invoice to ${customers.find(c => c.id === data.customerId)?.name}`,
+                amount: totals.total,
+                bankAccountId: 'JOURNAL',
+                allocatedTo: { value: customerControlAccount, type: 'account' },
+                vatType: 'no_vat',
+                vatAmount: 0,
+                allocatedAt: new Date(),
+            });
+
+            // 2. Credit Sales Accounts & VAT
+            data.lineItems.forEach(line => {
+                const lineTotal = line.quantity * line.rate;
+                const vatAmount = line.vatType === 'standard_rated_sales' ? lineTotal * 0.15 : 0;
+                const exclusiveAmount = lineTotal;
+
+                // Credit Sales Account
+                transactions.push({
+                    clientId: client.id,
+                    date: data.invoiceDate.toISOString(),
+                    reference: `INV-${invoiceRef.id}`,
+                    description: line.description,
+                    amount: -exclusiveAmount,
+                    bankAccountId: 'JOURNAL',
+                    allocatedTo: { value: line.accountId, type: 'account' },
+                    vatType: line.vatType as any,
+                    vatAmount: 0, // VAT is handled in a separate leg
+                    allocatedAt: new Date(),
+                });
+                
+                // Credit VAT Control
+                if (vatAmount > 0) {
+                    transactions.push({
+                        clientId: client.id,
+                        date: data.invoiceDate.toISOString(),
+                        reference: `INV-${invoiceRef.id}`,
+                        description: `VAT on ${line.description}`,
+                        amount: -vatAmount,
+                        bankAccountId: 'JOURNAL',
+                        allocatedTo: { value: vatControlAccount, type: 'account' },
+                        vatType: 'no_vat',
+                        vatAmount: 0,
+                        allocatedAt: new Date(),
+                    });
+                }
+            });
+            
+            const clientRef = doc(db, 'aiAccountantClients', client.id);
+            await updateDoc(clientRef, {
+                allocatedTransactions: arrayUnion(...transactions)
+            });
+
+            toast({ title: 'Invoice Finalized', description: 'The invoice has been created and posted to the general ledger.' });
             form.reset();
             fetchData();
         } catch (error) {

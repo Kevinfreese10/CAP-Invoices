@@ -158,7 +158,7 @@ export type Invoice = {
   subtotal: number;
   vat: number;
   total: number;
-  status: 'draft' | 'sent' | 'paid' | 'overdue';
+  status: 'draft' | 'sent' | 'paid' | 'overdue' | 'final';
   createdAt: any;
 };
 

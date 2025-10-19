@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Loader2, Download } from "lucide-react";
 import { useParams } from 'next/navigation';
-import { getFirestore, doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, getDocs, query, where, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User, AllocatedTransaction, ImportedTransaction, ChartOfAccount } from '@/lib/types';
 import {
@@ -65,11 +65,10 @@ function TrialBalanceReport({ client, transactions, dateRange }: { client: User,
 
         const reportStartDate = dateRange?.from ? startOfDay(dateRange.from) : getFinancialYearStart(new Date(), client.yearEnd);
         const reportEndDate = dateRange?.to;
-
+        
         const retainedIncomeAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '9000-004');
         const suspenseAccountId = client.chartOfAccounts?.find(acc => acc.accountNumber === '9500-001')?.id;
-        const vatControlAccountId = client.chartOfAccounts?.find(acc => acc.accountNumber === '7000-008')?.id;
-
+        
         let priorPeriodNetIncome = 0;
 
         // Process all transactions
@@ -95,26 +94,28 @@ function TrialBalanceReport({ client, transactions, dateRange }: { client: User,
                 }
             };
             
-            // Entry 1: Bank Account
-            if (tx.bankAccountId && tx.bankAccountId !== 'JOURNAL') {
-                processEntry(tx.bankAccountId, tx.amount);
-            }
-
-            // Entry 2: Contra-entry
             if (isAllocated) {
                 const allocatedTx = tx as AllocatedTransaction;
-                const vatAmount = allocatedTx.vatAmount || 0;
-                const exclusiveAmount = allocatedTx.amount - vatAmount;
-                
-                processEntry(allocatedTx.allocatedTo.value, -exclusiveAmount);
-
-                if (vatControlAccountId && vatAmount !== 0) {
-                    processEntry(vatControlAccountId, -vatAmount);
-                }
-            } else { // Unallocated or Journal
-                if (tx.bankAccountId === 'JOURNAL') {
-                    // For manual journals, the contra entry is already handled by another line
-                } else if (suspenseAccountId) {
+                // For journals, amount is already split into debit/credit legs
+                 if (allocatedTx.bankAccountId === 'JOURNAL') {
+                    processEntry(allocatedTx.allocatedTo.value, allocatedTx.amount);
+                 } else { // For bank transactions
+                    // Bank leg
+                    processEntry(allocatedTx.bankAccountId, allocatedTx.amount);
+                    // Contra leg (exclusive amount)
+                    const exclusiveAmount = allocatedTx.amount - (allocatedTx.vatAmount || 0);
+                    processEntry(allocatedTx.allocatedTo.value, -exclusiveAmount);
+                    // VAT leg
+                    if (allocatedTx.vatAmount && client.chartOfAccounts) {
+                        const vatControlId = client.chartOfAccounts.find(a => a.accountNumber === '7000-008')?.id;
+                        if(vatControlId) processEntry(vatControlId, -allocatedTx.vatAmount);
+                    }
+                 }
+            } else { // Unallocated
+                // Bank leg
+                processEntry(tx.bankAccountId, tx.amount);
+                // Suspense leg
+                if (suspenseAccountId) {
                     processEntry(suspenseAccountId, -tx.amount);
                 }
             }
@@ -245,30 +246,30 @@ export default function TrialBalancePage() {
     const [date, setDate] = React.useState<DateRange | undefined>(undefined);
     
     useEffect(() => {
-        const fetchClientAndTransactions = async () => {
-            setIsLoading(true);
-            try {
-                const docRef = doc(db, 'aiAccountantClients', clientId);
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                    setClient({ id: docSnap.id, ...docSnap.data() } as User);
-                }
+        if (!clientId) return;
 
-                const transactionsRef = collection(db, 'aiAccountantClients', clientId, 'transactions');
-                const transactionsSnap = await getDocs(transactionsRef);
-                const fetchedTransactions = transactionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as (ImportedTransaction | AllocatedTransaction)));
-                setTransactions(fetchedTransactions);
-
-            } catch (error) {
-                console.error("Error fetching client data:", error);
-            } finally {
-                setIsLoading(false);
-            }
+        const fetchClient = async () => {
+             const docRef = doc(db, 'aiAccountantClients', clientId);
+             const docSnap = await getDoc(docRef);
+             if (docSnap.exists()) {
+                setClient({ id: docSnap.id, ...docSnap.data() } as User);
+             }
         };
 
-        if (clientId) {
-            fetchClientAndTransactions();
-        }
+        const unsubscribe = onSnapshot(query(collection(db, 'aiAccountantClients', clientId, 'transactions')), 
+            (snapshot) => {
+                const fetchedTransactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as (ImportedTransaction | AllocatedTransaction)));
+                setTransactions(fetchedTransactions);
+                setIsLoading(false);
+            },
+            (error) => {
+                console.error("Error fetching transactions:", error);
+                setIsLoading(false);
+            }
+        );
+        
+        fetchClient();
+        return () => unsubscribe();
     }, [clientId]);
     
     const getReportDateString = () => {
