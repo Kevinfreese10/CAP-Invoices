@@ -230,6 +230,9 @@ export type User = {
   allocatedTransactions?: AllocatedTransaction[];
   subscription?: SubscriptionData;
   sharedWith?: string[];
+  enableInvoicing?: boolean;
+  logoUrl?: string;
+  nextInvoiceNumber?: number;
 };
 
 export type ClientCustomer = {
