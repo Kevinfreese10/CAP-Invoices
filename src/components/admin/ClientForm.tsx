@@ -11,6 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '../ui/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
+import MediaLibrary from './MediaLibrary';
+import { useState } from 'react';
+import { Images } from 'lucide-react';
+import Image from 'next/image';
 
 const clientStatuses: ('Active' | 'Inactive')[] = ['Active', 'Inactive'];
 const months = [ "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" ];
@@ -59,6 +64,7 @@ export default function ClientForm({
     onCancel: () => void, 
     isAIClient?: boolean,
 }) {
+    const [isMediaLibraryOpen, setIsMediaLibraryOpen] = useState(false);
     
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -92,6 +98,7 @@ export default function ClientForm({
 
     const isVatRegistered = form.watch('isVatRegistered');
     const enableInvoicing = form.watch('enableInvoicing');
+    const currentLogoUrl = form.watch('logoUrl');
 
     const handleSubmit = (values: z.infer<typeof formSchema>) => {
         const finalValues = {
@@ -103,6 +110,19 @@ export default function ClientForm({
     
     return (
         <Form {...form}>
+            <Dialog open={isMediaLibraryOpen} onOpenChange={setIsMediaLibraryOpen}>
+                <DialogContent className="max-w-4xl">
+                    <DialogHeader>
+                        <DialogTitle>Media Library</DialogTitle>
+                        <DialogDescription>Select an image for the company logo.</DialogDescription>
+                    </DialogHeader>
+                    <MediaLibrary onSelectImage={(url) => {
+                        form.setValue('logoUrl', url);
+                        setIsMediaLibraryOpen(false);
+                    }} />
+                </DialogContent>
+            </Dialog>
+
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 max-h-[70vh] overflow-y-auto p-1 pr-4">
                 <div className="space-y-4">
                     <h3 className="text-lg font-medium">Customer Details</h3>
@@ -146,7 +166,15 @@ export default function ClientForm({
 
                             {enableInvoicing && (
                                 <div className="space-y-4 pt-4 border-t">
-                                     <FormField control={form.control} name="logoUrl" render={({ field }) => ( <FormItem><FormLabel>Company Logo URL</FormLabel><FormControl><Input placeholder="https://example.com/logo.png" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                     <FormField control={form.control} name="logoUrl" render={({ field }) => ( <FormItem><FormLabel>Company Logo</FormLabel><div className="flex items-center gap-4">
+                                            <div className="relative h-24 w-24 flex-shrink-0 border rounded-md overflow-hidden bg-muted">
+                                                {currentLogoUrl && <Image src={currentLogoUrl} alt="Company logo" fill className="object-contain p-2"/>}
+                                            </div>
+                                            <Button type="button" variant="outline" onClick={() => setIsMediaLibraryOpen(true)}>
+                                                <Images className="mr-2 h-4 w-4"/>
+                                                Select Logo
+                                            </Button>
+                                        </div><FormMessage /></FormItem>)} />
                                      <FormField control={form.control} name="address" render={({ field }) => ( <FormItem><FormLabel>Company Address</FormLabel><FormControl><Textarea placeholder="123 Main Street..." {...field} /></FormControl><FormMessage /></FormItem>)} />
                                      <FormField control={form.control} name="nextInvoiceNumber" render={({ field }) => ( <FormItem><FormLabel>Next Invoice Number</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
                                      
