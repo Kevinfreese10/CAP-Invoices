@@ -30,20 +30,23 @@ export default function AIAccountantClientsPage() {
   const [clients, setClients] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<User | null>(null);
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-  const [payfastFormData, setPayfastFormData] = useState<{ [key: string]: string } | null>(null);
   
   const fetchClients = async () => {
     setIsLoading(true);
     try {
-        const clientsQuery = query(
-            collection(db, "aiAccountantClients"), 
-            orderBy("name")
-        );
+        let clientsQuery;
+        if (currentUser?.role === 'admin') {
+            clientsQuery = query(collection(db, "aiAccountantClients"), orderBy("name"));
+        } else {
+            clientsQuery = query(
+                collection(db, "aiAccountantClients"), 
+                where("createdBy", "==", currentUser?.uid),
+                orderBy("name")
+            );
+        }
         const clientsSnapshot = await getDocs(clientsQuery);
         const fetchedClients = clientsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
         setClients(fetchedClients);
@@ -56,18 +59,10 @@ export default function AIAccountantClientsPage() {
   };
 
   useEffect(() => {
-    fetchClients();
-  }, []);
-
-  useEffect(() => {
-    if (payfastFormData) {
-        const formElement = document.getElementById('payfast-redirect-form');
-        if (formElement) {
-            (formElement as HTMLFormElement).submit();
-        }
+    if(currentUser) {
+        fetchClients();
     }
-  }, [payfastFormData]);
-
+  }, [currentUser]);
 
   const handleAddClick = () => {
     setSelectedClient(null);
@@ -222,13 +217,6 @@ export default function AIAccountantClientsPage() {
           )}
         </CardContent>
       </Card>
-      {payfastFormData && (
-        <form id="payfast-redirect-form" action={process.env.NEXT_PUBLIC_PAYFAST_URL} method="post" style={{ display: 'none' }}>
-            {Object.entries(payfastFormData).map(([key, value]) => (
-                <input key={key} type="hidden" name={key} value={value as string} />
-            ))}
-        </form>
-      )}
     </div>
   );
 }
