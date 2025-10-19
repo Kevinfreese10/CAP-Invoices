@@ -59,21 +59,22 @@ export default function InvoicePreview({ invoice, client, customer }: { invoice:
                         <tr className="bg-gray-100 text-gray-600 uppercase text-sm">
                             <th className="p-3">Description</th>
                             <th className="p-3 text-center">Qty</th>
-                            <th className="p-3 text-right">Unit Price</th>
-                            <th className="p-3 text-right">VAT</th>
-                            <th className="p-3 text-right">Total</th>
+                            <th className="p-3 text-right">Amount Excluding VAT</th>
+                            <th className="p-3 text-right">VAT Amount</th>
+                            <th className="p-3 text-right">Total Including VAT</th>
                         </tr>
                     </thead>
                     <tbody>
                         {invoice.lineItems.map((item, index) => {
                             const vatAmount = getVatAmount(item);
+                            const totalAmount = (item.rate * item.quantity) + vatAmount;
                             return (
                                 <tr key={index} className="border-b border-gray-200">
                                     <td className="p-3">{item.description}</td>
                                     <td className="p-3 text-center">{item.quantity}</td>
-                                    <td className="p-3 text-right">{formatPrice(item.rate)}</td>
+                                    <td className="p-3 text-right">{formatPrice(item.rate * item.quantity)}</td>
                                     <td className="p-3 text-right">{formatPrice(vatAmount)}</td>
-                                    <td className="p-3 text-right font-semibold">{formatPrice(item.rate * item.quantity)}</td>
+                                    <td className="p-3 text-right font-semibold">{formatPrice(totalAmount)}</td>
                                 </tr>
                             )
                         })}
