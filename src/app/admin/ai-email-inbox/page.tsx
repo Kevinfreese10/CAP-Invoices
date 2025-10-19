@@ -56,6 +56,13 @@ interface DraftState {
     }
 }
 
+interface User {
+    id: string;
+    uid: string;
+    name: string;
+    email: string;
+}
+
 export default function AIEmailInboxPage() {
     const [allEmails, setAllEmails] = useState<Email[]>([]);
     const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
