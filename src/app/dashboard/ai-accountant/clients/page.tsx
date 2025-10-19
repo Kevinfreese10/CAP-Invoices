@@ -1,15 +1,15 @@
 
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { MoreHorizontal, PlusCircle, Loader2, ArrowRight, Edit, Share2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { User, Order } from '@/lib/types';
+import { User, Order, Task } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, writeBatch, Timestamp, query, orderBy, where, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -52,7 +52,7 @@ function ShareClientDialog({ client, onShare, allUsers }: { client: User | null,
                  <div>
                     <h4 className="font-medium text-sm mb-2">Users with Access</h4>
                     <div className="space-y-2">
-                        {sharedWithDetails.length > 0 ? sharedWithDetails.map(user => (
+                        {sharedWithDetails && sharedWithDetails.length > 0 ? sharedWithDetails.map(user => (
                             <div key={user.uid} className="flex justify-between items-center bg-muted p-2 rounded-md">
                                 <div>
                                     <p className="font-semibold text-sm">{user.name}</p>
@@ -74,6 +74,7 @@ export default function AIAccountantClientsPage() {
   const [myClients, setMyClients] = useState<User[]>([]);
   const [sharedClients, setSharedClients] = useState<User[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
@@ -84,7 +85,7 @@ export default function AIAccountantClientsPage() {
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [payfastFormData, setPayfastFormData] = useState<{ [key: string]: string } | null>(null);
   
-  const fetchClients = async () => {
+  const fetchClientsAndTasks = async () => {
     if (!currentUser?.uid) return;
     setIsLoading(true);
     try {
@@ -108,9 +109,14 @@ export default function AIAccountantClientsPage() {
         setMyClients(fetchedMyClients);
         setSharedClients(fetchedSharedClients);
 
+        const tasksQuery = query(collection(db, 'tasks'), orderBy('dueDate', 'asc'));
+        const tasksSnapshot = await getDocs(tasksQuery);
+        const fetchedTasks = tasksSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Task));
+        setTasks(fetchedTasks);
+
     } catch (error) {
         console.error("Error fetching data:", error);
-        toast({ title: 'Error', description: 'Could not fetch AI Accountant clients.', variant: 'destructive'});
+        toast({ title: 'Error', description: 'Could not fetch AI Accountant clients or tasks.', variant: 'destructive'});
     } finally {
         setIsLoading(false);
     }
@@ -118,9 +124,18 @@ export default function AIAccountantClientsPage() {
 
   useEffect(() => {
     if(currentUser) {
-        fetchClients();
+        fetchClientsAndTasks();
     }
   }, [currentUser]);
+
+  const myTasks = useMemo(() => {
+    if (!currentUser) return [];
+    return tasks.filter(task => 
+        Array.isArray(task.assignedTo) && 
+        task.assignedTo.includes(currentUser.id) &&
+        task.status !== 'Done'
+    );
+  }, [tasks, currentUser]);
 
   useEffect(() => {
     if (payfastFormData) {
@@ -225,7 +240,7 @@ export default function AIAccountantClientsPage() {
             await updateDoc(clientRef, { sharedWith: arrayRemove(userToShareWith.uid) });
             toast({ title: 'Access Removed', description: `Access for ${userToShareWith.name} has been removed from ${selectedClient.name}.` });
         }
-        fetchClients(); // Refetch to update the list
+        fetchClientsAndTasks(); // Refetch to update the list
     } catch(e) {
         console.error("Error sharing client:", e);
         toast({ title: 'Error', description: 'Could not update sharing settings.', variant: 'destructive'});
@@ -235,7 +250,7 @@ export default function AIAccountantClientsPage() {
   const handleDelete = async (clientId: string) => {
     try {
         await deleteDoc(doc(db, "aiAccountantClients", clientId));
-        fetchClients();
+        fetchClientsAndTasks();
         toast({
             title: 'Client Deleted',
             description: `The AI Accountant profile has been removed.`,
@@ -272,11 +287,12 @@ export default function AIAccountantClientsPage() {
               uid: newDocRef.id,
               createdAt: Timestamp.now(),
               createdBy: currentUser.uid,
+              sharedWith: [],
             });
             toast({ title: 'Client Created' });
         }
 
-        fetchClients();
+        fetchClientsAndTasks();
         setIsFormOpen(false);
         setSelectedClient(null);
     } catch (error) {
@@ -320,23 +336,23 @@ export default function AIAccountantClientsPage() {
                         )}
                     </TableCell>
                     <TableCell className="text-right">
-                       <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                                <span className="sr-only">Open menu</span>
-                                <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                    <span className="sr-only">Open menu</span>
+                                    <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
                                 <DropdownMenuItem asChild>
-                                     <Link href={`${basePath}/ai-accountant/${client.id}/dashboard`}>
+                                    <Link href={`${basePath}/ai-accountant/${client.id}/dashboard`}>
                                         Manage Client <ArrowRight className="ml-auto h-4 w-4" />
                                     </Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => handleEdit(client)}>
                                     <Edit className="mr-2 h-4 w-4" /> Edit
                                 </DropdownMenuItem>
-                                 <DropdownMenuItem onClick={() => handleShareClick(client)}>
+                                <DropdownMenuItem onClick={() => handleShareClick(client)}>
                                     <Share2 className="mr-2 h-4 w-4" /> Share Access
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
@@ -355,8 +371,8 @@ export default function AIAccountantClientsPage() {
                                         </AlertDialogFooter>
                                     </AlertDialogContent>
                                 </AlertDialog>
-                          </DropdownMenuContent>
-                       </DropdownMenu>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </TableCell>
                     </TableRow>
                 )
@@ -431,6 +447,44 @@ export default function AIAccountantClientsPage() {
             {renderClientTable(sharedClients, "Shared With Me")}
         </div>
       )}
+
+      {myTasks.length > 0 && (
+         <Card>
+            <CardHeader>
+                <CardTitle>My Tasks</CardTitle>
+                <CardDescription>A list of tasks assigned to you across all clients.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Task</TableHead>
+                            <TableHead>Client</TableHead>
+                            <TableHead>Due Date</TableHead>
+                            <TableHead>Status</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {myTasks.map(task => {
+                            const client = [...myClients, ...sharedClients].find(c => c.id === task.clientId);
+                            return (
+                                <TableRow key={task.id}>
+                                    <TableCell>
+                                        <p className="font-semibold">{task.title}</p>
+                                        <p className="text-xs text-muted-foreground">{task.description}</p>
+                                    </TableCell>
+                                    <TableCell>{client?.name || 'N/A'}</TableCell>
+                                    <TableCell>{task.dueDate?.toDate ? format(task.dueDate.toDate(), 'dd MMM yyyy') : 'N/A'}</TableCell>
+                                    <TableCell><Badge>{task.status}</Badge></TableCell>
+                                </TableRow>
+                            )
+                        })}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+      )}
+
       {payfastFormData && (
         <form id="payfast-redirect-form" action={process.env.NEXT_PUBLIC_PAYFAST_URL} method="post" style={{ display: 'none' }}>
             {Object.entries(payfastFormData).map(([key, value]) => (
