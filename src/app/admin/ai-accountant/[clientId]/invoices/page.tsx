@@ -190,20 +190,20 @@ export default function InvoicesPage() {
         }
 
         try {
-            // Update invoice status
             const invoiceRef = doc(db, 'aiAccountantClients', client.id, 'invoices', invoiceId);
-            await updateDoc(invoiceRef, { status: status });
-
+            
             // Post to GL if marking as final
             if (status === 'final') {
                 const customerControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '8000-001')?.id;
                 const vatControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '7000-008')?.id;
-
+    
                 if (!customerControlAccount || !vatControlAccount) {
-                    throw new Error("Control accounts not found. Cannot post to GL.");
+                    throw new Error("Control accounts not found in Chart of Accounts.");
                 }
-
+    
                 const transactions: Omit<AllocatedTransaction, 'id'>[] = [];
+    
+                // 1. Debit Customer Control for the full amount
                 transactions.push({
                     clientId: client.id,
                     date: invoiceToUpdate.invoiceDate.toISOString(),
@@ -216,13 +216,15 @@ export default function InvoicesPage() {
                     vatAmount: 0,
                     allocatedAt: new Date(),
                 });
-
-                invoiceToUpdate.lineItems.forEach(line => {
+    
+                // 2. Credit Sales Accounts & VAT
+                const totalVat = invoiceToUpdate.lineItems.reduce((acc, line) => {
                     const lineTotal = line.quantity * line.rate;
                     const vatAmount = line.vatType === 'standard_rated_sales' ? lineTotal * 0.15 : 0;
                     
+                    // Credit Sales Account
                     transactions.push({
-                        clientId: client.id!,
+                        clientId: client.id,
                         date: invoiceToUpdate.invoiceDate.toISOString(),
                         reference: `INV-${invoiceId}`,
                         description: line.description,
@@ -233,28 +235,34 @@ export default function InvoicesPage() {
                         vatAmount: 0,
                         allocatedAt: new Date(),
                     });
-
-                    if (vatAmount > 0) {
-                        transactions.push({
-                            clientId: client.id!,
-                            date: invoiceToUpdate.invoiceDate.toISOString(),
-                            reference: `INV-${invoiceId}`,
-                            description: `VAT on ${line.description}`,
-                            amount: -vatAmount,
-                            bankAccountId: 'JOURNAL',
-                            allocatedTo: { value: vatControlAccount, type: 'account' },
-                            vatType: 'no_vat',
-                            vatAmount: 0,
-                            allocatedAt: new Date(),
-                        });
-                    }
-                });
-
+                    
+                    return acc + vatAmount;
+                }, 0);
+    
+                // 3. Credit VAT Control for the total VAT amount
+                if (totalVat > 0) {
+                     transactions.push({
+                        clientId: client.id,
+                        date: invoiceToUpdate.invoiceDate.toISOString(),
+                        reference: `INV-${invoiceId}`,
+                        description: `VAT on Invoice`,
+                        amount: -totalVat,
+                        bankAccountId: 'JOURNAL',
+                        allocatedTo: { value: vatControlAccount, type: 'account' },
+                        vatType: 'no_vat',
+                        vatAmount: 0,
+                        allocatedAt: new Date(),
+                    });
+                }
+                
                 const clientRef = doc(db, 'aiAccountantClients', client.id);
                 await updateDoc(clientRef, {
                     allocatedTransactions: arrayUnion(...transactions)
                 });
             }
+
+            // Update invoice status
+            await updateDoc(invoiceRef, { status });
 
             toast({ title: 'Invoice Status Updated', description: 'The invoice is now final and posted.' });
             fetchData();
@@ -284,7 +292,6 @@ export default function InvoicesPage() {
                 throw new Error("Control accounts not found in Chart of Accounts.");
             }
 
-            // Create transactions for GL
             const transactions: Omit<AllocatedTransaction, 'id'>[] = [];
 
             // 1. Debit Customer Control
@@ -301,41 +308,37 @@ export default function InvoicesPage() {
                 allocatedAt: new Date(),
             });
 
-            // 2. Credit Sales Accounts & VAT
+            // 2. Credit Sales Accounts
             data.lineItems.forEach(line => {
-                const lineTotal = line.quantity * line.rate;
-                const vatAmount = line.vatType === 'standard_rated_sales' ? lineTotal * 0.15 : 0;
-
-                // Credit Sales Account
                 transactions.push({
                     clientId: client.id,
                     date: data.invoiceDate.toISOString(),
                     reference: `INV-${invoiceRef.id}`,
                     description: line.description,
-                    amount: -lineTotal,
+                    amount: -(line.quantity * line.rate),
                     bankAccountId: 'JOURNAL',
                     allocatedTo: { value: line.accountId, type: 'account' },
                     vatType: line.vatType as any,
-                    vatAmount: 0, // VAT is handled in a separate leg
+                    vatAmount: 0,
                     allocatedAt: new Date(),
                 });
-                
-                // Credit VAT Control
-                if (vatAmount > 0) {
-                    transactions.push({
-                        clientId: client.id,
-                        date: data.invoiceDate.toISOString(),
-                        reference: `INV-${invoiceRef.id}`,
-                        description: `VAT on ${line.description}`,
-                        amount: -vatAmount,
-                        bankAccountId: 'JOURNAL',
-                        allocatedTo: { value: vatControlAccount, type: 'account' },
-                        vatType: 'no_vat',
-                        vatAmount: 0,
-                        allocatedAt: new Date(),
-                    });
-                }
             });
+            
+            // 3. Credit VAT Control
+            if (totals.vat > 0) {
+                transactions.push({
+                    clientId: client.id,
+                    date: data.invoiceDate.toISOString(),
+                    reference: `INV-${invoiceRef.id}`,
+                    description: `VAT on Invoice`,
+                    amount: -totals.vat,
+                    bankAccountId: 'JOURNAL',
+                    allocatedTo: { value: vatControlAccount, type: 'account' },
+                    vatType: 'no_vat',
+                    vatAmount: 0,
+                    allocatedAt: new Date(),
+                });
+            }
             
             const clientRef = doc(db, 'aiAccountantClients', client.id);
             await updateDoc(clientRef, {
