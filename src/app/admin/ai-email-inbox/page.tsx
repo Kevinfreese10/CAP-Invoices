@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Loader2, Inbox, RefreshCw, FileWarning, Paperclip, Sparkles, Bot, MessageSquare, StickyNote, PlusCircle, User } from 'lucide-react';
+import { Loader2, Inbox, RefreshCw, FileWarning, Paperclip, Sparkles, Bot, MessageSquare, StickyNote, PlusCircle, User, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -15,6 +15,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useToast } from '@/hooks/use-toast';
 
 interface Attachment {
     filename: string;
@@ -30,6 +33,7 @@ interface Email {
     date: string;
     body: string;
     attachments: Attachment[];
+    isProcessed?: boolean;
 }
 
 export default function AIEmailInboxPage() {
@@ -39,6 +43,7 @@ export default function AIEmailInboxPage() {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisResult, setAnalysisResult] = useState<EmailAnalysisOutput | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const { toast } = useToast();
 
     const fetchEmails = useCallback(async () => {
         setIsLoading(true);
@@ -97,6 +102,25 @@ export default function AIEmailInboxPage() {
         setAnalysisResult(null); // Clear previous analysis
     }
 
+    const handleMarkAsProcessed = async () => {
+        if (!selectedEmail) return;
+
+        try {
+            const processedEmailRef = doc(db, 'processedEmails', String(selectedEmail.uid));
+            await setDoc(processedEmailRef, {
+                uid: selectedEmail.uid,
+                processedAt: serverTimestamp(),
+                subject: selectedEmail.subject,
+                from: selectedEmail.from,
+            });
+            toast({ title: "Email Marked as Processed" });
+            fetchEmails(); // Refresh the list
+        } catch (error) {
+            toast({ title: "Error", description: "Could not mark email as processed.", variant: "destructive" });
+        }
+    };
+
+
     return (
         <Dialog>
             <div className="space-y-8">
@@ -137,13 +161,16 @@ export default function AIEmailInboxPage() {
                                          <DialogTrigger key={email.uid} asChild>
                                             <div
                                                 onClick={() => handleSelectEmail(email)}
-                                                className={`p-4 border-b hover:bg-muted/50 cursor-pointer`}
+                                                className={`p-4 border-b hover:bg-muted/50 cursor-pointer ${email.isProcessed ? 'bg-muted/30' : ''}`}
                                             >
                                                 <p className="font-semibold truncate">{email.from}</p>
                                                 <p className="text-sm truncate">{email.subject}</p>
-                                                <p className="text-xs text-muted-foreground mt-1">
-                                                    {format(new Date(email.date), 'dd MMM yyyy, HH:mm')}
-                                                </p>
+                                                <div className="flex justify-between items-center">
+                                                    <p className="text-xs text-muted-foreground mt-1">
+                                                        {format(new Date(email.date), 'dd MMM yyyy, HH:mm')}
+                                                    </p>
+                                                    {email.isProcessed && <Badge variant="secondary">Processed</Badge>}
+                                                </div>
                                             </div>
                                         </DialogTrigger>
                                     ))}
@@ -291,7 +318,11 @@ export default function AIEmailInboxPage() {
                             />
                         </ScrollArea>
                         
-                        <DialogFooter className="pt-4 border-t">
+                        <DialogFooter className="pt-4 border-t flex justify-between w-full">
+                            <Button onClick={handleMarkAsProcessed} size="sm" variant="secondary" disabled={selectedEmail.isProcessed}>
+                                <CheckCircle className="mr-2 h-4 w-4" />
+                                Mark as Processed
+                            </Button>
                             <Button onClick={handleAnalyze} size="sm" variant="outline" disabled={isAnalyzing}>
                                 {isAnalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4 text-primary"/>}
                                 Analyze

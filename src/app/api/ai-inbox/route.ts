@@ -1,7 +1,12 @@
+
 // /src/app/api/ai-inbox/route.ts
 import { NextResponse } from 'next/server';
 import imaps from 'imap-simple';
 import { simpleParser } from 'mailparser';
+import { getFirestore, collection, getDocs } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
+
+const db = getFirestore(firebaseApp);
 
 export async function GET() {
   const config = {
@@ -17,6 +22,10 @@ export async function GET() {
   };
 
   try {
+    // Fetch processed email UIDs from Firestore first
+    const processedSnapshot = await getDocs(collection(db, 'processedEmails'));
+    const processedUids = new Set(processedSnapshot.docs.map(doc => doc.data().uid));
+
     const connection = await imaps.connect(config);
     await connection.openBox('INBOX');
 
@@ -50,6 +59,7 @@ export async function GET() {
           date: mail.date?.toISOString() || new Date().toISOString(),
           body: mail.html || mail.textAsHtml || 'No content',
           attachments: attachments,
+          isProcessed: processedUids.has(id),
         };
       })
     );
