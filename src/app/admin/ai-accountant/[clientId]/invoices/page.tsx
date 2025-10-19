@@ -72,18 +72,20 @@ export default function InvoicesPage() {
             return;
         }
 
-        const report = new jsPDF('portrait','pt','a4');
         const element = document.createElement("div");
+        element.style.position = 'absolute';
+        element.style.left = '-9999px';
         document.body.appendChild(element);
         
         const root = createRoot(element);
         root.render(<InvoicePreview invoice={invoiceToDownload} client={client} customer={customer} />);
 
-        await new Promise(resolve => setTimeout(resolve, 500)); // Allow time for render
+        await new Promise(resolve => setTimeout(resolve, 500)); 
 
         const canvas = await html2canvas(element.children[0] as HTMLElement, { scale: 2 });
         const data = canvas.toDataURL('image/png');
         
+        const report = new jsPDF('portrait','pt','a4');
         const pdfWidth = report.internal.pageSize.getWidth();
         const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
         
@@ -180,14 +182,85 @@ export default function InvoicesPage() {
 
     const handleUpdateStatus = async (invoiceId: string, status: 'final') => {
         if (!client || !client.id) return;
+
+        const invoiceToUpdate = invoices.find(inv => inv.id === invoiceId);
+        if (!invoiceToUpdate) {
+            toast({ title: 'Error', description: 'Invoice not found.', variant: 'destructive' });
+            return;
+        }
+
         try {
+            // Update invoice status
             const invoiceRef = doc(db, 'aiAccountantClients', client.id, 'invoices', invoiceId);
             await updateDoc(invoiceRef, { status: status });
-            toast({ title: 'Invoice Status Updated', description: 'The invoice is now final.' });
+
+            // Post to GL if marking as final
+            if (status === 'final') {
+                const customerControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '8000-001')?.id;
+                const vatControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '7000-008')?.id;
+
+                if (!customerControlAccount || !vatControlAccount) {
+                    throw new Error("Control accounts not found. Cannot post to GL.");
+                }
+
+                const transactions: Omit<AllocatedTransaction, 'id'>[] = [];
+                transactions.push({
+                    clientId: client.id,
+                    date: invoiceToUpdate.invoiceDate.toISOString(),
+                    reference: `INV-${invoiceId}`,
+                    description: `Invoice to ${customers.find(c => c.id === invoiceToUpdate.customerId)?.name}`,
+                    amount: invoiceToUpdate.total,
+                    bankAccountId: 'JOURNAL',
+                    allocatedTo: { value: customerControlAccount, type: 'account' },
+                    vatType: 'no_vat',
+                    vatAmount: 0,
+                    allocatedAt: new Date(),
+                });
+
+                invoiceToUpdate.lineItems.forEach(line => {
+                    const lineTotal = line.quantity * line.rate;
+                    const vatAmount = line.vatType === 'standard_rated_sales' ? lineTotal * 0.15 : 0;
+                    
+                    transactions.push({
+                        clientId: client.id!,
+                        date: invoiceToUpdate.invoiceDate.toISOString(),
+                        reference: `INV-${invoiceId}`,
+                        description: line.description,
+                        amount: -lineTotal,
+                        bankAccountId: 'JOURNAL',
+                        allocatedTo: { value: line.accountId, type: 'account' },
+                        vatType: line.vatType as any,
+                        vatAmount: 0,
+                        allocatedAt: new Date(),
+                    });
+
+                    if (vatAmount > 0) {
+                        transactions.push({
+                            clientId: client.id!,
+                            date: invoiceToUpdate.invoiceDate.toISOString(),
+                            reference: `INV-${invoiceId}`,
+                            description: `VAT on ${line.description}`,
+                            amount: -vatAmount,
+                            bankAccountId: 'JOURNAL',
+                            allocatedTo: { value: vatControlAccount, type: 'account' },
+                            vatType: 'no_vat',
+                            vatAmount: 0,
+                            allocatedAt: new Date(),
+                        });
+                    }
+                });
+
+                const clientRef = doc(db, 'aiAccountantClients', client.id);
+                await updateDoc(clientRef, {
+                    allocatedTransactions: arrayUnion(...transactions)
+                });
+            }
+
+            toast({ title: 'Invoice Status Updated', description: 'The invoice is now final and posted.' });
             fetchData();
-        } catch (error) {
-            console.error("Error updating invoice status:", error);
-            toast({ title: 'Error', description: 'Failed to update invoice status.', variant: 'destructive' });
+        } catch (error: any) {
+            console.error("Error updating invoice:", error);
+            toast({ title: 'Error', description: error.message || 'Failed to update invoice status.', variant: 'destructive' });
         }
     }
 
@@ -232,7 +305,6 @@ export default function InvoicesPage() {
             data.lineItems.forEach(line => {
                 const lineTotal = line.quantity * line.rate;
                 const vatAmount = line.vatType === 'standard_rated_sales' ? lineTotal * 0.15 : 0;
-                const exclusiveAmount = lineTotal;
 
                 // Credit Sales Account
                 transactions.push({
@@ -240,7 +312,7 @@ export default function InvoicesPage() {
                     date: data.invoiceDate.toISOString(),
                     reference: `INV-${invoiceRef.id}`,
                     description: line.description,
-                    amount: -exclusiveAmount,
+                    amount: -lineTotal,
                     bankAccountId: 'JOURNAL',
                     allocatedTo: { value: line.accountId, type: 'account' },
                     vatType: line.vatType as any,
@@ -271,7 +343,12 @@ export default function InvoicesPage() {
             });
 
             toast({ title: 'Invoice Finalized', description: 'The invoice has been created and posted to the general ledger.' });
-            form.reset();
+            form.reset({
+                 invoiceDate: new Date(),
+                 dueDate: new Date(new Date().setDate(new Date().getDate() + 30)),
+                 lineItems: [{ accountId: '', description: '', quantity: 1, rate: 0, vatType: 'standard_rated_sales' }],
+                 notes: '',
+            });
             fetchData();
         } catch (error) {
             toast({ title: 'Error', description: 'Failed to create invoice.', variant: 'destructive' });
