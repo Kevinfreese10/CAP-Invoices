@@ -3,6 +3,7 @@
 
 import { Invoice, ClientCustomer, User } from "@/lib/types";
 import { format } from 'date-fns';
+import Image from "next/image";
 
 const formatPrice = (price: number) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(price);
 
@@ -13,12 +14,17 @@ export default function InvoicePreview({ invoice, client, customer }: { invoice:
         <div className="p-8 bg-white text-gray-800 max-h-[80vh] overflow-y-auto">
             <header className="flex justify-between items-start mb-10">
                 <div className="space-y-1">
+                    {client.logoUrl && (
+                        <div className="relative h-20 w-48 mb-4">
+                            <Image src={client.logoUrl} alt={`${client.companyName} Logo`} fill className="object-contain object-left"/>
+                        </div>
+                    )}
                     <h1 className="text-3xl font-bold text-gray-900">{client.companyName || client.name}</h1>
                     <p className="text-sm text-gray-600 max-w-xs">{client.address}</p>
-                    {client.isVatRegistered && <p className="text-sm text-gray-600">VAT Reg: {client.vatNumber}</p>}
+                    {client.isVatRegistered && client.vatNumber && <p className="text-sm text-gray-600">VAT Reg: {client.vatNumber}</p>}
                 </div>
                 <div className="text-right">
-                    <h2 className="text-4xl font-extrabold uppercase text-gray-400">Invoice</h2>
+                    <h2 className="text-4xl font-extrabold uppercase text-gray-400">Tax Invoice</h2>
                     <p className="text-sm text-gray-600 mt-1"><span className="font-semibold">#</span> {invoice.id}</p>
                 </div>
             </header>
@@ -28,6 +34,7 @@ export default function InvoicePreview({ invoice, client, customer }: { invoice:
                     <p className="text-sm font-semibold text-gray-600">Bill To:</p>
                     <p className="text-lg font-bold text-gray-800">{customer.name}</p>
                     <p className="text-sm text-gray-600">{customer.address}</p>
+                    {customer.vatNumber && <p className="text-sm text-gray-600">VAT Reg: {customer.vatNumber}</p>}
                 </div>
                 <div className="text-right space-y-1">
                     <div className="grid grid-cols-2 gap-x-4">
