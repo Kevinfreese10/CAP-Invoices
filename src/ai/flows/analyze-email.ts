@@ -10,8 +10,31 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
+import { getFirestore, collection, getDocs, query, orderBy, Timestamp } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
+import { Service, BlogPost } from '@/lib/types';
+
+const db = getFirestore(firebaseApp);
 
 export async function analyzeEmail(input: AnalyzeEmailInput): Promise<EmailAnalysisOutput> {
+
+  // Fetch live data from Firestore to provide context to the AI
+  const servicesSnapshot = await getDocs(query(collection(db, 'services'), orderBy('title')));
+  const services = servicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
+
+  const blogPostsSnapshot = await getDocs(query(collection(db, 'blogPosts'), orderBy('date', 'desc')));
+  const blogPosts = blogPostsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BlogPost));
+
+  // Serialize the website content to pass to the prompt
+  const websiteContent = `
+    SERVICES:
+    ${services.map(s => `Title: ${s.title}, URL: /services/${s.id}, Description: ${s.longDescription}, Price: ZAR ${s.price}, Turnaround Time: ${s.turnaroundTime}, Prerequisites: ${s.clientRequirements.join(', ')}`).join('\n\n')}
+
+    BLOG POSTS:
+    ${blogPosts.map(p => `Title: ${p.title}, Excerpt: ${p.excerpt}`).join('\n\n')}
+  `;
+
+
   const AnalyzeEmailInputSchema = z.object({
     subject: z.string().describe("The subject line of the email."),
     body: z.string().describe("The plain text or HTML body of the email."),
@@ -31,7 +54,7 @@ export async function analyzeEmail(input: AnalyzeEmailInput): Promise<EmailAnaly
     nextStep: z.string().describe("The immediate next action to be taken, e.g., 'Forward to tax department' or 'Draft response requesting missing documents'."),
     draftReply: z.object({
         subject: z.string().optional().describe("A suggested subject line for the reply. Should start with 'Re: ' followed by the original subject."),
-        body: z.string().optional().describe("A drafted email response. Use a friendly yet professional tone. Address the sender by name if possible. Keep it concise."),
+        body: z.string().optional().describe("A drafted email response. Use a friendly yet professional tone. Address the sender by name if possible. Keep it concise. If you use information about a service, provide the price and turnaround time."),
     }).optional().describe("A drafted response to the email if a reply is appropriate. If no reply is needed, this can be omitted."),
     suggestedTask: z.object({
         title: z.string().optional().describe("A concise title for a task that should be created from this email (e.g., 'File VAT201 for ABC Corp')."),
@@ -51,6 +74,13 @@ export async function analyzeEmail(input: AnalyzeEmailInput): Promise<EmailAnaly
         input: { schema: AnalyzeEmailInputSchema },
         output: { schema: EmailAnalysisOutputSchema },
         prompt: `You are an expert inbox management AI for an accounting firm. Analyze the following email, including its subject, body, and any attachments, to perform triage and recommend actions.
+
+You have access to the company's service and blog post information which you should use to answer any questions and draft replies.
+
+CONTEXT:
+---
+${websiteContent}
+---
 
 **Email Subject**: {{{subject}}}
 
@@ -76,7 +106,7 @@ Based on all the provided information, provide a structured analysis.
 5.  **Sender Name**: Identify the name of the person or company sending the email.
 6.  **Detected Attachments**: If attachments are present, identify the type of document (e.g., 'ID Document', 'CIPC Document', 'Bank Statement', 'SARS Tax Pin', 'Proof of Payment', 'Invoice').
 7.  **Next Step**: Recommend the immediate next action. Be specific (e.g., "Draft a response to request the client's IRP5," or "Forward to the tax department for review.").
-8.  **Draft Reply**: If a reply is appropriate, draft a concise, professional, and friendly response. Address the sender by name. If the request is for documents, list the required documents. If it's a status update, provide a polite holding message.
+8.  **Draft Reply**: If a reply is appropriate, draft a concise, professional, and friendly response using the provided CONTEXT. Address the sender by name. If the request is for documents, list the required documents. If it's about a service, include its price and turnaround time. If it's a status update, provide a polite holding message.
 9.  **Suggested Task**: If the email implies a clear action is needed (e.g., "Please file my VAT return"), suggest a task with a clear title and a brief description. Otherwise, omit this field.
 `,
       });
@@ -89,5 +119,5 @@ Based on all the provided information, provide a structured analysis.
   return analyzeEmailFlow(input);
 }
 
-export type AnalyzeEmailInput = z.infer<ReturnType<typeof analyzeEmail>['inputSchema']>;
-export type EmailAnalysisOutput = z.infer<ReturnType<typeof analyzeEmail>['outputSchema']>;
+export type AnalyzeEmailInput = z.infer<Awaited<ReturnType<typeof analyzeEmail>>['inputSchema']>;
+export type EmailAnalysisOutput = z.infer<Awaited<ReturnType<typeof analyzeEmail>>['outputSchema']>;
