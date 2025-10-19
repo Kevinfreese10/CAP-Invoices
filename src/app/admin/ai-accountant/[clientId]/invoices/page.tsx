@@ -377,7 +377,7 @@ export default function InvoicesPage() {
             </div>
             <DialogContent className="sm:max-w-4xl">
                 <DialogHeader>
-                    <DialogTitle>Invoice Preview</DialogTitle>
+                    <DialogTitle>Tax Invoice Preview</DialogTitle>
                 </DialogHeader>
                 {viewingInvoice && (
                     <InvoicePreview 
