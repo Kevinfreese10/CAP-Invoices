@@ -1,9 +1,9 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, ChangeEvent } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Loader2, Inbox, RefreshCw, FileWarning, Paperclip, Sparkles, Bot, MessageSquare, StickyNote, PlusCircle, User, CheckCircle, MoreHorizontal, Eye, Archive } from 'lucide-react';
+import { Loader2, Inbox, RefreshCw, FileWarning, Paperclip, Sparkles, Bot, MessageSquare, StickyNote, PlusCircle, CheckCircle, MoreHorizontal, Eye, Archive, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -16,9 +16,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
+import { sendEmail } from '@/lib/email';
+import { useAuth } from '@/contexts/AuthContext';
+
 
 interface Attachment {
     filename: string;
@@ -30,11 +33,20 @@ interface Attachment {
 interface Email {
     uid: number;
     from: string;
+    to: string; // Add this
     subject: string;
     date: string;
     body: string;
     attachments: Attachment[];
     isProcessed?: boolean;
+}
+
+interface DraftState {
+    [emailUid: string]: {
+        subject: string;
+        body: string;
+        attachment?: File;
+    }
 }
 
 export default function AIEmailInboxPage() {
@@ -46,6 +58,10 @@ export default function AIEmailInboxPage() {
     const [error, setError] = useState<string | null>(null);
     const { toast } = useToast();
     const [analyzedEmailId, setAnalyzedEmailId] = useState<number | null>(null);
+    const [drafts, setDrafts] = useState<DraftState>({});
+    const [isSending, setIsSending] = useState(false);
+    const { user } = useAuth();
+
 
     const fetchEmails = useCallback(async () => {
         setIsLoading(true);
@@ -78,6 +94,7 @@ export default function AIEmailInboxPage() {
         setAnalyzedEmailId(email.uid);
         setIsAnalyzing(true);
         setAnalysisResult(null);
+        setDrafts(prev => ({ ...prev, [email.uid]: { subject: '', body: '' } }));
 
         try {
             const attachments = email.attachments.map(att => ({
@@ -91,6 +108,15 @@ export default function AIEmailInboxPage() {
                 attachments: attachments,
             });
             setAnalysisResult(result);
+            if (result.draftReply) {
+                setDrafts(prev => ({
+                    ...prev,
+                    [email.uid]: {
+                        subject: result.draftReply?.subject || '',
+                        body: result.draftReply?.body || '',
+                    }
+                }))
+            }
         } catch (err: any)
         {
             console.error("Error analyzing email:", err);
@@ -121,6 +147,70 @@ export default function AIEmailInboxPage() {
             fetchEmails(); // Refresh the list
         } catch (error) {
             toast({ title: "Error", description: "Could not mark email as processed.", variant: "destructive" });
+        }
+    };
+
+    const handleDraftChange = (emailUid: number, field: 'subject' | 'body', value: string) => {
+        setDrafts(prev => ({
+            ...prev,
+            [emailUid]: {
+                ...prev[emailUid],
+                [field]: value
+            }
+        }));
+    };
+
+    const handleAttachmentChange = (emailUid: number, e: ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            setDrafts(prev => ({
+                ...prev,
+                [emailUid]: {
+                    ...prev[emailUid],
+                    attachment: e.target.files![0]
+                }
+            }));
+        }
+    };
+    
+    const handleSendEmail = async (email: Email) => {
+        if (!email || !user) return;
+        const draft = drafts[email.uid];
+        if (!draft || !draft.subject || !draft.body) return;
+
+        setIsSending(true);
+        toast({ title: "Sending Email...", description: "Please wait." });
+        
+        let attachmentPayload;
+        if (draft.attachment) {
+            const reader = new FileReader();
+            const fileAsDataURL = await new Promise<string>((resolve) => {
+                reader.onload = (e) => resolve(e.target?.result as string);
+                reader.readAsDataURL(draft.attachment!);
+            });
+            attachmentPayload = [{
+                filename: draft.attachment.name,
+                path: fileAsDataURL,
+            }];
+        }
+
+        try {
+            await sendEmail({
+                to: email.from,
+                subject: draft.subject,
+                html: draft.body.replace(/\n/g, '<br>'),
+                attachments: attachmentPayload,
+            });
+
+            toast({ title: "Email Sent!", description: `Your reply has been sent to ${email.from}` });
+            
+            // Optionally, add a note to the order if applicable
+            // This part requires linking email to order, which is not implemented here.
+
+        } catch (error) {
+            console.error("Failed to send email:", error);
+            toast({ title: "Send Failed", description: "There was an error sending the email.", variant: 'destructive'});
+        } finally {
+            setIsSending(false);
         }
     };
 
@@ -223,11 +313,16 @@ export default function AIEmailInboxPage() {
                                                                 <Card>
                                                                     <CardHeader className="p-2"><CardTitle className="flex items-center gap-2 text-sm"><MessageSquare /> Draft Reply</CardTitle></CardHeader>
                                                                     <CardContent className="p-2 space-y-2">
-                                                                        <Input readOnly value={analysisResult.draftReply.subject} className="font-semibold h-8 text-xs"/>
-                                                                        <Textarea readOnly value={analysisResult.draftReply.body} rows={4} className="text-xs" />
-                                                                        <Input type="file" className="h-8 text-xs"/>
+                                                                        <Input value={drafts[email.uid]?.subject} onChange={(e) => handleDraftChange(email.uid, 'subject', e.target.value)} className="font-semibold h-8 text-xs"/>
+                                                                        <Textarea value={drafts[email.uid]?.body} onChange={(e) => handleDraftChange(email.uid, 'body', e.target.value)} rows={6} className="text-xs whitespace-pre-wrap"/>
+                                                                        <Input type="file" className="h-8 text-xs" onChange={(e) => handleAttachmentChange(email.uid, e)} />
                                                                     </CardContent>
-                                                                    <CardFooter className="p-2"><Button size="sm" className="text-xs">Send</Button></CardFooter>
+                                                                    <CardFooter className="p-2">
+                                                                        <Button size="sm" className="text-xs" onClick={() => handleSendEmail(email)} disabled={isSending}>
+                                                                            {isSending ? <Loader2 className="mr-2 h-3 w-3 animate-spin"/> : <Send className="mr-2 h-3 w-3" />}
+                                                                            Send
+                                                                        </Button>
+                                                                    </CardFooter>
                                                                 </Card>
                                                             )}
 
