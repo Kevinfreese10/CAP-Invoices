@@ -187,7 +187,7 @@ export default function AIEmailInboxPage() {
             attachmentPayload = [{ filename: draft.attachment.name, path: fileAsDataURL }];
         }
         try {
-            await sendEmail({ to: email.from, subject: draft.subject, html: draft.body.replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>'), attachments: attachmentPayload });
+            await sendEmail({ to: email.from, subject: draft.subject, html: draft.body.replace(/\\n\\n/g, '<br><br>').replace(/\\n/g, '<br>'), attachments: attachmentPayload });
             toast({ title: "Email Sent!", description: `Your reply has been sent to ${email.from}` });
             await handleMarkAsProcessed(email, 'Replied');
         } catch (error) {
@@ -344,7 +344,7 @@ export default function AIEmailInboxPage() {
                         {selectedEmail.attachments && selectedEmail.attachments.length > 0 && (<><Separator className="my-2" /><div className="flex flex-wrap items-center gap-2">{selectedEmail.attachments.map((att, index) => (<Button key={index} asChild variant="outline" size="sm"><a href={att.dataUrl} download={att.filename}><Paperclip className="mr-2 h-4 w-4" />{att.filename}</a></Button>))}</div></>)}
                         <Separator className="my-2" />
                         <ScrollArea className="flex-grow">
-                            <div className="p-4 text-sm prose max-w-none" dangerouslySetInnerHTML={{ __html: selectedEmail.body.replace(/(<hr\s*\/?>)/gi, '<br class="hidden" />$1') }} />
+                            <div className="p-4 text-sm prose max-w-none" dangerouslySetInnerHTML={{ __html: selectedEmail.body.replace(/(<hr\\s*\\/?>)/gi, '<br class="hidden" />$1') }} />
                         </ScrollArea>
                         <DialogFooter className="pt-4 border-t flex justify-between w-full">
                             <Button onClick={() => handleMarkAsProcessed(selectedEmail, 'Archived')} size="sm" variant="secondary" disabled={selectedEmail.isProcessed}><CheckCircle className="mr-2 h-4 w-4" />{selectedEmail.isProcessed ? 'Archived' : 'Archive'}</Button>
