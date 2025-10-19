@@ -29,7 +29,7 @@ function ShareClientDialog({ client, onShare, allUsers }: { client: User | null,
     const [email, setEmail] = useState('');
     if (!client) return null;
 
-    const sharedWithDetails = client.sharedWith?.map(uid => allUsers.find(u => u.uid === uid)).filter(Boolean) as User[];
+    const sharedWithDetails = client.sharedWith?.map(uid => allUsers.find(u => u.uid === uid)).filter(Boolean) as User[] || [];
 
     return (
         <DialogContent>
@@ -346,7 +346,7 @@ export default function AIAccountantClientsPage() {
       ) : (
         <div className="space-y-8">
             {renderClientTable(myClients, "My Clients")}
-            {renderClientTable(sharedClients, "Shared With Me")}
+            {currentUser?.role === 'admin' && renderClientTable(sharedClients, "Shared With Me")}
         </div>
       )}
     </div>
