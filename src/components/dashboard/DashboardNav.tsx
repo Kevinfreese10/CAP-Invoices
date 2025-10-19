@@ -68,12 +68,17 @@ export default function DashboardNav({ user }: { user: UserType }) {
     router.push('/');
   };
 
-  const basePath = user.role === 'client' ? '/dashboard' : user.role === 'reseller' ? '/reseller' : user.role === 'ai_accountant' ? '/dashboard' : '/admin';
+  const basePath = user.role === 'client' || user.role === 'ai_accountant'
+    ? '/dashboard'
+    : user.role === 'reseller'
+    ? '/reseller'
+    : '/admin';
+    
   const clientId = user?.role === 'client' ? user.id : pathname.split('/')[3] || user.id;
 
   const navItems = [
-     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['client'] },
-     { href: '/dashboard/orders', label: 'My Orders', icon: ShieldCheck, roles: ['client'] },
+     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['client', 'ai_accountant'] },
+     { href: '/dashboard/orders', label: 'My Orders', icon: ShieldCheck, roles: ['client', 'ai_accountant'] },
      { href: '/dashboard/subscriptions', label: 'Subscriptions', icon: BadgeDollarSign, roles: ['client'] },
      { href: '/dashboard/profile', label: 'My Profile', icon: User, roles: ['client'] },
   ];
@@ -163,7 +168,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
 
       <SidebarMenu className="flex-1">
         
-        {user.role === 'client' && visibleNavItems.map((item) => (
+        {(user.role === 'client' || user.role === 'ai_accountant') && visibleNavItems.map((item) => (
             <SidebarMenuItem key={item.href}>
             <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
                 <Link href={item.href}>
