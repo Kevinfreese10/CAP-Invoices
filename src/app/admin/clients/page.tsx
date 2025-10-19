@@ -1,5 +1,4 @@
 
-
 'use client';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -182,7 +181,6 @@ export default function AdminClientsPage() {
                     client={selectedClient} 
                     onSubmit={handleFormSubmit}
                     onCancel={() => setIsFormOpen(false)}
-                    allStaff={allStaff}
                 />
            </DialogContent>
         </Dialog>

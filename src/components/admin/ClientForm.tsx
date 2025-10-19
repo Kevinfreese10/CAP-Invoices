@@ -1,5 +1,4 @@
 
-
 'use client';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -23,10 +22,12 @@ const formSchema = z.object({
   contactPerson: z.string().min(2, 'Contact person name is required.'),
   email: z.string().email('A valid email address is required.'),
   address: z.string().optional(),
-  vatNumber: z.string().optional(),
+  
   // Fields for non-AI clients
   yearEnd: z.string().optional(),
   isVatRegistered: z.boolean().default(false),
+  vatNumber: z.string().optional(),
+  vatCategory: z.enum(vatCategories).optional(),
   cellNumber: z.string().optional(),
   status: z.enum(clientStatuses).optional(),
 });
@@ -51,14 +52,18 @@ export default function ClientForm({
             contactPerson: client?.contactPerson || '',
             email: client?.email || '',
             address: typeof client?.address === 'string' ? client.address : '',
-            vatNumber: (client as any)?.vatNumber || '',
+            
             // Non-AI Accountant fields
             yearEnd: client?.yearEnd || undefined,
             isVatRegistered: client?.isVatRegistered || false,
+            vatNumber: (client as any)?.vatNumber || '',
+            vatCategory: (client as any)?.vatCategory || undefined,
             cellNumber: client?.contactNumber || '',
             status: client?.status || 'Active',
         },
     });
+
+    const isVatRegistered = form.watch('isVatRegistered');
 
     const handleSubmit = (values: z.infer<typeof formSchema>) => {
         const finalValues = {
@@ -102,6 +107,13 @@ export default function ClientForm({
                                     <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                                 </FormItem>
                             )} />
+
+                            {isVatRegistered && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                     <FormField control={form.control} name="vatNumber" render={({ field }) => ( <FormItem><FormLabel>VAT Number</FormLabel><FormControl><Input placeholder="4..." {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                     <FormField control={form.control} name="vatCategory" render={({ field }) => ( <FormItem><FormLabel>VAT Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent>{vatCategories.map(cat => <SelectItem key={cat} value={cat}>Category {cat}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                                </div>
+                            )}
                         </div>
                     </>
                 )}

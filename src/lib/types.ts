@@ -215,6 +215,7 @@ export type User = {
   requiresManagementAccounts?: boolean;
   managementAccountsFrequency?: 'Monthly' | 'Quarterly' | 'Bi-Annually' | 'Annually';
   isVatRegistered?: boolean;
+  vatNumber?: string;
   vatCategory?: 'A' | 'B' | 'C';
   submitsProvisionalTaxes?: boolean;
   submitsIncomeTaxReturn?: boolean;
