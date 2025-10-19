@@ -193,10 +193,10 @@ export type User = {
     zip: string;
   },
   bankingDetails?: {
-    bankName: string;
-    accountHolder: string;
-    accountNumber: string;
-    branchCode: string;
+    bankName?: string;
+    accountHolder?: string;
+    accountNumber?: string;
+    branchCode?: string;
   },
   smtpDetails?: {
     host: string;

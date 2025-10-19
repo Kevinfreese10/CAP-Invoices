@@ -14,7 +14,12 @@ import { Textarea } from '../ui/textarea';
 
 const clientStatuses: ('Active' | 'Inactive')[] = ['Active', 'Inactive'];
 const months = [ "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" ];
-const vatCategories: ('A' | 'B' | 'C')[] = ['A', 'B', 'C'];
+const vatCategories: { value: 'A' | 'B' | 'C'; label: string }[] = [
+    { value: 'A', label: 'Category A (Odd Months)' },
+    { value: 'B', label: 'Category B (Even Months)' },
+    { value: 'C', label: 'Category C (Monthly)' },
+];
+
 
 const formSchema = z.object({
   id: z.string().optional(),
@@ -27,9 +32,15 @@ const formSchema = z.object({
   yearEnd: z.string().optional(),
   isVatRegistered: z.boolean().default(false),
   vatNumber: z.string().optional(),
-  vatCategory: z.enum(vatCategories).optional(),
+  vatCategory: z.enum(['A', 'B', 'C']).optional(),
   cellNumber: z.string().optional(),
   status: z.enum(clientStatuses).optional(),
+  bankingDetails: z.object({
+      bankName: z.string().optional(),
+      accountHolder: z.string().optional(),
+      accountNumber: z.string().optional(),
+      branchCode: z.string().optional(),
+  }).optional(),
 });
 
 export default function ClientForm({ 
@@ -60,6 +71,12 @@ export default function ClientForm({
             vatCategory: (client as any)?.vatCategory || undefined,
             cellNumber: client?.contactNumber || '',
             status: client?.status || 'Active',
+            bankingDetails: {
+                bankName: client?.bankingDetails?.bankName || '',
+                accountHolder: client?.bankingDetails?.accountHolder || '',
+                accountNumber: client?.bankingDetails?.accountNumber || '',
+                branchCode: client?.bankingDetails?.branchCode || '',
+            }
         },
     });
 
@@ -110,9 +127,19 @@ export default function ClientForm({
                             {isVatRegistered && (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                      <FormField control={form.control} name="vatNumber" render={({ field }) => ( <FormItem><FormLabel>VAT Number</FormLabel><FormControl><Input placeholder="4..." {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                     <FormField control={form.control} name="vatCategory" render={({ field }) => ( <FormItem><FormLabel>VAT Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent>{vatCategories.map(cat => <SelectItem key={cat} value={cat}>Category {cat}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                                     <FormField control={form.control} name="vatCategory" render={({ field }) => ( <FormItem><FormLabel>VAT Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent>{vatCategories.map(cat => <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                                 </div>
                             )}
+                        </div>
+                        <Separator />
+                        <div className="space-y-4">
+                            <h3 className="text-lg font-medium">Banking Details</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <FormField control={form.control} name="bankingDetails.bankName" render={({ field }) => ( <FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                <FormField control={form.control} name="bankingDetails.accountHolder" render={({ field }) => ( <FormItem><FormLabel>Account Holder</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                <FormField control={form.control} name="bankingDetails.accountNumber" render={({ field }) => ( <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                <FormField control={form.control} name="bankingDetails.branchCode" render={({ field }) => ( <FormItem><FormLabel>Branch Code</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            </div>
                         </div>
                     </>
                 )}
