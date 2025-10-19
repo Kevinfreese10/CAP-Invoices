@@ -30,6 +30,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import InvoicePreview from '@/components/admin/InvoicePreview';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { createRoot } from 'react-dom/client';
 
 const lineItemSchema = z.object({
     accountId: z.string().min(1, "Please select an account."),
@@ -75,8 +76,10 @@ export default function InvoicesPage() {
         const element = document.createElement("div");
         document.body.appendChild(element);
         
-        const ReactDOM = await import('react-dom');
-        ReactDOM.render(<InvoicePreview invoice={invoiceToDownload} client={client} customer={customer} />, element);
+        const root = createRoot(element);
+        root.render(<InvoicePreview invoice={invoiceToDownload} client={client} customer={customer} />);
+
+        await new Promise(resolve => setTimeout(resolve, 500)); // Allow time for render
 
         const canvas = await html2canvas(element.children[0] as HTMLElement, { scale: 2 });
         const data = canvas.toDataURL('image/png');
@@ -87,6 +90,7 @@ export default function InvoicesPage() {
         report.addImage(data, 'PNG', 0, 0, pdfWidth, pdfHeight);
         report.save(`Invoice-${invoiceToDownload.id}.pdf`);
         
+        root.unmount();
         document.body.removeChild(element);
     };
 
@@ -387,5 +391,3 @@ export default function InvoicesPage() {
         </Dialog>
     );
 }
-
-    
