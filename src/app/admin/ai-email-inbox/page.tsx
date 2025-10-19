@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Loader2, Inbox, RefreshCw, FileWarning, Paperclip, Sparkles, Bot, MessageSquare, StickyNote, PlusCircle, User, CheckCircle } from 'lucide-react';
+import { Loader2, Inbox, RefreshCw, FileWarning, Paperclip, Sparkles, Bot, MessageSquare, StickyNote, PlusCircle, User, CheckCircle, MoreHorizontal, Eye, Archive } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -70,21 +71,22 @@ export default function AIEmailInboxPage() {
         fetchEmails();
     }, [fetchEmails]);
 
-    const handleAnalyze = async () => {
-        if (!selectedEmail) return;
+    const handleAnalyze = async (email: Email) => {
+        if (!email) return;
 
+        setSelectedEmail(email);
         setIsAnalyzing(true);
         setAnalysisResult(null);
 
         try {
-            const attachments = selectedEmail.attachments.map(att => ({
+            const attachments = email.attachments.map(att => ({
                 dataUri: att.dataUrl,
                 mimeType: att.contentType,
             }));
 
             const result = await analyzeEmail({
-                subject: selectedEmail.subject,
-                body: selectedEmail.body,
+                subject: email.subject,
+                body: email.body,
                 attachments: attachments,
             });
             setAnalysisResult(result);
@@ -102,16 +104,16 @@ export default function AIEmailInboxPage() {
         setAnalysisResult(null); // Clear previous analysis
     }
 
-    const handleMarkAsProcessed = async () => {
-        if (!selectedEmail) return;
+    const handleMarkAsProcessed = async (email: Email) => {
+        if (!email) return;
 
         try {
-            const processedEmailRef = doc(db, 'processedEmails', String(selectedEmail.uid));
+            const processedEmailRef = doc(db, 'processedEmails', String(email.uid));
             await setDoc(processedEmailRef, {
-                uid: selectedEmail.uid,
+                uid: email.uid,
                 processedAt: serverTimestamp(),
-                subject: selectedEmail.subject,
-                from: selectedEmail.from,
+                subject: email.subject,
+                from: email.from,
             });
             toast({ title: "Email Marked as Processed" });
             fetchEmails(); // Refresh the list
@@ -158,11 +160,11 @@ export default function AIEmailInboxPage() {
                              <ScrollArea className="h-[calc(100vh-28rem)]">
                                 <div className="flex flex-col">
                                     {emails.map((email) => (
-                                         <DialogTrigger key={email.uid} asChild>
-                                            <div
-                                                onClick={() => handleSelectEmail(email)}
-                                                className={`p-4 border-b hover:bg-muted/50 cursor-pointer ${email.isProcessed ? 'bg-muted/30' : ''}`}
-                                            >
+                                         <div
+                                            key={email.uid}
+                                            className={`flex items-center p-4 border-b hover:bg-muted/50 ${email.isProcessed ? 'bg-muted/30' : ''}`}
+                                        >
+                                            <div className="flex-grow">
                                                 <p className="font-semibold truncate">{email.from}</p>
                                                 <p className="text-sm truncate">{email.subject}</p>
                                                 <div className="flex justify-between items-center">
@@ -172,7 +174,26 @@ export default function AIEmailInboxPage() {
                                                     {email.isProcessed && <Badge variant="secondary">Processed</Badge>}
                                                 </div>
                                             </div>
-                                        </DialogTrigger>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4"/></Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent>
+                                                    <DialogTrigger asChild>
+                                                        <DropdownMenuItem onSelect={() => handleSelectEmail(email)}>
+                                                            <Eye className="mr-2 h-4 w-4"/>View
+                                                        </DropdownMenuItem>
+                                                    </DialogTrigger>
+                                                    <DropdownMenuItem onSelect={() => handleAnalyze(email)} disabled={isAnalyzing}>
+                                                         {isAnalyzing && selectedEmail?.uid === email.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}
+                                                        Analyze
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onSelect={() => handleMarkAsProcessed(email)} disabled={email.isProcessed}>
+                                                        <Archive className="mr-2 h-4 w-4"/>Archive
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </div>
                                     ))}
                                 </div>
                              </ScrollArea>
@@ -319,13 +340,9 @@ export default function AIEmailInboxPage() {
                         </ScrollArea>
                         
                         <DialogFooter className="pt-4 border-t flex justify-between w-full">
-                            <Button onClick={handleMarkAsProcessed} size="sm" variant="secondary" disabled={selectedEmail.isProcessed}>
+                            <Button onClick={() => handleMarkAsProcessed(selectedEmail)} size="sm" variant="secondary" disabled={selectedEmail.isProcessed}>
                                 <CheckCircle className="mr-2 h-4 w-4" />
-                                Mark as Processed
-                            </Button>
-                            <Button onClick={handleAnalyze} size="sm" variant="outline" disabled={isAnalyzing}>
-                                {isAnalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4 text-primary"/>}
-                                Analyze
+                                {selectedEmail.isProcessed ? 'Archived' : 'Archive'}
                             </Button>
                         </DialogFooter>
                     </div>
@@ -334,3 +351,4 @@ export default function AIEmailInboxPage() {
         </Dialog>
     );
 }
+
