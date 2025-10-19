@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Loader2, Inbox, RefreshCw, FileWarning, Paperclip, Sparkles, Bot, MessageSquare, StickyNote, PlusCircle } from 'lucide-react';
+import { Loader2, Inbox, RefreshCw, FileWarning, Paperclip, Sparkles, Bot, MessageSquare, StickyNote, PlusCircle, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -84,7 +84,8 @@ export default function AIEmailInboxPage() {
                 attachments: attachments,
             });
             setAnalysisResult(result);
-        } catch (err: any) {
+        } catch (err: any)
+        {
             console.error("Error analyzing email:", err);
             setError("The AI failed to analyze this email. Please try again.");
         } finally {
@@ -184,7 +185,7 @@ export default function AIEmailInboxPage() {
                                 <ScrollArea className="flex-grow">
                                      <div
                                         className="p-4 text-sm prose max-w-none"
-                                        dangerouslySetInnerHTML={{ __html: selectedEmail.body }}
+                                        dangerouslySetInnerHTML={{ __html: selectedEmail.body.replace(/(<hr\s*\/?>)/i, '<br class="hidden" />$1') }}
                                     />
                                 </ScrollArea>
                             </div>
@@ -297,5 +298,3 @@ export default function AIEmailInboxPage() {
         </div>
     );
 }
-
-    
