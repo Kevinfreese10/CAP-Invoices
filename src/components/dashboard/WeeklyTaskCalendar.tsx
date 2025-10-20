@@ -169,6 +169,7 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
                         Overdue
                     </p>
                 </div>
+                <div className="border-b min-h-24 bg-destructive/5" />
                 <div 
                   className="p-2 space-y-2 min-h-[500px]"
                   onDrop={(e) => handleDrop(e, addDays(new Date(), -1))}
