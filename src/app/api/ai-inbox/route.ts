@@ -58,9 +58,9 @@ export async function GET() {
                   date: mail.date?.toISOString() || new Date().toISOString(),
                   body: mail.html || mail.textAsHtml || '',
                   attachments: mail.attachments.map(att => ({
-                      filename: att.filename,
-                      contentType: att.contentType,
-                      size: att.size,
+                      filename: att.filename || null,
+                      contentType: att.contentType || null,
+                      size: att.size || null,
                   })),
                   createdAt: serverTimestamp(),
                   processedAction: null,
