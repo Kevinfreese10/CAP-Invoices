@@ -1152,7 +1152,6 @@ const NewTransactionsTab = React.forwardRef<
                         </DropdownMenuContent>
                      </DropdownMenu>
 
-                     <Button variant="outline" asChild><Link href={`/admin/ai-accountant/${client?.uid}/allocation-rules`}>Allocation Rules</Link></Button>
                      {activeSubTab === 'expenses' ? (
                         <Button variant="outline">AI Allocate Selected <Sparkles className="ml-2 h-4 w-4"/></Button>
                      ) : (
