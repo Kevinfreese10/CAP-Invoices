@@ -62,7 +62,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(pathname.startsWith('/admin/settings') || pathname.startsWith('/admin/users') || pathname.startsWith('/admin/staff'));
   const [isCapSuppliersOpen, setIsCapSuppliersOpen] = useState(pathname.startsWith('/admin/cap-suppliers'));
   const [isAiAccountantOpen, setIsAiAccountantOpen] = useState(pathname.startsWith('/admin/ai-accountant') || pathname.startsWith('/dashboard/ai-accountant') || pathname.startsWith('/reseller/ai-accountant'));
-  const [isAiEmailInboxOpen, setIsAiEmailInboxOpen] = useState(pathname.startsWith('/admin/ai-email-inbox'));
 
   const handleLogout = () => {
     logout();
@@ -231,32 +230,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
             </Collapsible>
         )}
         
-        {user.role === 'admin' && (
-          <Collapsible open={isAiEmailInboxOpen} onOpenChange={setIsAiEmailInboxOpen}>
-            <SidebarMenuItem>
-                <CollapsibleTrigger asChild>
-                <SidebarMenuButton isActive={pathname.startsWith('/admin/ai-email-inbox')} tooltip="AI Email Inbox">
-                    <Inbox />
-                    <span>AI Email Inbox</span>
-                    <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200 group-[[data-state=open]]:rotate-180" />
-                </SidebarMenuButton>
-                </CollapsibleTrigger>
-            </SidebarMenuItem>
-            <CollapsibleContent asChild>
-                <SidebarMenu className="pl-4">
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname.startsWith('/admin/ai-email-inbox')} tooltip="Inbox" className="h-8">
-                      <Link href="/admin/ai-email-inbox">
-                        <Inbox />
-                        <span>Inbox</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-            </CollapsibleContent>
-          </Collapsible>
-        )}
-
         {(user.role === 'admin' || user.role === 'staff') && (
             <>
             {visibleCapSupplierItems.length > 0 && (
