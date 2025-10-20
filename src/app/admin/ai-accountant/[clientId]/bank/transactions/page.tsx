@@ -1718,13 +1718,6 @@ export default function BankTransactionsPage() {
     }, [clientId]);
 
 
-    const bankBalance = useMemo(() => {
-        if (!selectedAccountId) return 0;
-        return allTransactions
-            .filter(tx => tx.bankAccountId === selectedAccountId)
-            .reduce((sum, tx) => sum + tx.amount, 0);
-    }, [allTransactions, selectedAccountId]);
-
     const unallocatedCount = useMemo(() => {
         if (!selectedAccountId) return 0;
         return allTransactions.filter(tx => tx.bankAccountId === selectedAccountId && tx.status === 'new').length;
@@ -1808,8 +1801,8 @@ export default function BankTransactionsPage() {
     return (
         <div className="space-y-4">
             <h1 className="text-2xl font-bold tracking-tight">Banking</h1>
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4 p-4 bg-card border rounded-lg">
-                <div className="flex items-center justify-between w-full">
+             <div className="flex flex-col md:flex-row items-center justify-between gap-4 p-4 bg-card border rounded-lg">
+                <div className="flex items-center justify-between w-full md:w-auto md:gap-8">
                     <div className="grid gap-2">
                         <Label htmlFor="bank-account-selector">Bank Account</Label>
                         <div className="flex gap-2">

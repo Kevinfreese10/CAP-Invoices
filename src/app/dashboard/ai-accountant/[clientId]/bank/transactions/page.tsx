@@ -987,56 +987,8 @@ const NewTransactionsTab = React.forwardRef<
 
     const handleAiIncomeAllocate = async () => {
         if (!client || !client.uid || selectedTransactions.length === 0) return;
-        setIsAiAllocating(true);
-        toast({ title: "AI is allocating...", description: `Processing ${selectedTransactions.length} income transactions.` });
-        
-        const transactionsToAllocate = transactions.filter(tx => selectedTransactions.includes(tx.id));
-        const customersWithInvoices = customers.map(c => ({
-            id: c.id,
-            name: c.name,
-            invoiceNumbers: invoices.filter(inv => inv.customerId === c.id).map(inv => inv.id),
-        }));
-
-        const batch = writeBatch(db);
-        let successCount = 0;
-
-        for (const tx of transactionsToAllocate) {
-            try {
-                const result = await suggestIncomeAllocation({
-                    description: tx.description,
-                    customers: JSON.stringify(customersWithInvoices)
-                });
-
-                if (result.customerId && result.confidence > 70) {
-                    const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
-                    batch.update(transactionRef, {
-                        status: 'review', // Move to review instead of allocated
-                        allocatedTo: { value: result.customerId, type: 'customer' },
-                        vatType: 'no_vat',
-                        allocatedAt: new Date(),
-                    });
-                    successCount++;
-                }
-            } catch (error) {
-                console.error(`AI allocation failed for tx ${tx.id}:`, error);
-            }
-        }
-        
-        try {
-            await batch.commit();
-            if(successCount > 0) {
-              toast({ title: "AI Allocation Complete", description: `${successCount} out of ${selectedTransactions.length} transactions were confidently allocated for review.` });
-            } else {
-               toast({ title: "AI Allocation", description: `The AI could not confidently allocate any of the selected transactions.`, variant: 'destructive'});
-            }
-            setSelectedTransactions([]);
-            refetch();
-        } catch (error) {
-            console.error("Error committing AI allocations:", error);
-            toast({ title: "AI Allocation Failed", description: "An error occurred while saving the allocations.", variant: "destructive" });
-        } finally {
-            setIsAiAllocating(false);
-        }
+        // This is a placeholder as the income allocation AI flow is not yet defined
+        toast({ title: 'Coming Soon', description: 'AI-powered income allocation is not yet available.' });
     };
 
 
@@ -1799,8 +1751,8 @@ export default function BankTransactionsPage() {
     return (
         <div className="space-y-4">
             <h1 className="text-2xl font-bold tracking-tight">Banking</h1>
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4 p-4 bg-card border rounded-lg">
-                <div className="flex items-center justify-between w-full">
+             <div className="flex flex-col md:flex-row items-center justify-between gap-4 p-4 bg-card border rounded-lg">
+                <div className="flex items-center justify-between w-full md:w-auto md:gap-8">
                     <div className="grid gap-2">
                         <Label htmlFor="bank-account-selector">Bank Account</Label>
                         <div className="flex gap-2">
