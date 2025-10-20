@@ -11,7 +11,7 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, Plus, Trash2, CalendarIcon, PlusCircle, MoreHorizontal, Eye, Copy, FileText, Mail, Download, CheckCircle } from 'lucide-react';
-import { getFirestore, doc, addDoc, getDoc, collection, query, orderBy, getDocs, updateDoc, writeBatch } from 'firebase/firestore';
+import { getFirestore, doc, addDoc, getDoc, collection, query, orderBy, getDocs, updateDoc, writeBatch, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -182,10 +182,13 @@ export default function InvoicesPage() {
 
     const onSubmit = async (data: InvoiceFormValues) => {
         if (!client || !client.id) return;
+
+        const nextInvoiceNumber = client.nextInvoiceNumber || 9000;
+        const invoiceId = String(nextInvoiceNumber);
         
         try {
             const batch = writeBatch(db);
-            const invoiceRef = doc(collection(db, `aiAccountantClients/${clientId}/invoices`));
+            const invoiceRef = doc(db, `aiAccountantClients/${clientId}/invoices`, invoiceId);
 
             batch.set(invoiceRef, {
                 ...data,
@@ -195,6 +198,10 @@ export default function InvoicesPage() {
                 total: totals.total,
                 createdAt: new Date(),
             });
+
+            // Increment invoice number on client profile
+            const clientRef = doc(db, 'aiAccountantClients', clientId);
+            batch.update(clientRef, { nextInvoiceNumber: nextInvoiceNumber + 1 });
 
             const customerControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '8000-001')?.id;
             const vatControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '7000-008')?.id;
@@ -208,7 +215,7 @@ export default function InvoicesPage() {
             batch.set(debitTxRef, {
                 clientId: client.id,
                 date: data.invoiceDate.toISOString(),
-                reference: `INV-${invoiceRef.id}`,
+                reference: `INV-${invoiceId}`,
                 description: `Invoice to ${customers.find(c => c.id === data.customerId)?.name}`,
                 amount: totals.total,
                 bankAccountId: 'JOURNAL',
@@ -226,7 +233,7 @@ export default function InvoicesPage() {
                 batch.set(salesCreditRef, {
                     clientId: client.id,
                     date: data.invoiceDate.toISOString(),
-                    reference: `INV-${invoiceRef.id}`,
+                    reference: `INV-${invoiceId}`,
                     description: line.description,
                     amount: -lineTotal,
                     bankAccountId: 'JOURNAL',
@@ -244,7 +251,7 @@ export default function InvoicesPage() {
                 batch.set(vatCreditRef, {
                     clientId: client.id,
                     date: data.invoiceDate.toISOString(),
-                    reference: `INV-${invoiceRef.id}`,
+                    reference: `INV-${invoiceId}`,
                     description: `VAT on Invoice`,
                     amount: -totals.vat,
                     bankAccountId: 'JOURNAL',

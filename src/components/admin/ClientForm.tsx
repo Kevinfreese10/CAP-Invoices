@@ -94,7 +94,7 @@ export default function ClientForm({
             enableInvoicing: client?.enableInvoicing || false,
             address: typeof client?.address === 'string' ? client.address : (client?.address ? `${client.address.street}, ${client.address.city}` : ''),
             logoUrl: client?.logoUrl || '',
-            nextInvoiceNumber: client?.nextInvoiceNumber || 1,
+            nextInvoiceNumber: client?.nextInvoiceNumber || 9000,
             bankingDetails: {
                 bankName: client?.bankingDetails?.bankName || '',
                 accountHolder: client?.bankingDetails?.accountHolder || '',
