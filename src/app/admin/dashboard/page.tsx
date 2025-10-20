@@ -1,6 +1,6 @@
 
 'use client';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -25,7 +25,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
-import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, where, orderBy, arrayUnion, Timestamp, writeBatch } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, where, orderBy, arrayUnion, Timestamp, writeBatch, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -589,31 +589,33 @@ export default function AdminDashboardPage() {
     const [upcomingAutomatedTaskFilter, setUpcomingAutomatedTaskFilter] = useState('all');
     const { toast } = useToast();
 
-    const fetchDashboardData = async () => {
+    useEffect(() => {
         setIsLoading(true);
-        try {
-            // Fetch tasks
-            const tasksQuery = query(collection(db, 'tasks'), orderBy('dueDate', 'asc'));
-            const tasksSnapshot = await getDocs(tasksQuery);
-            const fetchedTasks = tasksSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Task));
-            setTasks(fetchedTasks);
-
-            // Fetch staff
-            const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
-            const staffSnapshot = await getDocs(staffQuery);
+        // Fetch staff first
+        const staffQuery = query(collection(db, "users"), where('role', 'in', ['staff', 'admin']));
+        getDocs(staffQuery).then(staffSnapshot => {
             const fetchedStaff = staffSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
             setAllStaff(fetchedStaff);
-        } catch (error) {
-            console.error("Error fetching dashboard data:", error);
-            toast({ title: "Error", description: "Could not fetch dashboard data.", variant: "destructive" });
-        } finally {
+        }).catch(error => {
+            console.error("Error fetching staff:", error);
+            toast({ title: "Error", description: "Could not fetch staff data.", variant: "destructive" });
+        });
+
+        // Set up real-time listener for tasks
+        const tasksQuery = query(collection(db, 'tasks'), orderBy('dueDate', 'asc'));
+        const unsubscribe = onSnapshot(tasksQuery, (snapshot) => {
+            const fetchedTasks = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Task));
+            setTasks(fetchedTasks);
             setIsLoading(false);
-        }
-    };
-    
-    useEffect(() => {
-        fetchDashboardData();
-    }, []);
+        }, (error) => {
+            console.error("Error fetching tasks in real-time:", error);
+            toast({ title: "Error", description: "Could not fetch tasks data.", variant: "destructive" });
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe(); // Cleanup listener on component unmount
+    }, [toast]);
+
 
     const staffByDept = useMemo(() => {
         const result: Record<string, User[]> = {};
@@ -723,7 +725,6 @@ export default function AdminDashboardPage() {
     const handleDelete = async (taskId: string) => {
         try {
             await deleteDoc(doc(db, 'tasks', taskId));
-            fetchDashboardData();
             toast({
                 title: 'Task Deleted',
                 description: 'The task has been successfully removed.',
@@ -751,8 +752,6 @@ export default function AdminDashboardPage() {
             } else {
                 toast({ title: 'Task Updated', description: `The task has been updated.` });
             }
-            
-            fetchDashboardData();
 
         } catch (error) {
             console.error("Error updating task:", error);
@@ -854,7 +853,6 @@ export default function AdminDashboardPage() {
                     }
                 }
             }
-            fetchDashboardData();
             setIsFormOpen(false);
             setSelectedTask(null);
         } catch (error) {
@@ -906,7 +904,6 @@ export default function AdminDashboardPage() {
         setIsFormOpen(open);
         if (!open) {
             setSelectedTask(null);
-            fetchDashboardData(); // Re-fetch tasks when closing dialog to ensure data is fresh
         }
     }
 
@@ -1047,4 +1044,6 @@ export default function AdminDashboardPage() {
         </div>
     );
 }
+    
+
     
