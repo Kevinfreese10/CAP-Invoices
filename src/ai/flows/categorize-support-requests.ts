@@ -56,7 +56,7 @@ const prompt = ai.definePrompt({
 
   **Triage Guidelines:**
   - Categories: 'Account issues', 'Tax preparation', 'Service inquiry', 'Document upload', 'Spam/Promo', 'Other'.
-  - Priorities: Use 'High' for "urgent", "final demand", "deadline", "legal notice". Use 'Low' for newsletters or spam.
+  - Priorities: Use 'High' for "urgent", "final demand", "deadline", "legal notice". Use 'Low' for newsletters or spam. If the email appears to be marketing, a newsletter, or other promotional content, categorize it as 'Spam/Promo' and set priority to 'Low'.
   - SLA: High priority = 24 hours, Medium = 48 hours, Low = 72 hours.
 
   **Task Creation Guidelines:**
