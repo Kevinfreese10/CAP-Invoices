@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Inbox, RefreshCw, FileWarning, Paperclip, FileCheck2, Bot, Send, Trash2, XCircle, FilePlus, Archive, Sparkles, Reply, ArchiveRestore, Eye } from 'lucide-react';
+import { Loader2, Inbox, RefreshCw, FileWarning, Paperclip, Bot, Send, Trash2, XCircle, FilePlus, Archive, Sparkles, Reply, ArchiveRestore, Eye, FileCheck2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -16,10 +16,10 @@ import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
 
 interface Attachment {
-    filename: string;
-    contentType: string;
-    dataUrl: string;
-    size: number;
+    filename: string | null;
+    contentType: string | null;
+    dataUrl: string | null;
+    size: number | null;
 }
 
 interface Email {
@@ -301,21 +301,19 @@ export default function AiEmailInboxPage() {
                                                             <p className="font-semibold truncate flex-grow">{email.from}</p>
                                                         </div>
                                                         <p className="text-sm font-semibold truncate">{email.subject}</p>
-                                                        {email.summary && <p className="text-sm text-muted-foreground italic line-clamp-2 max-w-lg">"{email.summary}"</p>}
+                                                        {email.summary && <p className="text-base italic text-muted-foreground line-clamp-2 max-w-full">"{email.summary}"</p>}
                                                     </div>
-                                                    <div className="col-span-4 text-right flex-shrink-0">
+                                                    <div className="col-span-4 text-right flex flex-col items-end gap-1">
                                                         <p className="text-xs text-muted-foreground">{format(new Date(email.date), 'dd MMM, HH:mm')}</p>
-                                                            <div className="flex justify-end flex-wrap gap-1 mt-1">
+                                                            <div className="flex justify-end flex-wrap gap-1">
                                                             {email.processedAction && <Badge variant={email.processedAction === 'processed' ? 'success' : 'secondary'}>{getActionIcon(email.processedAction)} {email.processedAction}</Badge>}
                                                             {email.category && <Badge variant="outline">{email.category}</Badge>}
                                                             {email.priority && <Badge variant={getPriorityVariant(email.priority)}>{email.priority}</Badge>}
                                                             {email.sla && <Badge variant="outline">{email.sla}hr SLA</Badge>}
-                                                        </div>
-                                                    </div>
-                                                    <div className="col-span-12 flex items-center justify-between mt-2">
-                                                        <div className="flex items-center gap-2 flex-wrap">
                                                             {email.attachments.length > 0 && <div className="flex items-center gap-1 text-xs text-primary"><Paperclip className="h-3 w-3" /><span>{email.attachments.length} attachment(s)</span></div>}
                                                         </div>
+                                                    </div>
+                                                    <div className="col-span-12 flex items-center justify-end mt-2">
                                                         <div className="flex items-center gap-2">
                                                             <Button size="sm" variant="outline" onClick={() => handleAnalyzeSingle(email.uid)} disabled={isAnalyzing}>
                                                                 <Sparkles className="mr-2 h-4 w-4"/> Analyze
