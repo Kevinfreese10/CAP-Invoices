@@ -94,7 +94,7 @@ export default function AIAccountantClientsPage() {
         let createdQuery;
         
         if (currentUser.role === 'admin') {
-            createdQuery = query(clientsRef, orderBy("name"));
+            createdQuery = query(clientsRef, where("createdBy", "==", currentUser.uid), orderBy("name"));
         } else {
             createdQuery = query(clientsRef, where("createdBy", "==", currentUser.uid), orderBy("name"));
         }
@@ -285,7 +285,7 @@ export default function AIAccountantClientsPage() {
                                 <DropdownMenuSeparator />
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
+                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">Delete</DropdownMenuItem>
                                     </AlertDialogTrigger>
                                     <AlertDialogContent>
                                         <AlertDialogHeader>
