@@ -25,7 +25,11 @@ export async function POST(req: Request) {
                 const clientName = email.from.split('<')[0].trim();
                 
                 try {
-                    const analysis = await categorizeSupportRequest({ request: requestText, clientName });
+                    const analysis = await categorizeSupportRequest({ 
+                        request: requestText, 
+                        clientName,
+                        attachments: email.attachments,
+                    });
                     
                     const updateData: any = {
                         summary: analysis.summary || null,

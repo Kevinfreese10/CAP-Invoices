@@ -1,4 +1,3 @@
-
 // /src/app/api/ai-inbox/route.ts
 import { NextResponse } from 'next/server';
 import imaps from 'imap-simple';
@@ -55,17 +54,31 @@ export async function GET(req: Request) {
                     const all = item.parts.find((part) => part.which === '');
                     const mail = await simpleParser(all?.body || '');
                     
+                    const attachments = await Promise.all(mail.attachments.map(async (att) => {
+                      if (att.content) {
+                          const dataUrl = `data:${att.contentType};base64,${att.content.toString('base64')}`;
+                          return {
+                            filename: att.filename || null,
+                            contentType: att.contentType || null,
+                            dataUrl: dataUrl,
+                            size: att.size || null,
+                          };
+                      }
+                      return {
+                          filename: att.filename || null,
+                          contentType: att.contentType || null,
+                          dataUrl: null,
+                          size: att.size || null,
+                      };
+                    }));
+
                     const emailData = {
                       uid: item.attributes.uid,
                       from: mail.from?.text || 'No Sender',
                       subject: mail.subject || 'No Subject',
                       date: mail.date?.toISOString() || new Date().toISOString(),
                       body: mail.html || mail.textAsHtml || '',
-                      attachments: mail.attachments.map(att => ({
-                          filename: att.filename || null,
-                          contentType: att.contentType || null,
-                          size: att.size || null,
-                      })),
+                      attachments: attachments,
                       createdAt: serverTimestamp(),
                       processedAction: null,
                     };

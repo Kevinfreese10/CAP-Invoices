@@ -12,14 +12,22 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
+const AttachmentSchema = z.object({
+  filename: z.string().nullable(),
+  contentType: z.string().nullable(),
+  dataUrl: z.string().nullable(),
+  size: z.number().nullable(),
+});
+
 const CategorizeSupportRequestInputSchema = z.object({
   request: z.string().describe('The subject and body of the support request from the user.'),
   clientName: z.string().describe('The name of the client making the request.'),
+  attachments: z.array(AttachmentSchema).optional().describe('An array of attachments included in the email.'),
 });
 export type CategorizeSupportRequestInput = z.infer<typeof CategorizeSupportRequestInputSchema>;
 
 const CategorizeSupportRequestOutputSchema = z.object({
-  summary: z.string().describe("A concise, one-sentence summary of the user's request."),
+  summary: z.string().describe("A concise, one-sentence summary of the user's request based on the email content and any attachments."),
   category: z
     .enum(['Account issues', 'Tax preparation', 'Service inquiry', 'Document upload', 'Spam/Promo', 'Other'])
     .describe(
@@ -54,8 +62,8 @@ const prompt = ai.definePrompt({
   output: {schema: CategorizeSupportRequestOutputSchema},
   prompt: `You are an expert support agent and task manager for an accounting firm.
 
-  Based on the user's request, you must perform three actions:
-  1. Create a one-sentence summary of the email's content.
+  Your task is to analyze the user's request, which includes an email body and potentially one or more file attachments, and then perform three actions:
+  1. Create a one-sentence summary of the email's content, including a brief mention of any relevant information found in the attachments.
   2. Triage the email by determining the category, priority, and an appropriate SLA.
   3. Determine if an actionable task can be created from the email and suggest the best next action.
 
@@ -72,6 +80,16 @@ const prompt = ai.definePrompt({
   
   **Client Name**: {{{clientName}}}
   **User request**: {{{request}}}
+
+  {{#if attachments}}
+  **Attachments:**
+  {{#each attachments}}
+  ---
+  File: {{this.filename}}
+  Content: {{media url=this.dataUrl}}
+  ---
+  {{/each}}
+  {{/if}}
   `,
 });
 
