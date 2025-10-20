@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Inbox, RefreshCw, FileWarning, Paperclip, CheckCircle2, Bot, Send, Trash2, XCircle, FileCheck2, Archive } from 'lucide-react';
+import { Loader2, Inbox, RefreshCw, FileWarning, Paperclip, CheckCircle2, Bot, Send, Trash2, XCircle, FileCheck2, Archive, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { categorizeSupportRequest } from '@/ai/flows/categorize-support-requests';
+import { cn } from '@/lib/utils';
 
 interface Attachment {
     filename: string;
@@ -30,6 +31,9 @@ interface Email {
     attachments: Attachment[];
     isProcessed?: boolean;
     processedAction?: 'processed' | 'archived';
+    category?: 'Account issues' | 'Tax preparation' | 'Service inquiry' | 'Document upload' | 'Other';
+    priority?: 'High' | 'Medium' | 'Low';
+    sla?: 24 | 48 | 72;
 }
 
 const getActionIcon = (action?: 'processed' | 'archived') => {
@@ -48,6 +52,7 @@ export default function AiEmailInboxPage() {
     const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [selectedUids, setSelectedUids] = useState<Set<number>>(new Set());
     const [activeTab, setActiveTab] = useState<'inbox' | 'archive'>('inbox');
@@ -103,6 +108,36 @@ export default function AiEmailInboxPage() {
             setIsProcessing(false);
         }
     }
+    
+    const handleAnalyzeSelected = async () => {
+        const uidsToAnalyze = Array.from(selectedUids);
+        if (uidsToAnalyze.length === 0) return;
+
+        setIsAnalyzing(true);
+        toast({ title: `Analyzing ${uidsToAnalyze.length} email(s)...`, description: "The AI is working its magic."});
+
+        try {
+             const response = await fetch('/api/ai-inbox/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ uids: uidsToAnalyze }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Analysis failed');
+            }
+            
+            toast({ title: 'Analysis Complete!', description: 'Emails have been categorized and prioritized.' });
+            await fetchEmails(); // Refresh to show new data
+            setSelectedUids(new Set());
+
+        } catch (err: any) {
+             toast({ title: `Analysis Failed`, description: err.message, variant: 'destructive' });
+        } finally {
+            setIsAnalyzing(false);
+        }
+    }
 
     const inboxEmails = useMemo(() => emails.filter(e => e.processedAction !== 'archived'), [emails]);
     const archivedEmails = useMemo(() => emails.filter(e => e.processedAction === 'archived'), [emails]);
@@ -124,6 +159,15 @@ export default function AiEmailInboxPage() {
             return newSelection;
         });
     };
+    
+    const getPriorityVariant = (priority?: 'High' | 'Medium' | 'Low') => {
+        switch(priority) {
+            case 'High': return 'destructive';
+            case 'Medium': return 'warning';
+            case 'Low': return 'secondary';
+            default: return 'outline';
+        }
+    }
     
     return (
         <Dialog onOpenChange={(isOpen) => !isOpen && setSelectedEmail(null)}>
@@ -151,26 +195,29 @@ export default function AiEmailInboxPage() {
                     </div>
                 </div>
 
-                <div className="flex gap-2">
-                    <Button variant={activeTab === 'inbox' ? 'default' : 'outline'} onClick={() => setActiveTab('inbox')}>Inbox ({inboxEmails.length})</Button>
-                    <Button variant={activeTab === 'archive' ? 'default' : 'outline'} onClick={() => setActiveTab('archive')}>Archive ({archivedEmails.length})</Button>
+                <div className="flex justify-between items-center">
+                    <div className="flex gap-2">
+                        <Button variant={activeTab === 'inbox' ? 'default' : 'outline'} onClick={() => setActiveTab('inbox')}>Inbox ({inboxEmails.length})</Button>
+                        <Button variant={activeTab === 'archive' ? 'default' : 'outline'} onClick={() => setActiveTab('archive')}>Archive ({archivedEmails.length})</Button>
+                    </div>
+                     {activeTab === 'inbox' && (
+                         <div className="flex items-center gap-2">
+                             <Button onClick={handleAnalyzeSelected} disabled={isAnalyzing || selectedUids.size === 0}>
+                                {isAnalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}
+                                Analyze {selectedUids.size > 0 ? `(${selectedUids.size})` : ''}
+                            </Button>
+                             <div className="flex items-center space-x-2">
+                                <Checkbox id="select-all" onCheckedChange={handleSelectAll} checked={inboxEmails.length > 0 && selectedUids.size === inboxEmails.filter(e => !e.isProcessed).length}/>
+                                <label htmlFor="select-all" className="text-sm font-medium">Select All</label>
+                            </div>
+                         </div>
+                    )}
                 </div>
                 
                 <Card className="h-[calc(100vh-20rem)]">
                     <div className="grid grid-cols-1 h-full">
                         <div className="col-span-1">
-                             <CardHeader>
-                                <div className="flex justify-between items-center">
-                                    <CardTitle className="capitalize">{activeTab}</CardTitle>
-                                    {activeTab === 'inbox' && (
-                                        <div className="flex items-center space-x-2">
-                                            <Checkbox id="select-all" onCheckedChange={handleSelectAll} checked={inboxEmails.length > 0 && selectedUids.size === inboxEmails.filter(e => !e.isProcessed).length}/>
-                                            <label htmlFor="select-all" className="text-sm font-medium">Select All</label>
-                                        </div>
-                                    )}
-                                </div>
-                            </CardHeader>
-                            <ScrollArea className="h-[calc(100vh-26rem)]">
+                            <ScrollArea className="h-full">
                                 {isLoading ? (
                                     <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin" /></div>
                                 ) : error ? (
@@ -182,12 +229,17 @@ export default function AiEmailInboxPage() {
                                         <DialogTrigger key={email.uid} asChild>
                                             <div onClick={() => setSelectedEmail(email)} className={`flex items-start gap-4 p-4 text-left border-b hover:bg-muted/50 cursor-pointer ${selectedEmail?.uid === email.uid ? 'bg-muted' : ''}`}>
                                                 {activeTab === 'inbox' && (email.isProcessed ? <div className="w-4 h-4 mt-1 flex-shrink-0" /> : <Checkbox onCheckedChange={(checked) => handleSelectOne(email.uid, !!checked)} checked={selectedUids.has(email.uid)} onClick={(e) => e.stopPropagation()} className="mt-1"/>)}
-                                                <div className="flex-grow">
+                                                <div className="flex-grow space-y-1">
                                                     <div className="flex justify-between items-start">
                                                         <p className="font-semibold truncate">{email.from}</p>
                                                         {email.processedAction && <Badge variant={email.processedAction === 'processed' ? 'success' : 'secondary'}>{getActionIcon(email.processedAction)} {email.processedAction}</Badge>}
                                                     </div>
                                                     <p className="text-sm truncate">{email.subject}</p>
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        {email.category && <Badge variant="outline">{email.category}</Badge>}
+                                                        {email.priority && <Badge variant={getPriorityVariant(email.priority)}>{email.priority}</Badge>}
+                                                        {email.sla && <Badge variant="outline">{email.sla}hr SLA</Badge>}
+                                                    </div>
                                                     <div className="flex justify-between items-center text-xs text-muted-foreground">
                                                         <span>{format(new Date(email.date), 'dd MMM yyyy, HH:mm')}</span>
                                                         {email.attachments.length > 0 && <div className="flex items-center gap-1 text-primary"><Paperclip className="h-3 w-3" /><span>{email.attachments.length} attachment(s)</span></div>}
@@ -216,3 +268,5 @@ export default function AiEmailInboxPage() {
         </Dialog>
     );
 }
+
+    

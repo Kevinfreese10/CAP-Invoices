@@ -1,4 +1,3 @@
-// This file is machine-generated - edit at your own risk.
 
 'use server';
 
@@ -14,21 +13,22 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const CategorizeSupportRequestInputSchema = z.object({
-  request: z.string().describe('The support request from the user.'),
+  request: z.string().describe('The subject and body of the support request from the user.'),
 });
 export type CategorizeSupportRequestInput = z.infer<typeof CategorizeSupportRequestInputSchema>;
 
 const CategorizeSupportRequestOutputSchema = z.object({
   category: z
-    .string()
+    .enum(['Account issues', 'Tax preparation', 'Service inquiry', 'Document upload', 'Spam/Promo', 'Other'])
     .describe(
-      'The category of the support request. Possible values include: Account issues, Tax preparation, Service inquiry, Document upload, Other.'
+      'The category of the support request.'
     ),
   priority: z
-    .string()
+    .enum(['High', 'Medium', 'Low'])
     .describe(
-      'The priority of the support request. Possible values include: High, Medium, Low.'
+      'The priority of the support request. Use "High" for keywords like "urgent," "final demand," "deadline," or legal notices. Use "Low" for newsletters or promotional content.'
     ),
+    sla: z.number().describe("The suggested SLA in hours (24, 48, or 72) based on the priority and keywords. High priority should be 24, Medium 48, Low 72.").optional(),
 });
 export type CategorizeSupportRequestOutput = z.infer<typeof CategorizeSupportRequestOutputSchema>;
 
@@ -42,21 +42,27 @@ const prompt = ai.definePrompt({
   name: 'categorizeSupportRequestPrompt',
   input: {schema: CategorizeSupportRequestInputSchema},
   output: {schema: CategorizeSupportRequestOutputSchema},
-  prompt: `You are a support agent tasked with categorizing incoming support requests.
+  prompt: `You are a support agent tasked with triaging incoming support requests for an accounting firm.
 
-  Based on the user's request, determine the category and priority of the request.
+  Based on the user's request, determine the category, priority, and an appropriate SLA.
 
-  Here are the possible categories:
-  - Account issues: Issues related to user accounts, such as password resets, account creation, or account termination.
-  - Tax preparation: Questions or issues related to tax preparation services.
-  - Service inquiry: Inquiries about the services offered by the company.
-  - Document upload: Issues related to uploading documents.
+  Categories:
+  - Account issues: Password resets, login problems, profile updates.
+  - Tax preparation: Questions about ITR12, VAT201, Provisional Tax, SARS deadlines.
+  - Service inquiry: Questions about specific services offered, pricing, or turnaround times.
+  - Document upload: Issues or notifications related to document submissions.
+  - Spam/Promo: Newsletters, marketing emails, or irrelevant content.
   - Other: Any other type of support request.
 
-  Here are the possible priorities:
-  - High: Urgent issues that need immediate attention, such as account lockouts or critical errors.
-  - Medium: Important issues that need to be addressed in a timely manner.
-  - Low: Non-urgent issues that can be addressed as time allows.
+  Priorities:
+  - High: Urgent issues needing immediate attention. Keywords: "urgent", "final demand", "deadline", "legal notice", "summons".
+  - Medium: Important but not critical issues.
+  - Low: Non-urgent issues or general inquiries. Newsletters and spam are always "Low".
+
+  SLA (Service Level Agreement):
+  - High Priority: 24 hours
+  - Medium Priority: 48 hours
+  - Low Priority: 72 hours
 
   User request: {{{request}}}
   `,
