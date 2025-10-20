@@ -163,7 +163,7 @@ export async function POST(req: NextRequest) {
                         }
                     });
 
-                    // try {
+                    //  try {
                     //     const emailHtml = render(<AIAccountantWelcomeEmail name={signupData.name} loginUrl={`${process.env.NEXT_PUBLIC_APP_URL}/login`} />);
                     //     await sendEmail({
                     //         to: signupData.email,
