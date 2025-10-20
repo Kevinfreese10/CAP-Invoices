@@ -261,10 +261,15 @@ export default function ManageUsersPage() {
                 firebaseUser = userCredential.user;
             } catch (authError: any) {
                 if (authError.code === 'auth/email-already-in-use') {
-                    // If auth user exists, sign them in to get the UID, then proceed
-                    toast({ title: "Existing Auth User", description: "This email is already registered in Firebase Auth. Linking to new Firestore record." });
-                    const userCredential = await signInWithEmailAndPassword(auth, userData.email, password);
-                    firebaseUser = userCredential.user;
+                    // Check if user document already exists in Firestore
+                    const q = query(collection(db, "users"), where("email", "==", userData.email));
+                    const existingDocs = await getDocs(q);
+                    if (!existingDocs.empty) {
+                        toast({ title: 'User Exists', description: 'A user profile with this email already exists.', variant: 'destructive'});
+                        return;
+                    }
+                    // This case is for orphaned auth users. Not handled yet.
+                    throw new Error("An auth record exists for this email, but no user profile. Manual cleanup may be required.");
                 } else {
                     throw authError; // Re-throw other auth errors
                 }
