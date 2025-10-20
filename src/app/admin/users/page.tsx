@@ -16,7 +16,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { User, Task } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc, query, where, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, query, where, serverTimestamp, writeBatch, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { getAuth, createUserWithEmailAndPassword, User as FirebaseUser, signInWithEmailAndPassword } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
@@ -261,13 +261,13 @@ export default function ManageUsersPage() {
                 firebaseUser = userCredential.user;
             } catch (authError: any) {
                 if (authError.code === 'auth/email-already-in-use') {
-                    // Check if user document already exists in Firestore. If not, this is an orphaned auth user.
                     const q = query(collection(db, "users"), where("email", "==", userData.email));
                     const existingDocs = await getDocs(q);
                     if (!existingDocs.empty) {
                         toast({ title: 'User Exists', description: 'A user profile with this email already exists.', variant: 'destructive'});
                         return;
                     }
+                    
                     // If no Firestore doc, it's an orphaned auth user. Log them in to get UID.
                     toast({ title: "Existing Auth User", description: "This email is already registered. Attempting to link to a new profile." });
                     const userCredential = await signInWithEmailAndPassword(auth, userData.email, password);
@@ -425,5 +425,3 @@ export default function ManageUsersPage() {
     </div>
   );
 }
-
-    
