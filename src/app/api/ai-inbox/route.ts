@@ -13,8 +13,8 @@ const db = getFirestore(firebaseApp);
 async function connectToImap() {
     const config = {
       imap: {
-        user: 'invoices2@myacc.co.za',
-        password: 'Thinkestry10$',
+        user: 'kev@myacc.co.za', // Changed to kev@myacc.co.za
+        password: 'YOUR_PASSWORD_HERE', // IMPORTANT: Replace with actual password or from env
         host: 'mail.myacc.co.za',
         port: 993,
         tls: true,
@@ -115,5 +115,3 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: `An unexpected error occurred: ${error.message}` }, { status: 500 });
     }
 }
-
-    
