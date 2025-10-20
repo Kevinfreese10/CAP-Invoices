@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Inbox, RefreshCw, FileWarning, Paperclip, CheckCircle2, Bot, Send, Trash2, XCircle, FileCheck2, Archive, Sparkles } from 'lucide-react';
+import { Loader2, Inbox, RefreshCw, FileWarning, Paperclip, CheckCircle2, Bot, Send, Trash2, XCircle, FileCheck2, Archive, Sparkles, Reply } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -14,6 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { categorizeSupportRequest } from '@/ai/flows/categorize-support-requests';
 import { cn } from '@/lib/utils';
+import { Textarea } from '@/components/ui/textarea';
 
 interface Attachment {
     filename: string;
@@ -53,6 +54,8 @@ export default function AiEmailInboxPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isProcessing, setIsProcessing] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [isDrafting, setIsDrafting] = useState(false);
+    const [draftedReply, setDraftedReply] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [selectedUids, setSelectedUids] = useState<Set<number>>(new Set());
     const [activeTab, setActiveTab] = useState<'inbox' | 'archive'>('inbox');
@@ -83,6 +86,12 @@ export default function AiEmailInboxPage() {
     useEffect(() => {
         fetchEmails();
     }, []);
+    
+    useEffect(() => {
+        // Reset draft when selected email changes
+        setDraftedReply('');
+    }, [selectedEmail]);
+
 
     const processEmailAction = async (uids: Set<number>, action: 'process' | 'archive' | 'delete') => {
         const emailsToProcess = emails.filter(email => uids.has(email.uid));
@@ -138,6 +147,32 @@ export default function AiEmailInboxPage() {
             setIsAnalyzing(false);
         }
     }
+    
+    const handleDraftReply = async () => {
+        if (!selectedEmail) return;
+        setIsDrafting(true);
+        setDraftedReply('');
+        toast({ title: 'Drafting Reply...', description: 'The AI is composing a response.'});
+        
+        try {
+            const response = await fetch('/api/ai-inbox/draft-reply', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: selectedEmail }),
+            });
+             if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Drafting failed');
+            }
+            const data = await response.json();
+            setDraftedReply(data.draft);
+            toast({ title: 'Reply Drafted', description: 'Your draft is ready for review.'});
+        } catch(err: any) {
+            toast({ title: `Drafting Failed`, description: err.message, variant: 'destructive' });
+        } finally {
+            setIsDrafting(false);
+        }
+    };
 
     const inboxEmails = useMemo(() => emails.filter(e => e.processedAction !== 'archived'), [emails]);
     const archivedEmails = useMemo(() => emails.filter(e => e.processedAction === 'archived'), [emails]);
@@ -252,13 +287,31 @@ export default function AiEmailInboxPage() {
                             </ScrollArea>
                         </div>
                         {selectedEmail && (
-                            <DialogContent className="sm:max-w-4xl">
+                             <DialogContent className="sm:max-w-4xl">
                                 <DialogHeader>
                                     <DialogTitle>{selectedEmail.subject}</DialogTitle>
                                     <DialogDescription>From: {selectedEmail.from} on {format(new Date(selectedEmail.date), 'dd MMM yyyy, HH:mm')}</DialogDescription>
                                 </DialogHeader>
-                                <div className="max-h-[70vh] overflow-y-auto">
+                                <div className="max-h-[70vh] overflow-y-auto space-y-6">
                                     <div dangerouslySetInnerHTML={{ __html: selectedEmail.body }} className="prose prose-sm max-w-none" />
+                                    <Separator />
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <h3 className="text-lg font-semibold">AI Reply</h3>
+                                            <Button size="sm" onClick={handleDraftReply} disabled={isDrafting}>
+                                                {isDrafting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Reply className="mr-2 h-4 w-4"/>}
+                                                Draft with AI
+                                            </Button>
+                                        </div>
+                                        {isDrafting ? (
+                                             <div className="flex items-center gap-2 text-primary">
+                                                <Loader2 className="animate-spin"/>
+                                                <span>AI is drafting a reply...</span>
+                                            </div>
+                                        ) : draftedReply ? (
+                                            <Textarea value={draftedReply} onChange={(e) => setDraftedReply(e.target.value)} rows={8} />
+                                        ) : null}
+                                    </div>
                                 </div>
                             </DialogContent>
                         )}
@@ -268,5 +321,3 @@ export default function AiEmailInboxPage() {
         </Dialog>
     );
 }
-
-    
