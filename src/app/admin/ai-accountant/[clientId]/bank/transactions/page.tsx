@@ -15,7 +15,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight, CheckCircle, RotateCcw, Upload, AlertTriangle, Mail } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
-import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, AIAllocationJob, ClientCustomer } from '@/lib/types';
+import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, AIAllocationJob, ClientCustomer, Invoice } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove, addDoc, collection, getDocs, query, orderBy, where, writeBatch, onSnapshot, Unsubscribe, Query, DocumentData, QueryDocumentSnapshot, limit, startAfter, QueryConstraint } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -36,6 +36,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 import { extractStatementData } from '@/ai/flows/extract-statement-data';
 import { extractStatementPeriod } from '@/ai/flows/extract-statement-period';
+import { suggestIncomeAllocation } from '@/ai/flows/suggest-income-allocation';
 import { Progress } from '@/components/ui/progress';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandItem, CommandGroup } from '@/components/ui/command';
@@ -888,8 +889,8 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
 
 const NewTransactionsTab = React.forwardRef<
     { refetch: () => void },
-    { client: User | null; bankAccountId: string | null; customers: ClientCustomer[]; fetchClientData: () => void; }
->(({ client, bankAccountId, customers, fetchClientData }, ref) => {
+    { client: User | null; bankAccountId: string | null; customers: ClientCustomer[]; invoices: Invoice[]; fetchClientData: () => void; }
+>(({ client, bankAccountId, customers, invoices, fetchClientData }, ref) => {
     const { toast } = useToast();
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
@@ -897,6 +898,7 @@ const NewTransactionsTab = React.forwardRef<
     const [searchAccountTerm, setSearchAccountTerm] = useState('');
     const [isCreateRuleOpen, setIsCreateRuleOpen] = useState(false);
     const [ruleDefaultValues, setRuleDefaultValues] = useState<Partial<z.infer<typeof ruleFormSchema>> | undefined>();
+    const [isAiAllocating, setIsAiAllocating] = useState(false);
     
     const newTransactionsQuery = useMemo(() => {
         if (!client?.uid || !bankAccountId) return null;
@@ -936,6 +938,60 @@ const NewTransactionsTab = React.forwardRef<
     useEffect(() => {
         refetch();
     }, [activeSubTab, refetch]);
+
+    const handleAiIncomeAllocate = async () => {
+        if (!client || !client.uid || selectedTransactions.length === 0) return;
+        setIsAiAllocating(true);
+        toast({ title: "AI is allocating...", description: `Processing ${selectedTransactions.length} income transactions.` });
+        
+        const transactionsToAllocate = transactions.filter(tx => selectedTransactions.includes(tx.id));
+        const customersWithInvoices = customers.map(c => ({
+            id: c.id,
+            name: c.name,
+            invoiceNumbers: invoices.filter(inv => inv.customerId === c.id).map(inv => inv.id),
+        }));
+
+        const batch = writeBatch(db);
+        let successCount = 0;
+
+        for (const tx of transactionsToAllocate) {
+            try {
+                const result = await suggestIncomeAllocation({
+                    description: tx.description,
+                    customers: JSON.stringify(customersWithInvoices)
+                });
+
+                if (result.customerId && result.confidence > 70) {
+                    const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
+                    batch.update(transactionRef, {
+                        status: 'allocated',
+                        allocatedTo: { value: result.customerId, type: 'customer' },
+                        vatType: 'no_vat',
+                        allocatedAt: new Date(),
+                    });
+                    successCount++;
+                }
+            } catch (error) {
+                console.error(`AI allocation failed for tx ${tx.id}:`, error);
+            }
+        }
+        
+        try {
+            await batch.commit();
+            if(successCount > 0) {
+              toast({ title: "AI Allocation Complete", description: `${successCount} out of ${selectedTransactions.length} transactions were confidently allocated.` });
+            } else {
+               toast({ title: "AI Allocation", description: `The AI could not confidently allocate any of the selected transactions.`, variant: 'destructive'});
+            }
+            setSelectedTransactions([]);
+            refetch();
+        } catch (error) {
+            console.error("Error committing AI allocations:", error);
+            toast({ title: "AI Allocation Failed", description: "An error occurred while saving the allocations.", variant: "destructive" });
+        } finally {
+            setIsAiAllocating(false);
+        }
+    };
 
 
     const handleBulkDelete = async () => {
@@ -1097,7 +1153,14 @@ const NewTransactionsTab = React.forwardRef<
                      </DropdownMenu>
 
                      <Button variant="outline" asChild><Link href={`/admin/ai-accountant/${client?.uid}/allocation-rules`}>Allocation Rules</Link></Button>
-                     <Button variant="outline">AI Allocate Selected <Sparkles className="ml-2 h-4 w-4"/></Button>
+                     {activeSubTab === 'expenses' ? (
+                        <Button variant="outline">AI Allocate Selected <Sparkles className="ml-2 h-4 w-4"/></Button>
+                     ) : (
+                        <Button variant="outline" onClick={handleAiIncomeAllocate} disabled={isAiAllocating || selectedTransactions.length === 0}>
+                           {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="ml-2 h-4 w-4"/>}
+                           AI Allocate Selected
+                        </Button>
+                     )}
                 </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -1400,6 +1463,7 @@ ForReviewTab.displayName = 'ForReviewTab';
 export default function BankTransactionsPage() {
     const [client, setClient] = useState<User | null>(null);
     const [customers, setCustomers] = useState<ClientCustomer[]>([]);
+    const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [bankAccounts, setBankAccounts] = useState<ChartOfAccount[]>([]);
     const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -1442,6 +1506,10 @@ export default function BankTransactionsPage() {
             const customersQuery = query(collection(db, `aiAccountantClients/${clientId}/customers`));
             const customersSnapshot = await getDocs(customersQuery);
             setCustomers(customersSnapshot.docs.map(d => ({id: d.id, ...d.data()} as ClientCustomer)));
+
+            const invoicesQuery = query(collection(db, `aiAccountantClients/${clientId}/invoices`));
+            const invoicesSnapshot = await getDocs(invoicesQuery);
+            setInvoices(invoicesSnapshot.docs.map(d => ({id: d.id, ...d.data()} as Invoice)));
 
         } catch (e) {
             toast({ title: 'Error', description: 'Failed to fetch client data.', variant: 'destructive' });
@@ -1610,6 +1678,7 @@ export default function BankTransactionsPage() {
                         ref={newTransactionsTabRef}
                         client={client} 
                         customers={customers}
+                        invoices={invoices}
                         bankAccountId={selectedAccountId} 
                         fetchClientData={fetchClientAndRelatedData}
                     />
@@ -1631,12 +1700,3 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
-
-    
-
-    
-
-
-
-
-
