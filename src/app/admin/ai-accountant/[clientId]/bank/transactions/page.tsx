@@ -1119,17 +1119,6 @@ const NewTransactionsTab = React.forwardRef<
                                 </DropdownMenuSubContent>
                             </DropdownMenuSub>
                             <DropdownMenuSeparator />
-                             <DropdownMenuItem onSelect={() => {
-                                setIsCreateRuleOpen(true);
-                                setRuleDefaultValues({
-                                  description: "",
-                                  keywords: "",
-                                  accountId: "",
-                                  vatType: "standard_rated_purchases",
-                                });
-                            }}>
-                                Create Allocation Rule
-                            </DropdownMenuItem>
                              <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                     <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive" disabled={selectedTransactions.length === 0}>
@@ -1722,8 +1711,8 @@ export default function BankTransactionsPage() {
     return (
         <div className="space-y-4">
             <h1 className="text-2xl font-bold tracking-tight">Banking</h1>
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4 md:gap-8 p-4 bg-card border rounded-lg">
-                <div className="grid gap-2">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4 p-4 bg-card border rounded-lg">
+                <div className="grid gap-2 w-full md:w-auto">
                     <Label htmlFor="bank-account-selector">Bank Account</Label>
                     <div className="flex gap-2">
                         <Select
