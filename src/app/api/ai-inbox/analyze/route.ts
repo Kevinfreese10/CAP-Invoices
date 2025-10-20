@@ -28,8 +28,9 @@ export async function POST(req: Request) {
                     const analysis = await categorizeSupportRequest({ request: requestText, clientName });
                     
                     const updateData: any = {
-                        category: analysis.category,
-                        priority: analysis.priority,
+                        summary: analysis.summary || null,
+                        category: analysis.category || null,
+                        priority: analysis.priority || null,
                         sla: analysis.sla || null,
                         suggestedAction: analysis.suggestedAction || 'none',
                     };

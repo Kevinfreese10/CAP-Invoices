@@ -34,6 +34,7 @@ interface Email {
     category?: 'Account issues' | 'Tax preparation' | 'Service inquiry' | 'Document upload' | 'Other' | 'Spam/Promo';
     priority?: 'High' | 'Medium' | 'Low';
     sla?: 24 | 48 | 72;
+    summary?: string;
     suggestedAction?: 'create_task' | 'draft_reply' | 'archive' | 'none';
 }
 
@@ -291,6 +292,7 @@ export default function AiEmailInboxPage() {
                                                             {email.processedAction && <Badge variant={email.processedAction === 'processed' ? 'success' : 'secondary'}>{getActionIcon(email.processedAction)} {email.processedAction}</Badge>}
                                                         </div>
                                                         <p className="text-sm truncate">{email.subject}</p>
+                                                        {email.summary && <p className="text-xs text-muted-foreground italic truncate">"{email.summary}"</p>}
                                                         <div className="flex items-center gap-2 flex-wrap">
                                                             {email.category && <Badge variant="outline">{email.category}</Badge>}
                                                             {email.priority && <Badge variant={getPriorityVariant(email.priority)}>{email.priority}</Badge>}

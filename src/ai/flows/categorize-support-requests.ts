@@ -19,6 +19,7 @@ const CategorizeSupportRequestInputSchema = z.object({
 export type CategorizeSupportRequestInput = z.infer<typeof CategorizeSupportRequestInputSchema>;
 
 const CategorizeSupportRequestOutputSchema = z.object({
+  summary: z.string().describe("A concise, one-sentence summary of the user's request."),
   category: z
     .enum(['Account issues', 'Tax preparation', 'Service inquiry', 'Document upload', 'Spam/Promo', 'Other'])
     .describe(
@@ -53,9 +54,10 @@ const prompt = ai.definePrompt({
   output: {schema: CategorizeSupportRequestOutputSchema},
   prompt: `You are an expert support agent and task manager for an accounting firm.
 
-  Based on the user's request, you must perform two actions:
-  1. Triage the email by determining the category, priority, and an appropriate SLA.
-  2. Determine if an actionable task can be created from the email and suggest the best next action.
+  Based on the user's request, you must perform three actions:
+  1. Create a one-sentence summary of the email's content.
+  2. Triage the email by determining the category, priority, and an appropriate SLA.
+  3. Determine if an actionable task can be created from the email and suggest the best next action.
 
   **Triage Guidelines:**
   - Categories: 'Account issues', 'Tax preparation', 'Service inquiry', 'Document upload', 'Spam/Promo', 'Other'.
