@@ -171,21 +171,11 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
                     </p>
                 </div>
                 <div 
-                  className="p-2 border-b min-h-24 bg-muted/30"
+                  className="p-2 space-y-2 h-[calc(10*7rem+96px)] overflow-y-auto"
                   onDrop={(e) => handleDrop(e, addDays(new Date(), -1))}
                   onDragOver={handleDragOver}
                 >
-                    <p className="text-xs text-center text-muted-foreground pb-1">Unslotted Overdue</p>
-                    <div className="space-y-1 h-[68px] overflow-y-auto">
-                         {overdueTasks.map(task => <DraggableTask key={task.id} task={task} />)}
-                    </div>
-                </div>
-                 <div className="divide-y">
-                    {hours.map(hour => (
-                        <div key={`overdue-${hour}`} className="h-28 p-2">
-                             <div className="text-xs text-muted-foreground/50">{format(setHours(new Date(), hour), 'ha')}</div>
-                        </div>
-                    ))}
+                    {overdueTasks.map(task => <DraggableTask key={task.id} task={task} />)}
                 </div>
             </div>
           {weekDays.map(day => {
@@ -206,7 +196,7 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
                 </div>
                 <div 
                     data-droptarget="unslotted"
-                    className="p-2 border-b min-h-24 bg-muted/30"
+                    className="p-2 border-b min-h-[96px] bg-muted/30"
                     onDrop={(e) => handleDrop(e, day)}
                     onDragOver={handleDragOver}
                 >
