@@ -19,18 +19,11 @@ import { Order, User, Service, DiscountCode, OrderNote } from '@/lib/types';
 import { getNextOrderId } from '@/lib/sequence';
 import { Separator } from '../ui/separator';
 import Link from 'next/link';
-import { generatePayFastSignature } from '@/app/actions/payfast';
+import { sendEmail } from '@/lib/email';
+import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
+import { render } from '@react-email/components';
 
 const db = getFirestore(firebaseApp);
-
-const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-ZA', {
-      style: 'currency',
-      currency: 'ZAR',
-      minimumFractionDigits: price % 1 === 0 ? 0 : 2,
-      maximumFractionDigits: 2,
-    }).format(price);
-};
 
 const formSchema = z.object({
   name_first: z.string().min(1, 'First name is required.'),
@@ -48,7 +41,6 @@ export default function CheckoutForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; amount: number; percentage: number; } | null>(null);
   const [isVerifyingDiscount, setIsVerifyingDiscount] = useState(false);
-  const [payfastFormData, setPayfastFormData] = useState<{ [key: string]: string } | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -66,19 +58,9 @@ export default function CheckoutForm() {
         form.setValue('name_first', currentUser.name.split(' ')[0] || '');
         form.setValue('name_last', currentUser.name.split(' ').slice(1).join(' ') || '');
         form.setValue('email_address', currentUser.email || '');
+        if(currentUser.contactNumber) form.setValue('cell_number', currentUser.contactNumber);
     }
   }, [currentUser, form]);
-
-   useEffect(() => {
-    if (payfastFormData) {
-      const formElement = document.getElementById('payfast-redirect-form') as HTMLFormElement;
-      if (formElement) {
-        formElement.submit();
-        clearCart();
-      }
-    }
-  }, [payfastFormData, clearCart]);
-
 
   const handleApplyDiscount = async () => {
     const code = form.getValues('discountCode');
@@ -117,8 +99,8 @@ export default function CheckoutForm() {
     }
     setIsLoading(true);
     toast({
-      title: 'Processing Order...',
-      description: 'Please wait while we prepare your payment.',
+      title: 'Placing Your Order...',
+      description: 'Please wait a moment.',
     });
 
     try {
@@ -141,7 +123,7 @@ export default function CheckoutForm() {
         total: finalTotal,
         discountCode: appliedDiscount ? appliedDiscount.code : null,
         discountAmount: appliedDiscount ? appliedDiscount.amount : null,
-        paymentMethod: 'PayFast',
+        paymentMethod: 'EFT',
         status: 'Pending Payment',
         date: Timestamp.now(),
         department: department || null,
@@ -160,20 +142,16 @@ export default function CheckoutForm() {
           });
       }
       
-      const dataForSignature = {
-        merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID,
-        merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY,
-        return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success/${orderId}`,
-        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/cart`,
-        notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
-        email_address: orderData.customerEmail,
-        m_payment_id: orderData.id,
-        amount: orderData.total.toFixed(2),
-        item_name: `Order #${orderData.id}`,
-      };
+      // Send confirmation email with EFT details
+      const emailHtml = render(<OrderConfirmationEmail order={orderData} />);
+      await sendEmail({
+          to: orderData.customerEmail,
+          subject: `Order Confirmation #${orderId}`,
+          html: emailHtml,
+      });
 
-      const signature = await generatePayFastSignature(dataForSignature);
-      setPayfastFormData({ ...dataForSignature, signature });
+      clearCart();
+      router.push(`/order-confirmation/${orderId}`);
 
     } catch (error) {
         console.error("Error creating order: ", error);
@@ -237,20 +215,13 @@ export default function CheckoutForm() {
 
               <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
                   {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  {isLoading ? 'Processing...' : 'Proceed to Payment'}
+                  {isLoading ? 'Processing...' : 'Place Order via EFT'}
               </Button>
 
             </form>
           </Form>
         </CardContent>
       </Card>
-      {payfastFormData && (
-        <form id="payfast-redirect-form" action={process.env.NEXT_PUBLIC_PAYFAST_URL} method="post" style={{ display: 'none' }}>
-            {Object.entries(payfastFormData).map(([key, value]) => (
-                <input key={key} type="hidden" name={key} value={value} />
-            ))}
-        </form>
-      )}
     </>
   );
 }

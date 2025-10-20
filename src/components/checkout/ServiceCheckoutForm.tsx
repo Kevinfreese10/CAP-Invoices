@@ -19,7 +19,9 @@ import { Checkbox } from '../ui/checkbox';
 import { Separator } from '../ui/separator';
 import Link from 'next/link';
 import { getNextOrderId } from '@/lib/sequence';
-import { generatePayFastSignature } from '@/app/actions/payfast';
+import { sendEmail } from '@/lib/email';
+import { render } from '@react-email/components';
+import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 
 
 const db = getFirestore(firebaseApp);
@@ -56,7 +58,6 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
   const [isLoading, setIsLoading] = useState(false);
   const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; amount: number; percentage: number; } | null>(null);
   const [isVerifyingDiscount, setIsVerifyingDiscount] = useState(false);
-  const [payfastFormData, setPayfastFormData] = useState<{ [key: string]: string } | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -80,16 +81,6 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
         form.setValue('email_address', currentUser.email || '');
     }
   }, [currentUser, form]);
-
-  useEffect(() => {
-    if (payfastFormData) {
-      const formElement = document.getElementById('payfast-redirect-form') as HTMLFormElement;
-      if (formElement) {
-        formElement.submit();
-      }
-    }
-  }, [payfastFormData]);
-
 
   const finalTotal = appliedDiscount ? service.price - appliedDiscount.amount : service.price;
   
@@ -125,8 +116,8 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     toast({
-      title: 'Processing Order...',
-      description: 'Please wait while we generate your order.',
+      title: 'Placing Your Order...',
+      description: 'Please wait a moment.',
     });
 
     let userId = currentUser?.uid;
@@ -179,7 +170,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
         total: finalTotal,
         discountCode: appliedDiscount ? appliedDiscount.code : null,
         discountAmount: appliedDiscount ? appliedDiscount.amount : null,
-        paymentMethod: 'PayFast',
+        paymentMethod: 'EFT',
         status: 'Pending Payment',
         date: Timestamp.now(),
         department: department || null,
@@ -197,21 +188,16 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
               orderId: orderId,
           });
       }
-      
-      const dataForSignature = {
-        merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID,
-        merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY,
-        return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success/${orderId}`,
-        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/products/${service.slug}`,
-        notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
-        email_address: orderData.customerEmail,
-        m_payment_id: orderData.id,
-        amount: orderData.total.toFixed(2),
-        item_name: orderData.items[0].title,
-      };
 
-      const signature = await generatePayFastSignature(dataForSignature);
-      setPayfastFormData({ ...dataForSignature, signature });
+      // Send confirmation email with EFT details
+      const emailHtml = render(<OrderConfirmationEmail order={orderData} isNewUser={!currentUser} generatedPassword={!currentUser ? values.password : null} />);
+      await sendEmail({
+          to: orderData.customerEmail,
+          subject: `Order Confirmation #${orderId}`,
+          html: emailHtml,
+      });
+
+      router.push(`/order-confirmation/${orderId}`);
       
     } catch (error) {
         console.error("Error creating order: ", error);
@@ -285,20 +271,12 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
                  
                 <Button type="submit" className="w-full" size="lg" disabled={isLoading || !form.formState.isValid}>
                     {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {isLoading ? 'Processing...' : 'Proceed to Payment'}
+                    {isLoading ? 'Processing...' : 'Place Order via EFT'}
                 </Button>
             </CardFooter>
           </form>
         </Form>
     </Card>
-
-    {payfastFormData && (
-        <form id="payfast-redirect-form" action={process.env.NEXT_PUBLIC_PAYFAST_URL} method="post" style={{ display: 'none' }}>
-            {Object.entries(payfastFormData).map(([key, value]) => (
-                <input key={key} type="hidden" name={key} value={value} />
-            ))}
-        </form>
-    )}
     </>
   );
 }
