@@ -74,19 +74,16 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
     let finalDate: Date;
     
     if (hour !== undefined) {
-        // Dropped into a specific hour slot
         finalDate = setSeconds(setMinutes(setHours(newDate, hour), 0), 0);
     } else if (e.currentTarget.dataset.droptarget === 'unslotted') {
-        // Dropped into the "Unslotted" area for a day
-        finalDate = startOfDay(newDate); // Set time to beginning of the day (00:00)
+        finalDate = startOfDay(newDate); 
     } else {
-        // Default behavior if dropped on a day column but not a specific slot
         const task = tasks.find(t => t.id === taskId);
         if (task) {
             const originalDueDate = getTaskDate(task);
             finalDate = setSeconds(setMinutes(setHours(newDate, getHours(originalDueDate) || 9), 0), 0);
         } else {
-            finalDate = setHours(newDate, 9); // Fallback
+            finalDate = setHours(newDate, 9);
         }
     }
     onTaskUpdate(taskId, { dueDate: finalDate });
@@ -169,7 +166,7 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
                         Overdue
                     </p>
                 </div>
-                <div className="border-b min-h-24 bg-destructive/5" />
+                <div className="border-b h-24 bg-destructive/5" />
                 <div 
                   className="p-2 space-y-2 min-h-[500px]"
                   onDrop={(e) => handleDrop(e, addDays(new Date(), -1))}
@@ -196,7 +193,7 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
                 </div>
                 <div 
                     data-droptarget="unslotted"
-                    className="p-2 border-b min-h-24 bg-muted/30"
+                    className="p-2 border-b h-24 bg-muted/30 overflow-y-auto"
                     onDrop={(e) => handleDrop(e, day)}
                     onDragOver={handleDragOver}
                 >
