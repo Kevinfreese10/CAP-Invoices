@@ -59,7 +59,8 @@ function CustomerLedgerReport({
             return {
                 ...inv,
                 date: inv.invoiceDate.toDate(),
-                description: `Invoice #${inv.id}`,
+                description: `Invoice`,
+                reference: inv.id,
                 debit: inv.total,
                 credit: 0,
                 balance: runningBalance
@@ -76,7 +77,7 @@ function CustomerLedgerReport({
     const handleDownloadExcel = () => {
         const dataToExport = reportData.map(tx => ({
             'Date': format(new Date(tx.date), 'dd/MM/yyyy'),
-            'Reference': tx.id,
+            'Reference': tx.reference,
             'Description': tx.description,
             'Debit': tx.debit,
             'Credit': tx.credit,
@@ -135,7 +136,7 @@ function CustomerLedgerReport({
                         reportData.map((tx, index) => (
                             <TableRow key={index}>
                                 <TableCell>{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
-                                <TableCell>{tx.id}</TableCell>
+                                <TableCell>{tx.reference}</TableCell>
                                 <TableCell>{tx.description}</TableCell>
                                 <TableCell className="text-right font-mono">{formatPrice(tx.debit)}</TableCell>
                                 <TableCell className="text-right font-mono">{formatPrice(tx.credit)}</TableCell>
