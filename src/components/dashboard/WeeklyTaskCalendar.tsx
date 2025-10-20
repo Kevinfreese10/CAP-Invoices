@@ -78,7 +78,7 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
     } else {
         const task = tasks.find(t => t.id === taskId);
         const originalHour = task ? getHours(getTaskDate(task)) : 9;
-        finalDate = setSeconds(setMinutes(setHours(newDate, originalHour), 0);
+        finalDate = setSeconds(setMinutes(setHours(newDate, originalHour), 0), 0);
     }
     onTaskUpdate(taskId, { dueDate: finalDate });
 };
@@ -171,11 +171,14 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
                     </p>
                 </div>
                 <div 
-                  className="p-2 space-y-2 border-b h-24 overflow-y-auto"
+                  className="p-2 border-b min-h-24 bg-muted/30"
                   onDrop={(e) => handleDrop(e, addDays(new Date(), -1))}
                   onDragOver={handleDragOver}
                 >
-                     {overdueTasks.map(task => <DraggableTask key={task.id} task={task} />)}
+                    <p className="text-xs text-center text-muted-foreground pb-1">Unslotted Overdue</p>
+                    <div className="space-y-1 h-[68px] overflow-y-auto">
+                         {overdueTasks.map(task => <DraggableTask key={task.id} task={task} />)}
+                    </div>
                 </div>
                  <div className="divide-y">
                     {hours.map(hour => (
@@ -203,7 +206,7 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
                 </div>
                 <div 
                     data-droptarget="unslotted"
-                    className="p-2 border-b h-24 bg-muted/30"
+                    className="p-2 border-b min-h-24 bg-muted/30"
                     onDrop={(e) => handleDrop(e, day)}
                     onDragOver={handleDragOver}
                 >
@@ -239,5 +242,3 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
     </Card>
   );
 }
-
-    
