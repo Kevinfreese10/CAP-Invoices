@@ -79,7 +79,7 @@ export default function AiEmailInboxPage() {
         fetchEmails();
     }, []);
 
-    const processEmailAction = async (uids: number[], action: 'process' | 'archive' | 'delete') => {
+    const processEmailAction = async (uids: Set<number>, action: 'process' | 'archive' | 'delete') => {
         const emailsToProcess = emails.filter(email => uids.has(email.uid));
         if (emailsToProcess.length === 0) return;
 
@@ -157,8 +157,8 @@ export default function AiEmailInboxPage() {
                 </div>
                 
                 <Card className="h-[calc(100vh-20rem)]">
-                    <div className="grid grid-cols-1 md:grid-cols-3 h-full">
-                        <div className="md:col-span-1 border-r">
+                    <div className="grid grid-cols-1 h-full">
+                        <div className="col-span-1">
                              <CardHeader>
                                 <div className="flex justify-between items-center">
                                     <CardTitle className="capitalize">{activeTab}</CardTitle>
@@ -199,24 +199,20 @@ export default function AiEmailInboxPage() {
                                 )}
                             </ScrollArea>
                         </div>
-                        <div className="md:col-span-2">
-                             {selectedEmail && (
-                                <DialogContent className="sm:max-w-4xl">
-                                    <DialogHeader>
-                                        <DialogTitle>{selectedEmail.subject}</DialogTitle>
-                                        <DialogDescription>From: {selectedEmail.from} on {format(new Date(selectedEmail.date), 'dd MMM yyyy, HH:mm')}</DialogDescription>
-                                    </DialogHeader>
-                                    <div className="max-h-[70vh] overflow-y-auto">
-                                        <div dangerouslySetInnerHTML={{ __html: selectedEmail.body }} className="prose prose-sm max-w-none" />
-                                    </div>
-                                </DialogContent>
-                            )}
-                        </div>
+                        {selectedEmail && (
+                            <DialogContent className="sm:max-w-4xl">
+                                <DialogHeader>
+                                    <DialogTitle>{selectedEmail.subject}</DialogTitle>
+                                    <DialogDescription>From: {selectedEmail.from} on {format(new Date(selectedEmail.date), 'dd MMM yyyy, HH:mm')}</DialogDescription>
+                                </DialogHeader>
+                                <div className="max-h-[70vh] overflow-y-auto">
+                                    <div dangerouslySetInnerHTML={{ __html: selectedEmail.body }} className="prose prose-sm max-w-none" />
+                                </div>
+                            </DialogContent>
+                        )}
                     </div>
                 </Card>
             </div>
         </Dialog>
     );
 }
-
-    

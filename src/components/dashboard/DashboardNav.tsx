@@ -80,7 +80,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const navItems = [
      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['client', 'ai_accountant'] },
      { href: '/dashboard/orders', label: 'My Orders', icon: ShieldCheck, roles: ['client', 'ai_accountant'] },
-     { href: '/dashboard/subscriptions', label: 'Subscriptions', icon: BadgeDollarSign, roles: ['client'] },
+     { href: '/dashboard/subscriptions', label: 'Subscriptions', icon: BadgeDollarSign, roles: ['client', 'ai_accountant'] },
      { href: '/dashboard/profile', label: 'My Profile', icon: User, roles: ['client'] },
   ];
 
@@ -99,13 +99,13 @@ export default function DashboardNav({ user }: { user: UserType }) {
   
   const aiAccountantItems = [
      { href: `${basePath}/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['admin', 'client', 'reseller', 'ai_accountant'] },
-     { href: `${basePath}/ai-accountant/${clientId}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'client'] },
-     { href: `${basePath}/ai-accountant/${clientId}/customers`, label: 'Customers', icon: Users, roles: ['admin', 'client'] },
-     { href: `${basePath}/ai-accountant/${clientId}/invoices`, label: 'Invoices', icon: FileText, roles: ['admin', 'client'] },
-     { href: `${basePath}/ai-accountant/${clientId}/bank/transactions`, label: 'Bank Accounts', icon: Banknote, roles: ['admin', 'client'] },
-     { href: `${basePath}/ai-accountant/${clientId}/chart-of-accounts`, label: 'Chart of Accounts', icon: Book, roles: ['admin', 'client'] },
-     { href: `${basePath}/ai-accountant/${clientId}/journals`, label: 'Journals', icon: BookMarked, roles: ['admin', 'client'] },
-     { href: `${basePath}/ai-accountant/${clientId}/reports`, label: 'Reports', icon: FileSpreadsheet, roles: ['admin', 'client'] },
+     { href: `${basePath}/ai-accountant/${clientId}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'client', 'ai_accountant'] },
+     { href: `${basePath}/ai-accountant/${clientId}/customers`, label: 'Customers', icon: Users, roles: ['admin', 'client', 'ai_accountant'] },
+     { href: `${basePath}/ai-accountant/${clientId}/invoices`, label: 'Invoices', icon: FileText, roles: ['admin', 'client', 'ai_accountant'] },
+     { href: `${basePath}/ai-accountant/${clientId}/bank/transactions`, label: 'Bank Accounts', icon: Banknote, roles: ['admin', 'client', 'ai_accountant'] },
+     { href: `${basePath}/ai-accountant/${clientId}/chart-of-accounts`, label: 'Chart of Accounts', icon: Book, roles: ['admin', 'client', 'ai_accountant'] },
+     { href: `${basePath}/ai-accountant/${clientId}/journals`, label: 'Journals', icon: BookMarked, roles: ['admin', 'client', 'ai_accountant'] },
+     { href: `${basePath}/ai-accountant/${clientId}/reports`, label: 'Reports', icon: FileSpreadsheet, roles: ['admin', 'client', 'ai_accountant'] },
   ];
 
   const capSupplierItems = [
