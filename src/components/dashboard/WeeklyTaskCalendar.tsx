@@ -74,6 +74,15 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
     let finalDate = newDate;
     if (hour !== undefined) {
         finalDate = setSeconds(setMinutes(setHours(newDate, hour), 0), 0);
+    } else {
+        // If dropped on a day column without a specific hour (like the header)
+        // or the overdue column, just update the date part, keep the time.
+        // For overdue, we want to reset it to today at a default time if no hour is given.
+        const task = tasks.find(t => t.id === taskId);
+        if (task) {
+            const originalDueDate = getTaskDate(task);
+            finalDate = setSeconds(setMinutes(setHours(newDate, getHours(originalDueDate) || 9), 0), 0);
+        }
     }
     onTaskUpdate(taskId, { dueDate: finalDate });
   };
