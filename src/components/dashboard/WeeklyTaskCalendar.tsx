@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { Task, User } from '@/lib/types';
-import { format, startOfWeek, addDays, isSameDay, isToday, isPast, eachDayOfInterval } from 'date-fns';
+import { format, startOfWeek, addDays, isSameDay, isToday, isPast, eachDayOfInterval, startOfToday } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, AlertOctagon, Check } from 'lucide-react';
@@ -26,15 +26,14 @@ const getUserColor = (userId: string) => {
 export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTaskUpdate }: { tasks: Task[], allStaff: User[], currentUser: User | null, onTaskUpdate: (taskId: string, status: Task['status']) => void }) {
   const [currentDate, setCurrentDate] = useState(new Date());
 
-  const weekStartsOn = 1; // Monday
-  const start = startOfWeek(currentDate, { weekStartsOn });
-  const end = addDays(start, 6);
+  const start = startOfToday();
+  const end = addDays(start, 2);
   const weekDays = eachDayOfInterval({ start, end });
 
   const getAssignee = (userId: string) => allStaff.find(u => u.id === userId);
 
   const changeWeek = (direction: 'next' | 'prev') => {
-    const amount = direction === 'next' ? 7 : -7;
+    const amount = direction === 'next' ? 3 : -3;
     setCurrentDate(addDays(currentDate, amount));
   };
   
@@ -101,7 +100,7 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
         </div>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-[1fr_repeat(7,_1fr)] border-t border-l">
+        <div className="grid grid-cols-[1fr_repeat(3,_1fr)] border-t border-l">
            <div className="border-r border-b min-h-[200px] bg-destructive/5">
                 <div className="p-2 text-center border-b">
                     <p className="text-sm font-semibold text-destructive flex items-center justify-center gap-2">
