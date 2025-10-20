@@ -14,11 +14,11 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { User } from '@/lib/types';
+import { User, Task } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc, query, where, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { getAuth, createUserWithEmailAndPassword, User as FirebaseUser } from 'firebase/auth';
+import { getAuth, createUserWithEmailAndPassword, User as FirebaseUser, signInWithEmailAndPassword } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
@@ -255,33 +255,41 @@ export default function ManageUsersPage() {
                  return;
             }
             
-            const existingUserQuery = query(collection(db, "users"), where("email", "==", userData.email));
-            const existingUserSnapshot = await getDocs(existingUserQuery);
-            if (!existingUserSnapshot.empty) {
-                toast({
-                    title: 'User Exists',
-                    description: 'A user with this email address already exists in the database.',
-                    variant: 'destructive',
-                });
-                return;
+            let firebaseUser: FirebaseUser;
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, userData.email, password);
+                firebaseUser = userCredential.user;
+            } catch (authError: any) {
+                if (authError.code === 'auth/email-already-in-use') {
+                    // If auth user exists, sign them in to get the UID, then proceed
+                    toast({ title: "Existing Auth User", description: "This email is already registered in Firebase Auth. Linking to new Firestore record." });
+                    const userCredential = await signInWithEmailAndPassword(auth, userData.email, password);
+                    firebaseUser = userCredential.user;
+                } else {
+                    throw authError; // Re-throw other auth errors
+                }
             }
             
-            // 1. Create user in Firebase Auth
-            const userCredential = await createUserWithEmailAndPassword(auth, userData.email, password);
-            const newFirebaseUser = userCredential.user;
+            const authUid = firebaseUser.uid;
+            
+            const newUserDocRef = doc(db, "users", authUid);
+            const userDocSnap = await getDoc(newUserDocRef);
 
-            // 2. Create user document in Firestore with the new UID
-            const newUserDocRef = doc(db, "users", newFirebaseUser.uid);
+            if (userDocSnap.exists()) {
+                toast({ title: 'User Already Exists', description: 'A user with this email already has a profile in the "users" collection.', variant: 'destructive'});
+                if (auth.currentUser) await reauthenticate(auth.currentUser);
+                return;
+            }
+
             await setDoc(newUserDocRef, {
                 ...userData,
-                uid: newFirebaseUser.uid,
-                id: newFirebaseUser.uid,
+                uid: authUid,
+                id: authUid,
                 createdAt: serverTimestamp(),
             });
 
-            // 3. Re-authenticate the admin user to restore their session
             if (auth.currentUser) {
-              await reauthenticate(auth.currentUser);
+                await reauthenticate(auth.currentUser);
             }
             
             toast({ title: 'User Created', description: 'The new user has been added.' });
@@ -292,8 +300,8 @@ export default function ManageUsersPage() {
     } catch (error: any) {
         console.error("Error saving user:", error);
         let description = 'Could not save the user. Please try again.';
-        if (error.code === 'auth/email-already-in-use') {
-            description = 'An account with this email address already exists in Firebase Authentication.';
+        if (error.code === 'auth/wrong-password') {
+            description = 'An auth user exists with this email, but the password provided is incorrect.';
         }
         toast({ title: 'Error', description, variant: 'destructive'});
     }
