@@ -939,6 +939,56 @@ const NewTransactionsTab = React.forwardRef<
         refetch();
     }, [activeSubTab, refetch]);
 
+    const handleAiExpenseAllocate = async () => {
+        if (!client || !client.uid || !client.chartOfAccounts || selectedTransactions.length === 0) return;
+        setIsAiAllocating(true);
+        toast({ title: "AI is allocating...", description: `Processing ${selectedTransactions.length} expense transactions.` });
+        
+        const transactionsToAllocate = transactions.filter(tx => selectedTransactions.includes(tx.id));
+        const chartOfAccountsJson = JSON.stringify(client.chartOfAccounts.map(c => ({ id: c.id, accountNumber: c.accountNumber, description: c.description })));
+
+        const batch = writeBatch(db);
+        let successCount = 0;
+
+        for (const tx of transactionsToAllocate) {
+            try {
+                const result = await suggestTransactionAllocation({
+                    description: tx.description,
+                    chartOfAccounts: chartOfAccountsJson,
+                });
+
+                if (result.accountId && result.confidence > 70) {
+                    const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
+                    batch.update(transactionRef, {
+                        status: 'review',
+                        allocatedTo: { value: result.accountId, type: 'account' },
+                        vatType: result.vatType,
+                        allocatedAt: new Date(),
+                    });
+                    successCount++;
+                }
+            } catch (error) {
+                console.error(`AI allocation failed for tx ${tx.id}:`, error);
+            }
+        }
+        
+        try {
+            if (successCount > 0) {
+                await batch.commit();
+                toast({ title: "AI Allocation Complete", description: `${successCount} out of ${selectedTransactions.length} transactions were confidently allocated for review.` });
+            } else {
+               toast({ title: "AI Allocation", description: `The AI could not confidently allocate any of the selected transactions.`, variant: 'destructive'});
+            }
+            setSelectedTransactions([]);
+            refetch();
+        } catch (error) {
+            console.error("Error committing AI allocations:", error);
+            toast({ title: "AI Allocation Failed", description: "An error occurred while saving the allocations.", variant: "destructive" });
+        } finally {
+            setIsAiAllocating(false);
+        }
+    };
+
     const handleAiIncomeAllocate = async () => {
         if (!client || !client.uid || selectedTransactions.length === 0) return;
         setIsAiAllocating(true);
@@ -1142,10 +1192,13 @@ const NewTransactionsTab = React.forwardRef<
                      </DropdownMenu>
 
                      {activeSubTab === 'expenses' ? (
-                        <Button variant="outline">AI Allocate Selected <Sparkles className="ml-2 h-4 w-4"/></Button>
+                        <Button variant="outline" onClick={handleAiExpenseAllocate} disabled={isAiAllocating || selectedTransactions.length === 0}>
+                           {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}
+                           AI Allocate Selected
+                        </Button>
                      ) : (
                         <Button variant="outline" onClick={handleAiIncomeAllocate} disabled={isAiAllocating || selectedTransactions.length === 0}>
-                           {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="ml-2 h-4 w-4"/>}
+                           {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}
                            AI Allocate Selected
                         </Button>
                      )}
@@ -1340,21 +1393,42 @@ const ForReviewTab = React.forwardRef<
         toast({ title: "Processing...", description: `Updating ${selectedTransactions.length} transactions.` });
 
         const batch = writeBatch(db);
+        const transactionsToUpdate = transactions.filter(t => selectedTransactions.includes(t.id));
         
-        selectedTransactions.forEach(txId => {
-            const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', txId);
+        for(const tx of transactionsToUpdate) {
+            const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
             if (action === 'approve') {
                 batch.update(transactionRef, { status: 'allocated', allocatedAt: new Date() });
+                
+                // Create a rule for this approved transaction if one doesn't already exist for the core keyword
+                const description = tx.description;
+                const coreKeyword = description.split(/\s+/)[0].toLowerCase();
+                
+                const ruleExists = client.allocationRules?.some(rule => rule.keywords.includes(coreKeyword));
+                
+                if (!ruleExists && tx.allocatedTo?.type === 'account') {
+                    const newRule: Partial<AllocationRule> = {
+                        description: `Auto-generated for: ${tx.description}`,
+                        keywords: [coreKeyword],
+                        accountId: tx.allocatedTo.value,
+                        vatType: tx.vatType || 'no_vat',
+                        type: 'soft', // Mark as AI-generated
+                    };
+                    const clientRef = doc(db, 'aiAccountantClients', client.uid);
+                    batch.update(clientRef, { allocationRules: arrayUnion(newRule) });
+                }
+
             } else { // reject
                 batch.update(transactionRef, { status: 'new', allocatedTo: null, vatType: null, allocatedAt: null });
             }
-        });
+        }
         
         try {
             await batch.commit();
             toast({ title: `Transactions ${action === 'approve' ? 'Approved' : 'Rejected'}`, description: `${selectedTransactions.length} transactions have been updated.` });
             setSelectedTransactions([]);
             refetch();
+            fetchClientData(); // Refetch client to get new rules
         } catch (error) {
             console.error(`Error during bulk ${action}:`, error);
             toast({ title: "Action Failed", variant: "destructive" });
