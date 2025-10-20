@@ -15,7 +15,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight, CheckCircle, RotateCcw, Upload, AlertTriangle, Mail } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
-import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, AIAllocationJob } from '@/lib/types';
+import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, AIAllocationJob, ClientCustomer } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove, addDoc, collection, getDocs, query, orderBy, where, writeBatch, onSnapshot, Unsubscribe, Query, DocumentData, QueryDocumentSnapshot, limit, startAfter, QueryConstraint } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -38,11 +38,12 @@ import { extractStatementData } from '@/ai/flows/extract-statement-data';
 import { extractStatementPeriod } from '@/ai/flows/extract-statement-period';
 import { Progress } from '@/components/ui/progress';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
-import { Command, CommandInput, CommandList, CommandEmpty, CommandItem } from '@/components/ui/command';
+import { Command, CommandInput, CommandList, CommandEmpty, CommandItem, CommandGroup } from '@/components/ui/command';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { format, startOfMonth, endOfMonth, eachMonthOfInterval, getYear, getMonth, parseISO, addMonths } from 'date-fns';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { requestMissingStatements } from '@/app/actions';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 
 
 const PAGE_SIZE = 50;
@@ -666,7 +667,7 @@ const editAccountSchema = z.object({
   name: z.string().min(3, "Bank account name is required."),
 });
 
-function EditAccountDialog({ account, client, onAccountUpdated, onOpenChange, open }: { account: ChartOfAccount, client: User, onAccountUpdated: () => void, open: boolean, onOpenChange: (open: boolean) => void }) {
+function EditAccountDialog({ account, client, onAccountUpdated, onOpenChange, open }: { account: ChartOfAccount, client: User | null, onAccountUpdated: () => void, open: boolean, onOpenChange: (open: boolean) => void }) {
     const { toast } = useToast();
     const [isSaving, setIsSaving] = useState(false);
     const form = useForm<z.infer<typeof editAccountSchema>>({
@@ -675,7 +676,7 @@ function EditAccountDialog({ account, client, onAccountUpdated, onOpenChange, op
     });
 
     const handleEditAccount = async (values: z.infer<typeof editAccountSchema>) => {
-        if (!client.uid) return;
+        if (!client || !client.uid) return;
         setIsSaving(true);
         try {
             const updatedAccounts = client.chartOfAccounts?.map(acc =>
@@ -720,7 +721,7 @@ const createAccountSchema = z.object({
   name: z.string().min(3, "Bank account name is required."),
 });
 
-function CreateAccountDialog({ client, onAccountCreated, onOpenChange, open }: { client: User, onAccountCreated: () => void, open: boolean, onOpenChange: (open: boolean) => void }) {
+function CreateAccountDialog({ client, onAccountCreated, onOpenChange, open }: { client: User | null, onAccountCreated: () => void, open: boolean, onOpenChange: (open: boolean) => void }) {
     const { toast } = useToast();
     const [isSaving, setIsSaving] = useState(false);
     const form = useForm<z.infer<typeof createAccountSchema>>({
@@ -729,7 +730,7 @@ function CreateAccountDialog({ client, onAccountCreated, onOpenChange, open }: {
     });
 
     const handleCreateAccount = async (values: z.infer<typeof createAccountSchema>) => {
-        if (!client.uid) return;
+        if (!client || !client.uid) return;
         setIsSaving(true);
         try {
             const existingBankAccounts = client.chartOfAccounts?.filter(
@@ -887,12 +888,12 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
 
 const NewTransactionsTab = React.forwardRef<
     { refetch: () => void },
-    { client: User | null; bankAccountId: string | null; fetchClientData: () => void; }
->(({ client, bankAccountId, fetchClientData }, ref) => {
+    { client: User | null; bankAccountId: string | null; customers: ClientCustomer[]; fetchClientData: () => void; }
+>(({ client, bankAccountId, customers, fetchClientData }, ref) => {
     const { toast } = useToast();
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
-    const [allocations, setAllocations] = useState<{ [txId: string]: { accountId?: string, vatType?: VatType } }>({});
+    const [allocations, setAllocations] = useState<{ [txId: string]: { value: string, type: 'account' | 'customer' | 'supplier', vatType?: VatType } }>({});
     const [searchAccountTerm, setSearchAccountTerm] = useState('');
     const [isCreateRuleOpen, setIsCreateRuleOpen] = useState(false);
     const [ruleDefaultValues, setRuleDefaultValues] = useState<Partial<z.infer<typeof ruleFormSchema>> | undefined>();
@@ -957,7 +958,7 @@ const NewTransactionsTab = React.forwardRef<
         }
     };
 
-    const handleBulkAllocate = async (accountId: string, vatType: VatType) => {
+    const handleBulkAllocate = async (allocation: { value: string, type: 'account' | 'customer' | 'supplier' }, vatType: VatType) => {
         if (!client || !client.uid || selectedTransactions.length === 0) return;
         toast({ title: "Allocating...", description: `Allocating ${selectedTransactions.length} transactions.` });
 
@@ -968,7 +969,7 @@ const NewTransactionsTab = React.forwardRef<
             const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
             batch.update(transactionRef, {
                 status: 'allocated',
-                allocatedTo: { value: accountId, type: 'account' },
+                allocatedTo: allocation,
                 vatType: vatType,
                 allocatedAt: new Date(),
             });
@@ -984,13 +985,21 @@ const NewTransactionsTab = React.forwardRef<
             toast({ title: "Allocation Failed", variant: "destructive" });
         }
     };
-
-    const filteredAccounts = useMemo(() => {
-        if (!client?.chartOfAccounts) return [];
-        return client.chartOfAccounts.filter(acc =>
-            acc.description.toLowerCase().includes(searchAccountTerm.toLowerCase())
-        ).sort((a,b) => a.description.localeCompare(b.description));
-    }, [client?.chartOfAccounts, searchAccountTerm]);
+    
+    const allocationOptions = useMemo(() => {
+        const accounts = client?.chartOfAccounts?.map(acc => ({
+            value: acc.id,
+            label: acc.description,
+            group: 'Accounts',
+        })) || [];
+        const customerOptions = customers.map(cust => ({
+            value: cust.id,
+            label: cust.name,
+            group: 'Customers',
+        }));
+        // Add suppliers here when available
+        return [...accounts, ...customerOptions];
+    }, [client?.chartOfAccounts, customers]);
     
     return (
         <Card>
@@ -1022,24 +1031,33 @@ const NewTransactionsTab = React.forwardRef<
                             <DropdownMenuSub>
                                 <DropdownMenuSubTrigger disabled={selectedTransactions.length === 0}>Allocate Selected</DropdownMenuSubTrigger>
                                 <DropdownMenuSubContent className="p-0">
-                                     <Command>
-                                        <CommandInput placeholder="Search account..." value={searchAccountTerm} onValueChange={setSearchAccountTerm} />
+                                    <Command>
+                                        <CommandInput placeholder="Search..." value={searchAccountTerm} onValueChange={setSearchAccountTerm} />
                                         <CommandList>
-                                             <ScrollArea className="h-72">
-                                                <CommandEmpty>No account found.</CommandEmpty>
-                                                {filteredAccounts.map(acc => (
+                                            <ScrollArea className="h-72">
+                                            <CommandEmpty>No results found.</CommandEmpty>
+                                            <CommandGroup heading="Accounts">
+                                                {client?.chartOfAccounts?.filter(acc => acc.description.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(acc => (
                                                     <DropdownMenuSub key={acc.id}>
                                                         <DropdownMenuSubTrigger>{acc.description}</DropdownMenuSubTrigger>
                                                         <DropdownMenuSubContent>
                                                             {allVatTypes.map(vat => (
-                                                                <DropdownMenuItem key={vat.name} onSelect={() => handleBulkAllocate(acc.id, vat.name)}>
+                                                                <DropdownMenuItem key={vat.name} onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, vat.name)}>
                                                                     {vat.label}
                                                                 </DropdownMenuItem>
                                                             ))}
                                                         </DropdownMenuSubContent>
                                                     </DropdownMenuSub>
                                                 ))}
-                                             </ScrollArea>
+                                            </CommandGroup>
+                                            <CommandGroup heading="Customers">
+                                                 {customers.filter(c => c.name.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(c => (
+                                                     <DropdownMenuItem key={c.id} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')}>
+                                                        {c.name}
+                                                    </DropdownMenuItem>
+                                                 ))}
+                                            </CommandGroup>
+                                            </ScrollArea>
                                         </CommandList>
                                     </Command>
                                 </DropdownMenuSubContent>
@@ -1126,25 +1144,34 @@ const NewTransactionsTab = React.forwardRef<
                                         <TableCell className="whitespace-normal break-words">{tx.description}</TableCell>
                                         <TableCell className="font-mono">{tx.reference}</TableCell>
                                         <TableCell>
-                                            <Select
-                                              value={allocations[tx.id]?.accountId}
-                                              onValueChange={(value) => setAllocations(prev => ({...prev, [tx.id]: {...prev[tx.id], accountId: value}}))}
-                                            >
-                                                <SelectTrigger><SelectValue placeholder="Select account" /></SelectTrigger>
-                                                <SelectContent>
-                                                    {client?.chartOfAccounts?.map(acc => (
-                                                        <SelectItem key={acc.id} value={acc.id}>
-                                                            {acc.description}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <Button variant="outline" className="w-full justify-start text-left font-normal">
+                                                        {allocations[tx.id] ? allocationOptions.find(o => o.value === allocations[tx.id].value)?.label : "Select..."}
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                                    <Command>
+                                                        <CommandInput placeholder="Search..." />
+                                                        <CommandList>
+                                                            <CommandEmpty>No results found.</CommandEmpty>
+                                                            <CommandGroup heading="Customers">
+                                                                {customers.map(c => <CommandItem key={c.id} onSelect={() => setAllocations(prev => ({...prev, [tx.id]: { value: c.id, type: 'customer' }}))}>{c.name}</CommandItem>)}
+                                                            </CommandGroup>
+                                                            <CommandGroup heading="Accounts">
+                                                                {client?.chartOfAccounts?.map(acc => <CommandItem key={acc.id} onSelect={() => setAllocations(prev => ({...prev, [tx.id]: { value: acc.id, type: 'account' }}))}>{acc.description}</CommandItem>)}
+                                                            </CommandGroup>
+                                                        </CommandList>
+                                                    </Command>
+                                                </PopoverContent>
+                                            </Popover>
                                         </TableCell>
                                         {client?.isVatRegistered && (
                                             <TableCell>
                                                 <Select
                                                    value={allocations[tx.id]?.vatType}
                                                    onValueChange={(value) => setAllocations(prev => ({...prev, [tx.id]: {...prev[tx.id], vatType: value as VatType}}))}
+                                                   disabled={allocations[tx.id]?.type === 'customer'}
                                                 >
                                                     <SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger>
                                                     <SelectContent>
@@ -1372,6 +1399,7 @@ ForReviewTab.displayName = 'ForReviewTab';
 
 export default function BankTransactionsPage() {
     const [client, setClient] = useState<User | null>(null);
+    const [customers, setCustomers] = useState<ClientCustomer[]>([]);
     const [bankAccounts, setBankAccounts] = useState<ChartOfAccount[]>([]);
     const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -1385,12 +1413,13 @@ export default function BankTransactionsPage() {
     const forReviewTabRef = useRef<{ refetch: () => void }>(null);
     const [allTransactions, setAllTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
     
-    const fetchClientAndRules = useCallback(async () => {
+    const fetchClientAndRelatedData = useCallback(async () => {
         if (!clientId) return;
         setIsLoading(true);
         try {
             const clientRef = doc(db, 'aiAccountantClients', clientId);
             const clientSnap = await getDoc(clientRef);
+            
             if (clientSnap.exists()) {
                 const clientData = { id: clientSnap.id, ...clientSnap.data(), uid: clientSnap.id } as User;
                 setClient(clientData);
@@ -1409,6 +1438,11 @@ export default function BankTransactionsPage() {
             } else {
                 toast({ title: 'Error', description: 'Client not found.', variant: 'destructive' });
             }
+
+            const customersQuery = query(collection(db, `aiAccountantClients/${clientId}/customers`));
+            const customersSnapshot = await getDocs(customersQuery);
+            setCustomers(customersSnapshot.docs.map(d => ({id: d.id, ...d.data()} as ClientCustomer)));
+
         } catch (e) {
             toast({ title: 'Error', description: 'Failed to fetch client data.', variant: 'destructive' });
         } finally {
@@ -1417,8 +1451,8 @@ export default function BankTransactionsPage() {
     }, [clientId, toast, selectedAccountId]);
 
     useEffect(() => {
-        fetchClientAndRules();
-    }, [fetchClientAndRules]);
+        fetchClientAndRelatedData();
+    }, [fetchClientAndRelatedData]);
     
     useEffect(() => {
         if (!clientId) return;
@@ -1477,7 +1511,7 @@ export default function BankTransactionsPage() {
             toast({ title: "Bank Account Deleted", description: `Account and its ${transactionsSnapshot.size} transactions have been permanently removed.`});
             
             setSelectedAccountId(null);
-            fetchClientAndRules();
+            fetchClientAndRelatedData();
 
         } catch (error) {
             console.error("Error deleting bank account:", error);
@@ -1575,8 +1609,9 @@ export default function BankTransactionsPage() {
                    <NewTransactionsTab 
                         ref={newTransactionsTabRef}
                         client={client} 
+                        customers={customers}
                         bankAccountId={selectedAccountId} 
-                        fetchClientData={fetchClientAndRules}
+                        fetchClientData={fetchClientAndRelatedData}
                     />
                 </TabsContent>
                  <TabsContent value="review" className="mt-0">
@@ -1584,15 +1619,15 @@ export default function BankTransactionsPage() {
                         ref={forReviewTabRef}
                         client={client} 
                         bankAccountId={selectedAccountId} 
-                        fetchClientData={fetchClientAndRules}
+                        fetchClientData={fetchClientAndRelatedData}
                     />
                 </TabsContent>
                 <TabsContent value="reviewed">
                     {/* <ReviewedTab client={client} bankAccountId={selectedAccountId} /> */}
                 </TabsContent>
             </Tabs>
-            {client && <CreateAccountDialog client={client} onAccountCreated={fetchClientAndRules} open={isCreateAccountOpen} onOpenChange={setIsCreateAccountOpen}/>}
-            {client && selectedAccount && <EditAccountDialog client={client} account={selectedAccount} onAccountUpdated={fetchClientAndRules} open={isEditAccountOpen} onOpenChange={setIsEditAccountOpen}/>}
+            {client && <CreateAccountDialog client={client} onAccountCreated={fetchClientAndRelatedData} open={isCreateAccountOpen} onOpenChange={setIsCreateAccountOpen}/>}
+            {client && selectedAccount && <EditAccountDialog client={client} account={selectedAccount} onAccountUpdated={fetchClientAndRelatedData} open={isEditAccountOpen} onOpenChange={setIsEditAccountOpen}/>}
         </div>
     );
 }
@@ -1600,6 +1635,7 @@ export default function BankTransactionsPage() {
     
 
     
+
 
 
 
