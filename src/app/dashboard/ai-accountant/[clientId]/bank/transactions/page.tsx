@@ -488,7 +488,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete }: { client: Use
                         if (client?.allocationRules) {
                             for (const tx of transactions) {
                                 const matchedRule = client.allocationRules.find(rule => 
-                                    rule.keywords.some(kw => tx.Description.toLowerCase().includes(kw.toLowerCase()))
+                                    rule.keywords.some(kw => tx.Description.toLowerCase().includes(kw))
                                 );
                                 if (matchedRule) {
                                     ruleAllocationCount++;
@@ -547,7 +547,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete }: { client: Use
                 };
                 
                 const matchedRule = client.allocationRules?.find(rule => 
-                    rule.keywords.some(kw => row.Description.toLowerCase().includes(kw.toLowerCase()))
+                    rule.keywords.some(kw => row.Description.toLowerCase().includes(kw))
                 );
 
                 if (matchedRule) {
@@ -871,8 +871,8 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
 
 const NewTransactionsTab = React.forwardRef<
     { refetch: () => void },
-    { client: User | null; bankAccountId: string | null; customers: ClientCustomer[]; invoices: Invoice[]; fetchClientData: () => void; }
->(({ client, bankAccountId, customers, invoices, fetchClientData }, ref) => {
+    { client: User | null; bankAccountId: string | null; customers: ClientCustomer[]; fetchClientData: () => void; }
+>(({ client, bankAccountId, customers, fetchClientData }, ref) => {
     const { toast } = useToast();
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
@@ -881,6 +881,7 @@ const NewTransactionsTab = React.forwardRef<
     const [isCreateRuleOpen, setIsCreateRuleOpen] = useState(false);
     const [ruleDefaultValues, setRuleDefaultValues] = useState<Partial<z.infer<typeof ruleFormSchema>> | undefined>();
     const [isAiAllocating, setIsAiAllocating] = useState(false);
+    const [isRuleAllocating, setIsRuleAllocating] = useState(false);
     
     const newTransactionsQuery = useMemo(() => {
         if (!client?.uid || !bankAccountId) return null;
@@ -921,6 +922,42 @@ const NewTransactionsTab = React.forwardRef<
         refetch();
     }, [activeSubTab, refetch]);
 
+    const handleAllocateByRules = async () => {
+        if (!client || !client.uid || !client.allocationRules || transactions.length === 0) return;
+        setIsRuleAllocating(true);
+        toast({ title: "Applying Rules...", description: "Allocating transactions based on your rules." });
+
+        const batch = writeBatch(db);
+        let allocatedCount = 0;
+
+        transactions.forEach(tx => {
+            const matchedRule = client.allocationRules?.find(rule => 
+                rule.keywords.some(kw => tx.description.toLowerCase().includes(kw))
+            );
+
+            if (matchedRule) {
+                const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
+                batch.update(transactionRef, {
+                    status: 'review',
+                    allocatedTo: { value: matchedRule.accountId, type: 'account' },
+                    vatType: matchedRule.vatType,
+                    allocatedAt: new Date(),
+                });
+                allocatedCount++;
+            }
+        });
+        
+        if (allocatedCount > 0) {
+            await batch.commit();
+            toast({ title: 'Rules Applied', description: `${allocatedCount} transaction(s) have been allocated for review.` });
+            refetch();
+        } else {
+            toast({ title: 'No Matches Found', description: 'No transactions matched your existing rules.' });
+        }
+        
+        setIsRuleAllocating(false);
+    };
+
     const handleAiExpenseAllocate = async () => {
         if (!client || !client.uid || !client.chartOfAccounts || selectedTransactions.length === 0) return;
         setIsAiAllocating(true);
@@ -949,8 +986,7 @@ const NewTransactionsTab = React.forwardRef<
                         allocatedAt: new Date(),
                     });
                     successCount++;
-                    
-                    const accountName = client.chartOfAccounts.find(a => a.id === result.accountId)?.description || 'Unknown';
+                     const accountName = client.chartOfAccounts.find(a => a.id === result.accountId)?.description || 'Unknown';
                     
                     toast({
                         title: `Allocated ${processedCount} of ${totalToProcess}`,
@@ -986,11 +1022,9 @@ const NewTransactionsTab = React.forwardRef<
     };
 
     const handleAiIncomeAllocate = async () => {
-        if (!client || !client.uid || selectedTransactions.length === 0) return;
-        // This is a placeholder as the income allocation AI flow is not yet defined
+        // Placeholder
         toast({ title: 'Coming Soon', description: 'AI-powered income allocation is not yet available.' });
     };
-
 
     const handleBulkDelete = async () => {
         if (!client || !client.uid || selectedTransactions.length === 0) return;
@@ -1051,7 +1085,6 @@ const NewTransactionsTab = React.forwardRef<
             label: cust.name,
             group: 'Customers',
         }));
-        // Add suppliers here when available
         return [...accounts, ...customerOptions];
     }, [client?.chartOfAccounts, customers]);
     
@@ -1076,7 +1109,7 @@ const NewTransactionsTab = React.forwardRef<
                         <TabsTrigger value="income">Income</TabsTrigger>
                     </TabsList>
                 </Tabs>
-                 <div className="p-4 border-b flex items-center gap-2">
+                 <div className="p-4 border-b flex items-center gap-2 flex-wrap">
                      <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="outline">Actions <MoreHorizontal className="ml-2 h-4 w-4"/></Button>
@@ -1140,10 +1173,16 @@ const NewTransactionsTab = React.forwardRef<
                      </DropdownMenu>
 
                      {activeSubTab === 'expenses' ? (
+                        <>
+                         <Button variant="outline" onClick={handleAllocateByRules} disabled={isRuleAllocating || transactions.length === 0}>
+                            {isRuleAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <BookOpen className="mr-2 h-4 w-4"/>}
+                            Allocate All by Rules
+                        </Button>
                         <Button variant="outline" onClick={handleAiExpenseAllocate} disabled={isAiAllocating || selectedTransactions.length === 0}>
                            {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}
                            AI Allocate Selected
                         </Button>
+                        </>
                      ) : (
                         <Button variant="outline" onClick={handleAiIncomeAllocate} disabled={isAiAllocating || selectedTransactions.length === 0}>
                            {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}
@@ -1349,8 +1388,8 @@ const ForReviewTab = React.forwardRef<
                 batch.update(transactionRef, { status: 'allocated', allocatedAt: new Date() });
                 
                 // Create a rule for this approved transaction if one doesn't already exist for the core keyword
-                const description = tx.description;
-                const coreKeyword = description.split(/\s+/)[0].toLowerCase();
+                const description = tx.description.toLowerCase();
+                const coreKeyword = description.split(/\s+/)[0];
                 
                 const ruleExists = client.allocationRules?.some(rule => rule.keywords.includes(coreKeyword));
                 
@@ -1710,7 +1749,7 @@ export default function BankTransactionsPage() {
             setIsLoading(false);
         }
     };
-
+    
     const handleClearBankTransactions = async () => {
         if (!client || !client.uid || !selectedAccountId) return;
 
@@ -1742,6 +1781,7 @@ export default function BankTransactionsPage() {
         }
     }
 
+
     const handleImportComplete = () => {
         if (newTransactionsTabRef.current) newTransactionsTabRef.current.refetch();
         if (forReviewTabRef.current) forReviewTabRef.current.refetch();
@@ -1751,8 +1791,8 @@ export default function BankTransactionsPage() {
     return (
         <div className="space-y-4">
             <h1 className="text-2xl font-bold tracking-tight">Banking</h1>
-             <div className="flex flex-col md:flex-row items-center justify-between gap-4 p-4 bg-card border rounded-lg">
-                <div className="flex items-center justify-between w-full md:w-auto md:gap-8">
+             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 bg-card border rounded-lg">
+                <div className="flex w-full items-center justify-between md:w-auto md:justify-start md:gap-4">
                     <div className="grid gap-2">
                         <Label htmlFor="bank-account-selector">Bank Account</Label>
                         <div className="flex gap-2">
@@ -1761,7 +1801,7 @@ export default function BankTransactionsPage() {
                                 onValueChange={setSelectedAccountId}
                                 disabled={bankAccounts.length === 0}
                             >
-                                <SelectTrigger id="bank-account-selector" className="w-full md:w-[250px]">
+                                <SelectTrigger id="bank-account-selector" className="w-[200px] sm:w-[250px]">
                                     <SelectValue placeholder={bankAccounts.length > 0 ? "Select a bank account" : "No bank accounts found"} />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1798,7 +1838,7 @@ export default function BankTransactionsPage() {
                                             </AlertDialogFooter>
                                         </AlertDialogContent>
                                     </AlertDialog>
-                                    <AlertDialog>
+                                     <AlertDialog>
                                         <AlertDialogTrigger asChild>
                                             <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive" disabled={!selectedAccount}>
                                                 <Ban className="mr-2 h-4 w-4" />Clear Bank Transactions
@@ -1828,7 +1868,7 @@ export default function BankTransactionsPage() {
                     </div>
                 </div>
 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 sm:gap-4 w-full md:w-auto justify-end">
                     {client && selectedAccountId && <UploadStatementDialog client={client} bankAccountId={selectedAccountId} onImportComplete={handleImportComplete} />}
                     {client && selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={handleImportComplete} />}
                 </div>
