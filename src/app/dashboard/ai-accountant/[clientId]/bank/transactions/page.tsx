@@ -431,7 +431,7 @@ type ParsedTransaction = {
     Amount: number;
 }
 
-function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance }: { client: User | null, bankAccountId: string, onImportComplete: () => void, currentBalance: number }) {
+function ImportDialog({ client, bankAccountId, onImportComplete }: { client: User | null, bankAccountId: string, onImportComplete: () => void }) {
     const [isOpen, setIsOpen] = useState(false);
     const [file, setFile] = useState<File | null>(null);
     const [parsedTransactions, setParsedTransactions] = useState<ParsedTransaction[]>([]);
@@ -488,7 +488,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
                         if (client?.allocationRules) {
                             for (const tx of transactions) {
                                 const matchedRule = client.allocationRules.find(rule => 
-                                    rule.keywords.some(kw => tx.Description.toLowerCase().includes(kw))
+                                    rule.keywords.some(kw => tx.Description.toLowerCase().includes(kw.toLowerCase()))
                                 );
                                 if (matchedRule) {
                                     ruleAllocationCount++;
@@ -594,7 +594,6 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
         return parsedTransactions.reduce((sum, tx) => sum + tx.Amount, 0);
     }, [parsedTransactions]);
 
-    const newBalance = currentBalance + importTotal;
     const totalAutomated = potentialAllocations + potentialAiAllocations;
     const timeSavedMinutes = totalAutomated * 0.5; // Example: 30 seconds per auto-allocation
     const timeSavedHours = Math.ceil(timeSavedMinutes / 60);
@@ -628,22 +627,6 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
                                     </p>
                                 )}
                             </div>
-                            <Card className="bg-muted/50">
-                                <CardContent className="p-4 grid grid-cols-3 gap-4 text-center">
-                                    <div>
-                                        <p className="text-xs text-muted-foreground">Current Balance</p>
-                                        <p className="font-semibold">R {formatPrice(currentBalance)}</p>
-                                    </div>
-                                     <div>
-                                        <p className="text-xs text-muted-foreground">Import Amount</p>
-                                        <p className={cn("font-semibold", importTotal >= 0 ? "text-green-600" : "text-destructive")}>R {formatPrice(importTotal)}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-muted-foreground">New Balance</p>
-                                        <p className="font-semibold">R {formatPrice(newBalance)}</p>
-                                    </div>
-                                </CardContent>
-                            </Card>
                         </div>
                      }
                 </div>
@@ -888,8 +871,8 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
 
 const NewTransactionsTab = React.forwardRef<
     { refetch: () => void },
-    { client: User | null; bankAccountId: string | null; customers: ClientCustomer[]; fetchClientData: () => void; }
->(({ client, bankAccountId, customers, fetchClientData }, ref) => {
+    { client: User | null; bankAccountId: string | null; customers: ClientCustomer[]; invoices: Invoice[]; fetchClientData: () => void; }
+>(({ client, bankAccountId, customers, invoices, fetchClientData }, ref) => {
     const { toast } = useToast();
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
@@ -897,6 +880,7 @@ const NewTransactionsTab = React.forwardRef<
     const [searchAccountTerm, setSearchAccountTerm] = useState('');
     const [isCreateRuleOpen, setIsCreateRuleOpen] = useState(false);
     const [ruleDefaultValues, setRuleDefaultValues] = useState<Partial<z.infer<typeof ruleFormSchema>> | undefined>();
+    const [isAiAllocating, setIsAiAllocating] = useState(false);
     
     const newTransactionsQuery = useMemo(() => {
         if (!client?.uid || !bankAccountId) return null;
@@ -937,6 +921,124 @@ const NewTransactionsTab = React.forwardRef<
         refetch();
     }, [activeSubTab, refetch]);
 
+    const handleAiExpenseAllocate = async () => {
+        if (!client || !client.uid || !client.chartOfAccounts || selectedTransactions.length === 0) return;
+        setIsAiAllocating(true);
+        
+        const transactionsToAllocate = transactions.filter(tx => selectedTransactions.includes(tx.id));
+        const totalToProcess = transactionsToAllocate.length;
+        const chartOfAccountsJson = JSON.stringify(client.chartOfAccounts.map(c => ({ id: c.id, accountNumber: c.accountNumber, description: c.description })));
+        
+        let successCount = 0;
+        let processedCount = 0;
+
+        for (const tx of transactionsToAllocate) {
+            processedCount++;
+            try {
+                const result = await suggestTransactionAllocation({
+                    description: tx.description,
+                    chartOfAccounts: chartOfAccountsJson,
+                });
+
+                if (result.accountId && result.confidence > 70) {
+                    const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
+                    await updateDoc(transactionRef, {
+                        status: 'review',
+                        allocatedTo: { value: result.accountId, type: 'account' },
+                        vatType: result.vatType,
+                        allocatedAt: new Date(),
+                    });
+                    successCount++;
+                    
+                    const accountName = client.chartOfAccounts.find(a => a.id === result.accountId)?.description || 'Unknown';
+                    
+                    toast({
+                        title: `Allocated ${processedCount} of ${totalToProcess}`,
+                        description: (
+                            <div>
+                                <p>Transaction: <span className="font-semibold">{tx.description}</span></p>
+                                <p>Account: <span className="font-semibold">{accountName}</span></p>
+                                <p>VAT Type: <span className="font-semibold">{result.vatType}</span></p>
+                                <p>AI Confidence: <span className="font-semibold">{result.confidence}%</span></p>
+                            </div>
+                        ),
+                        duration: 5000,
+                    });
+                }
+            } catch (error) {
+                console.error(`AI allocation failed for tx ${tx.id}:`, error);
+                 toast({
+                    title: `Processing Failed for Tx ${processedCount}`,
+                    description: 'The AI could not allocate this transaction.',
+                    variant: 'destructive',
+                 });
+            }
+        }
+        
+        toast({
+            title: "AI Allocation Complete",
+            description: `${successCount} out of ${totalToProcess} transactions were confidently allocated for review.`
+        });
+        
+        setSelectedTransactions([]);
+        refetch();
+        setIsAiAllocating(false);
+    };
+
+    const handleAiIncomeAllocate = async () => {
+        if (!client || !client.uid || selectedTransactions.length === 0) return;
+        setIsAiAllocating(true);
+        toast({ title: "AI is allocating...", description: `Processing ${selectedTransactions.length} income transactions.` });
+        
+        const transactionsToAllocate = transactions.filter(tx => selectedTransactions.includes(tx.id));
+        const customersWithInvoices = customers.map(c => ({
+            id: c.id,
+            name: c.name,
+            invoiceNumbers: invoices.filter(inv => inv.customerId === c.id).map(inv => inv.id),
+        }));
+
+        const batch = writeBatch(db);
+        let successCount = 0;
+
+        for (const tx of transactionsToAllocate) {
+            try {
+                const result = await suggestIncomeAllocation({
+                    description: tx.description,
+                    customers: JSON.stringify(customersWithInvoices)
+                });
+
+                if (result.customerId && result.confidence > 70) {
+                    const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
+                    batch.update(transactionRef, {
+                        status: 'review', // Move to review instead of allocated
+                        allocatedTo: { value: result.customerId, type: 'customer' },
+                        vatType: 'no_vat',
+                        allocatedAt: new Date(),
+                    });
+                    successCount++;
+                }
+            } catch (error) {
+                console.error(`AI allocation failed for tx ${tx.id}:`, error);
+            }
+        }
+        
+        try {
+            await batch.commit();
+            if(successCount > 0) {
+              toast({ title: "AI Allocation Complete", description: `${successCount} out of ${selectedTransactions.length} transactions were confidently allocated for review.` });
+            } else {
+               toast({ title: "AI Allocation", description: `The AI could not confidently allocate any of the selected transactions.`, variant: 'destructive'});
+            }
+            setSelectedTransactions([]);
+            refetch();
+        } catch (error) {
+            console.error("Error committing AI allocations:", error);
+            toast({ title: "AI Allocation Failed", description: "An error occurred while saving the allocations.", variant: "destructive" });
+        } finally {
+            setIsAiAllocating(false);
+        }
+    };
+
 
     const handleBulkDelete = async () => {
         if (!client || !client.uid || selectedTransactions.length === 0) return;
@@ -968,7 +1070,7 @@ const NewTransactionsTab = React.forwardRef<
         for (const tx of transactionsToAllocate) {
             const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
             batch.update(transactionRef, {
-                status: 'allocated',
+                status: 'review',
                 allocatedTo: allocation,
                 vatType: vatType,
                 allocatedAt: new Date(),
@@ -977,7 +1079,7 @@ const NewTransactionsTab = React.forwardRef<
 
         try {
             await batch.commit();
-            toast({ title: "Allocation Successful", description: `${selectedTransactions.length} transactions have been allocated.` });
+            toast({ title: "Allocation Successful", description: `${selectedTransactions.length} transactions have been sent for review.` });
             setSelectedTransactions([]);
             refetch();
         } catch (error) {
@@ -1084,6 +1186,18 @@ const NewTransactionsTab = React.forwardRef<
                             </AlertDialog>
                         </DropdownMenuContent>
                      </DropdownMenu>
+
+                     {activeSubTab === 'expenses' ? (
+                        <Button variant="outline" onClick={handleAiExpenseAllocate} disabled={isAiAllocating || selectedTransactions.length === 0}>
+                           {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}
+                           AI Allocate Selected
+                        </Button>
+                     ) : (
+                        <Button variant="outline" onClick={handleAiIncomeAllocate} disabled={isAiAllocating || selectedTransactions.length === 0}>
+                           {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}
+                           AI Allocate Selected
+                        </Button>
+                     )}
                 </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -1225,21 +1339,30 @@ NewTransactionsTab.displayName = 'NewTransactionsTab';
 
 const ForReviewTab = React.forwardRef<
     { refetch: () => void },
-    { client: User | null; bankAccountId: string | null; fetchClientData: () => void; }
->(({ client, bankAccountId, fetchClientData }, ref) => {
+    { client: User | null; bankAccountId: string | null; fetchClientData: () => void; customers: ClientCustomer[] }
+>(({ client, bankAccountId, fetchClientData, customers }, ref) => {
     const { toast } = useToast();
+    const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     
     const reviewTransactionsQuery = useMemo(() => {
         if (!client?.uid || !bankAccountId) return null;
         
-        return query(
-            collection(db, 'aiAccountantClients', client.uid, 'transactions'),
+        let constraints: QueryConstraint[] = [
             where('bankAccountId', '==', bankAccountId),
             where('status', '==', 'review'),
-            orderBy('date', 'desc')
-        );
-    }, [client?.uid, bankAccountId]);
+        ];
+        
+        if (activeSubTab === 'expenses') {
+            constraints.push(where('amount', '<', 0));
+        } else {
+            constraints.push(where('amount', '>=', 0));
+        }
+        
+        constraints.push(orderBy('date', 'desc'));
+        
+        return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
+    }, [client?.uid, bankAccountId, activeSubTab]);
 
     const {
         documents: transactions,
@@ -1256,44 +1379,77 @@ const ForReviewTab = React.forwardRef<
         refetch,
     }));
     
+    useEffect(() => {
+        refetch();
+    }, [activeSubTab, refetch]);
+    
     const handleBulkAction = async (action: 'approve' | 'reject') => {
         if (!client || !client.uid || selectedTransactions.length === 0) return;
 
         toast({ title: "Processing...", description: `Updating ${selectedTransactions.length} transactions.` });
 
         const batch = writeBatch(db);
-        const newStatus = action === 'approve' ? 'allocated' : 'new';
+        const transactionsToUpdate = transactions.filter(t => selectedTransactions.includes(t.id));
         
-        selectedTransactions.forEach(txId => {
-            const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', txId);
+        for(const tx of transactionsToUpdate) {
+            const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
             if (action === 'approve') {
                 batch.update(transactionRef, { status: 'allocated', allocatedAt: new Date() });
+                
+                // Create a rule for this approved transaction if one doesn't already exist for the core keyword
+                const description = tx.description;
+                const coreKeyword = description.split(/\s+/)[0].toLowerCase();
+                
+                const ruleExists = client.allocationRules?.some(rule => rule.keywords.includes(coreKeyword));
+                
+                if (!ruleExists && tx.allocatedTo?.type === 'account') {
+                    const newRule: Partial<AllocationRule> = {
+                        description: `Auto-generated for: ${tx.description}`,
+                        keywords: [coreKeyword],
+                        accountId: tx.allocatedTo.value,
+                        vatType: tx.vatType || 'no_vat',
+                        type: 'soft', // Mark as AI-generated,
+                    };
+                    const clientRef = doc(db, 'aiAccountantClients', client.uid);
+                    batch.update(clientRef, { allocationRules: arrayUnion(newRule) });
+                }
+
             } else { // reject
-                batch.update(transactionRef, { status: 'new', allocatedTo: null, vatType: null });
+                batch.update(transactionRef, { status: 'new', allocatedTo: null, vatType: null, allocatedAt: null });
             }
-        });
+        }
         
         try {
             await batch.commit();
             toast({ title: `Transactions ${action === 'approve' ? 'Approved' : 'Rejected'}`, description: `${selectedTransactions.length} transactions have been updated.` });
             setSelectedTransactions([]);
             refetch();
+            fetchClientData(); // Refetch client to get new rules
         } catch (error) {
             console.error(`Error during bulk ${action}:`, error);
             toast({ title: "Action Failed", variant: "destructive" });
         }
     }
 
-    const getAccountDescription = (accountId?: string) => {
-        if (!client?.chartOfAccounts || !accountId) return 'N/A';
-        return client.chartOfAccounts.find(acc => acc.id === accountId)?.description || 'Unknown Account';
+    const getAllocationDescription = (tx: ImportedTransaction) => {
+        if (!tx.allocatedTo) return 'N/A';
+        if (tx.allocatedTo.type === 'customer') {
+            return customers.find(c => c.id === tx.allocatedTo?.value)?.name || 'Unknown Customer';
+        }
+        return client?.chartOfAccounts?.find(acc => acc.id === tx.allocatedTo?.value)?.description || 'Unknown Account';
     }
 
 
     return (
         <Card>
-            <CardHeader className="p-4 border-b">
-                 <div className="flex items-center gap-2">
+             <CardHeader className="p-0 border-b">
+                 <Tabs value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'expenses' | 'income')} className="w-full">
+                    <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none h-auto">
+                        <TabsTrigger value="expenses">Review Expenses</TabsTrigger>
+                        <TabsTrigger value="income">Review Income</TabsTrigger>
+                    </TabsList>
+                </Tabs>
+                 <div className="p-4 flex items-center gap-2">
                      <Button onClick={() => handleBulkAction('approve')} disabled={selectedTransactions.length === 0}>
                         <CheckCircle className="mr-2 h-4 w-4" />Approve Selected
                      </Button>
@@ -1317,7 +1473,7 @@ const ForReviewTab = React.forwardRef<
                                 </TableCell>
                                 <TableHead>Date</TableHead>
                                 <TableHead>Description</TableHead>
-                                <TableHead>Suggested Account</TableHead>
+                                <TableHead>Suggested Allocation</TableHead>
                                 <TableHead>Suggested VAT</TableHead>
                                 <TableHead className="text-right">Amount</TableHead>
                             </TableRow>
@@ -1342,7 +1498,7 @@ const ForReviewTab = React.forwardRef<
                                         </TableCell>
                                         <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                         <TableCell className="whitespace-normal break-words">{tx.description}</TableCell>
-                                        <TableCell>{getAccountDescription(tx.allocatedTo?.value)}</TableCell>
+                                        <TableCell>{getAllocationDescription(tx)}</TableCell>
                                         <TableCell>{allVatTypes.find(v => v.name === tx.vatType)?.label || 'N/A'}</TableCell>
                                         <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
                                     </TableRow>
@@ -1382,10 +1538,115 @@ const ForReviewTab = React.forwardRef<
 });
 ForReviewTab.displayName = 'ForReviewTab';
 
+const ReviewedTab = React.forwardRef<
+    { refetch: () => void },
+    { client: User | null; bankAccountId: string | null; customers: ClientCustomer[]; }
+>(({ client, bankAccountId, customers }, ref) => {
+    
+    const reviewedTransactionsQuery = useMemo(() => {
+        if (!client?.uid || !bankAccountId) return null;
+        
+        return query(
+            collection(db, 'aiAccountantClients', client.uid, 'transactions'),
+            where('bankAccountId', '==', bankAccountId),
+            where('status', '==', 'allocated'),
+            orderBy('date', 'desc')
+        );
+    }, [client?.uid, bankAccountId]);
+
+    const {
+        documents: transactions,
+        isLoading,
+        goToNextPage,
+        goToPreviousPage,
+        canGoNext,
+        canGoPrev,
+        currentPage,
+        refetch
+    } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: reviewedTransactionsQuery, pageSize: PAGE_SIZE });
+    
+    React.useImperativeHandle(ref, () => ({
+        refetch,
+    }));
+    
+    const getAllocationDescription = (tx: ImportedTransaction) => {
+        if (!tx.allocatedTo) return 'N/A';
+        if (tx.allocatedTo.type === 'customer') {
+            return customers.find(c => c.id === tx.allocatedTo?.value)?.name || 'Unknown Customer';
+        }
+        return client?.chartOfAccounts?.find(acc => acc.id === tx.allocatedTo?.value)?.description || 'Unknown Account';
+    }
+
+
+    return (
+        <Card>
+            <CardContent className="p-0">
+                 <div className="overflow-x-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Description</TableHead>
+                                <TableHead>Allocated To</TableHead>
+                                <TableHead>VAT Type</TableHead>
+                                <TableHead className="text-right">Amount</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {isLoading ? (
+                                <TableRow><TableCell colSpan={5} className="text-center h-24"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
+                            ) : transactions.length === 0 ? (
+                                <TableRow><TableCell colSpan={5} className="text-center h-24 text-muted-foreground">No reviewed transactions found.</TableCell></TableRow>
+                            ) : (
+                                transactions.map(tx => (
+                                    <TableRow key={tx.id}>
+                                        <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
+                                        <TableCell className="whitespace-normal break-words">{tx.description}</TableCell>
+                                        <TableCell>{getAllocationDescription(tx)}</TableCell>
+                                        <TableCell>{allVatTypes.find(v => v.name === tx.vatType)?.label || 'N/A'}</TableCell>
+                                        <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+            </CardContent>
+            <CardFooter className="flex items-center justify-center p-4">
+                <div className="flex items-center space-x-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={goToPreviousPage}
+                        disabled={!canGoPrev || isLoading}
+                    >
+                        <ChevronLeft className="h-4 w-4" />
+                        Previous
+                    </Button>
+                    <span className="text-sm font-medium">
+                        Page {currentPage}
+                    </span>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={goToNextPage}
+                        disabled={!canGoNext || isLoading}
+                    >
+                        Next
+                        <ChevronRight className="h-4 w-4" />
+                    </Button>
+                </div>
+            </CardFooter>
+        </Card>
+    );
+});
+ReviewedTab.displayName = 'ReviewedTab';
+
 
 export default function BankTransactionsPage() {
     const [client, setClient] = useState<User | null>(null);
     const [customers, setCustomers] = useState<ClientCustomer[]>([]);
+    const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [bankAccounts, setBankAccounts] = useState<ChartOfAccount[]>([]);
     const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -1397,6 +1658,7 @@ export default function BankTransactionsPage() {
     const [isEditAccountOpen, setIsEditAccountOpen] = useState(false);
     const newTransactionsTabRef = useRef<{ refetch: () => void }>(null);
     const forReviewTabRef = useRef<{ refetch: () => void }>(null);
+    const reviewedTabRef = useRef<{ refetch: () => void }>(null);
     const [allTransactions, setAllTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
     
     const fetchClientAndRelatedData = useCallback(async () => {
@@ -1429,6 +1691,10 @@ export default function BankTransactionsPage() {
             const customersSnapshot = await getDocs(customersQuery);
             setCustomers(customersSnapshot.docs.map(d => ({id: d.id, ...d.data()} as ClientCustomer)));
 
+            const invoicesQuery = query(collection(db, `aiAccountantClients/${clientId}/invoices`));
+            const invoicesSnapshot = await getDocs(invoicesQuery);
+            setInvoices(invoicesSnapshot.docs.map(d => ({id: d.id, ...d.data()} as Invoice)));
+
         } catch (e) {
             toast({ title: 'Error', description: 'Failed to fetch client data.', variant: 'destructive' });
         } finally {
@@ -1451,22 +1717,9 @@ export default function BankTransactionsPage() {
     }, [clientId]);
 
 
-    const bankBalance = useMemo(() => {
+    const unallocatedCount = useMemo(() => {
         if (!selectedAccountId) return 0;
-        return allTransactions
-            .filter(tx => tx.bankAccountId === selectedAccountId)
-            .reduce((sum, tx) => sum + tx.amount, 0);
-    }, [allTransactions, selectedAccountId]);
-
-    const lastImportDate = useMemo(() => {
-        if (!selectedAccountId) return null;
-        const accountTransactions = allTransactions.filter(tx => tx.bankAccountId === selectedAccountId);
-        if (accountTransactions.length === 0) return null;
-
-        const latestDate = new Date(
-            Math.max(...accountTransactions.map(tx => new Date(tx.date).getTime()))
-        );
-        return latestDate;
+        return allTransactions.filter(tx => tx.bankAccountId === selectedAccountId && tx.status === 'new').length;
     }, [allTransactions, selectedAccountId]);
     
     const selectedAccount = useMemo(() => {
@@ -1506,72 +1759,126 @@ export default function BankTransactionsPage() {
         }
     };
 
+    const handleClearBankTransactions = async () => {
+        if (!client || !client.uid || !selectedAccountId) return;
+
+        toast({ title: "Clearing Transactions...", description: "This may take a moment."});
+        
+        try {
+            const batch = writeBatch(db);
+            const transactionsQuery = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), where('bankAccountId', '==', selectedAccountId));
+            const transactionsSnapshot = await getDocs(transactionsQuery);
+            
+            if (transactionsSnapshot.empty) {
+                toast({ title: "No Transactions Found", description: "There are no transactions to clear for this account."});
+                return;
+            }
+
+            transactionsSnapshot.forEach(doc => {
+                batch.delete(doc.ref);
+            });
+
+            await batch.commit();
+            toast({ title: "Transactions Cleared", description: `Successfully deleted ${transactionsSnapshot.size} transaction(s).` });
+            
+            // Refetch all data to update UI correctly
+            handleImportComplete();
+
+        } catch(error) {
+            console.error("Error clearing transactions:", error);
+            toast({ title: "Error", description: "Could not clear transactions.", variant: "destructive"});
+        }
+    }
+
     const handleImportComplete = () => {
-        if (newTransactionsTabRef.current) {
-            newTransactionsTabRef.current.refetch();
-        }
-        if (forReviewTabRef.current) {
-            forReviewTabRef.current.refetch();
-        }
+        if (newTransactionsTabRef.current) newTransactionsTabRef.current.refetch();
+        if (forReviewTabRef.current) forReviewTabRef.current.refetch();
+        if (reviewedTabRef.current) reviewedTabRef.current.refetch();
     }
     
     return (
         <div className="space-y-4">
             <h1 className="text-2xl font-bold tracking-tight">Banking</h1>
             <div className="flex flex-col md:flex-row items-center justify-between gap-4 p-4 bg-card border rounded-lg">
-                <div className="grid gap-2 w-full md:w-auto">
-                    <Label htmlFor="bank-account-selector">Bank Account</Label>
-                    <div className="flex gap-2">
-                        <Select
-                            value={selectedAccountId || ''}
-                            onValueChange={setSelectedAccountId}
-                            disabled={bankAccounts.length === 0}
-                        >
-                            <SelectTrigger id="bank-account-selector" className="w-full md:w-[250px]">
-                                <SelectValue placeholder={bankAccounts.length > 0 ? "Select a bank account" : "No bank accounts found"} />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {bankAccounts.map(account => (
-                                    <SelectItem key={account.id} value={account.id}>
-                                        {account.description}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="icon"><Settings className="h-4 w-4" /></Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent>
-                                <DropdownMenuItem onSelect={() => setIsCreateAccountOpen(true)}><PlusCircle className="mr-2 h-4 w-4"/>Create New Account</DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onSelect={() => setIsEditAccountOpen(true)} disabled={!selectedAccount}><Edit className="mr-2 h-4 w-4"/>Edit Selected Account</DropdownMenuItem>
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive" disabled={!selectedAccount}>
-                                            <Trash2 className="mr-2 h-4 w-4"/>Delete Selected Account
-                                        </DropdownMenuItem>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                            <AlertDialogDescription>This will permanently delete the account "{selectedAccount?.description}" and ALL of its associated transactions. This action cannot be undone.</AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={handleDeleteBankAccount}>Yes, Delete Everything</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                <div className="flex items-center justify-between w-full">
+                    <div className="grid gap-2">
+                        <Label htmlFor="bank-account-selector">Bank Account</Label>
+                        <div className="flex gap-2">
+                            <Select
+                                value={selectedAccountId || ''}
+                                onValueChange={setSelectedAccountId}
+                                disabled={bankAccounts.length === 0}
+                            >
+                                <SelectTrigger id="bank-account-selector" className="w-full md:w-[250px]">
+                                    <SelectValue placeholder={bankAccounts.length > 0 ? "Select a bank account" : "No bank accounts found"} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {bankAccounts.map(account => (
+                                        <SelectItem key={account.id} value={account.id}>
+                                            {account.description}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" size="icon"><Settings className="h-4 w-4" /></Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent>
+                                    <DropdownMenuItem onSelect={() => setIsCreateAccountOpen(true)}><PlusCircle className="mr-2 h-4 w-4"/>Create New Account</DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onSelect={() => setIsEditAccountOpen(true)} disabled={!selectedAccount}><Edit className="mr-2 h-4 w-4"/>Edit Selected Account</DropdownMenuItem>
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive" disabled={!selectedAccount}>
+                                                <Trash2 className="mr-2 h-4 w-4"/>Delete Selected Account
+                                            </DropdownMenuItem>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                <AlertDialogDescription>This will permanently delete the account "{selectedAccount?.description}" and ALL of its associated transactions. This action cannot be undone.</AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction onClick={handleDeleteBankAccount}>Yes, Delete Everything</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive" disabled={!selectedAccount}>
+                                                <Ban className="mr-2 h-4 w-4" />Clear Bank Transactions
+                                            </DropdownMenuItem>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Clear All Transactions?</AlertDialogTitle>
+                                                <AlertDialogDescription>This will permanently delete ALL transactions associated with the account "{selectedAccount?.description}". The account itself will not be deleted. This action cannot be undone.</AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction onClick={handleClearBankTransactions}>Yes, Clear All Transactions</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
+                    </div>
+                     <div className="text-center">
+                        <p className="text-xs text-muted-foreground">Unallocated</p>
+                        <p className="text-lg font-semibold flex items-center gap-2 justify-center">
+                            {unallocatedCount > 0 && <AlertTriangle className="h-4 w-4 text-destructive" />}
+                            {unallocatedCount}
+                        </p>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-4">
                     {client && selectedAccountId && <UploadStatementDialog client={client} bankAccountId={selectedAccountId} onImportComplete={handleImportComplete} />}
-                    {client && selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={handleImportComplete} currentBalance={bankBalance} />}
+                    {client && selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={handleImportComplete} />}
                 </div>
             </div>
 
@@ -1586,6 +1893,7 @@ export default function BankTransactionsPage() {
                         ref={newTransactionsTabRef}
                         client={client} 
                         customers={customers}
+                        invoices={invoices}
                         bankAccountId={selectedAccountId} 
                         fetchClientData={fetchClientAndRelatedData}
                     />
@@ -1595,11 +1903,17 @@ export default function BankTransactionsPage() {
                         ref={forReviewTabRef}
                         client={client} 
                         bankAccountId={selectedAccountId} 
+                        customers={customers}
                         fetchClientData={fetchClientAndRelatedData}
                     />
                 </TabsContent>
-                <TabsContent value="reviewed">
-                    {/* <ReviewedTab client={client} bankAccountId={selectedAccountId} /> */}
+                <TabsContent value="reviewed" className="mt-0">
+                    <ReviewedTab 
+                        ref={reviewedTabRef}
+                        client={client} 
+                        bankAccountId={selectedAccountId} 
+                        customers={customers}
+                    />
                 </TabsContent>
             </Tabs>
             {client && <CreateAccountDialog client={client} onAccountCreated={fetchClientAndRelatedData} open={isCreateAccountOpen} onOpenChange={setIsCreateAccountOpen}/>}
@@ -1607,15 +1921,3 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
-
-    
-
-    
-
-
-
-
-
-
-
-

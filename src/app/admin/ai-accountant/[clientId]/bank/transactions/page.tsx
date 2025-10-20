@@ -432,7 +432,7 @@ type ParsedTransaction = {
     Amount: number;
 }
 
-function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance }: { client: User | null, bankAccountId: string, onImportComplete: () => void, currentBalance: number }) {
+function ImportDialog({ client, bankAccountId, onImportComplete }: { client: User | null, bankAccountId: string, onImportComplete: () => void }) {
     const [isOpen, setIsOpen] = useState(false);
     const [file, setFile] = useState<File | null>(null);
     const [parsedTransactions, setParsedTransactions] = useState<ParsedTransaction[]>([]);
@@ -489,7 +489,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
                         if (client?.allocationRules) {
                             for (const tx of transactions) {
                                 const matchedRule = client.allocationRules.find(rule => 
-                                    rule.keywords.some(kw => tx.Description.toLowerCase().includes(kw))
+                                    rule.keywords.some(kw => tx.Description.toLowerCase().includes(kw.toLowerCase()))
                                 );
                                 if (matchedRule) {
                                     ruleAllocationCount++;
@@ -595,7 +595,6 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
         return parsedTransactions.reduce((sum, tx) => sum + tx.Amount, 0);
     }, [parsedTransactions]);
 
-    const newBalance = currentBalance + importTotal;
     const totalAutomated = potentialAllocations + potentialAiAllocations;
     const timeSavedMinutes = totalAutomated * 0.5; // Example: 30 seconds per auto-allocation
     const timeSavedHours = Math.ceil(timeSavedMinutes / 60);
@@ -629,22 +628,6 @@ function ImportDialog({ client, bankAccountId, onImportComplete, currentBalance 
                                     </p>
                                 )}
                             </div>
-                            <Card className="bg-muted/50">
-                                <CardContent className="p-4 grid grid-cols-3 gap-4 text-center">
-                                    <div>
-                                        <p className="text-xs text-muted-foreground">Current Balance</p>
-                                        <p className="font-semibold">R {formatPrice(currentBalance)}</p>
-                                    </div>
-                                     <div>
-                                        <p className="text-xs text-muted-foreground">Import Amount</p>
-                                        <p className={cn("font-semibold", importTotal >= 0 ? "text-green-600" : "text-destructive")}>R {formatPrice(importTotal)}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-muted-foreground">New Balance</p>
-                                        <p className="font-semibold">R {formatPrice(newBalance)}</p>
-                                    </div>
-                                </CardContent>
-                            </Card>
                         </div>
                      }
                 </div>
@@ -1742,15 +1725,9 @@ export default function BankTransactionsPage() {
             .reduce((sum, tx) => sum + tx.amount, 0);
     }, [allTransactions, selectedAccountId]);
 
-    const lastImportDate = useMemo(() => {
-        if (!selectedAccountId) return null;
-        const accountTransactions = allTransactions.filter(tx => tx.bankAccountId === selectedAccountId);
-        if (accountTransactions.length === 0) return null;
-
-        const latestDate = new Date(
-            Math.max(...accountTransactions.map(tx => new Date(tx.date).getTime()))
-        );
-        return latestDate;
+    const unallocatedCount = useMemo(() => {
+        if (!selectedAccountId) return 0;
+        return allTransactions.filter(tx => tx.bankAccountId === selectedAccountId && tx.status === 'new').length;
     }, [allTransactions, selectedAccountId]);
     
     const selectedAccount = useMemo(() => {
@@ -1789,6 +1766,38 @@ export default function BankTransactionsPage() {
             setIsLoading(false);
         }
     };
+    
+    const handleClearBankTransactions = async () => {
+        if (!client || !client.uid || !selectedAccountId) return;
+
+        toast({ title: "Clearing Transactions...", description: "This may take a moment."});
+        
+        try {
+            const batch = writeBatch(db);
+            const transactionsQuery = query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), where('bankAccountId', '==', selectedAccountId));
+            const transactionsSnapshot = await getDocs(transactionsQuery);
+            
+            if (transactionsSnapshot.empty) {
+                toast({ title: "No Transactions Found", description: "There are no transactions to clear for this account."});
+                return;
+            }
+
+            transactionsSnapshot.forEach(doc => {
+                batch.delete(doc.ref);
+            });
+
+            await batch.commit();
+            toast({ title: "Transactions Cleared", description: `Successfully deleted ${transactionsSnapshot.size} transaction(s).` });
+            
+            // Refetch all data to update UI correctly
+            handleImportComplete();
+
+        } catch(error) {
+            console.error("Error clearing transactions:", error);
+            toast({ title: "Error", description: "Could not clear transactions.", variant: "destructive"});
+        }
+    }
+
 
     const handleImportComplete = () => {
         if (newTransactionsTabRef.current) newTransactionsTabRef.current.refetch();
@@ -1800,59 +1809,85 @@ export default function BankTransactionsPage() {
         <div className="space-y-4">
             <h1 className="text-2xl font-bold tracking-tight">Banking</h1>
             <div className="flex flex-col md:flex-row items-center justify-between gap-4 p-4 bg-card border rounded-lg">
-                <div className="grid gap-2 w-full md:w-auto">
-                    <Label htmlFor="bank-account-selector">Bank Account</Label>
-                    <div className="flex gap-2">
-                        <Select
-                            value={selectedAccountId || ''}
-                            onValueChange={setSelectedAccountId}
-                            disabled={bankAccounts.length === 0}
-                        >
-                            <SelectTrigger id="bank-account-selector" className="w-full md:w-[250px]">
-                                <SelectValue placeholder={bankAccounts.length > 0 ? "Select a bank account" : "No bank accounts found"} />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {bankAccounts.map(account => (
-                                    <SelectItem key={account.id} value={account.id}>
-                                        {account.description}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="icon"><Settings className="h-4 w-4" /></Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent>
-                                <DropdownMenuItem onSelect={() => setIsCreateAccountOpen(true)}><PlusCircle className="mr-2 h-4 w-4"/>Create New Account</DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onSelect={() => setIsEditAccountOpen(true)} disabled={!selectedAccount}><Edit className="mr-2 h-4 w-4"/>Edit Selected Account</DropdownMenuItem>
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive" disabled={!selectedAccount}>
-                                            <Trash2 className="mr-2 h-4 w-4"/>Delete Selected Account
-                                        </DropdownMenuItem>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                            <AlertDialogDescription>This will permanently delete the account "{selectedAccount?.description}" and ALL of its associated transactions. This action cannot be undone.</AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={handleDeleteBankAccount}>Yes, Delete Everything</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                <div className="flex items-center justify-between w-full">
+                    <div className="grid gap-2">
+                        <Label htmlFor="bank-account-selector">Bank Account</Label>
+                        <div className="flex gap-2">
+                            <Select
+                                value={selectedAccountId || ''}
+                                onValueChange={setSelectedAccountId}
+                                disabled={bankAccounts.length === 0}
+                            >
+                                <SelectTrigger id="bank-account-selector" className="w-full md:w-[250px]">
+                                    <SelectValue placeholder={bankAccounts.length > 0 ? "Select a bank account" : "No bank accounts found"} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {bankAccounts.map(account => (
+                                        <SelectItem key={account.id} value={account.id}>
+                                            {account.description}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" size="icon"><Settings className="h-4 w-4" /></Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent>
+                                    <DropdownMenuItem onSelect={() => setIsCreateAccountOpen(true)}><PlusCircle className="mr-2 h-4 w-4"/>Create New Account</DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onSelect={() => setIsEditAccountOpen(true)} disabled={!selectedAccount}><Edit className="mr-2 h-4 w-4"/>Edit Selected Account</DropdownMenuItem>
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive" disabled={!selectedAccount}>
+                                                <Trash2 className="mr-2 h-4 w-4"/>Delete Selected Account
+                                            </DropdownMenuItem>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                <AlertDialogDescription>This will permanently delete the account "{selectedAccount?.description}" and ALL of its associated transactions. This action cannot be undone.</AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction onClick={handleDeleteBankAccount}>Yes, Delete Everything</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                     <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive" disabled={!selectedAccount}>
+                                                <Ban className="mr-2 h-4 w-4" />Clear Bank Transactions
+                                            </DropdownMenuItem>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Clear All Transactions?</AlertDialogTitle>
+                                                <AlertDialogDescription>This will permanently delete ALL transactions associated with the account "{selectedAccount?.description}". The account itself will not be deleted. This action cannot be undone.</AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction onClick={handleClearBankTransactions}>Yes, Clear All Transactions</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
+                    </div>
+                     <div className="text-center">
+                        <p className="text-xs text-muted-foreground">Unallocated</p>
+                        <p className="text-lg font-semibold flex items-center gap-2 justify-center">
+                            {unallocatedCount > 0 && <AlertTriangle className="h-4 w-4 text-destructive" />}
+                            {unallocatedCount}
+                        </p>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-4">
                     {client && selectedAccountId && <UploadStatementDialog client={client} bankAccountId={selectedAccountId} onImportComplete={handleImportComplete} />}
-                    {client && selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={handleImportComplete} currentBalance={bankBalance} />}
+                    {client && selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={handleImportComplete} />}
                 </div>
             </div>
 
@@ -1895,4 +1930,3 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
-
