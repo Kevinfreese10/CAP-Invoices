@@ -60,7 +60,7 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
   
   const overdueTasks = userTasks.filter(task => {
     const dueDate = getTaskDate(task);
-    return isPast(dueDate) && !isToday(dueDate) && task.status !== 'Done';
+    return isPast(dueDate) && !isSameDay(dueDate, new Date()) && task.status !== 'Done';
   });
 
 

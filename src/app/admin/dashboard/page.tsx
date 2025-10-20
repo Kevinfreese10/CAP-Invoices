@@ -9,7 +9,7 @@ import { format, isPast, addDays, isWithinInterval, startOfToday, addMonths, add
 import { Task, User, TaskComment } from '@/lib/types';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { MessageSquare, PlusCircle, MoreHorizontal, CalendarIcon, Loader2, Repeat, BrainCircuit, Check, Tag } from 'lucide-react';
+import { MessageSquare, PlusCircle, MoreHorizontal, CalendarIcon, Loader2, Repeat, BrainCircuit, Check, Tag, Eye } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -33,6 +33,7 @@ import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import NewTaskEmail from '@/components/emails/NewTaskEmail';
 import WeeklyTaskCalendar from '@/components/dashboard/WeeklyTaskCalendar';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const db = getFirestore(firebaseApp);
 
@@ -320,6 +321,48 @@ function TaskForm({ task, onSubmit, onCancel, onCommentSubmit, allStaff, staffBy
     )
 }
 
+const TaskViewDialog = ({ task, allStaff, open, onOpenChange }: { task: Task | null; allStaff: User[]; open: boolean; onOpenChange: (open: boolean) => void }) => {
+    const getAuthor = (authorId: string): User | undefined => {
+        return allStaff.find(u => u.id === authorId);
+    }
+    if (!task) return null;
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                    <DialogTitle>{task.title}</DialogTitle>
+                    <DialogDescription>Due: {format(getTaskDate(task), 'dd MMMM yyyy')}</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+                    <div className="space-y-2">
+                        <h4 className="font-semibold text-sm">Description</h4>
+                        <p className="text-sm text-muted-foreground p-3 bg-muted rounded-md">{task.description}</p>
+                    </div>
+                     <div className="space-y-2">
+                        <h4 className="font-semibold text-sm">Comments</h4>
+                         <div className="space-y-3">
+                            {task.comments && task.comments.length > 0 ? task.comments.slice().reverse().map((comment, index) => {
+                                const author = getAuthor(comment.authorId);
+                                const date = comment.date?.toDate ? comment.date.toDate() : new Date(comment.date);
+                                return (
+                                <div key={index} className="flex items-start gap-3">
+                                    <div className="bg-muted p-3 rounded-lg w-full">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <p className="text-xs font-semibold">{author?.name}</p>
+                                            <p className="text-xs text-muted-foreground">{format(date, 'dd/MM/yyyy, HH:mm')}</p>
+                                        </div>
+                                        <p className="text-sm">{comment.text}</p>
+                                    </div>
+                                </div>
+                            )}) : <p className="text-xs text-muted-foreground text-center py-4">No comments posted yet.</p>}
+                        </div>
+                    </div>
+                </div>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 const userColors = [
   'bg-red-200 text-red-800',
   'bg-blue-200 text-blue-800',
@@ -349,7 +392,7 @@ const getTaskDate = (task: Task): Date => {
   return new Date(task.dueDate);
 }
 
-const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete, allStaff, currentUser, onFilter, taskTypes }: { tasks: Task[], title: string, description: string, onEdit: (task: Task) => void, onUpdateStatus: (taskId: string, updates: Partial<Task>) => void, onDelete: (taskId: string) => void, allStaff: User[], currentUser: User | null, onFilter?: (filter: string) => void, taskTypes?: string[] }) => {
+const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete, allStaff, currentUser, onFilter, taskTypes, onView }: { tasks: Task[], title: string, description: string, onEdit: (task: Task) => void, onView: (task: Task) => void, onUpdateStatus: (taskId: string, updates: Partial<Task>) => void, onDelete: (taskId: string) => void, allStaff: User[], currentUser: User | null, onFilter?: (filter: string) => void, taskTypes?: string[] }) => {
     const getAssignee = (userId?: string): User | undefined => {
         if (!userId) return undefined;
         return allStaff.find(u => u.id === userId);
@@ -529,8 +572,11 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                     <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                    <DropdownMenuItem onClick={() => onView(task)}>
+                                        <Eye className="mr-2 h-4 w-4" /> View Details
+                                    </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => onEdit(task)}>
-                                        Edit / View Comments
+                                        Edit / Comment
                                     </DropdownMenuItem>
                                     <DropdownMenuSub>
                                         <DropdownMenuSubTrigger>Change Status</DropdownMenuSubTrigger>
@@ -584,7 +630,9 @@ export default function AdminDashboardPage() {
     const [allStaff, setAllStaff] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isFormOpen, setIsFormOpen] = useState(false);
+    const [isViewOpen, setIsViewOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+    const [viewingTask, setViewingTask] = useState<Task | null>(null);
     const [automatedTaskFilter, setAutomatedTaskFilter] = useState('all');
     const [upcomingAutomatedTaskFilter, setUpcomingAutomatedTaskFilter] = useState('all');
     const { toast } = useToast();
@@ -721,6 +769,11 @@ export default function AdminDashboardPage() {
         setSelectedTask(task);
         setIsFormOpen(true);
     };
+
+    const handleView = (task: Task) => {
+        setViewingTask(task);
+        setIsViewOpen(true);
+    }
     
     const handleDelete = async (taskId: string) => {
         try {
@@ -907,6 +960,13 @@ export default function AdminDashboardPage() {
         }
     }
 
+    const handleViewOpenChange = (open: boolean) => {
+        setIsViewOpen(open);
+        if(!open) {
+            setViewingTask(null);
+        }
+    }
+
     return (
         <div className="space-y-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -943,6 +1003,8 @@ export default function AdminDashboardPage() {
             </div>
             
              <Separator />
+            
+             <TaskViewDialog task={viewingTask} allStaff={allStaff} open={isViewOpen} onOpenChange={handleViewOpenChange} />
 
             <div className="space-y-8">
                 {isLoading ? (
@@ -958,6 +1020,7 @@ export default function AdminDashboardPage() {
                             title="My Tasks" 
                             description="All tasks assigned directly to you."
                             onEdit={handleEdit}
+                            onView={handleView}
                             onUpdateStatus={(taskId, updates) => handleUpdate(taskId, updates)}
                             onDelete={handleDelete}
                             allStaff={allStaff}
@@ -969,6 +1032,7 @@ export default function AdminDashboardPage() {
                             title="Upcoming Automated Tasks" 
                             description="Automated tasks that are due within the next 30 days."
                             onEdit={handleEdit}
+                            onView={handleView}
                             onUpdateStatus={(taskId, updates) => handleUpdate(taskId, updates)}
                             onDelete={handleDelete}
                             allStaff={allStaff}
@@ -982,6 +1046,7 @@ export default function AdminDashboardPage() {
                             title="Delegated Tasks" 
                             description="Tasks you have created and assigned to other team members."
                             onEdit={handleEdit}
+                            onView={handleView}
                             onUpdateStatus={(taskId, updates) => handleUpdate(taskId, updates)}
                             onDelete={handleDelete}
                             allStaff={allStaff}
@@ -993,6 +1058,7 @@ export default function AdminDashboardPage() {
                             title="My Tagged Tasks" 
                             description="Tasks where you have been tagged for visibility, but not directly assigned."
                             onEdit={handleEdit}
+                            onView={handleView}
                             onUpdateStatus={(taskId, updates) => handleUpdate(taskId, updates)}
                             onDelete={handleDelete}
                             allStaff={allStaff}
@@ -1004,6 +1070,7 @@ export default function AdminDashboardPage() {
                             title="Completed Tasks" 
                             description="Tasks assigned to or created by you that have been marked as 'Done'."
                             onEdit={handleEdit}
+                            onView={handleView}
                             onUpdateStatus={(taskId, updates) => handleUpdate(taskId, updates)}
                             onDelete={handleDelete}
                             allStaff={allStaff}
@@ -1017,6 +1084,7 @@ export default function AdminDashboardPage() {
                                 title={`${user?.department} Department Tasks`} 
                                 description={`All automated tasks generated for clients.`}
                                 onEdit={handleEdit}
+                                onView={handleView}
                                 onUpdateStatus={(taskId, updates) => handleUpdate(taskId, updates)}
                                 onDelete={handleDelete}
                                 allStaff={allStaff}
@@ -1030,6 +1098,7 @@ export default function AdminDashboardPage() {
                                 title="Automated Client Tasks"
                                 description="Recurring tasks generated from the client automation system."
                                 onEdit={handleEdit}
+                                onView={handleView}
                                 onUpdateStatus={(taskId, updates) => handleUpdate(taskId, updates)}
                                 onDelete={handleDelete}
                                 allStaff={allStaff}
@@ -1044,7 +1113,3 @@ export default function AdminDashboardPage() {
         </div>
     );
 }
-    
-
-    
-    
