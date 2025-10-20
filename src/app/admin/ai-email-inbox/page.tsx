@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -62,7 +61,7 @@ export default function AiEmailInboxPage() {
     const [activeTab, setActiveTab] = useState<'inbox' | 'archive'>('inbox');
     const { toast } = useToast();
 
-    const fetchEmails = useCallback(async ({ sync = false, selectFirst = false }: { sync?: boolean, selectFirst?: boolean }) => {
+    const fetchEmails = useCallback(async ({ sync = false, selectFirst = false }: { sync?: boolean, selectFirst?: boolean } = {}) => {
         setIsLoading(true);
         setError(null);
         try {
@@ -88,7 +87,7 @@ export default function AiEmailInboxPage() {
 
     useEffect(() => {
         fetchEmails({ selectFirst: true });
-    }, []);
+    }, [fetchEmails]);
     
     useEffect(() => {
         // Reset draft when selected email changes
@@ -264,7 +263,7 @@ export default function AiEmailInboxPage() {
                                 Analyze {selectedUids.size > 0 ? `(${selectedUids.size})` : ''}
                             </Button>
                              <div className="flex items-center space-x-2">
-                                <Checkbox id="select-all" onCheckedChange={handleSelectAll} checked={currentList.length > 0 && selectedUids.size === currentList.length}/>
+                                <Checkbox id="select-all" onCheckedChange={(checked) => handleSelectAll(!!checked)} checked={currentList.length > 0 && selectedUids.size === currentList.length}/>
                                 <label htmlFor="select-all" className="text-sm font-medium">Select All</label>
                             </div>
                          </div>
@@ -282,54 +281,58 @@ export default function AiEmailInboxPage() {
                                 ) : currentList.length === 0 ? (
                                     <div className="p-4 text-center text-muted-foreground"><Inbox className="mx-auto h-12 w-12" /><p className="mt-4">This folder is empty.</p></div>
                                 ) : (
-                                    currentList.map((email) => (
-                                        <div key={email.uid} className={`flex items-start gap-4 p-4 text-left border-b hover:bg-muted/50`}>
-                                            <Checkbox onCheckedChange={(checked) => handleSelectOne(email.uid, !!checked)} checked={selectedUids.has(email.uid)} onClick={(e) => e.stopPropagation()} className="mt-1"/>
-                                            <div className="flex-grow space-y-1">
-                                                <div className="flex justify-between items-start">
-                                                    <div className="space-y-1">
-                                                        <p className="font-semibold truncate">{email.from}</p>
-                                                        <p className="text-sm font-semibold truncate">{email.subject}</p>
+                                    <div className="divide-y">
+                                        {currentList.map((email) => (
+                                            <div key={email.uid} className={cn("flex items-start gap-4 p-4 text-left cursor-pointer", selectedEmail?.uid === email.uid && 'bg-muted')}>
+                                                <Checkbox onCheckedChange={(checked) => handleSelectOne(email.uid, !!checked)} checked={selectedUids.has(email.uid)} onClick={(e) => e.stopPropagation()} className="mt-1"/>
+                                                <div className="flex-grow space-y-1" onClick={() => setSelectedEmail(email)}>
+                                                    <div className="flex justify-between items-start">
+                                                        <div>
+                                                            <p className="font-semibold truncate">{email.from}</p>
+                                                            <p className="text-sm font-semibold truncate">{email.subject}</p>
+                                                        </div>
+                                                        <div className="text-right flex-shrink-0 ml-4">
+                                                            <p className="text-xs text-muted-foreground">{format(new Date(email.date), 'dd MMM, HH:mm')}</p>
+                                                             <div className="flex justify-end gap-1 mt-1">
+                                                                {email.processedAction && <Badge variant={email.processedAction === 'processed' ? 'success' : 'secondary'}>{getActionIcon(email.processedAction)} {email.processedAction}</Badge>}
+                                                                {email.category && <Badge variant="outline">{email.category}</Badge>}
+                                                                {email.priority && <Badge variant={getPriorityVariant(email.priority)}>{email.priority}</Badge>}
+                                                                {email.sla && <Badge variant="outline">{email.sla}hr SLA</Badge>}
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                    <div className="text-right flex-shrink-0">
-                                                        <p className="text-xs text-muted-foreground">{format(new Date(email.date), 'dd MMM, HH:mm')}</p>
-                                                        {email.processedAction && <Badge variant={email.processedAction === 'processed' ? 'success' : 'secondary'}>{getActionIcon(email.processedAction)} {email.processedAction}</Badge>}
+                                                    
+                                                    {email.summary && <p className="text-xs text-muted-foreground italic truncate">"{email.summary}"</p>}
+                                                    
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        {email.attachments.length > 0 && <div className="flex items-center gap-1 text-xs text-primary"><Paperclip className="h-3 w-3" /><span>{email.attachments.length} attachment(s)</span></div>}
                                                     </div>
                                                 </div>
-                                                
-                                                {email.summary && <p className="text-xs text-muted-foreground italic truncate">"{email.summary}"</p>}
-                                                
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    {email.category && <Badge variant="outline">{email.category}</Badge>}
-                                                    {email.priority && <Badge variant={getPriorityVariant(email.priority)}>{email.priority}</Badge>}
-                                                    {email.sla && <Badge variant="outline">{email.sla}hr SLA</Badge>}
-                                                    {email.attachments.length > 0 && <div className="flex items-center gap-1 text-xs text-primary"><Paperclip className="h-3 w-3" /><span>{email.attachments.length} attachment(s)</span></div>}
+                                                <div className="flex flex-col items-end gap-2">
+                                                    <DialogTrigger asChild>
+                                                        <Button variant="ghost" size="sm" onClick={() => setSelectedEmail(email)}>
+                                                            <Eye className="mr-2 h-4 w-4"/> View
+                                                        </Button>
+                                                    </DialogTrigger>
+                                                    {email.suggestedAction && email.suggestedAction !== 'none' && (
+                                                        <>
+                                                            {email.suggestedAction === 'create_task' && (
+                                                                <Button size="sm" variant="secondary" onClick={() => handleCreateTaskFromEmail(email)}><FilePlus className="mr-2 h-4 w-4"/>Create Task</Button>
+                                                            )}
+                                                            {email.suggestedAction === 'draft_reply' && (
+                                                                <DialogTrigger asChild>
+                                                                    <Button size="sm" variant="secondary" onClick={() => handleDraftReply(email)}><Reply className="mr-2 h-4 w-4"/>Draft Reply</Button>
+                                                                </DialogTrigger>
+                                                            )}
+                                                            {email.suggestedAction === 'archive' && (
+                                                                <Button size="sm" variant="secondary" onClick={() => processEmailAction(new Set([email.uid]), 'archive')}><Archive className="mr-2 h-4 w-4"/>Archive</Button>
+                                                            )}
+                                                        </>
+                                                    )}
                                                 </div>
                                             </div>
-                                             <div className="flex flex-col items-end gap-2">
-                                                <DialogTrigger asChild>
-                                                    <Button variant="ghost" size="sm" onClick={() => setSelectedEmail(email)}>
-                                                        <Eye className="mr-2 h-4 w-4"/> View
-                                                    </Button>
-                                                </DialogTrigger>
-                                                 {email.suggestedAction && email.suggestedAction !== 'none' && (
-                                                    <>
-                                                        {email.suggestedAction === 'create_task' && (
-                                                            <Button size="sm" variant="secondary" onClick={() => handleCreateTaskFromEmail(email)}><FilePlus className="mr-2 h-4 w-4"/>Create Task</Button>
-                                                        )}
-                                                        {email.suggestedAction === 'draft_reply' && (
-                                                            <DialogTrigger asChild>
-                                                                <Button size="sm" variant="secondary" onClick={() => handleDraftReply(email)}><Reply className="mr-2 h-4 w-4"/>Draft Reply</Button>
-                                                            </DialogTrigger>
-                                                        )}
-                                                        {email.suggestedAction === 'archive' && (
-                                                            <Button size="sm" variant="secondary" onClick={() => processEmailAction(new Set([email.uid]), 'archive')}><Archive className="mr-2 h-4 w-4"/>Archive</Button>
-                                                        )}
-                                                     </>
-                                                )}
-                                             </div>
-                                        </div>
-                                    ))
+                                        ))}
+                                    </div>
                                 )}
                             </ScrollArea>
                         </div>
@@ -368,5 +371,3 @@ export default function AiEmailInboxPage() {
         </Dialog>
     );
 }
-
-    
