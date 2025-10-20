@@ -29,6 +29,7 @@ export async function GET() {
     // 2. Connect to IMAP and fetch UIDs of all emails on the server
     const connection = await imaps.connect(config);
     await connection.openBox('INBOX');
+    // Fetch all messages, not just unseen ones
     const serverMessages = await connection.search(['ALL'], { bodies: ['HEADER'], markSeen: false });
     const serverUids = new Set(serverMessages.map(m => m.attributes.uid));
     

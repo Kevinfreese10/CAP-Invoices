@@ -226,8 +226,8 @@ export default function AIEmailInboxPage() {
     }
 
     return (
-        <div className="space-y-8">
-            <Dialog>
+        <Dialog>
+            <div className="space-y-8">
                 <div className="flex items-center justify-between">
                     <h1 className="text-3xl font-bold tracking-tight">AI Email Inbox</h1>
                     <Button onClick={fetchEmailsAndStaff} variant="outline" disabled={isLoading}>
@@ -347,9 +347,7 @@ export default function AIEmailInboxPage() {
                         </div>
                     )}
                 </DialogContent>
-            </Dialog>
-        </div>
+            </div>
+        </Dialog>
     );
 }
-
-    
