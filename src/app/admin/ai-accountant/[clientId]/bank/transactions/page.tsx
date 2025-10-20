@@ -964,7 +964,7 @@ const NewTransactionsTab = React.forwardRef<
                 if (result.customerId && result.confidence > 70) {
                     const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
                     batch.update(transactionRef, {
-                        status: 'allocated',
+                        status: 'review', // Move to review instead of allocated
                         allocatedTo: { value: result.customerId, type: 'customer' },
                         vatType: 'no_vat',
                         allocatedAt: new Date(),
@@ -979,7 +979,7 @@ const NewTransactionsTab = React.forwardRef<
         try {
             await batch.commit();
             if(successCount > 0) {
-              toast({ title: "AI Allocation Complete", description: `${successCount} out of ${selectedTransactions.length} transactions were confidently allocated.` });
+              toast({ title: "AI Allocation Complete", description: `${successCount} out of ${selectedTransactions.length} transactions were confidently allocated for review.` });
             } else {
                toast({ title: "AI Allocation", description: `The AI could not confidently allocate any of the selected transactions.`, variant: 'destructive'});
             }
@@ -1302,21 +1302,30 @@ NewTransactionsTab.displayName = 'NewTransactionsTab';
 
 const ForReviewTab = React.forwardRef<
     { refetch: () => void },
-    { client: User | null; bankAccountId: string | null; fetchClientData: () => void; }
->(({ client, bankAccountId, fetchClientData }, ref) => {
+    { client: User | null; bankAccountId: string | null; fetchClientData: () => void; customers: ClientCustomer[] }
+>(({ client, bankAccountId, fetchClientData, customers }, ref) => {
     const { toast } = useToast();
+    const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
     
     const reviewTransactionsQuery = useMemo(() => {
         if (!client?.uid || !bankAccountId) return null;
         
-        return query(
-            collection(db, 'aiAccountantClients', client.uid, 'transactions'),
+        let constraints: QueryConstraint[] = [
             where('bankAccountId', '==', bankAccountId),
             where('status', '==', 'review'),
-            orderBy('date', 'desc')
-        );
-    }, [client?.uid, bankAccountId]);
+        ];
+        
+        if (activeSubTab === 'expenses') {
+            constraints.push(where('amount', '<', 0));
+        } else {
+            constraints.push(where('amount', '>=', 0));
+        }
+        
+        constraints.push(orderBy('date', 'desc'));
+        
+        return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
+    }, [client?.uid, bankAccountId, activeSubTab]);
 
     const {
         documents: transactions,
@@ -1333,20 +1342,23 @@ const ForReviewTab = React.forwardRef<
         refetch,
     }));
     
+    useEffect(() => {
+        refetch();
+    }, [activeSubTab, refetch]);
+    
     const handleBulkAction = async (action: 'approve' | 'reject') => {
         if (!client || !client.uid || selectedTransactions.length === 0) return;
 
         toast({ title: "Processing...", description: `Updating ${selectedTransactions.length} transactions.` });
 
         const batch = writeBatch(db);
-        const newStatus = action === 'approve' ? 'allocated' : 'new';
         
         selectedTransactions.forEach(txId => {
             const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', txId);
             if (action === 'approve') {
                 batch.update(transactionRef, { status: 'allocated', allocatedAt: new Date() });
             } else { // reject
-                batch.update(transactionRef, { status: 'new', allocatedTo: null, vatType: null });
+                batch.update(transactionRef, { status: 'new', allocatedTo: null, vatType: null, allocatedAt: null });
             }
         });
         
@@ -1361,16 +1373,25 @@ const ForReviewTab = React.forwardRef<
         }
     }
 
-    const getAccountDescription = (accountId?: string) => {
-        if (!client?.chartOfAccounts || !accountId) return 'N/A';
-        return client.chartOfAccounts.find(acc => acc.id === accountId)?.description || 'Unknown Account';
+    const getAllocationDescription = (tx: ImportedTransaction) => {
+        if (!tx.allocatedTo) return 'N/A';
+        if (tx.allocatedTo.type === 'customer') {
+            return customers.find(c => c.id === tx.allocatedTo?.value)?.name || 'Unknown Customer';
+        }
+        return client?.chartOfAccounts?.find(acc => acc.id === tx.allocatedTo?.value)?.description || 'Unknown Account';
     }
 
 
     return (
         <Card>
-            <CardHeader className="p-4 border-b">
-                 <div className="flex items-center gap-2">
+             <CardHeader className="p-0 border-b">
+                 <Tabs value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'expenses' | 'income')} className="w-full">
+                    <TabsList className="grid w-full grid-cols-2 rounded-t-lg rounded-b-none h-auto">
+                        <TabsTrigger value="expenses">Review Expenses</TabsTrigger>
+                        <TabsTrigger value="income">Review Income</TabsTrigger>
+                    </TabsList>
+                </Tabs>
+                 <div className="p-4 flex items-center gap-2">
                      <Button onClick={() => handleBulkAction('approve')} disabled={selectedTransactions.length === 0}>
                         <CheckCircle className="mr-2 h-4 w-4" />Approve Selected
                      </Button>
@@ -1394,7 +1415,7 @@ const ForReviewTab = React.forwardRef<
                                 </TableCell>
                                 <TableHead>Date</TableHead>
                                 <TableHead>Description</TableHead>
-                                <TableHead>Suggested Account</TableHead>
+                                <TableHead>Suggested Allocation</TableHead>
                                 <TableHead>Suggested VAT</TableHead>
                                 <TableHead className="text-right">Amount</TableHead>
                             </TableRow>
@@ -1419,7 +1440,7 @@ const ForReviewTab = React.forwardRef<
                                         </TableCell>
                                         <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
                                         <TableCell className="whitespace-normal break-words">{tx.description}</TableCell>
-                                        <TableCell>{getAccountDescription(tx.allocatedTo?.value)}</TableCell>
+                                        <TableCell>{getAllocationDescription(tx)}</TableCell>
                                         <TableCell>{allVatTypes.find(v => v.name === tx.vatType)?.label || 'N/A'}</TableCell>
                                         <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
                                     </TableRow>
@@ -1459,6 +1480,110 @@ const ForReviewTab = React.forwardRef<
 });
 ForReviewTab.displayName = 'ForReviewTab';
 
+const ReviewedTab = React.forwardRef<
+    { refetch: () => void },
+    { client: User | null; bankAccountId: string | null; customers: ClientCustomer[]; }
+>(({ client, bankAccountId, customers }, ref) => {
+    
+    const reviewedTransactionsQuery = useMemo(() => {
+        if (!client?.uid || !bankAccountId) return null;
+        
+        return query(
+            collection(db, 'aiAccountantClients', client.uid, 'transactions'),
+            where('bankAccountId', '==', bankAccountId),
+            where('status', '==', 'allocated'),
+            orderBy('date', 'desc')
+        );
+    }, [client?.uid, bankAccountId]);
+
+    const {
+        documents: transactions,
+        isLoading,
+        goToNextPage,
+        goToPreviousPage,
+        canGoNext,
+        canGoPrev,
+        currentPage,
+        refetch
+    } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: reviewedTransactionsQuery, pageSize: PAGE_SIZE });
+    
+    React.useImperativeHandle(ref, () => ({
+        refetch,
+    }));
+    
+    const getAllocationDescription = (tx: ImportedTransaction) => {
+        if (!tx.allocatedTo) return 'N/A';
+        if (tx.allocatedTo.type === 'customer') {
+            return customers.find(c => c.id === tx.allocatedTo?.value)?.name || 'Unknown Customer';
+        }
+        return client?.chartOfAccounts?.find(acc => acc.id === tx.allocatedTo?.value)?.description || 'Unknown Account';
+    }
+
+
+    return (
+        <Card>
+            <CardContent className="p-0">
+                 <div className="overflow-x-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Description</TableHead>
+                                <TableHead>Allocated To</TableHead>
+                                <TableHead>VAT Type</TableHead>
+                                <TableHead className="text-right">Amount</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {isLoading ? (
+                                <TableRow><TableCell colSpan={5} className="text-center h-24"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
+                            ) : transactions.length === 0 ? (
+                                <TableRow><TableCell colSpan={5} className="text-center h-24 text-muted-foreground">No reviewed transactions found.</TableCell></TableRow>
+                            ) : (
+                                transactions.map(tx => (
+                                    <TableRow key={tx.id}>
+                                        <TableCell>{new Date(tx.date).toLocaleDateString('en-GB')}</TableCell>
+                                        <TableCell className="whitespace-normal break-words">{tx.description}</TableCell>
+                                        <TableCell>{getAllocationDescription(tx)}</TableCell>
+                                        <TableCell>{allVatTypes.find(v => v.name === tx.vatType)?.label || 'N/A'}</TableCell>
+                                        <TableCell className="text-right font-mono">{formatPrice(tx.amount)}</TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+            </CardContent>
+            <CardFooter className="flex items-center justify-center p-4">
+                <div className="flex items-center space-x-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={goToPreviousPage}
+                        disabled={!canGoPrev || isLoading}
+                    >
+                        <ChevronLeft className="h-4 w-4" />
+                        Previous
+                    </Button>
+                    <span className="text-sm font-medium">
+                        Page {currentPage}
+                    </span>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={goToNextPage}
+                        disabled={!canGoNext || isLoading}
+                    >
+                        Next
+                        <ChevronRight className="h-4 w-4" />
+                    </Button>
+                </div>
+            </CardFooter>
+        </Card>
+    );
+});
+ReviewedTab.displayName = 'ReviewedTab';
+
 
 export default function BankTransactionsPage() {
     const [client, setClient] = useState<User | null>(null);
@@ -1475,6 +1600,7 @@ export default function BankTransactionsPage() {
     const [isEditAccountOpen, setIsEditAccountOpen] = useState(false);
     const newTransactionsTabRef = useRef<{ refetch: () => void }>(null);
     const forReviewTabRef = useRef<{ refetch: () => void }>(null);
+    const reviewedTabRef = useRef<{ refetch: () => void }>(null);
     const [allTransactions, setAllTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
     
     const fetchClientAndRelatedData = useCallback(async () => {
@@ -1589,12 +1715,9 @@ export default function BankTransactionsPage() {
     };
 
     const handleImportComplete = () => {
-        if (newTransactionsTabRef.current) {
-            newTransactionsTabRef.current.refetch();
-        }
-        if (forReviewTabRef.current) {
-            forReviewTabRef.current.refetch();
-        }
+        if (newTransactionsTabRef.current) newTransactionsTabRef.current.refetch();
+        if (forReviewTabRef.current) forReviewTabRef.current.refetch();
+        if (reviewedTabRef.current) reviewedTabRef.current.refetch();
     }
     
     return (
@@ -1688,11 +1811,17 @@ export default function BankTransactionsPage() {
                         ref={forReviewTabRef}
                         client={client} 
                         bankAccountId={selectedAccountId} 
+                        customers={customers}
                         fetchClientData={fetchClientAndRelatedData}
                     />
                 </TabsContent>
-                <TabsContent value="reviewed">
-                    {/* <ReviewedTab client={client} bankAccountId={selectedAccountId} /> */}
+                <TabsContent value="reviewed" className="mt-0">
+                    <ReviewedTab 
+                        ref={reviewedTabRef}
+                        client={client} 
+                        bankAccountId={selectedAccountId} 
+                        customers={customers}
+                    />
                 </TabsContent>
             </Tabs>
             {client && <CreateAccountDialog client={client} onAccountCreated={fetchClientAndRelatedData} open={isCreateAccountOpen} onOpenChange={setIsCreateAccountOpen}/>}
@@ -1700,3 +1829,4 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
+
