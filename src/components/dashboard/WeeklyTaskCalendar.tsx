@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { Task, User } from '@/lib/types';
-import { format, startOfWeek, addDays, isSameDay, isToday, isPast, eachDayOfInterval, startOfToday } from 'date-fns';
+import { format, startOfWeek, addDays, isSameDay, isToday, isPast, eachDayOfInterval, startOfToday, setHours, setMinutes, setSeconds, getHours } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, AlertOctagon, Check } from 'lucide-react';
@@ -23,7 +23,9 @@ const getUserColor = (userId: string) => {
   return userColors[hash % userColors.length];
 };
 
-export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTaskUpdate }: { tasks: Task[], allStaff: User[], currentUser: User | null, onTaskUpdate: (taskId: string, status: Task['status']) => void }) {
+const hours = Array.from({ length: 10 }, (_, i) => i + 8); // 8 AM to 5 PM
+
+export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTaskUpdate }: { tasks: Task[], allStaff: User[], currentUser: User | null, onTaskUpdate: (taskId: string, updates: Partial<Task>) => void }) {
   const [currentDate, setCurrentDate] = useState(new Date());
 
   const start = startOfToday();
@@ -66,23 +68,68 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
     e.dataTransfer.setData("taskId", taskId);
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>, newDate: Date) => {
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>, newDate: Date, hour?: number) => {
     e.preventDefault();
     const taskId = e.dataTransfer.getData("taskId");
-    onTaskUpdate(taskId, 'To-Do'); // Also reset status to To-Do when dragging
-    onTaskUpdate(taskId, 'To-Do'); // Also reset status to To-Do when dragging, and update date separately
-    // The parent's `handleUpdate` will handle the date change.
-    // This is a bit of a workaround because the `onTaskUpdate` expects a status.
-    // A better approach would be a more flexible onTaskUpdate function.
-    const taskToUpdate = tasks.find(t => t.id === taskId);
-    if(taskToUpdate) {
-        onTaskUpdate(taskId, taskToUpdate.status);
+    let finalDate = newDate;
+    if (hour !== undefined) {
+        finalDate = setSeconds(setMinutes(setHours(newDate, hour), 0), 0);
     }
+    onTaskUpdate(taskId, { dueDate: finalDate });
   };
   
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
   };
+  
+  const DraggableTask = ({ task }: { task: Task }) => {
+    const assignees = Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo];
+    return (
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <div 
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, task.id)}
+                        className="p-2 bg-background rounded-lg border text-left space-y-1 cursor-grab group relative"
+                    >
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => onTaskUpdate(task.id, { status: 'Done'})}
+                        >
+                            <Check className="h-4 w-4 text-green-500" />
+                        </Button>
+                        <div className="flex justify-between items-start">
+                            <p className="text-xs font-semibold leading-tight line-clamp-2">{task.title}</p>
+                        </div>
+                        {task.orderId && <Link href={`/admin/orders/${task.orderId}`} className="text-xs text-blue-600 hover:underline">Order #{task.orderId}</Link>}
+                         <div className="flex items-center pt-1">
+                            {assignees.slice(0, 2).map(userId => {
+                                const assignee = getAssignee(userId);
+                                if (!assignee) return null;
+                                return (
+                                    <span key={userId} className={cn("h-5 w-5 -ml-1 border-2 border-background rounded-full flex items-center justify-center text-[10px] font-bold", getUserColor(assignee.id))}>
+                                        {assignee.name.charAt(0)}
+                                    </span>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </TooltipTrigger>
+                 <TooltipContent side="bottom" align="start">
+                    <div className="max-w-xs space-y-2">
+                        <p className="font-bold">{task.title}</p>
+                        <p className="text-xs text-muted-foreground">{task.description}</p>
+                        <Separator />
+                        <p className="text-xs"><span className="font-semibold">Assignees:</span> {assignees.map(id => getAssignee(id)?.name).join(', ')}</p>
+                    </div>
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+    )
+  }
 
   return (
     <Card>
@@ -99,127 +146,50 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
             </div>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-[1fr_repeat(3,_1fr)] border-t border-l">
-           <div className="border-r border-b min-h-[200px] bg-destructive/5">
-                <div className="p-2 text-center border-b">
+      <CardContent className="overflow-x-auto">
+        <div className="grid grid-cols-[1fr_repeat(3,_2fr)] border-t border-l min-w-[800px]">
+           <div className="border-r border-b bg-destructive/5">
+                <div className="p-2 text-center border-b h-16 flex flex-col justify-center">
                     <p className="text-sm font-semibold text-destructive flex items-center justify-center gap-2">
                         <AlertOctagon className="h-4 w-4"/>
                         Overdue
                     </p>
                 </div>
                 <div 
-                  className="p-2 space-y-2"
+                  className="p-2 space-y-2 min-h-[500px]"
                   onDrop={(e) => handleDrop(e, addDays(new Date(), -1))}
                   onDragOver={handleDragOver}
                 >
-                     {overdueTasks.map(task => {
-                        const dueDate = getTaskDate(task);
-                        return (
-                            <TooltipProvider key={task.id}>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <div 
-                                            draggable
-                                            onDragStart={(e) => handleDragStart(e, task.id)}
-                                            className="p-2 bg-background rounded-lg border text-left space-y-1 cursor-grab group relative"
-                                        >
-                                            <Button
-                                              variant="ghost"
-                                              size="icon"
-                                              className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                                              onClick={() => onTaskUpdate(task.id, 'Done')}
-                                            >
-                                                <Check className="h-4 w-4 text-green-500" />
-                                            </Button>
-                                            <div className="flex justify-between items-start">
-                                                <p className="text-xs font-semibold leading-tight line-clamp-2">{task.title}</p>
-                                            </div>
-                                            {task.orderId && <Link href={`/admin/orders/${task.orderId}`} className="text-xs text-blue-600 hover:underline">Order #{task.orderId}</Link>}
-                                            <div className="text-xs text-destructive">Due: {format(dueDate, 'dd MMM')}</div>
-                                        </div>
-                                    </TooltipTrigger>
-                                     <TooltipContent side="bottom" align="start">
-                                        <div className="max-w-xs space-y-2">
-                                            <p className="font-bold">{task.title}</p>
-                                            <p className="text-xs text-muted-foreground">{task.description}</p>
-                                            <Separator />
-                                            <p className="text-xs"><span className="font-semibold">Assignees:</span> {task.assignedTo.map(id => getAssignee(id)?.name).join(', ')}</p>
-                                        </div>
-                                    </TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
-                        )
-                    })}
+                     {overdueTasks.map(task => <DraggableTask key={task.id} task={task} />)}
                 </div>
             </div>
           {weekDays.map(day => (
             <div 
                 key={day.toString()} 
-                onDrop={(e) => handleDrop(e, day)}
-                onDragOver={handleDragOver}
-                className="border-r border-b min-h-[200px]"
+                className="border-r border-b"
             >
-              <div className={cn("p-2 text-center border-b", isToday(day) && "bg-primary/10")}>
+              <div className={cn("p-2 text-center border-b h-16 flex flex-col justify-center", isToday(day) && "bg-primary/10")}>
                 <p className={cn("text-sm font-semibold", isToday(day) && "text-primary")}>{format(day, 'EEE')}</p>
                 <p className="text-xs text-muted-foreground">{format(day, 'd MMM')}</p>
               </div>
-              <div className="p-2 space-y-2">
-                {userTasks.filter(task => {
-                    const dueDate = getTaskDate(task);
-                    return isSameDay(dueDate, day) && !isPast(dueDate);
-                }).map(task => {
-                  const assignees = Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo];
-                  return (
-                  <TooltipProvider key={task.id}>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                             <div 
-                                draggable
-                                onDragStart={(e) => handleDragStart(e, task.id)}
-                                className="p-2 bg-background rounded-lg border text-left space-y-1 cursor-grab group relative"
-                            >
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  onClick={() => onTaskUpdate(task.id, 'Done')}
-                                >
-                                    <Check className="h-4 w-4 text-green-500" />
-                                </Button>
-                                <div className="flex justify-between items-start">
-                                    <p className="text-xs font-semibold leading-tight line-clamp-2">{task.title}</p>
-                                </div>
-                                {task.orderId && <Link href={`/admin/orders/${task.orderId}`} className="text-xs text-blue-600 hover:underline">Order #{task.orderId}</Link>}
-                                 <div className="flex items-center pt-1">
-                                    {assignees.slice(0, 2).map(userId => {
-                                        const assignee = getAssignee(userId);
-                                        if (!assignee) return null;
-                                        return (
-                                            <span key={userId} className={cn("h-5 w-5 -ml-1 border-2 border-background rounded-full flex items-center justify-center text-[10px] font-bold", getUserColor(assignee.id))}>
-                                                {assignee.name.charAt(0)}
-                                            </span>
-                                        );
-                                    })}
-                                    {assignees.length > 2 && (
-                                         <span className="h-5 w-5 -ml-1 border-2 border-background rounded-full flex items-center justify-center text-[10px] font-bold bg-muted text-muted-foreground">
-                                            +{assignees.length - 2}
-                                        </span>
-                                    )}
-                                </div>
-                             </div>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom" align="start">
-                            <div className="max-w-xs space-y-2">
-                                <p className="font-bold">{task.title}</p>
-                                <p className="text-xs text-muted-foreground">{task.description}</p>
-                                <Separator />
-                                <p className="text-xs"><span className="font-semibold">Assignees:</span> {assignees.map(id => getAssignee(id)?.name).join(', ')}</p>
-                            </div>
-                        </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )})}
+              <div className="divide-y">
+                 {hours.map(hour => {
+                    const tasksForSlot = userTasks.filter(task => {
+                        const dueDate = getTaskDate(task);
+                        return isSameDay(dueDate, day) && getHours(dueDate) === hour && !isPast(dueDate);
+                    });
+                     return (
+                      <div
+                        key={hour}
+                        className="h-28 p-2 space-y-1 overflow-y-auto"
+                        onDrop={(e) => handleDrop(e, day, hour)}
+                        onDragOver={handleDragOver}
+                      >
+                         <div className="text-xs text-muted-foreground">{format(setHours(day, hour), 'ha')}</div>
+                         {tasksForSlot.map(task => <DraggableTask key={task.id} task={task} />)}
+                      </div>
+                    )
+                 })}
               </div>
             </div>
           ))}

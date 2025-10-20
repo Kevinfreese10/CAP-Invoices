@@ -349,7 +349,7 @@ const getTaskDate = (task: Task): Date => {
   return new Date(task.dueDate);
 }
 
-const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete, allStaff, currentUser, onFilter, taskTypes }: { tasks: Task[], title: string, description: string, onEdit: (task: Task) => void, onUpdateStatus: (taskId: string, status: Task['status']) => void, onDelete: (taskId: string) => void, allStaff: User[], currentUser: User | null, onFilter?: (filter: string) => void, taskTypes?: string[] }) => {
+const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete, allStaff, currentUser, onFilter, taskTypes }: { tasks: Task[], title: string, description: string, onEdit: (task: Task) => void, onUpdateStatus: (taskId: string, updates: Partial<Task>) => void, onDelete: (taskId: string) => void, allStaff: User[], currentUser: User | null, onFilter?: (filter: string) => void, taskTypes?: string[] }) => {
     const getAssignee = (userId?: string): User | undefined => {
         if (!userId) return undefined;
         return allStaff.find(u => u.id === userId);
@@ -536,7 +536,7 @@ const TaskTable = ({ tasks, title, description, onEdit, onUpdateStatus, onDelete
                                         <DropdownMenuSubTrigger>Change Status</DropdownMenuSubTrigger>
                                         <DropdownMenuSubContent>
                                         {taskStatuses.map(status => (
-                                            <DropdownMenuItem key={status} onClick={() => onUpdateStatus(task.id, status)} disabled={task.status === status}>
+                                            <DropdownMenuItem key={status} onClick={() => onUpdateStatus(task.id, { status })} disabled={task.status === status}>
                                                 Mark as {status}
                                             </DropdownMenuItem>
                                         ))}
@@ -736,45 +736,27 @@ export default function AdminDashboardPage() {
     };
 
     const handleUpdate = async (taskId: string, updates: Partial<Task>) => {
-        try {
-            const taskRef = doc(db, 'tasks', taskId);
-            await updateDoc(taskRef, updates);
-            
-            const updatedTaskIndex = tasks.findIndex(t => t.id === taskId);
-            if (updatedTaskIndex > -1) {
-                const updatedTasks = [...tasks];
-                updatedTasks[updatedTaskIndex] = { ...updatedTasks[updatedTaskIndex], ...updates };
-                setTasks(updatedTasks);
-            }
-        } catch (error) {
-            console.error("Error updating task:", error);
-            toast({ title: 'Error', description: 'Could not update the task.', variant: 'destructive'});
-            fetchDashboardData();
-        }
-    };
-
-    const handleUpdateStatus = async (taskId: string, status: Task['status']) => {
         const originalTask = tasks.find(t => t.id === taskId);
         if (!originalTask) return;
 
         try {
             const taskRef = doc(db, 'tasks', taskId);
-            await updateDoc(taskRef, { status });
+            await updateDoc(taskRef, updates);
 
-            if (status === 'Done') {
+            if (updates.status === 'Done') {
                 if (originalTask.recurrence && originalTask.recurrence !== 'None') {
                     createNextRecurrence(originalTask);
                 }
-                toast({ title: 'Task Completed!', description: `The task has been marked as "${status}".` });
+                toast({ title: 'Task Completed!', description: `The task has been marked as "Done".` });
             } else {
-                toast({ title: 'Task Status Updated', description: `The task has been marked as "${status}".` });
+                toast({ title: 'Task Updated', description: `The task has been updated.` });
             }
             
-            setTasks(prevTasks => prevTasks.map(t => (t.id === taskId ? { ...t, status } : t)).filter(t => t.id !== taskId || status !== 'Done'));
+            fetchDashboardData();
 
         } catch (error) {
-            console.error("Error updating status:", error);
-            toast({ title: 'Error', description: 'Could not update status.', variant: 'destructive'});
+            console.error("Error updating task:", error);
+            toast({ title: 'Error', description: 'Could not update task.', variant: 'destructive'});
         }
     };
 
@@ -808,8 +790,7 @@ export default function AdminDashboardPage() {
         };
         
         try {
-            const newDocRef = await addDoc(collection(db, 'tasks'), newTaskData);
-            setTasks(prevTasks => [...prevTasks, { ...newTaskData, id: newDocRef.id }]);
+            await addDoc(collection(db, 'tasks'), newTaskData);
             toast({ title: 'Next Task Created', description: `Next recurring task for "${completedTask.title}" has been created.` });
         } catch (error) {
             console.error('Error creating next recurring task:', error);
@@ -973,14 +954,14 @@ export default function AdminDashboardPage() {
                     </div>
                 ) : (
                     <>
-                        <WeeklyTaskCalendar tasks={tasks} allStaff={allStaff} currentUser={user} onTaskUpdate={handleUpdateStatus} />
+                        <WeeklyTaskCalendar tasks={tasks} allStaff={allStaff} currentUser={user} onTaskUpdate={handleUpdate} />
 
                         <TaskTable 
                             tasks={myTasks} 
                             title="My Tasks" 
                             description="All tasks assigned directly to you."
                             onEdit={handleEdit}
-                            onUpdateStatus={handleUpdateStatus}
+                            onUpdateStatus={(taskId, updates) => handleUpdate(taskId, updates)}
                             onDelete={handleDelete}
                             allStaff={allStaff}
                             currentUser={user}
@@ -991,7 +972,7 @@ export default function AdminDashboardPage() {
                             title="Upcoming Automated Tasks" 
                             description="Automated tasks that are due within the next 30 days."
                             onEdit={handleEdit}
-                            onUpdateStatus={handleUpdateStatus}
+                            onUpdateStatus={(taskId, updates) => handleUpdate(taskId, updates)}
                             onDelete={handleDelete}
                             allStaff={allStaff}
                             currentUser={user}
@@ -1004,7 +985,7 @@ export default function AdminDashboardPage() {
                             title="Delegated Tasks" 
                             description="Tasks you have created and assigned to other team members."
                             onEdit={handleEdit}
-                            onUpdateStatus={handleUpdateStatus}
+                            onUpdateStatus={(taskId, updates) => handleUpdate(taskId, updates)}
                             onDelete={handleDelete}
                             allStaff={allStaff}
                             currentUser={user}
@@ -1015,7 +996,7 @@ export default function AdminDashboardPage() {
                             title="My Tagged Tasks" 
                             description="Tasks where you have been tagged for visibility, but not directly assigned."
                             onEdit={handleEdit}
-                            onUpdateStatus={handleUpdateStatus}
+                            onUpdateStatus={(taskId, updates) => handleUpdate(taskId, updates)}
                             onDelete={handleDelete}
                             allStaff={allStaff}
                             currentUser={user}
@@ -1026,7 +1007,7 @@ export default function AdminDashboardPage() {
                             title="Completed Tasks" 
                             description="Tasks assigned to or created by you that have been marked as 'Done'."
                             onEdit={handleEdit}
-                            onUpdateStatus={handleUpdateStatus}
+                            onUpdateStatus={(taskId, updates) => handleUpdate(taskId, updates)}
                             onDelete={handleDelete}
                             allStaff={allStaff}
                             currentUser={user}
@@ -1039,7 +1020,7 @@ export default function AdminDashboardPage() {
                                 title={`${user?.department} Department Tasks`} 
                                 description={`All automated tasks generated for clients.`}
                                 onEdit={handleEdit}
-                                onUpdateStatus={handleUpdateStatus}
+                                onUpdateStatus={(taskId, updates) => handleUpdate(taskId, updates)}
                                 onDelete={handleDelete}
                                 allStaff={allStaff}
                                 currentUser={user}
@@ -1052,7 +1033,7 @@ export default function AdminDashboardPage() {
                                 title="Automated Client Tasks"
                                 description="Recurring tasks generated from the client automation system."
                                 onEdit={handleEdit}
-                                onUpdateStatus={handleUpdateStatus}
+                                onUpdateStatus={(taskId, updates) => handleUpdate(taskId, updates)}
                                 onDelete={handleDelete}
                                 allStaff={allStaff}
                                 currentUser={user}
@@ -1067,6 +1048,3 @@ export default function AdminDashboardPage() {
     );
 }
     
-
-    
-
