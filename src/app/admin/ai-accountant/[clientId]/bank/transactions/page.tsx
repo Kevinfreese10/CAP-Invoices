@@ -942,15 +942,16 @@ const NewTransactionsTab = React.forwardRef<
     const handleAiExpenseAllocate = async () => {
         if (!client || !client.uid || !client.chartOfAccounts || selectedTransactions.length === 0) return;
         setIsAiAllocating(true);
-        toast({ title: "AI is allocating...", description: `Processing ${selectedTransactions.length} expense transactions.` });
         
         const transactionsToAllocate = transactions.filter(tx => selectedTransactions.includes(tx.id));
+        const totalToProcess = transactionsToAllocate.length;
         const chartOfAccountsJson = JSON.stringify(client.chartOfAccounts.map(c => ({ id: c.id, accountNumber: c.accountNumber, description: c.description })));
-
-        const batch = writeBatch(db);
+        
         let successCount = 0;
+        let processedCount = 0;
 
         for (const tx of transactionsToAllocate) {
+            processedCount++;
             try {
                 const result = await suggestTransactionAllocation({
                     description: tx.description,
@@ -959,34 +960,47 @@ const NewTransactionsTab = React.forwardRef<
 
                 if (result.accountId && result.confidence > 70) {
                     const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
-                    batch.update(transactionRef, {
+                    await updateDoc(transactionRef, {
                         status: 'review',
                         allocatedTo: { value: result.accountId, type: 'account' },
                         vatType: result.vatType,
                         allocatedAt: new Date(),
                     });
                     successCount++;
+                    
+                    const accountName = client.chartOfAccounts.find(a => a.id === result.accountId)?.description || 'Unknown';
+                    
+                    toast({
+                        title: `Allocated ${processedCount} of ${totalToProcess}`,
+                        description: (
+                            <div>
+                                <p>Transaction: <span className="font-semibold">{tx.description}</span></p>
+                                <p>Account: <span className="font-semibold">{accountName}</span></p>
+                                <p>VAT Type: <span className="font-semibold">{result.vatType}</span></p>
+                                <p>AI Confidence: <span className="font-semibold">{result.confidence}%</span></p>
+                            </div>
+                        ),
+                        duration: 5000,
+                    });
                 }
             } catch (error) {
                 console.error(`AI allocation failed for tx ${tx.id}:`, error);
+                 toast({
+                    title: `Processing Failed for Tx ${processedCount}`,
+                    description: 'The AI could not allocate this transaction.',
+                    variant: 'destructive',
+                 });
             }
         }
         
-        try {
-            if (successCount > 0) {
-                await batch.commit();
-                toast({ title: "AI Allocation Complete", description: `${successCount} out of ${selectedTransactions.length} transactions were confidently allocated for review.` });
-            } else {
-               toast({ title: "AI Allocation", description: `The AI could not confidently allocate any of the selected transactions.`, variant: 'destructive'});
-            }
-            setSelectedTransactions([]);
-            refetch();
-        } catch (error) {
-            console.error("Error committing AI allocations:", error);
-            toast({ title: "AI Allocation Failed", description: "An error occurred while saving the allocations.", variant: "destructive" });
-        } finally {
-            setIsAiAllocating(false);
-        }
+        toast({
+            title: "AI Allocation Complete",
+            description: `${successCount} out of ${totalToProcess} transactions were confidently allocated for review.`
+        });
+        
+        setSelectedTransactions([]);
+        refetch();
+        setIsAiAllocating(false);
     };
 
     const handleAiIncomeAllocate = async () => {
@@ -1412,7 +1426,7 @@ const ForReviewTab = React.forwardRef<
                         keywords: [coreKeyword],
                         accountId: tx.allocatedTo.value,
                         vatType: tx.vatType || 'no_vat',
-                        type: 'soft', // Mark as AI-generated
+                        type: 'soft', // Mark as AI-generated,
                     };
                     const clientRef = doc(db, 'aiAccountantClients', client.uid);
                     batch.update(clientRef, { allocationRules: arrayUnion(newRule) });
@@ -1881,4 +1895,3 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
-
