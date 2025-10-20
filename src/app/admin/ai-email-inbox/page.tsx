@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Inbox, RefreshCw, FileWarning, Paperclip, CheckCircle2, Bot, Send, Trash2, XCircle, FileCheck2, Archive, Sparkles, Reply, FilePlus, ArchiveRestore } from 'lucide-react';
+import { Loader2, Inbox, RefreshCw, FileWarning, Paperclip, CheckCircle2, Bot, Send, Trash2, XCircle, FilePlus, Archive, Sparkles, Reply, ArchiveRestore, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -62,11 +62,12 @@ export default function AiEmailInboxPage() {
     const [activeTab, setActiveTab] = useState<'inbox' | 'archive'>('inbox');
     const { toast } = useToast();
 
-    const fetchEmails = useCallback(async (selectFirst = false) => {
+    const fetchEmails = useCallback(async ({ sync = false, selectFirst = false }: { sync?: boolean, selectFirst?: boolean }) => {
         setIsLoading(true);
         setError(null);
         try {
-            const response = await fetch('/api/ai-inbox');
+            const url = sync ? '/api/ai-inbox?sync=true' : '/api/ai-inbox';
+            const response = await fetch(url);
             if (!response.ok) {
                 const errorData = await response.json();
                 throw new Error(errorData.error || 'Failed to fetch emails');
@@ -86,7 +87,7 @@ export default function AiEmailInboxPage() {
     }, []);
 
     useEffect(() => {
-        fetchEmails(true);
+        fetchEmails({ selectFirst: true });
     }, []);
     
     useEffect(() => {
@@ -111,7 +112,7 @@ export default function AiEmailInboxPage() {
             if (!response.ok) throw new Error('Failed to perform action');
             
             toast({ title: `Action successful on ${emailsToProcess.length} email(s).` });
-            await fetchEmails();
+            await fetchEmails({});
             setSelectedUids(new Set());
         } catch (err: any) {
             toast({ title: `Action Failed`, description: err.message, variant: 'destructive' });
@@ -140,7 +141,7 @@ export default function AiEmailInboxPage() {
             }
             
             toast({ title: 'Analysis Complete!', description: 'Emails have been categorized and prioritized.' });
-            await fetchEmails(); // Refresh to show new data
+            await fetchEmails({}); // Refresh to show new data
             setSelectedUids(new Set());
 
         } catch (err: any) {
@@ -190,7 +191,7 @@ export default function AiEmailInboxPage() {
                 throw new Error(errorData.error || 'Task creation failed');
             }
              toast({ title: 'Task Created!', description: 'A new task has been added to your task list.' });
-             await fetchEmails();
+             await fetchEmails({});
         } catch (err: any) {
              toast({ title: `Task Creation Failed`, description: err.message, variant: 'destructive' });
         }
@@ -227,7 +228,7 @@ export default function AiEmailInboxPage() {
     }
     
     return (
-        <Dialog onOpenChange={(isOpen) => !isOpen && setSelectedEmail(null)}>
+        <Dialog>
             <div className="space-y-8">
                 <div className="flex items-center justify-between">
                     <h1 className="text-3xl font-bold tracking-tight">AI Email Inbox</h1>
@@ -245,7 +246,7 @@ export default function AiEmailInboxPage() {
                         <Button variant="destructive" onClick={() => processEmailAction(selectedUids, 'delete')} disabled={isProcessing || selectedUids.size === 0}>
                             <Trash2 className="mr-2 h-4 w-4"/> Delete {selectedUids.size > 0 ? `(${selectedUids.size})` : ''}
                         </Button>
-                        <Button onClick={() => fetchEmails()} variant="outline" disabled={isLoading || isProcessing}>
+                        <Button onClick={() => fetchEmails({ sync: true })} variant="outline" disabled={isLoading || isProcessing}>
                             <RefreshCw className={`mr-2 h-4 w-4 ${isLoading || isProcessing ? 'animate-spin' : ''}`} /> Refresh
                         </Button>
                     </div>
@@ -286,7 +287,7 @@ export default function AiEmailInboxPage() {
                                             <Checkbox onCheckedChange={(checked) => handleSelectOne(email.uid, !!checked)} checked={selectedUids.has(email.uid)} onClick={(e) => e.stopPropagation()} className="mt-1"/>
                                             <div className="flex-grow space-y-1">
                                                 <div className="flex justify-between items-start">
-                                                    <div>
+                                                    <div className="space-y-1">
                                                         <p className="font-semibold truncate">{email.from}</p>
                                                         <p className="text-sm font-semibold truncate">{email.subject}</p>
                                                     </div>
@@ -304,10 +305,15 @@ export default function AiEmailInboxPage() {
                                                     {email.sla && <Badge variant="outline">{email.sla}hr SLA</Badge>}
                                                     {email.attachments.length > 0 && <div className="flex items-center gap-1 text-xs text-primary"><Paperclip className="h-3 w-3" /><span>{email.attachments.length} attachment(s)</span></div>}
                                                 </div>
-                                                
-                                                {email.suggestedAction && email.suggestedAction !== 'none' && (
-                                                     <div className="pt-2 flex items-center gap-2">
-                                                        <span className="text-xs font-semibold text-muted-foreground">Suggested Action:</span>
+                                            </div>
+                                             <div className="flex flex-col items-end gap-2">
+                                                <DialogTrigger asChild>
+                                                    <Button variant="ghost" size="sm" onClick={() => setSelectedEmail(email)}>
+                                                        <Eye className="mr-2 h-4 w-4"/> View
+                                                    </Button>
+                                                </DialogTrigger>
+                                                 {email.suggestedAction && email.suggestedAction !== 'none' && (
+                                                    <>
                                                         {email.suggestedAction === 'create_task' && (
                                                             <Button size="sm" variant="secondary" onClick={() => handleCreateTaskFromEmail(email)}><FilePlus className="mr-2 h-4 w-4"/>Create Task</Button>
                                                         )}
@@ -319,12 +325,9 @@ export default function AiEmailInboxPage() {
                                                         {email.suggestedAction === 'archive' && (
                                                             <Button size="sm" variant="secondary" onClick={() => processEmailAction(new Set([email.uid]), 'archive')}><Archive className="mr-2 h-4 w-4"/>Archive</Button>
                                                         )}
-                                                     </div>
+                                                     </>
                                                 )}
-                                            </div>
-                                            <DialogTrigger asChild>
-                                                <Button variant="ghost" size="sm" onClick={() => setSelectedEmail(email)}>View & Reply</Button>
-                                            </DialogTrigger>
+                                             </div>
                                         </div>
                                     ))
                                 )}

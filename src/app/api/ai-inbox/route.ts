@@ -26,50 +26,55 @@ async function connectToImap() {
 }
 
 
-export async function GET() {
+export async function GET(req: Request) {
+    const { searchParams } = new URL(req.url);
+    const shouldSync = searchParams.get('sync') === 'true';
+
     let connection;
     try {
-        // Step 1: Fetch existing email UIDs from Firestore
-        const inboxEmailsSnapshot = await getDocs(query(collection(db, 'inboxEmails'), orderBy('uid', 'desc')));
-        const existingUids = new Set(inboxEmailsSnapshot.docs.map(doc => doc.data().uid));
+        if (shouldSync) {
+            // Step 1: Fetch existing email UIDs from Firestore
+            const inboxEmailsSnapshot = await getDocs(query(collection(db, 'inboxEmails'), orderBy('uid', 'desc')));
+            const existingUids = new Set(inboxEmailsSnapshot.docs.map(doc => doc.data().uid));
 
-        // Step 2: Connect to IMAP and get all email UIDs from server
-        connection = await connectToImap();
-        await connection.openBox('INBOX');
-        const serverMessages = await connection.search(['ALL'], { bodies: [], headers: ['message-id'] });
-        const serverUids = new Set(serverMessages.map(msg => msg.attributes.uid));
-        
-        // Step 3: Determine which emails are new
-        const newUids = Array.from(serverUids).filter(uid => !existingUids.has(uid));
-        
-        // Step 4: Fetch only the new emails from the server
-        if (newUids.length > 0) {
-            const newMessages = await connection.search([['UID', newUids.join(',')]], { bodies: [''], markSeen: false });
-            const batch = writeBatch(db);
+            // Step 2: Connect to IMAP and get all email UIDs from server
+            connection = await connectToImap();
+            await connection.openBox('INBOX');
+            const serverMessages = await connection.search(['ALL'], { bodies: [], headers: ['message-id'] });
+            const serverUids = new Set(serverMessages.map(msg => msg.attributes.uid));
+            
+            // Step 3: Determine which emails are new
+            const newUids = Array.from(serverUids).filter(uid => !existingUids.has(uid));
+            
+            // Step 4: Fetch only the new emails from the server
+            if (newUids.length > 0) {
+                const newMessages = await connection.search([['UID', newUids.join(',')]], { bodies: [''], markSeen: false });
+                const batch = writeBatch(db);
 
-            for (const item of newMessages) {
-                const all = item.parts.find((part) => part.which === '');
-                const mail = await simpleParser(all?.body || '');
-                
-                const emailData = {
-                  uid: item.attributes.uid,
-                  from: mail.from?.text || 'No Sender',
-                  subject: mail.subject || 'No Subject',
-                  date: mail.date?.toISOString() || new Date().toISOString(),
-                  body: mail.html || mail.textAsHtml || '',
-                  attachments: mail.attachments.map(att => ({
-                      filename: att.filename || null,
-                      contentType: att.contentType || null,
-                      size: att.size || null,
-                  })),
-                  createdAt: serverTimestamp(),
-                  processedAction: null,
-                };
-                
-                const docRef = doc(db, 'inboxEmails', String(emailData.uid));
-                batch.set(docRef, emailData);
+                for (const item of newMessages) {
+                    const all = item.parts.find((part) => part.which === '');
+                    const mail = await simpleParser(all?.body || '');
+                    
+                    const emailData = {
+                      uid: item.attributes.uid,
+                      from: mail.from?.text || 'No Sender',
+                      subject: mail.subject || 'No Subject',
+                      date: mail.date?.toISOString() || new Date().toISOString(),
+                      body: mail.html || mail.textAsHtml || '',
+                      attachments: mail.attachments.map(att => ({
+                          filename: att.filename || null,
+                          contentType: att.contentType || null,
+                          size: att.size || null,
+                      })),
+                      createdAt: serverTimestamp(),
+                      processedAction: null,
+                    };
+                    
+                    const docRef = doc(db, 'inboxEmails', String(emailData.uid));
+                    batch.set(docRef, emailData);
+                }
+                await batch.commit();
             }
-            await batch.commit();
         }
 
         // Step 5: Fetch all emails (new and old) from Firestore and combine with processed status
