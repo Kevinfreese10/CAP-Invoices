@@ -7,14 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useState, useEffect, useMemo } from "react";
-import { User, AllocatedTransaction, ImportedTransaction, ClientCustomer } from "@/lib/types";
+import { User, AllocatedTransaction, ImportedTransaction, ClientCustomer, Invoice } from "@/lib/types";
 import { getFirestore, doc, getDoc, collection, query, onSnapshot, orderBy, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, Download, Eye } from "lucide-react";
 import { useParams } from 'next/navigation';
 import { DateRange } from "react-day-picker";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter as TableFooterComponent } from "@/components/ui/table";
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 
@@ -30,57 +30,56 @@ const formatPrice = (price: number) => {
 function CustomerLedgerReport({ 
     client, 
     customer, 
-    transactions, 
+    invoices, 
     dateRange 
 }: { 
     client: User;
     customer: ClientCustomer | undefined;
-    transactions: (ImportedTransaction | AllocatedTransaction)[];
+    invoices: Invoice[];
     dateRange?: DateRange;
 }) {
     
     const customerTransactions = useMemo(() => {
         if (!customer) return [];
-        let filtered = transactions.filter(tx => {
-            const isInvoice = tx.reference?.startsWith('INV-') && tx.bankAccountId === 'JOURNAL' && tx.amount > 0;
-            // This is a simplified check. A robust solution might need a direct customer link on transactions.
-            // Here, we assume the description of the customer control account debit matches the invoice.
-            return isInvoice && tx.description?.includes(customer.name);
-        });
+        let filtered = invoices.filter(inv => inv.customerId === customer.id);
 
         if (dateRange?.from) {
-            filtered = filtered.filter(tx => new Date(tx.date) >= dateRange.from!);
+            filtered = filtered.filter(inv => inv.invoiceDate.toDate() >= dateRange.from!);
         }
         if (dateRange?.to) {
-            filtered = filtered.filter(tx => new Date(tx.date) <= dateRange.to!);
+            filtered = filtered.filter(inv => inv.invoiceDate.toDate() <= dateRange.to!);
         }
-        return filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    }, [transactions, customer, dateRange]);
+        return filtered.sort((a, b) => a.invoiceDate.toDate().getTime() - b.invoiceDate.toDate().getTime());
+    }, [invoices, customer, dateRange]);
 
     const reportData = useMemo(() => {
         let runningBalance = 0;
-        return customerTransactions.map(tx => {
-            runningBalance += tx.amount;
+        return customerTransactions.map(inv => {
+            runningBalance += inv.total;
             return {
-                ...tx,
+                ...inv,
+                date: inv.invoiceDate.toDate(),
+                description: `Invoice #${inv.id}`,
+                debit: inv.total,
+                credit: 0,
                 balance: runningBalance
             };
         });
     }, [customerTransactions]);
 
     const totals = useMemo(() => {
-        const totalDebits = reportData.reduce((sum, tx) => sum + (tx.amount > 0 ? tx.amount : 0), 0);
-        const totalCredits = reportData.reduce((sum, tx) => sum + (tx.amount < 0 ? -tx.amount : 0), 0);
+        const totalDebits = reportData.reduce((sum, tx) => sum + tx.debit, 0);
+        const totalCredits = reportData.reduce((sum, tx) => sum + tx.credit, 0);
         return { totalDebits, totalCredits };
     }, [reportData]);
 
     const handleDownloadExcel = () => {
         const dataToExport = reportData.map(tx => ({
             'Date': format(new Date(tx.date), 'dd/MM/yyyy'),
-            'Reference': tx.reference,
+            'Reference': tx.id,
             'Description': tx.description,
-            'Debit': tx.amount > 0 ? tx.amount : '',
-            'Credit': tx.amount < 0 ? -tx.amount : '',
+            'Debit': tx.debit,
+            'Credit': tx.credit,
             'Balance': tx.balance,
         }));
 
@@ -126,25 +125,33 @@ function CustomerLedgerReport({
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {reportData.map((tx, index) => (
-                        <TableRow key={index}>
-                            <TableCell>{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
-                            <TableCell>{tx.reference}</TableCell>
-                            <TableCell>{tx.description}</TableCell>
-                            <TableCell className="text-right font-mono">{formatPrice(tx.amount > 0 ? tx.amount : 0)}</TableCell>
-                            <TableCell className="text-right font-mono">{formatPrice(tx.amount < 0 ? -tx.amount : 0)}</TableCell>
-                            <TableCell className="text-right font-mono">{formatPrice(tx.balance)}</TableCell>
+                    {reportData.length === 0 ? (
+                        <TableRow>
+                            <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
+                                No transactions found for this customer in the selected period.
+                            </TableCell>
                         </TableRow>
-                    ))}
+                    ) : (
+                        reportData.map((tx, index) => (
+                            <TableRow key={index}>
+                                <TableCell>{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
+                                <TableCell>{tx.id}</TableCell>
+                                <TableCell>{tx.description}</TableCell>
+                                <TableCell className="text-right font-mono">{formatPrice(tx.debit)}</TableCell>
+                                <TableCell className="text-right font-mono">{formatPrice(tx.credit)}</TableCell>
+                                <TableCell className="text-right font-mono">{formatPrice(tx.balance)}</TableCell>
+                            </TableRow>
+                        ))
+                    )}
                 </TableBody>
-                 <TableFooter>
+                 <TableFooterComponent>
                     <TableRow>
                         <TableCell colSpan={3} className="font-bold">Totals</TableCell>
                         <TableCell className="text-right font-bold font-mono">{formatPrice(totals.totalDebits)}</TableCell>
                         <TableCell className="text-right font-bold font-mono">{formatPrice(totals.totalCredits)}</TableCell>
                         <TableCell></TableCell>
                     </TableRow>
-                </TableFooter>
+                </TableFooterComponent>
             </Table>
         </div>
         <DialogFooter className="mt-4">
@@ -163,7 +170,7 @@ export default function CustomerLedgerPage() {
     const clientId = params.clientId as string;
     const [client, setClient] = useState<User | null>(null);
     const [customers, setCustomers] = useState<ClientCustomer[]>([]);
-    const [transactions, setTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
+    const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
     const [selectedCustomerId, setSelectedCustomerId] = useState<string | undefined>();
@@ -188,12 +195,12 @@ export default function CustomerLedgerPage() {
         };
         fetchInitialData();
         
-        const transUnsubscribe = onSnapshot(query(collection(db, 'aiAccountantClients', clientId, 'transactions')), snapshot => {
-            const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as (ImportedTransaction | AllocatedTransaction)));
-            setTransactions(fetched);
+        const invoicesUnsubscribe = onSnapshot(query(collection(db, 'aiAccountantClients', clientId, 'invoices')), snapshot => {
+            const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Invoice));
+            setInvoices(fetched);
         });
         
-        return () => transUnsubscribe();
+        return () => invoicesUnsubscribe();
     }, [clientId]);
 
     const selectedCustomer = useMemo(() => customers.find(c => c.id === selectedCustomerId), [customers, selectedCustomerId]);
@@ -238,7 +245,7 @@ export default function CustomerLedgerPage() {
                                         <CustomerLedgerReport 
                                             client={client} 
                                             customer={selectedCustomer}
-                                            transactions={transactions} 
+                                            invoices={invoices} 
                                             dateRange={dateRange}
                                         />
                                     </DialogContent>

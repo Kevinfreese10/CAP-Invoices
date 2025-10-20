@@ -1,3 +1,4 @@
+
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
@@ -114,4 +115,6 @@ export {
   TableRow,
   TableCell,
   TableCaption,
+  // Ensure we export the renamed component
+  TableFooter as TableFooterComponent,
 }

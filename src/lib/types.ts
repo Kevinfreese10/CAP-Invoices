@@ -144,8 +144,8 @@ export type Order = {
 export type Invoice = {
   id: string;
   customerId: string;
-  invoiceDate: any;
-  dueDate: any;
+  invoiceDate: any; // Firestore Timestamp
+  dueDate: any; // Firestore Timestamp
   lineItems: { 
     accountId: string;
     description: string; 
@@ -373,5 +373,3 @@ export type AIAllocationJob = {
     completedAt?: any;
     error?: string;
 }
-
-    
