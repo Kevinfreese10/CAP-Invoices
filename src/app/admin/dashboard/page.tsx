@@ -951,7 +951,7 @@ export default function AdminDashboardPage() {
                     </div>
                 ) : (
                     <>
-                        <WeeklyTaskCalendar tasks={tasks} allStaff={allStaff} currentUser={user} onTaskUpdate={handleUpdate} />
+                        <WeeklyTaskCalendar tasks={tasks} allStaff={allStaff} currentUser={user} onTaskUpdate={handleUpdate} onEdit={handleEdit} />
 
                         <TaskTable 
                             tasks={myTasks} 
@@ -1046,4 +1046,5 @@ export default function AdminDashboardPage() {
 }
     
 
+    
     

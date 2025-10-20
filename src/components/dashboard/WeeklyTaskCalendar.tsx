@@ -6,9 +6,9 @@ import { Task, User } from '@/lib/types';
 import { format, startOfWeek, addDays, isSameDay, isToday, isPast, eachDayOfInterval, startOfToday, setHours, setMinutes, setSeconds, getHours, startOfDay } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, AlertOctagon, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, AlertOctagon, Check, Eye } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { Separator } from '../ui/separator';
@@ -25,11 +25,11 @@ const getUserColor = (userId: string) => {
 
 const hours = Array.from({ length: 10 }, (_, i) => i + 8); // 8 AM to 5 PM
 
-export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTaskUpdate }: { tasks: Task[], allStaff: User[], currentUser: User | null, onTaskUpdate: (taskId: string, updates: Partial<Task>) => void }) {
+export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTaskUpdate, onEdit }: { tasks: Task[], allStaff: User[], currentUser: User | null, onTaskUpdate: (taskId: string, updates: Partial<Task>) => void, onEdit: (task: Task) => void }) {
   const [currentDate, setCurrentDate] = useState(new Date());
 
-  const start = startOfWeek(currentDate, { weekStartsOn: 1 });
-  const end = addDays(start, 2); // Show 3 days: Monday, Tuesday, Wednesday if week starts on Mon
+  const start = startOfToday();
+  const end = addDays(start, 2); // Show 3 days: today, tomorrow, and the day after
   const weekDays = eachDayOfInterval({ start, end });
 
   const getAssignee = (userId: string) => allStaff.find(u => u.id === userId);
@@ -75,16 +75,10 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
     
     if (hour !== undefined) {
         finalDate = setSeconds(setMinutes(setHours(newDate, hour), 0), 0);
-    } else if (e.currentTarget.dataset.droptarget === 'unslotted') {
-        finalDate = startOfDay(newDate); 
     } else {
         const task = tasks.find(t => t.id === taskId);
-        if (task) {
-            const originalDueDate = getTaskDate(task);
-            finalDate = setSeconds(setMinutes(setHours(newDate, getHours(originalDueDate) || 9), 0), 0);
-        } else {
-            finalDate = setHours(newDate, 9);
-        }
+        const originalHour = task ? getHours(getTaskDate(task)) : 9;
+        finalDate = setSeconds(setMinutes(setHours(newDate, originalHour), 0);
     }
     onTaskUpdate(taskId, { dueDate: finalDate });
 };
@@ -104,16 +98,26 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
                         onDragStart={(e) => handleDragStart(e, task.id)}
                         className="p-2 bg-background rounded-lg border text-left space-y-1 cursor-grab group relative"
                     >
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={() => onTaskUpdate(task.id, { status: 'Done'})}
-                        >
-                            <Check className="h-4 w-4 text-green-500" />
-                        </Button>
+                        <div className="absolute top-1 right-1 flex opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => onEdit(task)}
+                            >
+                                <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => onTaskUpdate(task.id, { status: 'Done'})}
+                            >
+                                <Check className="h-4 w-4 text-green-500" />
+                            </Button>
+                        </div>
                         <div className="flex justify-between items-start">
-                            <p className="text-xs font-semibold leading-tight line-clamp-2">{task.title}</p>
+                            <p className="text-xs font-semibold leading-tight line-clamp-2 pr-4">{task.title}</p>
                         </div>
                         {task.orderId && <Link href={`/admin/orders/${task.orderId}`} className="text-xs text-blue-600 hover:underline">Order #{task.orderId}</Link>}
                          <div className="flex items-center pt-1">
@@ -158,7 +162,7 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
         </div>
       </CardHeader>
       <CardContent className="overflow-x-auto">
-        <div className="grid grid-cols-[1fr_repeat(3,_2fr)] border-t border-l min-w-[800px]">
+        <div className="grid grid-cols-[1fr_repeat(3,2fr)] border-t border-l min-w-[800px]">
            <div className="border-r border-b bg-destructive/5">
                 <div className="p-2 text-center border-b h-16 flex flex-col justify-center">
                     <p className="text-sm font-semibold text-destructive flex items-center justify-center gap-2">
@@ -166,13 +170,19 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
                         Overdue
                     </p>
                 </div>
-                <div className="border-b h-24 bg-destructive/5" />
                 <div 
-                  className="p-2 space-y-2 min-h-[500px]"
+                  className="p-2 space-y-2 border-b h-24 overflow-y-auto"
                   onDrop={(e) => handleDrop(e, addDays(new Date(), -1))}
                   onDragOver={handleDragOver}
                 >
                      {overdueTasks.map(task => <DraggableTask key={task.id} task={task} />)}
+                </div>
+                 <div className="divide-y">
+                    {hours.map(hour => (
+                        <div key={`overdue-${hour}`} className="h-28 p-2">
+                             <div className="text-xs text-muted-foreground/50">{format(setHours(new Date(), hour), 'ha')}</div>
+                        </div>
+                    ))}
                 </div>
             </div>
           {weekDays.map(day => {
@@ -193,12 +203,12 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
                 </div>
                 <div 
                     data-droptarget="unslotted"
-                    className="p-2 border-b h-24 bg-muted/30 overflow-y-auto"
+                    className="p-2 border-b h-24 bg-muted/30"
                     onDrop={(e) => handleDrop(e, day)}
                     onDragOver={handleDragOver}
                 >
                     <p className="text-xs text-center text-muted-foreground pb-1">Unslotted Tasks</p>
-                     <div className="space-y-1">
+                     <div className="space-y-1 h-[68px] overflow-y-auto">
                         {unslottedTasks.map(task => <DraggableTask key={task.id} task={task} />)}
                     </div>
                 </div>
@@ -229,3 +239,5 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
     </Card>
   );
 }
+
+    
