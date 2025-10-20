@@ -14,7 +14,7 @@ async function connectToImap() {
     const config = {
       imap: {
         user: 'kev@myacc.co.za', // Changed to kev@myacc.co.za
-        password: 'YOUR_PASSWORD_HERE', // IMPORTANT: Replace with actual password or from env
+        password: 'Thinkestry10$', // Corrected password
         host: 'mail.myacc.co.za',
         port: 993,
         tls: true,
