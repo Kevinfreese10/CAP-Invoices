@@ -6,7 +6,7 @@ import { chartOfAccounts as masterChartOfAccounts, setMasterChartOfAccounts } fr
 import { Input } from "@/components/ui/input";
 import { useState, useMemo, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, PlusCircle, Edit, Trash2, Loader2 } from "lucide-react";
+import { ArrowLeft, PlusCircle, Edit, Trash2, Loader2, ChevronsUpDown } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { getFirestore, collection, getDocs, query, orderBy, doc, setDoc, addDoc, deleteDoc, updateDoc } from "firebase/firestore";
@@ -23,6 +23,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { allVatTypes } from "@/lib/vat-types";
 import { Separator } from "@/components/ui/separator";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { cn } from "@/lib/utils";
+
 
 const db = getFirestore(firebaseApp);
 
@@ -56,18 +60,56 @@ function RuleForm({ rule, onSave, onCancel }: {
             <form onSubmit={form.handleSubmit(onSave)} className="space-y-4">
                 <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Rule Description</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )}/>
                 <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords (comma-separated)</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem> )}/>
-                <FormField control={form.control} name="accountId" render={({ field }) => (
-                    <FormItem>
+                 <FormField
+                    control={form.control}
+                    name="accountId"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-col">
                         <FormLabel>Allocate To Account</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl>
-                            <SelectContent>
-                                {masterChartOfAccounts.map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.accountNumber} - {acc.description}</SelectItem>))}
-                            </SelectContent>
-                        </Select>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                            <FormControl>
+                                <Button
+                                variant="outline"
+                                role="combobox"
+                                className={cn(
+                                    "w-full justify-between",
+                                    !field.value && "text-muted-foreground"
+                                )}
+                                >
+                                {field.value
+                                    ? masterChartOfAccounts.find(
+                                        (acc) => acc.id === field.value
+                                    )?.description
+                                    : "Select an account"}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                            </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                <Command>
+                                    <CommandInput placeholder="Search account..." />
+                                    <CommandList>
+                                    <CommandEmpty>No account found.</CommandEmpty>
+                                    {masterChartOfAccounts.map((acc) => (
+                                        <CommandItem
+                                            value={acc.description}
+                                            key={acc.id}
+                                            onSelect={() => {
+                                                form.setValue("accountId", acc.id)
+                                            }}
+                                        >
+                                            {acc.description}
+                                        </CommandItem>
+                                    ))}
+                                    </CommandList>
+                                </Command>
+                            </PopoverContent>
+                        </Popover>
                         <FormMessage />
-                    </FormItem>
-                )}/>
+                        </FormItem>
+                    )}
+                    />
                 <FormField control={form.control} name="vatType" render={({ field }) => ( <FormItem><FormLabel>VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
                 <DialogFooter>
                     <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
