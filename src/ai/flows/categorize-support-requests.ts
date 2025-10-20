@@ -104,6 +104,14 @@ const categorizeSupportRequestFlow = ai.defineFlow(
   },
   async input => {
     const {output} = await prompt(input);
+    if(output && output.suggestedAction === 'draft_reply' && !output.draftReply) {
+        const draftResult = await generateEmailReply({
+            subject: 'Re: Support Request',
+            body: input.request,
+            sender: input.clientName,
+        });
+        output.draftReply = draftResult.draft;
+    }
     return output!;
   }
 );

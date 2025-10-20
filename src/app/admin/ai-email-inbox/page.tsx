@@ -265,22 +265,20 @@ export default function AiEmailInboxPage() {
                                 {currentList.map((email) => (
                                     <div key={email.uid}>
                                         <div 
-                                          className={cn("p-4 cursor-pointer hover:bg-muted/50", selectedEmail?.uid === email.uid && 'bg-muted')}
+                                          className="p-4 cursor-pointer hover:bg-muted/50"
                                           onClick={() => setSelectedEmail(email.uid === selectedEmail?.uid ? null : email)}
                                         >
                                             <div className="flex items-start gap-4 text-left">
                                                 <Checkbox onCheckedChange={(checked) => handleSelectOne(email.uid, !!checked)} checked={selectedUids.has(email.uid)} onClick={(e) => e.stopPropagation()} className="mt-1"/>
                                                 <div className="flex-grow grid grid-cols-12 gap-x-4">
                                                     <div className="col-span-8 space-y-1">
-                                                        <div className="flex justify-between items-start">
-                                                            <p className="font-semibold truncate flex-grow">{email.from}</p>
-                                                        </div>
+                                                        <p className="font-semibold truncate">{email.from}</p>
                                                         <p className="text-sm font-semibold truncate">{email.subject}</p>
-                                                        {email.summary && <p className="text-lg italic text-muted-foreground">"{email.summary}"</p>}
+                                                        {email.summary && <p className="text-lg italic text-muted-foreground whitespace-normal">{email.summary}</p>}
                                                     </div>
                                                     <div className="col-span-4 text-right flex flex-col items-end gap-1">
                                                         <p className="text-xs text-muted-foreground">{format(new Date(email.date), 'dd MMM, HH:mm')}</p>
-                                                            <div className="flex justify-end flex-wrap gap-1">
+                                                        <div className="flex justify-end flex-wrap gap-1">
                                                             {email.processedAction && <Badge variant={email.processedAction === 'processed' ? 'success' : 'secondary'}>{getActionIcon(email.processedAction)} {email.processedAction}</Badge>}
                                                             {email.category && <Badge variant="outline">{email.category}</Badge>}
                                                             {email.priority && <Badge variant={getPriorityVariant(email.priority)}>{email.priority}</Badge>}
@@ -314,20 +312,18 @@ export default function AiEmailInboxPage() {
                                                 </div>
                                             </div>
                                         </div>
-                                         {selectedEmail?.uid === email.uid && (
+                                         {selectedEmail?.uid === email.uid && selectedEmail.suggestedAction === 'draft_reply' && selectedEmail.draftReply && (
                                             <div className="p-4 bg-muted/80 border-t border-b">
-                                                {selectedEmail.suggestedAction === 'draft_reply' && selectedEmail.draftReply && (
-                                                    <div className="space-y-2">
-                                                        <h4 className="font-semibold">AI Drafted Reply</h4>
-                                                        <Textarea
-                                                            defaultValue={selectedEmail.draftReply}
-                                                            rows={6}
-                                                        />
-                                                        <Button size="sm" disabled={!selectedEmail.draftReply} onClick={() => handleSendEmail(selectedEmail, selectedEmail.draftReply || '')}>
-                                                            <Send className="mr-2 h-4 w-4" /> Send Reply
-                                                        </Button>
-                                                    </div>
-                                                )}
+                                                <div className="space-y-2">
+                                                    <h4 className="font-semibold">AI Drafted Reply</h4>
+                                                    <Textarea
+                                                        defaultValue={selectedEmail.draftReply}
+                                                        rows={6}
+                                                    />
+                                                    <Button size="sm" disabled={!selectedEmail.draftReply} onClick={() => handleSendEmail(selectedEmail, selectedEmail.draftReply || '')}>
+                                                        <Send className="mr-2 h-4 w-4" /> Send Reply
+                                                    </Button>
+                                                </div>
                                             </div>
                                         )}
                                     </div>

@@ -37,6 +37,7 @@ export async function POST(req: Request) {
                         priority: analysis.priority || null,
                         sla: analysis.sla || null,
                         suggestedAction: analysis.suggestedAction || 'none',
+                        draftReply: analysis.draftReply || null,
                     };
                     
                     if (analysis.task?.shouldCreate && analysis.task.title) {
