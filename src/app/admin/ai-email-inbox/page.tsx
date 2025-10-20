@@ -276,7 +276,7 @@ export default function AiEmailInboxPage() {
                                                             <p className="font-semibold truncate flex-grow">{email.from}</p>
                                                         </div>
                                                         <p className="text-sm font-semibold truncate">{email.subject}</p>
-                                                        {email.summary && <p className="text-sm italic text-muted-foreground line-clamp-2 max-w-full">"{email.summary}"</p>}
+                                                        {email.summary && <p className="text-lg italic text-muted-foreground line-clamp-2 max-w-full">"{email.summary}"</p>}
                                                     </div>
                                                     <div className="col-span-4 text-right flex flex-col items-end gap-1">
                                                         <p className="text-xs text-muted-foreground">{format(new Date(email.date), 'dd MMM, HH:mm')}</p>
@@ -316,18 +316,18 @@ export default function AiEmailInboxPage() {
                                         </div>
                                          {selectedEmail?.uid === email.uid && (
                                             <div className="p-4 bg-muted/80 border-t border-b">
-                                                <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: selectedEmail.body }} />
-                                                <Separator className="my-4" />
-                                                <div className="space-y-2">
-                                                    <h4 className="font-semibold">AI Drafted Reply</h4>
-                                                    <Textarea
-                                                        defaultValue={selectedEmail.draftReply || 'Click "Analyze" to generate a draft.'}
-                                                        rows={6}
-                                                    />
-                                                    <Button size="sm" disabled={!selectedEmail.draftReply} onClick={() => handleSendEmail(selectedEmail, selectedEmail.draftReply || '')}>
-                                                        <Send className="mr-2 h-4 w-4" /> Send Reply
-                                                    </Button>
-                                                </div>
+                                                {selectedEmail.suggestedAction === 'draft_reply' && selectedEmail.draftReply && (
+                                                    <div className="space-y-2">
+                                                        <h4 className="font-semibold">AI Drafted Reply</h4>
+                                                        <Textarea
+                                                            defaultValue={selectedEmail.draftReply}
+                                                            rows={6}
+                                                        />
+                                                        <Button size="sm" disabled={!selectedEmail.draftReply} onClick={() => handleSendEmail(selectedEmail, selectedEmail.draftReply || '')}>
+                                                            <Send className="mr-2 h-4 w-4" /> Send Reply
+                                                        </Button>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </div>
