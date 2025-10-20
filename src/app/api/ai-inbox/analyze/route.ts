@@ -1,6 +1,6 @@
 
 import { NextResponse } from 'next/server';
-import { getFirestore, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, updateDoc, collection, addDoc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { categorizeSupportRequest } from '@/ai/flows/categorize-support-requests';
 
@@ -22,14 +22,36 @@ export async function POST(req: Request) {
             if (docSnap.exists()) {
                 const email = docSnap.data();
                 const requestText = `Subject: ${email.subject}\n\nBody: ${email.body.replace(/<[^>]*>?/gm, ' ')}`; // simple html strip
+                const clientName = email.from.split('<')[0].trim();
                 
                 try {
-                    const analysis = await categorizeSupportRequest({ request: requestText });
-                    await updateDoc(docRef, {
+                    const analysis = await categorizeSupportRequest({ request: requestText, clientName });
+                    
+                    const updateData: any = {
                         category: analysis.category,
                         priority: analysis.priority,
                         sla: analysis.sla,
-                    });
+                    };
+                    
+                    if (analysis.task?.shouldCreate && analysis.task.title) {
+                        const dueDate = new Date();
+                        dueDate.setHours(dueDate.getHours() + (analysis.sla || 48));
+                        
+                        await addDoc(collection(db, 'tasks'), {
+                            title: analysis.task.title,
+                            description: analysis.task.description || 'Generated from email.',
+                            status: 'To-Do',
+                            priority: analysis.priority,
+                            dueDate: Timestamp.fromDate(dueDate),
+                            createdAt: serverTimestamp(),
+                            createdBy: 'ai_system',
+                            assignedTo: [], // Needs manual assignment
+                        });
+                        updateData.isProcessed = true;
+                        updateData.processedAction = 'processed';
+                    }
+
+                    await updateDoc(docRef, updateData);
                     successCount++;
                 } catch (aiError) {
                      console.error(`AI analysis failed for email UID ${uid}:`, aiError);
@@ -48,5 +70,3 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: `An unexpected error occurred during analysis: ${error.message}` }, { status: 500 });
     }
 }
-
-    
