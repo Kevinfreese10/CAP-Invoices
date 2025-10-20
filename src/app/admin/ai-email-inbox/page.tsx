@@ -15,7 +15,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { doc, setDoc, serverTimestamp, updateDoc, arrayUnion, addDoc, collection, Timestamp, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -328,7 +327,6 @@ export default function AIEmailInboxPage() {
                         )}
                     </CardContent>
                 </Card>
-
                 <DialogContent className="sm:max-w-4xl h-[90vh]">
                     {selectedEmail && (
                         <div className="flex flex-col h-full">
