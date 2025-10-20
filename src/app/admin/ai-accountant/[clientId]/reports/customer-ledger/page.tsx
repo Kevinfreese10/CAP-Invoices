@@ -13,7 +13,7 @@ import { firebaseApp } from '@/lib/firebase';
 import { Loader2, Download, Eye } from "lucide-react";
 import { useParams } from 'next/navigation';
 import { DateRange } from "react-day-picker";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
