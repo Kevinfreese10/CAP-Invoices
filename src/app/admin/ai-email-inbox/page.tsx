@@ -276,7 +276,7 @@ export default function AiEmailInboxPage() {
                                                             <p className="font-semibold truncate flex-grow">{email.from}</p>
                                                         </div>
                                                         <p className="text-sm font-semibold truncate">{email.subject}</p>
-                                                        {email.summary && <p className="text-lg italic text-muted-foreground line-clamp-2 max-w-full">"{email.summary}"</p>}
+                                                        {email.summary && <p className="text-lg italic text-muted-foreground">"{email.summary}"</p>}
                                                     </div>
                                                     <div className="col-span-4 text-right flex flex-col items-end gap-1">
                                                         <p className="text-xs text-muted-foreground">{format(new Date(email.date), 'dd MMM, HH:mm')}</p>
