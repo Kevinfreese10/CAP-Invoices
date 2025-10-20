@@ -1722,8 +1722,8 @@ export default function BankTransactionsPage() {
     return (
         <div className="space-y-4">
             <h1 className="text-2xl font-bold tracking-tight">Banking</h1>
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 md:gap-8 p-4 bg-card border rounded-lg">
-                <div className="grid gap-2 flex-grow">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4 md:gap-8 p-4 bg-card border rounded-lg">
+                <div className="grid gap-2">
                     <Label htmlFor="bank-account-selector">Bank Account</Label>
                     <div className="flex gap-2">
                         <Select
@@ -1773,19 +1773,9 @@ export default function BankTransactionsPage() {
                     </div>
                 </div>
 
-                <div className="flex items-center gap-8">
-                     <div className="flex items-center gap-4">
-                        {client && selectedAccountId && <UploadStatementDialog client={client} bankAccountId={selectedAccountId} onImportComplete={handleImportComplete} />}
-                        {client && selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={handleImportComplete} currentBalance={bankBalance} />}
-                     </div>
-                     <div className="text-right">
-                        <Label>Current Balance</Label>
-                        <p className="text-2xl font-bold">R {formatPrice(bankBalance)}</p>
-                    </div>
-                    <div className="text-right">
-                        <Label>Last Import</Label>
-                        <p className="text-2xl font-bold">{lastImportDate ? format(lastImportDate, 'dd MMM yyyy') : 'N/A'}</p>
-                    </div>
+                <div className="flex items-center gap-4">
+                    {client && selectedAccountId && <UploadStatementDialog client={client} bankAccountId={selectedAccountId} onImportComplete={handleImportComplete} />}
+                    {client && selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={handleImportComplete} currentBalance={bankBalance} />}
                 </div>
             </div>
 
