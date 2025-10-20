@@ -880,7 +880,7 @@ const NewTransactionsTab = React.forwardRef<
     const [allocations, setAllocations] = useState<{ [txId: string]: { value: string, type: 'account' | 'customer' | 'supplier', vatType?: VatType } }>({});
     const [searchAccountTerm, setSearchAccountTerm] = useState('');
     const [isCreateRuleOpen, setIsCreateRuleOpen] = useState(false);
-    const [ruleDefaultValues, setRuleDefaultValues] = useState<Partial<z.infer<typeof ruleFormSchema>> | undefined>();
+    const [ruleDefaultValues, setRuleDefaultValues] = useState<Partial<z.infer<typeof ruleFormSchema>>>({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases'});
     const [isAiAllocating, setIsAiAllocating] = useState(false);
     const [isRuleAllocating, setIsRuleAllocating] = useState(false);
     
@@ -1162,7 +1162,7 @@ const NewTransactionsTab = React.forwardRef<
                 onOpenChange={(isOpen) => {
                     setIsCreateRuleOpen(isOpen);
                     if (!isOpen) {
-                        setRuleDefaultValues(undefined);
+                        setRuleDefaultValues({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases'});
                     }
                 }}
                 defaultValues={ruleDefaultValues}
