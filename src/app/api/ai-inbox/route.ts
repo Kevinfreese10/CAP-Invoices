@@ -13,8 +13,8 @@ const db = getFirestore(firebaseApp);
 async function connectToImap() {
     const config = {
       imap: {
-        user: 'kev@myacc.co.za', // Changed to kev@myacc.co.za
-        password: 'Thinkestry10$', // Corrected password
+        user: 'kev@myacc.co.za',
+        password: 'Thinkestry10$',
         host: 'mail.myacc.co.za',
         port: 993,
         tls: true,
