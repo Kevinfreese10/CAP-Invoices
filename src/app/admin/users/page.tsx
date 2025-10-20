@@ -261,27 +261,28 @@ export default function ManageUsersPage() {
                 firebaseUser = userCredential.user;
             } catch (authError: any) {
                 if (authError.code === 'auth/email-already-in-use') {
-                    // Check if user document already exists in Firestore
+                    // Check if user document already exists in Firestore. If not, this is an orphaned auth user.
                     const q = query(collection(db, "users"), where("email", "==", userData.email));
                     const existingDocs = await getDocs(q);
                     if (!existingDocs.empty) {
                         toast({ title: 'User Exists', description: 'A user profile with this email already exists.', variant: 'destructive'});
                         return;
                     }
-                    // This case is for orphaned auth users. Not handled yet.
-                    throw new Error("An auth record exists for this email, but no user profile. Manual cleanup may be required.");
+                    // If no Firestore doc, it's an orphaned auth user. Log them in to get UID.
+                    toast({ title: "Existing Auth User", description: "This email is already registered. Attempting to link to a new profile." });
+                    const userCredential = await signInWithEmailAndPassword(auth, userData.email, password);
+                    firebaseUser = userCredential.user;
                 } else {
                     throw authError; // Re-throw other auth errors
                 }
             }
             
             const authUid = firebaseUser.uid;
-            
             const newUserDocRef = doc(db, "users", authUid);
             const userDocSnap = await getDoc(newUserDocRef);
 
             if (userDocSnap.exists()) {
-                toast({ title: 'User Already Exists', description: 'A user with this email already has a profile in the "users" collection.', variant: 'destructive'});
+                toast({ title: 'User Already Exists', description: 'A user with this email already has a profile.', variant: 'destructive'});
                 if (auth.currentUser) await reauthenticate(auth.currentUser);
                 return;
             }
@@ -292,7 +293,7 @@ export default function ManageUsersPage() {
                 id: authUid,
                 createdAt: serverTimestamp(),
             });
-
+            
             if (auth.currentUser) {
                 await reauthenticate(auth.currentUser);
             }
@@ -305,7 +306,7 @@ export default function ManageUsersPage() {
     } catch (error: any) {
         console.error("Error saving user:", error);
         let description = 'Could not save the user. Please try again.';
-        if (error.code === 'auth/wrong-password') {
+        if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
             description = 'An auth user exists with this email, but the password provided is incorrect.';
         }
         toast({ title: 'Error', description, variant: 'destructive'});
@@ -424,3 +425,5 @@ export default function ManageUsersPage() {
     </div>
   );
 }
+
+    
