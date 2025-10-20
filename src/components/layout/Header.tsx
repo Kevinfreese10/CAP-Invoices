@@ -127,7 +127,7 @@ const UserMenu = ({ user, onLogout }: { user: any; onLogout: () => void }) => (
   <DropdownMenu>
     <DropdownMenuTrigger asChild>
       <Button variant="ghost" className="relative h-9 w-9 rounded-full">
-        <span>{user.name.charAt(0)}</span>
+        {user.name && <span>{user.name.charAt(0)}</span>}
       </Button>
     </DropdownMenuTrigger>
     <DropdownMenuContent className="w-56" align="end" forceMount>
