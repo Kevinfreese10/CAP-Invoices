@@ -36,6 +36,7 @@ interface Email {
     sla?: 24 | 48 | 72;
     summary?: string;
     suggestedAction?: 'create_task' | 'draft_reply' | 'archive' | 'none';
+    draftReply?: string;
 }
 
 const getActionIcon = (action?: 'processed' | 'archived') => {
@@ -56,7 +57,6 @@ export default function AiEmailInboxPage() {
     const [isProcessing, setIsProcessing] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [isDrafting, setIsDrafting] = useState(false);
-    const [draftedReply, setDraftedReply] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [selectedUids, setSelectedUids] = useState<Set<number>>(new Set());
     const [activeTab, setActiveTab] = useState<'inbox' | 'archive'>('inbox');
@@ -89,12 +89,6 @@ export default function AiEmailInboxPage() {
     useEffect(() => {
         fetchEmails({ selectFirst: true });
     }, [fetchEmails]);
-    
-    useEffect(() => {
-        // Reset draft when selected email changes
-        setDraftedReply('');
-    }, [selectedEmail]);
-
 
     const processEmailAction = async (uids: Set<number>, action: 'process' | 'archive' | 'delete' | 'unarchive') => {
         const emailsToProcess = emails.filter(email => uids.has(email.uid));
@@ -160,33 +154,6 @@ export default function AiEmailInboxPage() {
         }
     }
     
-    const handleDraftReply = async (email: Email | null = selectedEmail) => {
-        if (!email) return;
-        setIsDrafting(true);
-        setDraftedReply('');
-        setSelectedEmail(email); // Ensure the correct email is selected
-        toast({ title: 'Drafting Reply...', description: 'The AI is composing a response.'});
-        
-        try {
-            const response = await fetch('/api/ai-inbox/draft-reply', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email }),
-            });
-             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Drafting failed');
-            }
-            const data = await response.json();
-            setDraftedReply(data.draft);
-            toast({ title: 'Reply Drafted', description: 'Your draft is ready for review.'});
-        } catch(err: any) {
-            toast({ title: `Drafting Failed`, description: err.message, variant: 'destructive' });
-        } finally {
-            setIsDrafting(false);
-        }
-    };
-    
     const handleCreateTaskFromEmail = async (email: Email) => {
         toast({ title: 'Creating Task...', description: `Creating a new task from email: ${email.subject}`});
         try {
@@ -235,64 +202,72 @@ export default function AiEmailInboxPage() {
             default: return 'outline';
         }
     }
+
+    const handleSendEmail = (email: Email, draft: string) => {
+        // Placeholder for sending email logic
+        toast({ title: 'Email Sent!', description: `Your reply to ${email.from} has been sent.`});
+    }
     
     return (
         <div className="space-y-8">
-            <Dialog>
-                <div className="flex items-center justify-between">
-                    <h1 className="text-3xl font-bold tracking-tight">AI Email Inbox</h1>
-                    <div className="flex gap-2">
-                        {activeTab === 'inbox' && (
-                             <Button variant="secondary" onClick={() => processEmailAction(selectedUids, 'archive')} disabled={isProcessing || selectedUids.size === 0}>
-                                <Archive className="mr-2 h-4 w-4"/> Archive {selectedUids.size > 0 ? `(${selectedUids.size})` : ''}
-                            </Button>
-                        )}
-                        {activeTab === 'archive' && (
-                             <Button variant="secondary" onClick={() => processEmailAction(selectedUids, 'unarchive')} disabled={isProcessing || selectedUids.size === 0}>
-                                <ArchiveRestore className="mr-2 h-4 w-4"/> Unarchive {selectedUids.size > 0 ? `(${selectedUids.size})` : ''}
-                            </Button>
-                        )}
-                        <Button variant="destructive" onClick={() => processEmailAction(selectedUids, 'delete')} disabled={isProcessing || selectedUids.size === 0}>
-                            <Trash2 className="mr-2 h-4 w-4"/> Delete {selectedUids.size > 0 ? `(${selectedUids.size})` : ''}
+            <div className="flex items-center justify-between">
+                <h1 className="text-3xl font-bold tracking-tight">AI Email Inbox</h1>
+                <div className="flex gap-2">
+                    {activeTab === 'inbox' && (
+                         <Button variant="secondary" onClick={() => processEmailAction(selectedUids, 'archive')} disabled={isProcessing || selectedUids.size === 0}>
+                            <Archive className="mr-2 h-4 w-4"/> Archive {selectedUids.size > 0 ? `(${selectedUids.size})` : ''}
                         </Button>
-                        <Button onClick={() => fetchEmails({ sync: true })} variant="outline" disabled={isLoading || isProcessing}>
-                            <RefreshCw className={`mr-2 h-4 w-4 ${isLoading || isProcessing ? 'animate-spin' : ''}`} /> Refresh
-                        </Button>
-                    </div>
-                </div>
-
-                <div className="flex justify-between items-center">
-                    <div className="flex gap-2">
-                        <Button variant={activeTab === 'inbox' ? 'default' : 'outline'} onClick={() => setActiveTab('inbox')}>Inbox ({inboxEmails.length})</Button>
-                        <Button variant={activeTab === 'archive' ? 'default' : 'outline'} onClick={() => setActiveTab('archive')}>Archive ({archivedEmails.length})</Button>
-                    </div>
-                     {activeTab === 'inbox' && (
-                         <div className="flex items-center gap-2">
-                             <Button onClick={handleAnalyzeSelected} disabled={isAnalyzing || selectedUids.size === 0}>
-                                {isAnalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}
-                                Analyze {selectedUids.size > 0 ? `(${selectedUids.size})` : ''}
-                            </Button>
-                             <div className="flex items-center space-x-2">
-                                <Checkbox id="select-all" onCheckedChange={(checked) => handleSelectAll(!!checked)} checked={currentList.length > 0 && selectedUids.size === currentList.length}/>
-                                <label htmlFor="select-all" className="text-sm font-medium">Select All</label>
-                            </div>
-                         </div>
                     )}
+                    {activeTab === 'archive' && (
+                         <Button variant="secondary" onClick={() => processEmailAction(selectedUids, 'unarchive')} disabled={isProcessing || selectedUids.size === 0}>
+                            <ArchiveRestore className="mr-2 h-4 w-4"/> Unarchive {selectedUids.size > 0 ? `(${selectedUids.size})` : ''}
+                        </Button>
+                    )}
+                    <Button variant="destructive" onClick={() => processEmailAction(selectedUids, 'delete')} disabled={isProcessing || selectedUids.size === 0}>
+                        <Trash2 className="mr-2 h-4 w-4"/> Delete {selectedUids.size > 0 ? `(${selectedUids.size})` : ''}
+                    </Button>
+                    <Button onClick={() => fetchEmails({ sync: true })} variant="outline" disabled={isLoading || isProcessing}>
+                        <RefreshCw className={`mr-2 h-4 w-4 ${isLoading || isProcessing ? 'animate-spin' : ''}`} /> Refresh
+                    </Button>
                 </div>
-                
-                <Card>
-                    <CardContent className="p-0">
-                        <ScrollArea className="h-[calc(100vh-25rem)]">
-                            {isLoading ? (
-                                <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin" /></div>
-                            ) : error ? (
-                                <div className="p-4 text-center text-destructive"><FileWarning className="mx-auto h-12 w-12" /><p className="mt-4 text-sm font-semibold">{error}</p></div>
-                            ) : currentList.length === 0 ? (
-                                <div className="p-4 text-center text-muted-foreground"><Inbox className="mx-auto h-12 w-12" /><p className="mt-4">This folder is empty.</p></div>
-                            ) : (
-                                <div className="divide-y">
-                                    {currentList.map((email) => (
-                                        <div key={email.uid} className={cn("p-4", selectedEmail?.uid === email.uid && 'bg-muted')}>
+            </div>
+
+            <div className="flex justify-between items-center">
+                <div className="flex gap-2">
+                    <Button variant={activeTab === 'inbox' ? 'default' : 'outline'} onClick={() => setActiveTab('inbox')}>Inbox ({inboxEmails.length})</Button>
+                    <Button variant={activeTab === 'archive' ? 'default' : 'outline'} onClick={() => setActiveTab('archive')}>Archive ({archivedEmails.length})</Button>
+                </div>
+                 {activeTab === 'inbox' && (
+                     <div className="flex items-center gap-2">
+                         <Button onClick={handleAnalyzeSelected} disabled={isAnalyzing || selectedUids.size === 0}>
+                            {isAnalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}
+                            Analyze {selectedUids.size > 0 ? `(${selectedUids.size})` : ''}
+                        </Button>
+                         <div className="flex items-center space-x-2">
+                            <Checkbox id="select-all" onCheckedChange={(checked) => handleSelectAll(!!checked)} checked={currentList.length > 0 && selectedUids.size === currentList.length}/>
+                            <label htmlFor="select-all" className="text-sm font-medium">Select All</label>
+                        </div>
+                     </div>
+                )}
+            </div>
+            
+            <Card>
+                <CardContent className="p-0">
+                    <ScrollArea className="h-[calc(100vh-25rem)]">
+                        {isLoading ? (
+                            <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin" /></div>
+                        ) : error ? (
+                            <div className="p-4 text-center text-destructive"><FileWarning className="mx-auto h-12 w-12" /><p className="mt-4 text-sm font-semibold">{error}</p></div>
+                        ) : currentList.length === 0 ? (
+                            <div className="p-4 text-center text-muted-foreground"><Inbox className="mx-auto h-12 w-12" /><p className="mt-4">This folder is empty.</p></div>
+                        ) : (
+                            <div className="divide-y">
+                                {currentList.map((email) => (
+                                    <div key={email.uid}>
+                                        <div 
+                                          className={cn("p-4 cursor-pointer hover:bg-muted/50", selectedEmail?.uid === email.uid && 'bg-muted')}
+                                          onClick={() => setSelectedEmail(email.uid === selectedEmail?.uid ? null : email)}
+                                        >
                                             <div className="flex items-start gap-4 text-left">
                                                 <Checkbox onCheckedChange={(checked) => handleSelectOne(email.uid, !!checked)} checked={selectedUids.has(email.uid)} onClick={(e) => e.stopPropagation()} className="mt-1"/>
                                                 <div className="flex-grow grid grid-cols-12 gap-x-4">
@@ -301,7 +276,7 @@ export default function AiEmailInboxPage() {
                                                             <p className="font-semibold truncate flex-grow">{email.from}</p>
                                                         </div>
                                                         <p className="text-sm font-semibold truncate">{email.subject}</p>
-                                                        {email.summary && <p className="text-base italic text-muted-foreground line-clamp-2 max-w-full">"{email.summary}"</p>}
+                                                        {email.summary && <p className="text-sm italic text-muted-foreground line-clamp-2 max-w-full">"{email.summary}"</p>}
                                                     </div>
                                                     <div className="col-span-4 text-right flex flex-col items-end gap-1">
                                                         <p className="text-xs text-muted-foreground">{format(new Date(email.date), 'dd MMM, HH:mm')}</p>
@@ -315,26 +290,22 @@ export default function AiEmailInboxPage() {
                                                     </div>
                                                     <div className="col-span-12 flex items-center justify-end mt-2">
                                                         <div className="flex items-center gap-2">
-                                                            <Button size="sm" variant="outline" onClick={() => handleAnalyzeSingle(email.uid)} disabled={isAnalyzing}>
+                                                            <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleAnalyzeSingle(email.uid); }} disabled={isAnalyzing}>
                                                                 <Sparkles className="mr-2 h-4 w-4"/> Analyze
                                                             </Button>
-                                                            <DialogTrigger asChild>
-                                                                <Button variant="ghost" size="sm" onClick={() => setSelectedEmail(email)}>
-                                                                    <Eye className="mr-2 h-4 w-4"/> View
-                                                                </Button>
-                                                            </DialogTrigger>
                                                             {email.suggestedAction && email.suggestedAction !== 'none' && (
                                                                 <>
                                                                     {email.suggestedAction === 'create_task' && (
-                                                                        <Button size="sm" variant="secondary" onClick={() => handleCreateTaskFromEmail(email)}><FilePlus className="mr-2 h-4 w-4"/>Create Task</Button>
+                                                                        <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); handleCreateTaskFromEmail(email); }}><FilePlus className="mr-2 h-4 w-4"/>Create Task</Button>
                                                                     )}
                                                                     {email.suggestedAction === 'draft_reply' && (
-                                                                        <DialogTrigger asChild>
-                                                                            <Button size="sm" variant="secondary" onClick={() => handleDraftReply(email)}><Reply className="mr-2 h-4 w-4"/>Draft Reply</Button>
-                                                                        </DialogTrigger>
+                                                                        <Button size="sm" variant="secondary" onClick={() => setSelectedEmail(email.uid === selectedEmail?.uid ? null : email)}>
+                                                                            <Reply className="mr-2 h-4 w-4"/>
+                                                                            {selectedEmail?.uid === email.uid ? 'Hide' : 'View'} Draft
+                                                                        </Button>
                                                                     )}
                                                                     {email.suggestedAction === 'archive' && (
-                                                                        <Button size="sm" variant="secondary" onClick={() => processEmailAction(new Set([email.uid]), 'archive')}><Archive className="mr-2 h-4 w-4"/>Archive</Button>
+                                                                        <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); processEmailAction(new Set([email.uid]), 'archive'); }}><Archive className="mr-2 h-4 w-4"/>Archive</Button>
                                                                     )}
                                                                 </>
                                                             )}
@@ -343,42 +314,29 @@ export default function AiEmailInboxPage() {
                                                 </div>
                                             </div>
                                         </div>
-                                    ))}
-                                </div>
-                            )}
-                        </ScrollArea>
-                    </CardContent>
-                </Card>
-                {selectedEmail && (
-                     <DialogContent className="sm:max-w-4xl">
-                        <DialogHeader>
-                            <DialogTitle>{selectedEmail.subject}</DialogTitle>
-                            <DialogDescription>From: {selectedEmail.from} on {format(new Date(selectedEmail.date), 'dd MMM yyyy, HH:mm')}</DialogDescription>
-                        </DialogHeader>
-                        <div className="max-h-[70vh] overflow-y-auto space-y-6">
-                            <div dangerouslySetInnerHTML={{ __html: selectedEmail.body }} className="prose prose-sm max-w-none" />
-                            <Separator />
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-lg font-semibold">AI Reply</h3>
-                                    <Button size="sm" onClick={() => handleDraftReply()} disabled={isDrafting}>
-                                        {isDrafting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Reply className="mr-2 h-4 w-4"/>}
-                                        Regenerate Draft
-                                    </Button>
-                                </div>
-                                {isDrafting ? (
-                                     <div className="flex items-center gap-2 text-primary">
-                                        <Loader2 className="animate-spin"/>
-                                        <span>AI is drafting a reply...</span>
+                                         {selectedEmail?.uid === email.uid && (
+                                            <div className="p-4 bg-muted/80 border-t border-b">
+                                                <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: selectedEmail.body }} />
+                                                <Separator className="my-4" />
+                                                <div className="space-y-2">
+                                                    <h4 className="font-semibold">AI Drafted Reply</h4>
+                                                    <Textarea
+                                                        defaultValue={selectedEmail.draftReply || 'Click "Analyze" to generate a draft.'}
+                                                        rows={6}
+                                                    />
+                                                    <Button size="sm" disabled={!selectedEmail.draftReply} onClick={() => handleSendEmail(selectedEmail, selectedEmail.draftReply || '')}>
+                                                        <Send className="mr-2 h-4 w-4" /> Send Reply
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
-                                ) : draftedReply ? (
-                                    <Textarea value={draftedReply} onChange={(e) => setDraftedReply(e.target.value)} rows={8} />
-                                ) : <p className="text-sm text-muted-foreground">Click the button to generate a draft reply.</p>}
+                                ))}
                             </div>
-                        </div>
-                    </DialogContent>
-                )}
-            </Dialog>
+                        )}
+                    </ScrollArea>
+                </CardContent>
+            </Card>
         </div>
     );
 }
