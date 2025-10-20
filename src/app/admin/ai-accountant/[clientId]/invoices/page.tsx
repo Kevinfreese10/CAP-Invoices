@@ -180,95 +180,6 @@ export default function InvoicesPage() {
         fetchData();
     }, [clientId, toast]);
 
-    const handleUpdateStatus = async (invoiceId: string, status: 'final') => {
-        if (!client || !client.id) return;
-
-        const invoiceToUpdate = invoices.find(inv => inv.id === invoiceId);
-        if (!invoiceToUpdate) {
-            toast({ title: 'Error', description: 'Invoice not found.', variant: 'destructive' });
-            return;
-        }
-
-        try {
-            const invoiceRef = doc(db, 'aiAccountantClients', client.id, 'invoices', invoiceId);
-            const batch = writeBatch(db);
-
-            // Post to GL if marking as final
-            if (status === 'final') {
-                const customerControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '8000-001')?.id;
-                const vatControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '7000-008')?.id;
-    
-                if (!customerControlAccount || !vatControlAccount) {
-                    throw new Error("Control accounts not found in Chart of Accounts.");
-                }
-
-                // 1. Debit Customer Control for the full amount
-                 batch.set(doc(collection(db, 'aiAccountantClients', client.id, 'transactions')), {
-                    clientId: client.id,
-                    date: invoiceToUpdate.invoiceDate.toISOString(),
-                    reference: `INV-${invoiceId}`,
-                    description: `Invoice to ${customers.find(c => c.id === invoiceToUpdate.customerId)?.name}`,
-                    amount: invoiceToUpdate.total,
-                    bankAccountId: 'JOURNAL',
-                    allocatedTo: { value: customerControlAccount, type: 'account' },
-                    vatType: 'no_vat',
-                    vatAmount: 0,
-                    status: 'allocated',
-                    allocatedAt: new Date(),
-                });
-
-                const totalVat = invoiceToUpdate.lineItems.reduce((acc, line) => {
-                    const lineTotal = line.quantity * line.rate;
-                    const vatAmount = line.vatType === 'standard_rated_sales' ? lineTotal * 0.15 : 0;
-                    
-                    // 2. Credit Sales Account
-                    batch.set(doc(collection(db, 'aiAccountantClients', client.id, 'transactions')), {
-                        clientId: client.id,
-                        date: invoiceToUpdate.invoiceDate.toISOString(),
-                        reference: `INV-${invoiceId}`,
-                        description: line.description,
-                        amount: -lineTotal,
-                        bankAccountId: 'JOURNAL',
-                        allocatedTo: { value: line.accountId, type: 'account' },
-                        vatType: line.vatType as any,
-                        vatAmount: 0,
-                        status: 'allocated',
-                        allocatedAt: new Date(),
-                    });
-                    
-                    return acc + vatAmount;
-                }, 0);
-    
-                // 3. Credit VAT Control for the total VAT amount
-                if (totalVat > 0) {
-                     batch.set(doc(collection(db, 'aiAccountantClients', client.id, 'transactions')), {
-                        clientId: client.id,
-                        date: invoiceToUpdate.invoiceDate.toISOString(),
-                        reference: `INV-${invoiceId}`,
-                        description: `VAT on Invoice`,
-                        amount: -totalVat,
-                        bankAccountId: 'JOURNAL',
-                        allocatedTo: { value: vatControlAccount, type: 'account' },
-                        vatType: 'no_vat',
-                        vatAmount: 0,
-                        status: 'allocated',
-                        allocatedAt: new Date(),
-                    });
-                }
-            }
-
-            // Update invoice status
-            batch.update(invoiceRef, { status });
-            await batch.commit();
-
-            toast({ title: 'Invoice Status Updated', description: 'The invoice is now final and posted.' });
-            fetchData();
-        } catch (error: any) {
-            console.error("Error updating invoice:", error);
-            toast({ title: 'Error', description: error.message || 'Failed to update invoice status.', variant: 'destructive' });
-        }
-    }
-
     const onSubmit = async (data: InvoiceFormValues) => {
         if (!client || !client.id) return;
         
@@ -383,10 +294,10 @@ export default function InvoicesPage() {
                             <Table>
                                 <TableHeader>
                                     <TableRow>
+                                        <TableHead>Invoice #</TableHead>
                                         <TableHead>Customer</TableHead>
                                         <TableHead>Date</TableHead>
                                         <TableHead>Due Date</TableHead>
-                                        <TableHead>Status</TableHead>
                                         <TableHead className="text-right">Total</TableHead>
                                         <TableHead className="text-right">Actions</TableHead>
                                     </TableRow>
@@ -401,10 +312,10 @@ export default function InvoicesPage() {
                                     ) : (
                                         invoices.map((invoice) => (
                                             <TableRow key={invoice.id}>
+                                                <TableCell className="font-mono">{invoice.id}</TableCell>
                                                 <TableCell>{customers.find(c => c.id === invoice.customerId)?.name}</TableCell>
                                                 <TableCell>{format(invoice.invoiceDate, "dd/MM/yyyy")}</TableCell>
                                                 <TableCell>{format(invoice.dueDate, "dd/MM/yyyy")}</TableCell>
-                                                <TableCell>{invoice.status}</TableCell>
                                                 <TableCell className="text-right">{formatPrice(invoice.total)}</TableCell>
                                                 <TableCell className="text-right">
                                                     <DropdownMenu>
@@ -421,11 +332,6 @@ export default function InvoicesPage() {
                                                             <DropdownMenuItem><FileText className="mr-2 h-4 w-4" />Issue Credit Note</DropdownMenuItem>
                                                             <DropdownMenuItem><Mail className="mr-2 h-4 w-4" />Email to Client</DropdownMenuItem>
                                                             <DropdownMenuItem onSelect={() => handleDownloadPdf(invoice)}><Download className="mr-2 h-4 w-4" />Download as PDF</DropdownMenuItem>
-                                                            {invoice.status !== 'final' && (
-                                                                <DropdownMenuItem onSelect={() => handleUpdateStatus(invoice.id, 'final')}>
-                                                                    <CheckCircle className="mr-2 h-4 w-4" /> Mark as Final
-                                                                </DropdownMenuItem>
-                                                            )}
                                                         </DropdownMenuContent>
                                                     </DropdownMenu>
                                                 </TableCell>
@@ -556,5 +462,4 @@ export default function InvoicesPage() {
         </Dialog>
     );
 }
-
     
