@@ -1024,7 +1024,7 @@ const NewTransactionsTab = React.forwardRef<
         for (const tx of transactionsToAllocate) {
             const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
             batch.update(transactionRef, {
-                status: 'allocated',
+                status: 'review',
                 allocatedTo: allocation,
                 vatType: vatType,
                 allocatedAt: new Date(),
@@ -1033,7 +1033,7 @@ const NewTransactionsTab = React.forwardRef<
 
         try {
             await batch.commit();
-            toast({ title: "Allocation Successful", description: `${selectedTransactions.length} transactions have been allocated.` });
+            toast({ title: "Allocation Successful", description: `${selectedTransactions.length} transactions have been sent for review.` });
             setSelectedTransactions([]);
             refetch();
         } catch (error) {
