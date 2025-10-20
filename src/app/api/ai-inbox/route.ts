@@ -100,6 +100,11 @@ export async function POST(req: Request) {
                 const docRef = doc(db, 'inboxEmails', String(uid));
                 batch.delete(docRef);
             });
+        } else if (action === 'unarchive') {
+             uids.forEach((uid: number) => {
+                const docRef = doc(db, 'inboxEmails', String(uid));
+                batch.update(docRef, { processedAction: null });
+            });
         } else { // process or archive
              uids.forEach((uid: number) => {
                 const docRef = doc(db, 'inboxEmails', String(uid));

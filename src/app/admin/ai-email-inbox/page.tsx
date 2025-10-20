@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Inbox, RefreshCw, FileWarning, Paperclip, CheckCircle2, Bot, Send, Trash2, XCircle, FileCheck2, Archive, Sparkles, Reply } from 'lucide-react';
+import { Loader2, Inbox, RefreshCw, FileWarning, Paperclip, CheckCircle2, Bot, Send, Trash2, XCircle, FileCheck2, Archive, Sparkles, Reply, FilePlus, ArchiveRestore } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -12,7 +12,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { categorizeSupportRequest } from '@/ai/flows/categorize-support-requests';
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
 
@@ -32,9 +31,10 @@ interface Email {
     attachments: Attachment[];
     isProcessed?: boolean;
     processedAction?: 'processed' | 'archived';
-    category?: 'Account issues' | 'Tax preparation' | 'Service inquiry' | 'Document upload' | 'Other';
+    category?: 'Account issues' | 'Tax preparation' | 'Service inquiry' | 'Document upload' | 'Other' | 'Spam/Promo';
     priority?: 'High' | 'Medium' | 'Low';
     sla?: 24 | 48 | 72;
+    suggestedAction?: 'create_task' | 'draft_reply' | 'archive' | 'none';
 }
 
 const getActionIcon = (action?: 'processed' | 'archived') => {
@@ -61,7 +61,7 @@ export default function AiEmailInboxPage() {
     const [activeTab, setActiveTab] = useState<'inbox' | 'archive'>('inbox');
     const { toast } = useToast();
 
-    const fetchEmails = useCallback(async () => {
+    const fetchEmails = useCallback(async (selectFirst = false) => {
         setIsLoading(true);
         setError(null);
         try {
@@ -72,8 +72,9 @@ export default function AiEmailInboxPage() {
             }
             const data: Email[] = await response.json();
             setEmails(data);
-            if (!selectedEmail && data.length > 0) {
-                setSelectedEmail(data.filter(e => e.processedAction !== 'archived')[0] || data[0]);
+            if (selectFirst && data.length > 0) {
+                 const firstUnarchived = data.find(e => e.processedAction !== 'archived');
+                 setSelectedEmail(firstUnarchived || data[0]);
             }
         } catch (err: any) {
             console.error("Error fetching emails:", err);
@@ -81,10 +82,10 @@ export default function AiEmailInboxPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [selectedEmail]);
+    }, []);
 
     useEffect(() => {
-        fetchEmails();
+        fetchEmails(true);
     }, []);
     
     useEffect(() => {
@@ -93,7 +94,7 @@ export default function AiEmailInboxPage() {
     }, [selectedEmail]);
 
 
-    const processEmailAction = async (uids: Set<number>, action: 'process' | 'archive' | 'delete') => {
+    const processEmailAction = async (uids: Set<number>, action: 'process' | 'archive' | 'delete' | 'unarchive') => {
         const emailsToProcess = emails.filter(email => uids.has(email.uid));
         if (emailsToProcess.length === 0) return;
 
@@ -148,17 +149,18 @@ export default function AiEmailInboxPage() {
         }
     }
     
-    const handleDraftReply = async () => {
-        if (!selectedEmail) return;
+    const handleDraftReply = async (email: Email | null = selectedEmail) => {
+        if (!email) return;
         setIsDrafting(true);
         setDraftedReply('');
+        setSelectedEmail(email); // Ensure the correct email is selected
         toast({ title: 'Drafting Reply...', description: 'The AI is composing a response.'});
         
         try {
             const response = await fetch('/api/ai-inbox/draft-reply', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: selectedEmail }),
+                body: JSON.stringify({ email }),
             });
              if (!response.ok) {
                 const errorData = await response.json();
@@ -173,6 +175,25 @@ export default function AiEmailInboxPage() {
             setIsDrafting(false);
         }
     };
+    
+    const handleCreateTaskFromEmail = async (email: Email) => {
+        toast({ title: 'Creating Task...', description: `Creating a new task from email: ${email.subject}`});
+        try {
+             const response = await fetch('/api/ai-inbox/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ uids: [email.uid] }),
+            });
+             if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Task creation failed');
+            }
+             toast({ title: 'Task Created!', description: 'A new task has been added to your task list.' });
+             await fetchEmails();
+        } catch (err: any) {
+             toast({ title: `Task Creation Failed`, description: err.message, variant: 'destructive' });
+        }
+    }
 
     const inboxEmails = useMemo(() => emails.filter(e => e.processedAction !== 'archived'), [emails]);
     const archivedEmails = useMemo(() => emails.filter(e => e.processedAction === 'archived'), [emails]);
@@ -180,7 +201,7 @@ export default function AiEmailInboxPage() {
 
     const handleSelectAll = (checked: boolean) => {
         if (checked) {
-            const allUids = new Set(inboxEmails.filter(e => !e.isProcessed).map(e => e.uid));
+            const allUids = new Set(currentList.map(e => e.uid));
             setSelectedUids(allUids);
         } else {
             setSelectedUids(new Set());
@@ -211,20 +232,19 @@ export default function AiEmailInboxPage() {
                     <h1 className="text-3xl font-bold tracking-tight">AI Email Inbox</h1>
                     <div className="flex gap-2">
                         {activeTab === 'inbox' && (
-                            <>
-                                <Button onClick={() => processEmailAction(selectedUids, 'process')} disabled={isProcessing || selectedUids.size === 0}>
-                                    {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Bot className="mr-2 h-4 w-4"/>}
-                                    Process {selectedUids.size > 0 ? `(${selectedUids.size})` : ''}
-                                </Button>
-                                <Button variant="secondary" onClick={() => processEmailAction(selectedUids, 'archive')} disabled={isProcessing || selectedUids.size === 0}>
-                                    <Archive className="mr-2 h-4 w-4"/> Archive {selectedUids.size > 0 ? `(${selectedUids.size})` : ''}
-                                </Button>
-                            </>
+                             <Button variant="secondary" onClick={() => processEmailAction(selectedUids, 'archive')} disabled={isProcessing || selectedUids.size === 0}>
+                                <Archive className="mr-2 h-4 w-4"/> Archive {selectedUids.size > 0 ? `(${selectedUids.size})` : ''}
+                            </Button>
+                        )}
+                        {activeTab === 'archive' && (
+                             <Button variant="secondary" onClick={() => processEmailAction(selectedUids, 'unarchive')} disabled={isProcessing || selectedUids.size === 0}>
+                                <ArchiveRestore className="mr-2 h-4 w-4"/> Unarchive {selectedUids.size > 0 ? `(${selectedUids.size})` : ''}
+                            </Button>
                         )}
                         <Button variant="destructive" onClick={() => processEmailAction(selectedUids, 'delete')} disabled={isProcessing || selectedUids.size === 0}>
                             <Trash2 className="mr-2 h-4 w-4"/> Delete {selectedUids.size > 0 ? `(${selectedUids.size})` : ''}
                         </Button>
-                        <Button onClick={fetchEmails} variant="outline" disabled={isLoading || isProcessing}>
+                        <Button onClick={() => fetchEmails()} variant="outline" disabled={isLoading || isProcessing}>
                             <RefreshCw className={`mr-2 h-4 w-4 ${isLoading || isProcessing ? 'animate-spin' : ''}`} /> Refresh
                         </Button>
                     </div>
@@ -242,7 +262,7 @@ export default function AiEmailInboxPage() {
                                 Analyze {selectedUids.size > 0 ? `(${selectedUids.size})` : ''}
                             </Button>
                              <div className="flex items-center space-x-2">
-                                <Checkbox id="select-all" onCheckedChange={handleSelectAll} checked={inboxEmails.length > 0 && selectedUids.size === inboxEmails.filter(e => !e.isProcessed).length}/>
+                                <Checkbox id="select-all" onCheckedChange={handleSelectAll} checked={currentList.length > 0 && selectedUids.size === currentList.length}/>
                                 <label htmlFor="select-all" className="text-sm font-medium">Select All</label>
                             </div>
                          </div>
@@ -261,27 +281,45 @@ export default function AiEmailInboxPage() {
                                     <div className="p-4 text-center text-muted-foreground"><Inbox className="mx-auto h-12 w-12" /><p className="mt-4">This folder is empty.</p></div>
                                 ) : (
                                     currentList.map((email) => (
-                                        <DialogTrigger key={email.uid} asChild>
-                                            <div onClick={() => setSelectedEmail(email)} className={`flex items-start gap-4 p-4 text-left border-b hover:bg-muted/50 cursor-pointer ${selectedEmail?.uid === email.uid ? 'bg-muted' : ''}`}>
-                                                {activeTab === 'inbox' && (email.isProcessed ? <div className="w-4 h-4 mt-1 flex-shrink-0" /> : <Checkbox onCheckedChange={(checked) => handleSelectOne(email.uid, !!checked)} checked={selectedUids.has(email.uid)} onClick={(e) => e.stopPropagation()} className="mt-1"/>)}
-                                                <div className="flex-grow space-y-1">
-                                                    <div className="flex justify-between items-start">
-                                                        <p className="font-semibold truncate">{email.from}</p>
-                                                        {email.processedAction && <Badge variant={email.processedAction === 'processed' ? 'success' : 'secondary'}>{getActionIcon(email.processedAction)} {email.processedAction}</Badge>}
-                                                    </div>
-                                                    <p className="text-sm truncate">{email.subject}</p>
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                        {email.category && <Badge variant="outline">{email.category}</Badge>}
-                                                        {email.priority && <Badge variant={getPriorityVariant(email.priority)}>{email.priority}</Badge>}
-                                                        {email.sla && <Badge variant="outline">{email.sla}hr SLA</Badge>}
-                                                    </div>
-                                                    <div className="flex justify-between items-center text-xs text-muted-foreground">
-                                                        <span>{format(new Date(email.date), 'dd MMM yyyy, HH:mm')}</span>
-                                                        {email.attachments.length > 0 && <div className="flex items-center gap-1 text-primary"><Paperclip className="h-3 w-3" /><span>{email.attachments.length} attachment(s)</span></div>}
+                                        <div key={email.uid} className={`border-b ${selectedEmail?.uid === email.uid ? 'bg-muted' : ''}`}>
+                                            <DialogTrigger asChild>
+                                                <div onClick={() => setSelectedEmail(email)} className={`flex items-start gap-4 p-4 text-left hover:bg-muted/50 cursor-pointer`}>
+                                                    <Checkbox onCheckedChange={(checked) => handleSelectOne(email.uid, !!checked)} checked={selectedUids.has(email.uid)} onClick={(e) => e.stopPropagation()} className="mt-1"/>
+                                                    <div className="flex-grow space-y-1">
+                                                        <div className="flex justify-between items-start">
+                                                            <p className="font-semibold truncate">{email.from}</p>
+                                                            {email.processedAction && <Badge variant={email.processedAction === 'processed' ? 'success' : 'secondary'}>{getActionIcon(email.processedAction)} {email.processedAction}</Badge>}
+                                                        </div>
+                                                        <p className="text-sm truncate">{email.subject}</p>
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            {email.category && <Badge variant="outline">{email.category}</Badge>}
+                                                            {email.priority && <Badge variant={getPriorityVariant(email.priority)}>{email.priority}</Badge>}
+                                                            {email.sla && <Badge variant="outline">{email.sla}hr SLA</Badge>}
+                                                        </div>
+                                                        <div className="flex justify-between items-center text-xs text-muted-foreground">
+                                                            <span>{format(new Date(email.date), 'dd MMM yyyy, HH:mm')}</span>
+                                                            {email.attachments.length > 0 && <div className="flex items-center gap-1 text-primary"><Paperclip className="h-3 w-3" /><span>{email.attachments.length} attachment(s)</span></div>}
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        </DialogTrigger>
+                                            </DialogTrigger>
+                                            {email.suggestedAction && email.suggestedAction !== 'none' && (
+                                                 <div className="px-4 pb-2 flex items-center gap-2">
+                                                    <span className="text-xs font-semibold text-muted-foreground">Suggested Action:</span>
+                                                    {email.suggestedAction === 'create_task' && (
+                                                        <Button size="sm" variant="secondary" onClick={() => handleCreateTaskFromEmail(email)}><FilePlus className="mr-2 h-4 w-4"/>Create Task</Button>
+                                                    )}
+                                                    {email.suggestedAction === 'draft_reply' && (
+                                                        <DialogTrigger asChild>
+                                                            <Button size="sm" variant="secondary" onClick={() => handleDraftReply(email)}><Reply className="mr-2 h-4 w-4"/>Draft Reply</Button>
+                                                        </DialogTrigger>
+                                                    )}
+                                                    {email.suggestedAction === 'archive' && (
+                                                        <Button size="sm" variant="secondary" onClick={() => processEmailAction(new Set([email.uid]), 'archive')}><Archive className="mr-2 h-4 w-4"/>Archive</Button>
+                                                    )}
+                                                 </div>
+                                            )}
+                                        </div>
                                     ))
                                 )}
                             </ScrollArea>
@@ -298,7 +336,7 @@ export default function AiEmailInboxPage() {
                                     <div className="space-y-4">
                                         <div className="flex items-center justify-between">
                                             <h3 className="text-lg font-semibold">AI Reply</h3>
-                                            <Button size="sm" onClick={handleDraftReply} disabled={isDrafting}>
+                                            <Button size="sm" onClick={() => handleDraftReply()} disabled={isDrafting}>
                                                 {isDrafting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Reply className="mr-2 h-4 w-4"/>}
                                                 Draft with AI
                                             </Button>

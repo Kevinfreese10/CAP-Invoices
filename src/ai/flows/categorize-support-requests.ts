@@ -35,6 +35,9 @@ const CategorizeSupportRequestOutputSchema = z.object({
       title: z.string().optional().describe("If a task should be created, provide a concise and clear title for the task. E.g., 'File VAT201 for ABC (Pty) Ltd' or 'Prepare ITR12 for John Doe'."),
       description: z.string().optional().describe("A brief description of the task based on the email content."),
     }).optional().describe("Task creation details. Only populate if the email contains a clear, actionable request."),
+    suggestedAction: z
+    .enum(['create_task', 'draft_reply', 'archive', 'none'])
+    .describe("Based on the content, suggest the most logical next action. 'create_task' for actionable requests, 'draft_reply' for queries, and 'archive' for spam/promo."),
 });
 export type CategorizeSupportRequestOutput = z.infer<typeof CategorizeSupportRequestOutputSchema>;
 
@@ -52,18 +55,18 @@ const prompt = ai.definePrompt({
 
   Based on the user's request, you must perform two actions:
   1. Triage the email by determining the category, priority, and an appropriate SLA.
-  2. Determine if an actionable task can be created from the email. If so, provide a clear task title and description.
+  2. Determine if an actionable task can be created from the email and suggest the best next action.
 
   **Triage Guidelines:**
   - Categories: 'Account issues', 'Tax preparation', 'Service inquiry', 'Document upload', 'Spam/Promo', 'Other'.
-  - Priorities: Use 'High' for "urgent", "final demand", "deadline", "legal notice". Use 'Low' for newsletters or spam. If the email appears to be marketing, a newsletter, or other promotional content, categorize it as 'Spam/Promo' and set priority to 'Low'.
+  - Priorities: Use 'High' for "urgent", "final demand", "deadline", "legal notice". Use 'Low' for newsletters or spam.
   - SLA: High priority = 24 hours, Medium = 48 hours, Low = 72 hours.
 
-  **Task Creation Guidelines:**
-  - Set 'shouldCreate' to true ONLY if the email contains a clear instruction or request for work (e.g., "Please file my VAT", "Can you register my company?", "Help me with my tax return").
-  - If 'shouldCreate' is true, the task title must be specific and include the client's name. Examples: "File VAT201 for {{{clientName}}}", "Assist {{{clientName}}} with ITR12 submission".
-  - The task description should be a summary of the client's request.
-  - Do NOT create tasks for general inquiries, questions, or follow-ups.
+  **Task & Action Guidelines:**
+  - If the email contains a clear instruction for work (e.g., "Please file my VAT"), set 'suggestedAction' to 'create_task' and 'task.shouldCreate' to true. The task title must be specific and include the client's name.
+  - If the email is a general inquiry or question, set 'suggestedAction' to 'draft_reply'. Do NOT create a task.
+  - If the email is marketing, a newsletter, or spam, categorize it as 'Spam/Promo', set priority to 'Low', and set 'suggestedAction' to 'archive'.
+  - If no clear action is needed, set 'suggestedAction' to 'none'.
   
   **Client Name**: {{{clientName}}}
   **User request**: {{{request}}}
