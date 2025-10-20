@@ -1,6 +1,6 @@
 
 import { NextResponse } from 'next/server';
-import { getFirestore, doc, getDoc, updateDoc, collection, addDoc, Timestamp } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, updateDoc, collection, addDoc, Timestamp, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { categorizeSupportRequest } from '@/ai/flows/categorize-support-requests';
 
@@ -30,7 +30,8 @@ export async function POST(req: Request) {
                     const updateData: any = {
                         category: analysis.category,
                         priority: analysis.priority,
-                        sla: analysis.sla,
+                        sla: analysis.sla || null,
+                        suggestedAction: analysis.suggestedAction || 'none',
                     };
                     
                     if (analysis.task?.shouldCreate && analysis.task.title) {
