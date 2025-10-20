@@ -488,8 +488,9 @@ function ImportDialog({ client, bankAccountId, onImportComplete }: { client: Use
 
                         if (client?.allocationRules) {
                             for (const tx of transactions) {
+                                const txDescriptionLower = tx.Description.toLowerCase();
                                 const matchedRule = client.allocationRules.find(rule => 
-                                    rule.keywords.some(kw => tx.Description.toLowerCase().includes(kw.toLowerCase()))
+                                    rule.keywords.some(kw => txDescriptionLower.includes(kw))
                                 );
                                 if (matchedRule) {
                                     ruleAllocationCount++;
@@ -547,8 +548,9 @@ function ImportDialog({ client, bankAccountId, onImportComplete }: { client: Use
                     status: 'new'
                 };
                 
+                const txDescriptionLower = row.Description.toLowerCase();
                 const matchedRule = client.allocationRules?.find(rule => 
-                    rule.keywords.some(kw => row.Description.toLowerCase().includes(kw.toLowerCase()))
+                    rule.keywords.some(kw => txDescriptionLower.includes(kw))
                 );
 
                 if (matchedRule) {
@@ -872,8 +874,8 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
 
 const NewTransactionsTab = React.forwardRef<
     { refetch: () => void },
-    { client: User | null; bankAccountId: string | null; customers: ClientCustomer[]; invoices: Invoice[]; fetchClientData: () => void; }
->(({ client, bankAccountId, customers, invoices, fetchClientData }, ref) => {
+    { client: User | null; bankAccountId: string | null; customers: ClientCustomer[]; invoices: Invoice[]; fetchClientData: () => void; globalRules: AllocationRule[] }
+>(({ client, bankAccountId, customers, invoices, fetchClientData, globalRules }, ref) => {
     const { toast } = useToast();
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
@@ -922,22 +924,33 @@ const NewTransactionsTab = React.forwardRef<
     useEffect(() => {
         refetch();
     }, [activeSubTab, refetch]);
-
-    const handleAllocateByRules = async () => {
-        if (!client || !client.uid || !client.allocationRules || transactions.length === 0) return;
+    
+    const handleAllocateByRules = useCallback(async () => {
+        if (!client || !client.uid || transactions.length === 0) return;
         setIsRuleAllocating(true);
-        toast({ title: "Applying Rules...", description: "Allocating transactions based on your rules." });
-
+        toast({ title: "Applying Rules...", description: "Allocating transactions based on client and global rules." });
+    
         const batch = writeBatch(db);
         let allocatedCount = 0;
-
+        const clientRules = client.allocationRules || [];
+    
         transactions.forEach(tx => {
-            const matchedRule = client.allocationRules?.find(rule => 
-                rule.keywords.some(kw => tx.description.toLowerCase().includes(kw))
+            const txDescriptionLower = tx.description.toLowerCase();
+            
+            // Prioritize client-specific rules
+            let matchedRule = clientRules.find(rule => 
+                rule.keywords.some(kw => txDescriptionLower.includes(kw))
             );
-
+    
+            // If no client rule matches, check global rules
+            if (!matchedRule) {
+                matchedRule = globalRules.find(rule => 
+                    rule.keywords.some(kw => txDescriptionLower.includes(kw))
+                );
+            }
+    
             if (matchedRule) {
-                const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
+                const transactionRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
                 batch.update(transactionRef, {
                     status: 'review',
                     allocatedTo: { value: matchedRule.accountId, type: 'account' },
@@ -957,7 +970,16 @@ const NewTransactionsTab = React.forwardRef<
         }
         
         setIsRuleAllocating(false);
-    };
+    }, [client, transactions, globalRules, toast, refetch]);
+
+    const handleRuleCreated = useCallback(() => {
+        fetchClientData();
+        // Use a timeout to ensure the client data (with new rule) is likely fetched before allocating
+        setTimeout(() => {
+            handleAllocateByRules();
+        }, 1000);
+    }, [fetchClientData, handleAllocateByRules]);
+
 
     const handleAiExpenseAllocate = async () => {
         if (!client || !client.uid || !client.chartOfAccounts || selectedTransactions.length === 0) return;
@@ -987,7 +1009,8 @@ const NewTransactionsTab = React.forwardRef<
                         allocatedAt: new Date(),
                     });
                     successCount++;
-                     const accountName = client.chartOfAccounts.find(a => a.id === result.accountId)?.description || 'Unknown';
+                    
+                    const accountName = client.chartOfAccounts.find(a => a.id === result.accountId)?.description || 'Unknown';
                     
                     toast({
                         title: `Allocated ${processedCount} of ${totalToProcess}`,
@@ -1144,7 +1167,7 @@ const NewTransactionsTab = React.forwardRef<
         <Card>
             <CreateRuleDialog
                 client={client}
-                onRuleCreated={fetchClientData}
+                onRuleCreated={handleRuleCreated}
                 open={isCreateRuleOpen}
                 onOpenChange={(isOpen) => {
                     setIsCreateRuleOpen(isOpen);
@@ -1703,6 +1726,7 @@ export default function BankTransactionsPage() {
     const forReviewTabRef = useRef<{ refetch: () => void }>(null);
     const reviewedTabRef = useRef<{ refetch: () => void }>(null);
     const [allTransactions, setAllTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
+    const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
     
     const fetchClientAndRelatedData = useCallback(async () => {
         if (!clientId) return;
@@ -1737,6 +1761,10 @@ export default function BankTransactionsPage() {
             const invoicesQuery = query(collection(db, `aiAccountantClients/${clientId}/invoices`));
             const invoicesSnapshot = await getDocs(invoicesQuery);
             setInvoices(invoicesSnapshot.docs.map(d => ({id: d.id, ...d.data()} as Invoice)));
+
+            const globalRulesQuery = query(collection(db, 'allocationRules'));
+            const globalRulesSnapshot = await getDocs(globalRulesQuery);
+            setGlobalRules(globalRulesSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule)));
 
         } catch (e) {
             toast({ title: 'Error', description: 'Failed to fetch client data.', variant: 'destructive' });
@@ -1940,6 +1968,7 @@ export default function BankTransactionsPage() {
                         invoices={invoices}
                         bankAccountId={selectedAccountId} 
                         fetchClientData={fetchClientAndRelatedData}
+                        globalRules={globalRules}
                     />
                 </TabsContent>
                  <TabsContent value="review" className="mt-0">
@@ -1965,3 +1994,4 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
+

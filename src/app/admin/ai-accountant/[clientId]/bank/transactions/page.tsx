@@ -488,8 +488,9 @@ function ImportDialog({ client, bankAccountId, onImportComplete }: { client: Use
 
                         if (client?.allocationRules) {
                             for (const tx of transactions) {
+                                const txDescriptionLower = tx.Description.toLowerCase();
                                 const matchedRule = client.allocationRules.find(rule => 
-                                    rule.keywords.some(kw => tx.Description.toLowerCase().includes(kw.toLowerCase()))
+                                    rule.keywords.some(kw => txDescriptionLower.includes(kw))
                                 );
                                 if (matchedRule) {
                                     ruleAllocationCount++;
@@ -547,8 +548,9 @@ function ImportDialog({ client, bankAccountId, onImportComplete }: { client: Use
                     status: 'new'
                 };
                 
+                const txDescriptionLower = row.Description.toLowerCase();
                 const matchedRule = client.allocationRules?.find(rule => 
-                    rule.keywords.some(kw => row.Description.toLowerCase().includes(kw.toLowerCase()))
+                    rule.keywords.some(kw => txDescriptionLower.includes(kw))
                 );
 
                 if (matchedRule) {
@@ -923,7 +925,7 @@ const NewTransactionsTab = React.forwardRef<
         refetch();
     }, [activeSubTab, refetch]);
     
-    const handleAllocateByRules = async () => {
+    const handleAllocateByRules = useCallback(async () => {
         if (!client || !client.uid || transactions.length === 0) return;
         setIsRuleAllocating(true);
         toast({ title: "Applying Rules...", description: "Allocating transactions based on client and global rules." });
@@ -933,17 +935,17 @@ const NewTransactionsTab = React.forwardRef<
         const clientRules = client.allocationRules || [];
     
         transactions.forEach(tx => {
-            const txDescription = tx.description.toLowerCase();
+            const txDescriptionLower = tx.description.toLowerCase();
             
             // Prioritize client-specific rules
             let matchedRule = clientRules.find(rule => 
-                rule.keywords.some(kw => txDescription.includes(kw))
+                rule.keywords.some(kw => txDescriptionLower.includes(kw))
             );
     
             // If no client rule matches, check global rules
             if (!matchedRule) {
                 matchedRule = globalRules.find(rule => 
-                    rule.keywords.some(kw => txDescription.includes(kw))
+                    rule.keywords.some(kw => txDescriptionLower.includes(kw))
                 );
             }
     
@@ -968,7 +970,15 @@ const NewTransactionsTab = React.forwardRef<
         }
         
         setIsRuleAllocating(false);
-    };
+    }, [client, transactions, globalRules, toast, refetch]);
+
+    const handleRuleCreated = useCallback(() => {
+        fetchClientData();
+        // Use a timeout to ensure the client data (with new rule) is likely fetched before allocating
+        setTimeout(() => {
+            handleAllocateByRules();
+        }, 1000);
+    }, [fetchClientData, handleAllocateByRules]);
 
 
     const handleAiExpenseAllocate = async () => {
@@ -1157,7 +1167,7 @@ const NewTransactionsTab = React.forwardRef<
         <Card>
             <CreateRuleDialog
                 client={client}
-                onRuleCreated={fetchClientData}
+                onRuleCreated={handleRuleCreated}
                 open={isCreateRuleOpen}
                 onOpenChange={(isOpen) => {
                     setIsCreateRuleOpen(isOpen);
@@ -1984,3 +1994,4 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
+
