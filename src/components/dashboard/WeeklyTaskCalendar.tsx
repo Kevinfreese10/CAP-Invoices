@@ -171,7 +171,7 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
                     </p>
                 </div>
                 <div 
-                  className="p-2 space-y-2 h-[calc(10*7rem+96px)] overflow-y-auto"
+                  className="p-2 space-y-2 h-[calc(11*7rem)] overflow-y-auto"
                   onDrop={(e) => handleDrop(e, addDays(new Date(), -1))}
                   onDragOver={handleDragOver}
                 >
@@ -209,7 +209,7 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
                    {hours.map(hour => {
                       const tasksForSlot = userTasks.filter(task => {
                           const dueDate = getTaskDate(task);
-                          return isSameDay(dueDate, day) && getHours(dueDate) === hour && !isPast(dueDate);
+                          return isSameDay(dueDate, day) && getHours(dueDate) === hour;
                       });
                        return (
                         <div
