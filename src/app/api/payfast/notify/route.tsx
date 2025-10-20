@@ -163,17 +163,17 @@ export async function POST(req: NextRequest) {
                         }
                     });
 
-                    try {
-                        const emailHtml = render(<AIAccountantWelcomeEmail name={signupData.name} loginUrl={`${process.env.NEXT_PUBLIC_APP_URL}/login`} />);
-                        await sendEmail({
-                            to: signupData.email,
-                            subject: `Welcome to My Accountant!`,
-                            html: emailHtml,
-                            bcc: 'kev@thinkestry.co.za',
-                        });
-                    } catch (emailError) {
-                        console.error("Failed to send welcome email after payment:", emailError);
-                    }
+                    // try {
+                    //     const emailHtml = render(<AIAccountantWelcomeEmail name={signupData.name} loginUrl={`${process.env.NEXT_PUBLIC_APP_URL}/login`} />);
+                    //     await sendEmail({
+                    //         to: signupData.email,
+                    //         subject: `Welcome to My Accountant!`,
+                    //         html: emailHtml,
+                    //         bcc: 'kev@thinkestry.co.za',
+                    //     });
+                    // } catch (emailError) {
+                    //     console.error("Failed to send welcome email after payment:", emailError);
+                    // }
                      await updateDoc(orderRef, { status: 'Completed', userId: authUid });
                 } else if (order.renewalForClientId) { // This is a RENEWAL payment for an additional company
                      const clientRef = doc(db, 'aiAccountantClients', order.renewalForClientId);
