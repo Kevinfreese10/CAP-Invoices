@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { Task, User } from '@/lib/types';
-import { format, startOfWeek, addDays, isSameDay, isToday, isPast, eachDayOfInterval, startOfToday, setHours, setMinutes, setSeconds, getHours } from 'date-fns';
+import { format, startOfWeek, addDays, isSameDay, isToday, isPast, eachDayOfInterval, startOfToday, setHours, setMinutes, setSeconds, getHours, startOfDay } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, AlertOctagon, Check } from 'lucide-react';
@@ -28,8 +28,8 @@ const hours = Array.from({ length: 10 }, (_, i) => i + 8); // 8 AM to 5 PM
 export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTaskUpdate }: { tasks: Task[], allStaff: User[], currentUser: User | null, onTaskUpdate: (taskId: string, updates: Partial<Task>) => void }) {
   const [currentDate, setCurrentDate] = useState(new Date());
 
-  const start = startOfToday();
-  const end = addDays(start, 2);
+  const start = startOfWeek(currentDate, { weekStartsOn: 1 });
+  const end = addDays(start, 2); // Show 3 days: Monday, Tuesday, Wednesday if week starts on Mon
   const weekDays = eachDayOfInterval({ start, end });
 
   const getAssignee = (userId: string) => allStaff.find(u => u.id === userId);
@@ -71,21 +71,26 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
   const handleDrop = (e: React.DragEvent<HTMLDivElement>, newDate: Date, hour?: number) => {
     e.preventDefault();
     const taskId = e.dataTransfer.getData("taskId");
-    let finalDate = newDate;
+    let finalDate: Date;
+    
     if (hour !== undefined) {
+        // Dropped into a specific hour slot
         finalDate = setSeconds(setMinutes(setHours(newDate, hour), 0), 0);
+    } else if (e.currentTarget.dataset.droptarget === 'unslotted') {
+        // Dropped into the "Unslotted" area for a day
+        finalDate = startOfDay(newDate); // Set time to beginning of the day (00:00)
     } else {
-        // If dropped on a day column without a specific hour (like the header)
-        // or the overdue column, just update the date part, keep the time.
-        // For overdue, we want to reset it to today at a default time if no hour is given.
+        // Default behavior if dropped on a day column but not a specific slot
         const task = tasks.find(t => t.id === taskId);
         if (task) {
             const originalDueDate = getTaskDate(task);
             finalDate = setSeconds(setMinutes(setHours(newDate, getHours(originalDueDate) || 9), 0), 0);
+        } else {
+            finalDate = setHours(newDate, 9); // Fallback
         }
     }
     onTaskUpdate(taskId, { dueDate: finalDate });
-  };
+};
   
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -172,36 +177,55 @@ export default function WeeklyTaskCalendar({ tasks, allStaff, currentUser, onTas
                      {overdueTasks.map(task => <DraggableTask key={task.id} task={task} />)}
                 </div>
             </div>
-          {weekDays.map(day => (
-            <div 
-                key={day.toString()} 
-                className="border-r border-b"
-            >
-              <div className={cn("p-2 text-center border-b h-16 flex flex-col justify-center", isToday(day) && "bg-primary/10")}>
-                <p className={cn("text-sm font-semibold", isToday(day) && "text-primary")}>{format(day, 'EEE')}</p>
-                <p className="text-xs text-muted-foreground">{format(day, 'd MMM')}</p>
+          {weekDays.map(day => {
+              const unslottedTasks = userTasks.filter(task => {
+                const dueDate = getTaskDate(task);
+                const taskHour = getHours(dueDate);
+                return isSameDay(dueDate, day) && (taskHour < 8 || taskHour > 17);
+              });
+
+              return (
+              <div 
+                  key={day.toString()} 
+                  className="border-r border-b"
+              >
+                <div className={cn("p-2 text-center border-b h-16 flex flex-col justify-center", isToday(day) && "bg-primary/10")}>
+                  <p className={cn("text-sm font-semibold", isToday(day) && "text-primary")}>{format(day, 'EEE')}</p>
+                  <p className="text-xs text-muted-foreground">{format(day, 'd MMM')}</p>
+                </div>
+                <div 
+                    data-droptarget="unslotted"
+                    className="p-2 border-b min-h-24 bg-muted/30"
+                    onDrop={(e) => handleDrop(e, day)}
+                    onDragOver={handleDragOver}
+                >
+                    <p className="text-xs text-center text-muted-foreground pb-1">Unslotted Tasks</p>
+                     <div className="space-y-1">
+                        {unslottedTasks.map(task => <DraggableTask key={task.id} task={task} />)}
+                    </div>
+                </div>
+                <div className="divide-y">
+                   {hours.map(hour => {
+                      const tasksForSlot = userTasks.filter(task => {
+                          const dueDate = getTaskDate(task);
+                          return isSameDay(dueDate, day) && getHours(dueDate) === hour && !isPast(dueDate);
+                      });
+                       return (
+                        <div
+                          key={hour}
+                          className="h-28 p-2 space-y-1 overflow-y-auto"
+                          onDrop={(e) => handleDrop(e, day, hour)}
+                          onDragOver={handleDragOver}
+                        >
+                           <div className="text-xs text-muted-foreground">{format(setHours(day, hour), 'ha')}</div>
+                           {tasksForSlot.map(task => <DraggableTask key={task.id} task={task} />)}
+                        </div>
+                      )
+                   })}
+                </div>
               </div>
-              <div className="divide-y">
-                 {hours.map(hour => {
-                    const tasksForSlot = userTasks.filter(task => {
-                        const dueDate = getTaskDate(task);
-                        return isSameDay(dueDate, day) && getHours(dueDate) === hour && !isPast(dueDate);
-                    });
-                     return (
-                      <div
-                        key={hour}
-                        className="h-28 p-2 space-y-1 overflow-y-auto"
-                        onDrop={(e) => handleDrop(e, day, hour)}
-                        onDragOver={handleDragOver}
-                      >
-                         <div className="text-xs text-muted-foreground">{format(setHours(day, hour), 'ha')}</div>
-                         {tasksForSlot.map(task => <DraggableTask key={task.id} task={task} />)}
-                      </div>
-                    )
-                 })}
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </CardContent>
     </Card>
