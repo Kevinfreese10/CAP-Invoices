@@ -15,7 +15,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { FileUp, Loader2, PlusCircle, Search, Settings, Trash2, Edit, List, ArrowRightLeft, Paperclip, X, Plus, Minus, Download, Cog, BookOpen, Sparkles, ArrowUpDown, Ban, ChevronLeft, ChevronRight, CheckCircle, RotateCcw, Upload, AlertTriangle, Mail } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
-import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, AIAllocationJob, ClientCustomer } from '@/lib/types';
+import { ImportedTransaction, ChartOfAccount, User, VatType, AllocatedTransaction, AllocationRule, AIAllocationJob, ClientCustomer, Invoice } from '@/lib/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { getFirestore, doc, updateDoc, arrayUnion, getDoc, arrayRemove, addDoc, collection, getDocs, query, orderBy, where, writeBatch, onSnapshot, Unsubscribe, Query, DocumentData, QueryDocumentSnapshot, limit, startAfter, QueryConstraint } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -36,6 +36,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { suggestTransactionAllocation } from '@/ai/flows/suggest-transaction-allocation';
 import { extractStatementData } from '@/ai/flows/extract-statement-data';
 import { extractStatementPeriod } from '@/ai/flows/extract-statement-period';
+import { suggestIncomeAllocation } from '@/ai/flows/suggest-income-allocation';
 import { Progress } from '@/components/ui/progress';
 import { usePaginatedFirestore } from '@/hooks/use-paginated-firestore';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandItem, CommandGroup } from '@/components/ui/command';
@@ -488,7 +489,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete }: { client: Use
                         if (client?.allocationRules) {
                             for (const tx of transactions) {
                                 const matchedRule = client.allocationRules.find(rule => 
-                                    rule.keywords.some(kw => tx.Description.toLowerCase().includes(kw))
+                                    rule.keywords.some(kw => tx.Description.toLowerCase().includes(kw.toLowerCase()))
                                 );
                                 if (matchedRule) {
                                     ruleAllocationCount++;
@@ -547,7 +548,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete }: { client: Use
                 };
                 
                 const matchedRule = client.allocationRules?.find(rule => 
-                    rule.keywords.some(kw => row.Description.toLowerCase().includes(kw))
+                    rule.keywords.some(kw => row.Description.toLowerCase().includes(kw.toLowerCase()))
                 );
 
                 if (matchedRule) {
@@ -871,8 +872,8 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
 
 const NewTransactionsTab = React.forwardRef<
     { refetch: () => void },
-    { client: User | null; bankAccountId: string | null; customers: ClientCustomer[]; fetchClientData: () => void; }
->(({ client, bankAccountId, customers, fetchClientData }, ref) => {
+    { client: User | null; bankAccountId: string | null; customers: ClientCustomer[]; invoices: Invoice[]; fetchClientData: () => void; }
+>(({ client, bankAccountId, customers, invoices, fetchClientData }, ref) => {
     const { toast } = useToast();
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
@@ -1022,9 +1023,59 @@ const NewTransactionsTab = React.forwardRef<
     };
 
     const handleAiIncomeAllocate = async () => {
-        // Placeholder
-        toast({ title: 'Coming Soon', description: 'AI-powered income allocation is not yet available.' });
+        if (!client || !client.uid || selectedTransactions.length === 0) return;
+        setIsAiAllocating(true);
+        toast({ title: "AI is allocating...", description: `Processing ${selectedTransactions.length} income transactions.` });
+        
+        const transactionsToAllocate = transactions.filter(tx => selectedTransactions.includes(tx.id));
+        const customersWithInvoices = customers.map(c => ({
+            id: c.id,
+            name: c.name,
+            invoiceNumbers: invoices.filter(inv => inv.customerId === c.id).map(inv => inv.id),
+        }));
+
+        const batch = writeBatch(db);
+        let successCount = 0;
+
+        for (const tx of transactionsToAllocate) {
+            try {
+                const result = await suggestIncomeAllocation({
+                    description: tx.description,
+                    customers: JSON.stringify(customersWithInvoices)
+                });
+
+                if (result.customerId && result.confidence > 70) {
+                    const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
+                    batch.update(transactionRef, {
+                        status: 'review', // Move to review instead of allocated
+                        allocatedTo: { value: result.customerId, type: 'customer' },
+                        vatType: 'no_vat',
+                        allocatedAt: new Date(),
+                    });
+                    successCount++;
+                }
+            } catch (error) {
+                console.error(`AI allocation failed for tx ${tx.id}:`, error);
+            }
+        }
+        
+        try {
+            await batch.commit();
+            if(successCount > 0) {
+              toast({ title: "AI Allocation Complete", description: `${successCount} out of ${selectedTransactions.length} transactions were confidently allocated for review.` });
+            } else {
+               toast({ title: "AI Allocation", description: `The AI could not confidently allocate any of the selected transactions.`, variant: 'destructive'});
+            }
+            setSelectedTransactions([]);
+            refetch();
+        } catch (error) {
+            console.error("Error committing AI allocations:", error);
+            toast({ title: "AI Allocation Failed", description: "An error occurred while saving the allocations.", variant: "destructive" });
+        } finally {
+            setIsAiAllocating(false);
+        }
     };
+
 
     const handleBulkDelete = async () => {
         if (!client || !client.uid || selectedTransactions.length === 0) return;
@@ -1085,6 +1136,7 @@ const NewTransactionsTab = React.forwardRef<
             label: cust.name,
             group: 'Customers',
         }));
+        // Add suppliers here when available
         return [...accounts, ...customerOptions];
     }, [client?.chartOfAccounts, customers]);
     
@@ -1174,7 +1226,7 @@ const NewTransactionsTab = React.forwardRef<
 
                      {activeSubTab === 'expenses' ? (
                         <>
-                         <Button variant="outline" onClick={handleAllocateByRules} disabled={isRuleAllocating || transactions.length === 0}>
+                        <Button variant="outline" onClick={handleAllocateByRules} disabled={isRuleAllocating || transactions.length === 0}>
                             {isRuleAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <BookOpen className="mr-2 h-4 w-4"/>}
                             Allocate All by Rules
                         </Button>

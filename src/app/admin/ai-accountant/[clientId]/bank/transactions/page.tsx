@@ -872,8 +872,8 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
 
 const NewTransactionsTab = React.forwardRef<
     { refetch: () => void },
-    { client: User | null; bankAccountId: string | null; customers: ClientCustomer[]; invoices: Invoice[]; fetchClientData: () => void; }
->(({ client, bankAccountId, customers, invoices, fetchClientData }, ref) => {
+    { client: User | null; bankAccountId: string | null; customers: ClientCustomer[]; invoices: Invoice[]; fetchClientData: () => void; globalRules: AllocationRule[] }
+>(({ client, bankAccountId, customers, invoices, fetchClientData, globalRules }, ref) => {
     const { toast } = useToast();
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
@@ -924,20 +924,31 @@ const NewTransactionsTab = React.forwardRef<
     }, [activeSubTab, refetch]);
     
     const handleAllocateByRules = async () => {
-        if (!client || !client.uid || !client.allocationRules || transactions.length === 0) return;
+        if (!client || !client.uid || transactions.length === 0) return;
         setIsRuleAllocating(true);
-        toast({ title: "Applying Rules...", description: "Allocating transactions based on your rules." });
-
+        toast({ title: "Applying Rules...", description: "Allocating transactions based on client and global rules." });
+    
         const batch = writeBatch(db);
         let allocatedCount = 0;
-
+        const clientRules = client.allocationRules || [];
+    
         transactions.forEach(tx => {
-            const matchedRule = client.allocationRules?.find(rule => 
-                rule.keywords.some(kw => tx.description.toLowerCase().includes(kw))
+            const txDescription = tx.description.toLowerCase();
+            
+            // Prioritize client-specific rules
+            let matchedRule = clientRules.find(rule => 
+                rule.keywords.some(kw => txDescription.includes(kw))
             );
-
+    
+            // If no client rule matches, check global rules
+            if (!matchedRule) {
+                matchedRule = globalRules.find(rule => 
+                    rule.keywords.some(kw => txDescription.includes(kw))
+                );
+            }
+    
             if (matchedRule) {
-                const transactionRef = doc(db, 'aiAccountantClients', client.uid, 'transactions', tx.id);
+                const transactionRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
                 batch.update(transactionRef, {
                     status: 'review',
                     allocatedTo: { value: matchedRule.accountId, type: 'account' },
@@ -1705,6 +1716,7 @@ export default function BankTransactionsPage() {
     const forReviewTabRef = useRef<{ refetch: () => void }>(null);
     const reviewedTabRef = useRef<{ refetch: () => void }>(null);
     const [allTransactions, setAllTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
+    const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
     
     const fetchClientAndRelatedData = useCallback(async () => {
         if (!clientId) return;
@@ -1739,6 +1751,10 @@ export default function BankTransactionsPage() {
             const invoicesQuery = query(collection(db, `aiAccountantClients/${clientId}/invoices`));
             const invoicesSnapshot = await getDocs(invoicesQuery);
             setInvoices(invoicesSnapshot.docs.map(d => ({id: d.id, ...d.data()} as Invoice)));
+
+            const globalRulesQuery = query(collection(db, 'allocationRules'));
+            const globalRulesSnapshot = await getDocs(globalRulesQuery);
+            setGlobalRules(globalRulesSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as AllocationRule)));
 
         } catch (e) {
             toast({ title: 'Error', description: 'Failed to fetch client data.', variant: 'destructive' });
@@ -1942,6 +1958,7 @@ export default function BankTransactionsPage() {
                         invoices={invoices}
                         bankAccountId={selectedAccountId} 
                         fetchClientData={fetchClientAndRelatedData}
+                        globalRules={globalRules}
                     />
                 </TabsContent>
                  <TabsContent value="review" className="mt-0">
