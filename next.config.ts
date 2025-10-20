@@ -42,10 +42,10 @@ const nextConfig: NextConfig = {
     ],
   },
   env: {
-    NEXT_PUBLIC_PAYFAST_MERCHANT_ID: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID,
-    NEXT_PUBLIC_PAYFAST_MERCHANT_KEY: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY,
+    NEXT_PUBLIC_PAYFAST_MERCHANT_ID: "23836312",
+    NEXT_PUBLIC_PAYFAST_MERCHANT_KEY: "h4fkhz6ouoksx",
     PAYFAST_PASSPHRASE: process.env.PAYFAST_PASSPHRASE,
-    NEXT_PUBLIC_PAYFAST_URL: process.env.NEXT_PUBLIC_PAYFAST_URL,
+    NEXT_PUBLIC_PAYFAST_URL: "https://www.payfast.co.za/eng/process",
     NEXT_PUBLIC_APP_URL: "https://www.myacc.co.za",
   },
 };
