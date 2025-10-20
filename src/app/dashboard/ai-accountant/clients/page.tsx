@@ -20,7 +20,6 @@ import { allocationRules as initialAllocationRules } from '@/lib/allocation-rule
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import { getNextOrderId } from '@/lib/sequence';
-import { generatePayFastSignature } from '@/app/actions/payfast';
 import { Input } from '@/components/ui/input';
 
 const db = getFirestore(firebaseApp);
@@ -83,7 +82,6 @@ export default function AIAccountantClientsPage() {
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-  const [payfastFormData, setPayfastFormData] = useState<{ [key: string]: string } | null>(null);
   
   const fetchClientsAndTasks = async () => {
     if (!currentUser?.uid) return;
@@ -137,16 +135,6 @@ export default function AIAccountantClientsPage() {
     );
   }, [tasks, currentUser]);
 
-  useEffect(() => {
-    if (payfastFormData) {
-        const formElement = document.getElementById('payfast-redirect-form');
-        if (formElement) {
-            (formElement as HTMLFormElement).submit();
-        }
-    }
-  }, [payfastFormData]);
-
-
   const handleAddClick = () => {
     if (myClients.length > 0 && currentUser?.role !== 'admin') {
       setIsSubscriptionModalOpen(true);
@@ -159,7 +147,7 @@ export default function AIAccountantClientsPage() {
    const handleCreateSubscriptionOrder = async () => {
     if (!currentUser) return;
     setIsProcessingPayment(true);
-    toast({ title: "Creating renewal order...", description: "Please wait while we redirect you to payment." });
+    toast({ title: "Creating renewal order...", description: "Please wait." });
 
     const subscriptionPrice = 140;
 
@@ -186,21 +174,8 @@ export default function AIAccountantClientsPage() {
         };
         
         await setDoc(doc(db, 'orders', orderId), renewalOrderData);
-        
-        const dataForSignature = {
-            merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID,
-            merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY,
-            return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success/${orderId}`,
-            cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/ai-accountant/clients`,
-            notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
-            email_address: currentUser.email,
-            m_payment_id: orderId,
-            amount: subscriptionPrice.toFixed(2),
-            item_name: `AI Accountant - Additional Company Profile`,
-        };
-
-        const signature = await generatePayFastSignature(dataForSignature);
-        setPayfastFormData({ ...dataForSignature, signature });
+        // Redirect to EFT page since PayFast is removed
+        router.push(`/order-confirmation/${orderId}`);
         
     } catch(e) {
         console.error(e);
@@ -490,13 +465,6 @@ export default function AIAccountantClientsPage() {
         </Card>
       )}
 
-      {payfastFormData && (
-        <form id="payfast-redirect-form" action={process.env.NEXT_PUBLIC_PAYFAST_URL} method="post" style={{ display: 'none' }}>
-            {Object.entries(payfastFormData).map(([key, value]) => (
-                <input key={key} type="hidden" name={key} value={value as string} />
-            ))}
-        </form>
-      )}
     </div>
   );
 }

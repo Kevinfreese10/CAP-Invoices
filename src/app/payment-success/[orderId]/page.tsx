@@ -49,7 +49,8 @@ export default function PaymentSuccessPage() {
 
                 if (orderData.status !== 'Processing' && orderData.status !== 'Completed') {
                     // Still pending, ITN might be slow.
-                    return; // Wait for the next poll.
+                    // This logic is now mostly redundant with EFT but kept as a fallback.
+                    return; 
                 }
 
                 if (orderData.source === 'AI Accountant Signup') {
@@ -104,44 +105,35 @@ export default function PaymentSuccessPage() {
             setIsLoading(false);
         };
         
-        let attempts = 0;
-        const interval = setInterval(() => {
-            if (attempts < 5 && isFinalizing) {
-                fetchOrderDetails();
-                attempts++;
+        // With EFT, we don't need to poll. We just show the confirmation.
+        // We will assume the ITN/manual process will handle the status update.
+        const fetchOrderForConfirmation = async () => {
+            const orderRef = doc(db, 'orders', orderId);
+            const orderSnap = await getDoc(orderRef);
+             if (orderSnap.exists()) {
+                setOrder(orderSnap.data() as Order);
             } else {
-                clearInterval(interval);
-                if (isFinalizing) {
-                  // If still finalizing after multiple attempts, stop loading and show the page.
-                  setIsLoading(false);
-                  setIsFinalizing(false);
-                  if(!order) fetchOrderDetails(); // One last try
-                }
+                notFound();
             }
-        }, 2000);
+            setIsLoading(false);
+        }
 
-        return () => clearInterval(interval);
+       fetchOrderForConfirmation();
 
-    }, [orderId, isAuthenticated, user, router, login, isFinalizing, order]);
+
+    }, [orderId, isAuthenticated, user, router, login]);
     
     if (isLoading) {
         return (
             <div className="container mx-auto px-4 py-20 text-center">
                 <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
-                <h1 className="mt-4 text-2xl font-semibold">Finalizing your order...</h1>
-                <p className="text-muted-foreground">Please wait while we confirm your payment.</p>
+                <h1 className="mt-4 text-2xl font-semibold">Loading Your Order Confirmation...</h1>
             </div>
         );
     }
     
     if (!order) {
-        return (
-            <div className="container mx-auto px-4 py-20 text-center">
-                 <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
-                 <h1 className="mt-4 text-2xl font-semibold">Waiting for Payment Confirmation</h1>
-                 <p className="text-muted-foreground">We are still waiting for the payment notification from PayFast. This page will update automatically.</p>
-            </div>
-        )
+        return notFound();
     }
     
     return (
@@ -151,7 +143,7 @@ export default function PaymentSuccessPage() {
                     <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
                     <CardTitle className="text-3xl mt-4">Order Placed Successfully!</CardTitle>
                     <CardDescription>
-                        Thank you for your order. We have received your payment and will begin processing your services shortly. An email confirmation has been sent to you.
+                        Thank you for your order. Please use the banking details below to complete your payment via EFT.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-8">
@@ -171,14 +163,41 @@ export default function PaymentSuccessPage() {
                             ))}
                              <Separator />
                             <div className="flex justify-between font-bold text-lg">
-                                <p>Total Paid</p>
+                                <p>Total Due</p>
                                 <p>{formatPrice(order.total)}</p>
                             </div>
                         </div>
                     </section>
+
+                    <section>
+                        <h3 className="font-semibold text-lg mb-2 flex items-center gap-2"><Banknote/> EFT Payment Details</h3>
+                         <div className="border rounded-lg p-4 space-y-3">
+                            <div className="grid grid-cols-[150px_1fr] items-center">
+                                <span className="font-medium text-muted-foreground">Bank Name:</span>
+                                <span className="font-semibold">FNB</span>
+                            </div>
+                            <div className="grid grid-cols-[150px_1fr] items-center">
+                                <span className="font-medium text-muted-foreground">Account Holder:</span>
+                                <span className="font-semibold">My Accountant (Pty) Ltd</span>
+                            </div>
+                            <div className="grid grid-cols-[150px_1fr] items-center">
+                                <span className="font-medium text-muted-foreground">Account Number:</span>
+                                <span className="font-semibold">63084378223</span>
+                            </div>
+                            <div className="grid grid-cols-[150px_1fr] items-center">
+                                <span className="font-medium text-muted-foreground">Branch Code:</span>
+                                <span className="font-semibold">250655</span>
+                            </div>
+                             <div className="grid grid-cols-[150px_1fr] items-center mt-2">
+                                <span className="font-medium text-muted-foreground">Reference:</span>
+                                <span className="font-semibold text-destructive p-1 bg-destructive/10 rounded-sm">{order.id}</span>
+                            </div>
+                         </div>
+                    </section>
                     
                     <div className="text-center pt-4">
-                        <Button asChild>
+                        <p className="text-sm text-muted-foreground">An email with these payment details has been sent to you.</p>
+                        <Button asChild className="mt-4">
                             <Link href="/">Back to Homepage</Link>
                         </Button>
                     </div>
