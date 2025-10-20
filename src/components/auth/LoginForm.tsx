@@ -16,7 +16,6 @@ import { AlertCircle, Loader2 } from 'lucide-react';
 import { getNextOrderId } from '@/lib/sequence';
 import { doc, setDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { generatePayFastSignature } from '@/app/actions/payfast';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email.' }),
@@ -45,6 +44,7 @@ export default function LoginForm() {
     setIsProcessingPayment(true);
     toast({ title: "Creating renewal order...", description: "Please wait while we redirect you to payment." });
     
+    // EFT Logic: Redirect to a confirmation page with instructions
     try {
         const orderId = await getNextOrderId();
         const renewalOrderData: Order = {
@@ -64,27 +64,12 @@ export default function LoginForm() {
             status: 'Pending Payment',
             date: Timestamp.now(),
             source: 'AI Accountant Signup',
-            renewalForClientId: lapsedUser.uid, // Link this order to the client being renewed
+            renewalForClientId: lapsedUser.uid,
         };
         
         await setDoc(doc(db, 'orders', orderId), renewalOrderData);
+        router.push(`/order-confirmation/${orderId}`);
         
-        const dataForSignature = {
-            merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID,
-            merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY,
-            return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success/${orderId}`,
-            cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/login`,
-            notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
-            email_address: lapsedUser.email,
-            m_payment_id: orderId,
-            amount: lapsedUser.subscription.monthlyTotal.toFixed(2),
-            item_name: `Subscription Renewal for ${lapsedUser.name}`,
-        };
-
-        const signature = await generatePayFastSignature(dataForSignature);
-        setPayfastFormData({ ...dataForSignature, signature });
-        
-        // The form will be submitted via a useEffect when payfastFormData is set
     } catch(e) {
         console.error(e);
         toast({ title: 'Error', description: 'Could not create renewal order.', variant: 'destructive'});
