@@ -4,9 +4,9 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
-import { getFirestore, doc, getDoc, collection, getDocs, query, where, updateDoc, arrayUnion, orderBy, limit } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, getDocs, query, where, updateDoc, arrayUnion, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { User, ChartOfAccount, ImportedTransaction } from '@/lib/types';
+import { User, ChartOfAccount, ImportedTransaction, AllocatedTransaction } from '@/lib/types';
 import { useParams } from 'next/navigation';
 import { Loader2, ArrowRight, Banknote, AlertCircle, PlusCircle } from 'lucide-react';
 import Link from 'next/link';
@@ -110,7 +110,7 @@ function CreateAccountDialog({ client, onAccountCreated }: { client: User, onAcc
 
 export default function AIAccountantClientDashboardPage() {
     const [client, setClient] = useState<User | null>(null);
-    const [transactions, setTransactions] = useState<ImportedTransaction[]>([]);
+    const [transactions, setTransactions] = useState<(ImportedTransaction | AllocatedTransaction)[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const params = useParams();
     const clientId = params.clientId as string;
@@ -138,6 +138,16 @@ export default function AIAccountantClientDashboardPage() {
         fetchDashboardData();
     }, [fetchDashboardData]);
 
+    useEffect(() => {
+        if (!clientId) return;
+        const q = query(collection(db, "aiAccountantClients", clientId, "transactions"));
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+            const transactionsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as (ImportedTransaction | AllocatedTransaction)));
+            setTransactions(transactionsData);
+        });
+        return () => unsubscribe();
+    }, [clientId]);
+
     const bankAccounts = useMemo(() => {
         if (!client?.chartOfAccounts) return [];
         return client.chartOfAccounts.filter(acc => acc.accountNumber.startsWith('8400-'))
@@ -146,12 +156,11 @@ export default function AIAccountantClientDashboardPage() {
 
     const accountSummaries = useMemo(() => {
         if (!client) return [];
-        // This needs a more efficient way to get balances if there are many transactions.
-        // For now, we are just fetching the last 10 transactions so this is fine.
+        
         return bankAccounts.map(account => {
             const accountTransactions = transactions.filter(tx => tx.bankAccountId === account.id);
-            const unallocatedTransactions = accountTransactions.filter(tx => tx.status === 'new');
-            const balance = 0; // Simplified for now. A full calculation would be expensive here.
+            const unallocatedTransactions = accountTransactions.filter(tx => tx.bankAccountId === account.id && tx.status === 'new');
+            const balance = accountTransactions.reduce((sum, tx) => sum + tx.amount, 0);
             
             const lastImportDate = accountTransactions.length > 0
                 ? new Date(Math.max(...accountTransactions.map(tx => new Date(tx.date).getTime())))
