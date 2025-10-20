@@ -21,16 +21,21 @@ const lookup = promisify(dns.lookup);
 
 // --- PayFast Utility Functions ---
 function generateSignature(data: { [key: string]: any }, passphrase?: string): string {
+    // Create a string by concatenating key-value pairs
     let pfParamString = '';
     for (const key in data) {
         if (data.hasOwnProperty(key) && key !== 'signature') {
             pfParamString += `${key}=${encodeURIComponent(String(data[key]).trim()).replace(/%20/g, '+')}&`;
         }
     }
+
+    // Remove the last ampersand
     pfParamString = pfParamString.slice(0, -1);
+
     if (passphrase) {
         pfParamString += `&passphrase=${encodeURIComponent(passphrase.trim()).replace(/%20/g, '+')}`;
     }
+    
     return crypto.createHash('md5').update(pfParamString).digest('hex');
 }
 

@@ -13,11 +13,14 @@ export async function generatePayFastSignature(data: { [key: string]: any }): Pr
     const passphrase = process.env.PAYFAST_PASSPHRASE;
     let pfOutput = '';
 
-    for (let key in data) {
-        if (data.hasOwnProperty(key) && data[key] !== '' && data[key] !== null && data[key] !== undefined) {
-            pfOutput += `${key}=${rfc3986Encode(String(data[key]).trim())}&`;
+    // Create a sorted array of the keys
+    const sortedKeys = Object.keys(data).sort();
+
+    sortedKeys.forEach(key => {
+        if (data[key] !== '' && data[key] !== null && data[key] !== undefined) {
+             pfOutput += `${key}=${rfc3986Encode(String(data[key]).trim())}&`;
         }
-    }
+    });
     
     // Remove last ampersand
     let getString = pfOutput.slice(0, -1);
