@@ -3,7 +3,7 @@
 import { NextResponse } from 'next/server';
 import imaps from 'imap-simple';
 import { simpleParser } from 'mailparser';
-import { getFirestore, collection, getDocs, query, where } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query, where, doc, setDoc, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 
 const db = getFirestore(firebaseApp);
@@ -22,104 +22,82 @@ export async function GET() {
   };
 
   try {
-    const processedSnapshot = await getDocs(collection(db, 'processedEmails'));
-    const processedUids = new Set(processedSnapshot.docs.map(doc => doc.data().uid));
+    // 1. Get UIDs of emails already stored in Firestore
+    const storedEmailsSnapshot = await getDocs(collection(db, 'inboxEmails'));
+    const storedUids = new Set(storedEmailsSnapshot.docs.map(doc => doc.data().uid));
 
+    // 2. Connect to IMAP and fetch UIDs of all emails on the server
     const connection = await imaps.connect(config);
     await connection.openBox('INBOX');
+    const serverMessages = await connection.search(['ALL'], { bodies: ['HEADER'], markSeen: false });
+    const serverUids = new Set(serverMessages.map(m => m.attributes.uid));
+    
+    // 3. Determine which emails are new
+    const newUids = Array.from(serverUids).filter(uid => !storedUids.has(uid));
+    
+    // 4. Fetch and store new emails
+    if (newUids.length > 0) {
+        const fetchOptions = { bodies: [''], markSeen: false };
+        const newMessages = await connection.search([['UID', newUids.join(',')]], fetchOptions);
 
-    // Fetch all emails to ensure we don't miss any that are "seen" but not processed.
-    const searchCriteria = ['ALL']; 
-    const fetchOptions = {
-      bodies: [''],
-      markSeen: false,
-    };
+        for (const item of newMessages) {
+            const all = item.parts.find((part) => part.which === '');
+            const id = item.attributes.uid;
+            const idHeader = 'Imap-Id: ' + id + '\r\n';
+            const mail = await simpleParser(idHeader + all?.body);
+            
+            const attachments = mail.attachments.map(att => ({
+                filename: att.filename,
+                contentType: att.contentType,
+                dataUrl: `data:${att.contentType};base64,${att.content.toString('base64')}`,
+                size: att.size,
+            }));
 
-    const messages = await connection.search(searchCriteria, fetchOptions);
+            const emailData = {
+              uid: id,
+              from: mail.from?.text || 'No Sender',
+              to: mail.to?.text || '',
+              subject: mail.subject || 'No Subject',
+              date: mail.date?.toISOString() || new Date().toISOString(),
+              body: mail.html || mail.textAsHtml || 'No content',
+              attachments: attachments,
+            };
+            
+            // Save the new email to Firestore using its UID as the document ID
+            await setDoc(doc(db, 'inboxEmails', String(id)), emailData);
+        }
+    }
+    
     connection.end();
     
-    const emails = await Promise.all(
-      messages.map(async (item) => {
-        if (!item || processedUids.has(item.attributes.uid)) {
-            return null; // Skip emails that have already been processed
-        }
-        
-        const all = item.parts.find((part) => part.which === '');
-        const id = item.attributes.uid;
-        const idHeader = 'Imap-Id: ' + id + '\r\n';
-        const mail = await simpleParser(idHeader + all?.body);
-        
-        const attachments = mail.attachments.map(att => ({
-            filename: att.filename,
-            contentType: att.contentType,
-            dataUrl: `data:${att.contentType};base64,${att.content.toString('base64')}`,
-            size: att.size,
-        }));
+    // 5. Fetch all emails from Firestore and check their processed status
+    const allStoredEmailsSnapshot = await getDocs(query(collection(db, 'inboxEmails'), orderBy('date', 'desc')));
+    const allStoredEmails = allStoredEmailsSnapshot.docs.map(doc => ({ uid: doc.data().uid, ...doc.data() }));
 
-        return {
-          uid: id,
-          from: mail.from?.text || 'No Sender',
-          to: mail.to?.text || '',
-          subject: mail.subject || 'No Subject',
-          date: mail.date?.toISOString() || new Date().toISOString(),
-          body: mail.html || mail.textAsHtml || 'No content',
-          attachments: attachments,
-          isProcessed: false, // It's unprocessed if it's being returned from here
-        };
-      })
-    );
-    
-    // Filter out nulls (processed emails)
-    const validEmails = emails.filter(e => e !== null) as NonNullable<typeof emails>[number][];
-    
-    // Fetch details for processed emails separately to show in archive
-    const processedMessagesPromises = Array.from(processedUids).map(async (uid: any) => {
-        try {
-            const processedConnection = await imaps.connect(config);
-            await processedConnection.openBox('INBOX');
-            const criteria = [['UID', uid]];
-            const processedMessage = await processedConnection.search(criteria, { bodies: [''], markSeen: false });
-            processedConnection.end();
-
-            if (processedMessage[0]) {
-                const item = processedMessage[0];
-                const all = item.parts.find((part) => part.which === '');
-                const id = item.attributes.uid;
-                const idHeader = 'Imap-Id: ' + id + '\r\n';
-                const mail = await simpleParser(idHeader + all?.body);
-                const attachments = mail.attachments.map(att => ({
-                    filename: att.filename,
-                    contentType: att.contentType,
-                    dataUrl: `data:${att.contentType};base64,${att.content.toString('base64')}`,
-                    size: att.size,
-                }));
-                return {
-                    uid: id,
-                    from: mail.from?.text || 'No Sender',
-                    to: mail.to?.text || '',
-                    subject: mail.subject || 'No Subject',
-                    date: mail.date?.toISOString() || new Date().toISOString(),
-                    body: mail.html || mail.textAsHtml || 'No content',
-                    attachments: attachments,
-                    isProcessed: true,
-                };
-            }
-            return null;
-        } catch (e) {
-            console.warn(`Could not fetch processed email with UID ${uid}:`, e);
-            return null;
-        }
+    const processedSnapshot = await getDocs(collection(db, 'processedEmails'));
+    const processedEmailsMap = new Map();
+    processedSnapshot.forEach(doc => {
+        const data = doc.data();
+        processedEmailsMap.set(data.uid, {
+            processedAt: data.processedAt,
+            processedBy: data.processedBy,
+            processedAction: data.processedAction,
+        });
     });
 
-    const processedEmails = (await Promise.all(processedMessagesPromises)).filter(e => e !== null) as NonNullable<typeof processedEmails>[number][];
-    
-    const allEmails = [...validEmails, ...processedEmails];
+    const emailsWithStatus = allStoredEmails.map(email => {
+        const processedInfo = processedEmailsMap.get(email.uid);
+        return {
+            ...email,
+            isProcessed: !!processedInfo,
+            processedInfo: processedInfo || null,
+        };
+    });
 
-    allEmails.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return NextResponse.json(emailsWithStatus);
 
-    return NextResponse.json(allEmails);
   } catch (error: any) {
-    console.error('IMAP connection error for kev@myacc.co.za:', error);
-    return NextResponse.json({ error: `Failed to connect to mail server: ${error.message}` }, { status: 500 });
+    console.error('IMAP/Firestore sync error for kev@myacc.co.za:', error);
+    return NextResponse.json({ error: `Failed to sync emails: ${error.message}` }, { status: 500 });
   }
 }
