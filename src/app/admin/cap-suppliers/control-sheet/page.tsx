@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -89,6 +89,11 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
         control: form.control,
         name: "lineItems",
     });
+
+    const invoiceTotal = useWatch({
+        control: form.control,
+        name: "invoiceTotal"
+    });
     
     const expenseType = useWatch({
         control: form.control,
@@ -96,6 +101,20 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
     });
 
     const chartOfAccounts = expenseType === 'S38' ? s38ChartOfAccounts : capChartOfAccounts;
+    
+    const totals = useMemo(() => {
+        const totalPayeDeduction = (watchedLineItems || []).reduce((acc, item) => {
+            if (item.paye) {
+                const inclusive = (item.exclusiveAmount || 0) + (item.vatAmount || 0);
+                return acc + (inclusive * 0.25);
+            }
+            return acc;
+        }, 0);
+
+        const amountPayable = (invoiceTotal || 0) - totalPayeDeduction;
+
+        return { totalPayeDeduction, amountPayable };
+    }, [watchedLineItems, invoiceTotal]);
 
 
     const onSubmit = (data: z.infer<typeof formSchema>) => {
@@ -197,6 +216,16 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
                 
                 <FormField control={form.control} name="invoiceTotal" render={({ field }) => ( <FormItem><FormLabel>Invoice Total</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem> )} />
                 
+                 <FormItem>
+                    <FormLabel>Total PAYE Deductions</FormLabel>
+                    <Input type="number" value={totals.totalPayeDeduction.toFixed(2)} readOnly className="bg-muted text-red-600 font-semibold" />
+                </FormItem>
+
+                <FormItem>
+                    <FormLabel>Amount Payable</FormLabel>
+                    <Input type="number" value={totals.amountPayable.toFixed(2)} readOnly className="bg-muted font-bold text-lg" />
+                </FormItem>
+
                 <DialogFooter>
                     <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
                     <Button type="submit">Save Changes</Button>
