@@ -100,11 +100,8 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const aiAccountantItems = [
      { href: `${basePath}/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['admin', 'client', 'reseller', 'ai_accountant'] },
      { href: `${basePath}/ai-accountant/${clientId}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'client', 'ai_accountant'] },
-     { href: `${basePath}/ai-accountant/${clientId}/customers`, label: 'Customers', icon: Users, roles: ['admin', 'client', 'ai_accountant'] },
-     { href: `${basePath}/ai-accountant/${clientId}/invoices`, label: 'Invoices', icon: FileText, roles: ['admin', 'client', 'ai_accountant'] },
      { href: `${basePath}/ai-accountant/${clientId}/bank/transactions`, label: 'Bank Accounts', icon: Banknote, roles: ['admin', 'client', 'ai_accountant'] },
      { href: `${basePath}/ai-accountant/${clientId}/chart-of-accounts`, label: 'Chart of Accounts', icon: Book, roles: ['admin', 'client', 'ai_accountant'] },
-     { href: `${basePath}/ai-accountant/${clientId}/journals`, label: 'Journals', icon: BookMarked, roles: ['admin', 'client', 'ai_accountant'] },
      { href: `${basePath}/ai-accountant/${clientId}/reports`, label: 'Reports', icon: FileSpreadsheet, roles: ['admin', 'client', 'ai_accountant'] },
   ];
 
