@@ -28,7 +28,7 @@ import { Label } from '@/components/ui/label';
 const db = getFirestore(firebaseApp);
 const auth = getAuth(firebaseApp);
 
-const roles = ['client', 'staff', 'admin', 'reseller', 'ai_accountant'] as const;
+const roles = ['client', 'staff', 'admin', 'reseller', 'ai_accountant', 'cap_staff'] as const;
 
 const formSchema = z.object({
   id: z.string().optional(),

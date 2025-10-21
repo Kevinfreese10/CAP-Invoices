@@ -181,7 +181,7 @@ export type User = {
   id: string; // Document ID
   name: string;
   email: string;
-  role: 'client' | 'admin' | 'staff' | 'reseller' | 'ai_accountant';
+  role: 'client' | 'admin' | 'staff' | 'reseller' | 'ai_accountant' | 'cap_staff';
   createdAt?: any;
   password?: string;
   source?: 'AI Accountant' | 'Client Management';
