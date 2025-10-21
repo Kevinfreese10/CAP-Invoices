@@ -921,6 +921,7 @@ const NewTransactionsTab = React.forwardRef<
     const [isAiAllocating, setIsAiAllocating] = useState(false);
     const [isRuleAllocating, setIsRuleAllocating] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
 
     type SortField = 'date' | 'description' | 'amount';
     type SortDirection = 'asc' | 'desc';
@@ -950,10 +951,18 @@ const NewTransactionsTab = React.forwardRef<
             constraints.push(where('amount', '>=', 0));
         }
         
-        constraints.push(orderBy(sortField, sortDirection));
-        
+        // Firestore doesn't support inequality filters on multiple fields,
+        // so if we are searching, we cannot sort by a different field.
+        if (searchTerm) {
+            constraints.push(where('description', '>=', searchTerm.toUpperCase()));
+            constraints.push(where('description', '<=', searchTerm.toUpperCase() + '\uf8ff'));
+            constraints.push(orderBy('description', sortDirection));
+        } else {
+            constraints.push(orderBy(sortField, sortDirection));
+        }
+
         return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
-    }, [client?.uid, bankAccountId, activeSubTab, sortField, sortDirection]);
+    }, [client?.uid, bankAccountId, activeSubTab, sortField, sortDirection, searchTerm]);
 
     const {
         documents: transactions,
@@ -1306,90 +1315,102 @@ const NewTransactionsTab = React.forwardRef<
                         <TabsTrigger value="income">Income</TabsTrigger>
                     </TabsList>
                 </Tabs>
-                 <div className="p-4 border-b flex items-center gap-2 flex-wrap">
-                     <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="outline">Actions <MoreHorizontal className="ml-2 h-4 w-4"/></Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                            <DropdownMenuSub>
-                                <DropdownMenuSubTrigger disabled={selectedTransactions.length === 0}>Allocate Selected</DropdownMenuSubTrigger>
-                                <DropdownMenuSubContent className="p-0">
-                                    <Command>
-                                        <CommandInput placeholder="Search..." value={searchAccountTerm} onValueChange={setSearchAccountTerm} />
-                                        <CommandList>
-                                            <ScrollArea className="h-72">
-                                            <CommandEmpty>No results found.</CommandEmpty>
-                                            <CommandGroup heading="Accounts">
-                                                {client?.chartOfAccounts?.filter(acc => acc.description.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(acc => (
-                                                    <DropdownMenuSub key={acc.id}>
-                                                        <DropdownMenuSubTrigger>{acc.description}</DropdownMenuSubTrigger>
-                                                        <DropdownMenuSubContent>
-                                                            {allVatTypes.map(vat => (
-                                                                <DropdownMenuItem key={vat.name} onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, vat.name)}>
-                                                                    {vat.label}
-                                                                </DropdownMenuItem>
-                                                            ))}
-                                                        </DropdownMenuSubContent>
-                                                    </DropdownMenuSub>
-                                                ))}
-                                            </CommandGroup>
-                                            <CommandGroup heading="Customers">
-                                                 {customers.filter(c => c.name.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(c => (
-                                                     <DropdownMenuItem key={c.id} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')}>
-                                                        {c.name}
-                                                    </DropdownMenuItem>
-                                                 ))}
-                                            </CommandGroup>
-                                            </ScrollArea>
-                                        </CommandList>
-                                    </Command>
-                                </DropdownMenuSubContent>
-                            </DropdownMenuSub>
-                            <DropdownMenuSeparator />
-                             <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive" disabled={selectedTransactions.length === 0}>
-                                        Delete Selected
-                                    </DropdownMenuItem>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            This action will permanently delete {selectedTransactions.length} selected transaction(s). This cannot be undone.
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={handleBulkDelete}>Yes, Delete</AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                        </DropdownMenuContent>
-                     </DropdownMenu>
+                 <div className="p-4 border-b flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline">Actions <MoreHorizontal className="ml-2 h-4 w-4"/></Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                                <DropdownMenuSub>
+                                    <DropdownMenuSubTrigger disabled={selectedTransactions.length === 0}>Allocate Selected</DropdownMenuSubTrigger>
+                                    <DropdownMenuSubContent className="p-0">
+                                        <Command>
+                                            <CommandInput placeholder="Search..." value={searchAccountTerm} onValueChange={setSearchAccountTerm} />
+                                            <CommandList>
+                                                <ScrollArea className="h-72">
+                                                <CommandEmpty>No results found.</CommandEmpty>
+                                                <CommandGroup heading="Accounts">
+                                                    {client?.chartOfAccounts?.filter(acc => acc.description.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(acc => (
+                                                        <DropdownMenuSub key={acc.id}>
+                                                            <DropdownMenuSubTrigger>{acc.description}</DropdownMenuSubTrigger>
+                                                            <DropdownMenuSubContent>
+                                                                {allVatTypes.map(vat => (
+                                                                    <DropdownMenuItem key={vat.name} onSelect={() => handleBulkAllocate({value: acc.id, type: 'account'}, vat.name)}>
+                                                                        {vat.label}
+                                                                    </DropdownMenuItem>
+                                                                ))}
+                                                            </DropdownMenuSubContent>
+                                                        </DropdownMenuSub>
+                                                    ))}
+                                                </CommandGroup>
+                                                <CommandGroup heading="Customers">
+                                                    {customers.filter(c => c.name.toLowerCase().includes(searchAccountTerm.toLowerCase())).map(c => (
+                                                        <DropdownMenuItem key={c.id} onSelect={() => handleBulkAllocate({value: c.id, type: 'customer'}, 'no_vat')}>
+                                                            {c.name}
+                                                        </DropdownMenuItem>
+                                                    ))}
+                                                </CommandGroup>
+                                                </ScrollArea>
+                                            </CommandList>
+                                        </Command>
+                                    </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                                <DropdownMenuSeparator />
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive" disabled={selectedTransactions.length === 0}>
+                                            Delete Selected
+                                        </DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                This action will permanently delete {selectedTransactions.length} selected transaction(s). This cannot be undone.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleBulkDelete}>Yes, Delete</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
 
-                     {activeSubTab === 'expenses' ? (
-                        <>
-                        <Button variant="outline" onClick={handleAllocateByRules} disabled={isRuleAllocating || transactions.length === 0}>
-                            {isRuleAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <BookOpen className="mr-2 h-4 w-4"/>}
-                            Allocate All by Rules
+                        {activeSubTab === 'expenses' ? (
+                            <>
+                            <Button variant="outline" onClick={handleAllocateByRules} disabled={isRuleAllocating || transactions.length === 0}>
+                                {isRuleAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <BookOpen className="mr-2 h-4 w-4"/>}
+                                Allocate All by Rules
+                            </Button>
+                            <Button variant="outline" onClick={handleAiExpenseAllocate} disabled={isAiAllocating || selectedTransactions.length === 0}>
+                            {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}
+                            AI Allocate Selected
+                            </Button>
+                            </>
+                        ) : (
+                            <Button variant="outline" onClick={handleAiIncomeAllocate} disabled={isAiAllocating || selectedTransactions.length === 0}>
+                            {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}
+                            AI Allocate Selected
+                            </Button>
+                        )}
+                        <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
+                            {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                            Download Excel
                         </Button>
-                        <Button variant="outline" onClick={handleAiExpenseAllocate} disabled={isAiAllocating || selectedTransactions.length === 0}>
-                           {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}
-                           AI Allocate Selected
-                        </Button>
-                        </>
-                     ) : (
-                        <Button variant="outline" onClick={handleAiIncomeAllocate} disabled={isAiAllocating || selectedTransactions.length === 0}>
-                           {isAiAllocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}
-                           AI Allocate Selected
-                        </Button>
-                     )}
-                     <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
-                        {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                        Download Excel
-                    </Button>
+                    </div>
+                    <div className="relative">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            type="search"
+                            placeholder="Search descriptions..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-8 w-64"
+                        />
+                    </div>
                 </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -1548,6 +1569,7 @@ const ForReviewTab = React.forwardRef<
     const { toast } = useToast();
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
+    const [searchTerm, setSearchTerm] = useState('');
     type SortField = 'date' | 'description' | 'amount';
     type SortDirection = 'asc' | 'desc';
     const [sortField, setSortField] = useState<SortField>('date');
@@ -1575,11 +1597,17 @@ const ForReviewTab = React.forwardRef<
         } else {
             constraints.push(where('amount', '>=', 0));
         }
-        
-        constraints.push(orderBy(sortField, sortDirection));
+
+        if (searchTerm) {
+            constraints.push(where('description', '>=', searchTerm.toUpperCase()));
+            constraints.push(where('description', '<=', searchTerm.toUpperCase() + '\uf8ff'));
+            constraints.push(orderBy('description', sortDirection));
+        } else {
+            constraints.push(orderBy(sortField, sortDirection));
+        }
         
         return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
-    }, [client?.uid, bankAccountId, activeSubTab, sortField, sortDirection]);
+    }, [client?.uid, bankAccountId, activeSubTab, sortField, sortDirection, searchTerm]);
 
     const {
         documents: transactions,
@@ -1666,13 +1694,25 @@ const ForReviewTab = React.forwardRef<
                         <TabsTrigger value="income">Review Income</TabsTrigger>
                     </TabsList>
                 </Tabs>
-                 <div className="p-4 flex items-center gap-2">
-                     <Button onClick={() => handleBulkAction('approve')} disabled={selectedTransactions.length === 0}>
-                        <CheckCircle className="mr-2 h-4 w-4" />Approve Selected
-                     </Button>
-                     <Button variant="destructive" onClick={() => handleBulkAction('reject')} disabled={selectedTransactions.length === 0}>
-                        <RotateCcw className="mr-2 h-4 w-4" />Reject Selected
-                     </Button>
+                 <div className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Button onClick={() => handleBulkAction('approve')} disabled={selectedTransactions.length === 0}>
+                            <CheckCircle className="mr-2 h-4 w-4" />Approve Selected
+                        </Button>
+                        <Button variant="destructive" onClick={() => handleBulkAction('reject')} disabled={selectedTransactions.length === 0}>
+                            <RotateCcw className="mr-2 h-4 w-4" />Reject Selected
+                        </Button>
+                    </div>
+                     <div className="relative">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            type="search"
+                            placeholder="Search descriptions..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-8 w-64"
+                        />
+                    </div>
                  </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -1757,9 +1797,10 @@ ForReviewTab.displayName = 'ForReviewTab';
 
 const ReviewedTab = React.forwardRef<
     { refetch: () => void },
-    { client: User | null; bankAccountId: string | null; customers: ClientCustomer[]; }
+    { client: User | null; bankAccountId: string | null; customers: ClientCustomer[] }
 >(({ client, bankAccountId, customers }, ref) => {
     
+    const [searchTerm, setSearchTerm] = useState('');
     type SortField = 'date' | 'description' | 'amount';
     type SortDirection = 'asc' | 'desc';
     const [sortField, setSortField] = useState<SortField>('date');
@@ -1777,13 +1818,21 @@ const ReviewedTab = React.forwardRef<
     const reviewedTransactionsQuery = useMemo(() => {
         if (!client?.uid || !bankAccountId) return null;
         
-        return query(
-            collection(db, 'aiAccountantClients', client.uid, 'transactions'),
+        let constraints: QueryConstraint[] = [
             where('bankAccountId', '==', bankAccountId),
             where('status', '==', 'allocated'),
-            orderBy(sortField, sortDirection)
-        );
-    }, [client?.uid, bankAccountId, sortField, sortDirection]);
+        ];
+        
+        if (searchTerm) {
+            constraints.push(where('description', '>=', searchTerm.toUpperCase()));
+            constraints.push(where('description', '<=', searchTerm.toUpperCase() + '\uf8ff'));
+            constraints.push(orderBy('description', sortDirection));
+        } else {
+            constraints.push(orderBy(sortField, sortDirection));
+        }
+
+        return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
+    }, [client?.uid, bankAccountId, sortField, sortDirection, searchTerm]);
 
     const {
         documents: transactions,
@@ -1811,6 +1860,20 @@ const ReviewedTab = React.forwardRef<
 
     return (
         <Card>
+            <CardHeader className="p-4 border-b">
+                 <div className="flex items-center justify-end">
+                    <div className="relative">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            type="search"
+                            placeholder="Search descriptions..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-8 w-64"
+                        />
+                    </div>
+                </div>
+            </CardHeader>
             <CardContent className="p-0">
                  <div className="overflow-x-auto">
                     <Table>
@@ -2159,7 +2222,3 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
-
-
-
-    
