@@ -24,6 +24,26 @@ type ChatMessage = {
   serviceUrl?: string;
 }
 
+// Utility to render text with basic markdown (like bullet points)
+const ChatMessageContent = ({ text }: { text: string }) => {
+    const lines = text.split('\n');
+    return (
+        <>
+            {lines.map((line, index) => {
+                if (line.trim().startsWith('- ')) {
+                    return (
+                        <li key={index} className="ml-4 list-disc">
+                            {line.substring(2)}
+                        </li>
+                    );
+                }
+                return <p key={index} className="text-sm">{line}</p>;
+            })}
+        </>
+    );
+};
+
+
 export default function WebsiteAIWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
@@ -99,7 +119,7 @@ export default function WebsiteAIWidget() {
                         "p-3 rounded-lg max-w-xs",
                         message.role === 'user' ? 'bg-gradient text-primary-foreground' : 'bg-muted'
                     )}>
-                        <p className="text-sm">{message.text}</p>
+                        <ChatMessageContent text={message.text} />
                         {message.role === 'bot' && message.serviceUrl && (
                            <Button asChild variant="link" className="p-0 h-auto mt-2 text-primary">
                              <Link href={message.serviceUrl}>
