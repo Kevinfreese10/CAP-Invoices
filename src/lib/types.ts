@@ -1,5 +1,6 @@
 
 
+
 export type VatType =
   // Output Tax
   | 'standard_rated_sales'
@@ -296,7 +297,7 @@ export type ImportedTransaction = {
         value: string;
         type: 'account' | 'customer' | 'supplier';
     };
-    vatType?: VatType; // Optional for imported
+    vatType?: VatType;
 };
 
 export type AllocatedTransaction = {

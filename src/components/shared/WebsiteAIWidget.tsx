@@ -10,8 +10,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
-import { Loader2, MessageCircle, Send, X, Bot, User } from 'lucide-react';
+import { Loader2, MessageCircle, Send, X, Bot, User, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
 
 const formSchema = z.object({
   question: z.string().min(1, 'Cannot send an empty message.'),
@@ -20,6 +21,7 @@ const formSchema = z.object({
 type ChatMessage = {
   role: 'user' | 'bot';
   text: string;
+  serviceUrl?: string;
 }
 
 export default function WebsiteAIWidget() {
@@ -61,7 +63,7 @@ export default function WebsiteAIWidget() {
         // Include previous messages for conversational context
         history: chatHistory.map(m => ({ role: m.role, content: m.text }))
        });
-      const botMessage: ChatMessage = { role: 'bot', text: response.answer };
+      const botMessage: ChatMessage = { role: 'bot', text: response.answer, serviceUrl: response.serviceUrl };
       setChatHistory(prev => [...prev, botMessage]);
     } catch (e) {
       const errorMessage: ChatMessage = { role: 'bot', text: 'Sorry, I am having trouble connecting. Please try again later.' };
@@ -98,6 +100,13 @@ export default function WebsiteAIWidget() {
                         message.role === 'user' ? 'bg-gradient text-primary-foreground' : 'bg-muted'
                     )}>
                         <p className="text-sm">{message.text}</p>
+                        {message.role === 'bot' && message.serviceUrl && (
+                           <Button asChild variant="link" className="p-0 h-auto mt-2 text-primary">
+                             <Link href={message.serviceUrl}>
+                               View Service <ArrowRight className="ml-1 h-4 w-4" />
+                            </Link>
+                           </Button>
+                        )}
                     </div>
                    {message.role === 'user' && <User className="h-6 w-6 text-primary flex-shrink-0" />}
                 </div>

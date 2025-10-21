@@ -30,7 +30,7 @@ export type WebsiteQAndAInput = z.infer<typeof WebsiteQAndAInputSchema>;
 const WebsiteQAndAOutputSchema = z.object({
   answer: z.string().describe('A concise and helpful answer to the user\'s question. Prioritize information from the provided context, but use general knowledge if the answer is not available there. If you cannot answer, state that.'),
   confidence: z.number().min(0).max(100).describe('A confidence score (0-100) of how certain you are about the answer. If the answer is directly stated in the context, confidence should be high (90-100). If it is inferred from the context, it should be medium (60-80). If using general knowledge, confidence should be lower (40-60). If you cannot answer, it should be very low (0-10).'),
-  serviceUrl: z.string().optional().describe("If the user's question is about a specific service, provide the URL for that service page. The URL should be in the format '/services/service-id'."),
+  serviceUrl: z.string().optional().describe("If the user's question is about a specific service, provide the URL for that service page. The URL should be in the format '/services/service-slug'."),
 });
 export type WebsiteQAndAOutput = z.infer<typeof WebsiteQAndAOutputSchema>;
 
@@ -47,7 +47,7 @@ export async function websiteQAndA(
   // Serialize the website content to pass to the prompt
   const websiteContent = `
     SERVICES:
-    ${services.map(s => `Title: ${s.title}, URL: /services/${s.id}, Description: ${s.longDescription}, Price: ZAR ${s.price}, Turnaround Time: ${s.turnaroundTime}, Prerequisites: ${s.clientRequirements.join(', ')}`).join('\n\n')}
+    ${services.map(s => `Title: ${s.title}, URL: /services/${s.slug}, Description: ${s.longDescription}, Price: ZAR ${s.price}, Turnaround Time: ${s.turnaroundTime}, Prerequisites: ${s.clientRequirements.join(', ')}`).join('\n\n')}
 
     BLOG POSTS:
     ${blogPosts.map(p => `Title: ${p.title}, Excerpt: ${p.excerpt}`).join('\n\n')}
@@ -69,7 +69,7 @@ export async function websiteQAndA(
     
     Your task is to answer user questions. You should ALWAYS prioritize using the information provided in the 'CONTEXT' section below to answer questions about the company's services, pricing, and policies. The Knowledge Base section is the highest source of truth.
 
-    If the user's question is about a specific service mentioned in the context, you MUST provide the 'serviceUrl' for that service in your response.
+    If the user's question is about a specific service mentioned in the context, you MUST provide the 'serviceUrl' for that service in your response. The service URL must exactly match the URL provided in the context for that service.
     
     CRITICAL INSTRUCTION: When answering a question about a service using the provided context, you MUST ALWAYS include the following details in your answer:
     1.  The price.
