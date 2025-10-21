@@ -14,6 +14,7 @@ import { firebaseApp } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { sendEmail } from '@/lib/email';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const db = getFirestore(firebaseApp);
 
@@ -36,7 +37,6 @@ interface Email {
 
 export default function InboxPage() {
     const [emails, setEmails] = useState<Email[]>([]);
-    const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isTesting, setIsTesting] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -82,16 +82,13 @@ export default function InboxPage() {
                 isProcessed: processedUids.has(email.uid),
             }));
             setEmails(emailsWithStatus);
-            if (emailsWithStatus.length > 0 && !selectedEmail) {
-                setSelectedEmail(emailsWithStatus[0]);
-            }
         } catch (err: any) {
             console.error("Error fetching emails:", err);
             setError(err.message);
         } finally {
             setIsLoading(false);
         }
-    }, [selectedEmail]);
+    }, []);
 
     const handleProcessSelected = async () => {
         const emailsToProcess = emails.filter(email => selectedUids.has(email.uid));
@@ -184,7 +181,7 @@ export default function InboxPage() {
 
     useEffect(() => {
         fetchEmails();
-    }, []);
+    }, [fetchEmails]);
 
     const selectableEmails = emails.filter(e => !e.isProcessed && e.attachments.some(a => a.contentType === 'application/pdf'));
 
@@ -196,7 +193,7 @@ export default function InboxPage() {
                 <div className="flex gap-2">
                      <Button onClick={handleProcessSelected} disabled={isProcessing || selectedUids.size === 0}>
                         {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
-                        Process {selectedUids.size > 0 ? selectedUids.size : ''} Selected
+                        Process {selectedUids.size > 0 ? `(${selectedUids.size})` : ''} Selected
                     </Button>
                      <Button onClick={handleTestConnection} variant="outline" disabled={isTesting}>
                         <Plug className={`mr-2 h-4 w-4 ${isTesting ? 'animate-pulse' : ''}`} />
@@ -208,125 +205,78 @@ export default function InboxPage() {
                     </Button>
                 </div>
             </div>
-            <Card className="h-[calc(100vh-12rem)]">
-                <div className="grid grid-cols-1 md:grid-cols-3 h-full">
-                    <div className="md:col-span-1 border-r">
-                        <CardHeader>
-                            <div className="flex justify-between items-center">
-                                <div>
-                                    <CardTitle>invoices2@myacc.co.za</CardTitle>
-                                    <CardDescription>
-                                        {isLoading ? 'Loading messages...' : `Showing ${emails.length} messages.`}
-                                    </CardDescription>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                    <Checkbox 
-                                      id="select-all" 
-                                      onCheckedChange={handleSelectAll}
-                                      checked={selectableEmails.length > 0 && selectedUids.size === selectableEmails.length}
-                                    />
-                                    <label htmlFor="select-all" className="text-sm font-medium">Select All</label>
-                                </div>
-                            </div>
-                        </CardHeader>
-                        <ScrollArea className="h-[calc(100vh-18rem)]">
-                            {isLoading ? (
-                                <div className="flex items-center justify-center h-full">
-                                    <Loader2 className="h-8 w-8 animate-spin" />
-                                </div>
-                            ) : error ? (
-                                <div className="p-4 text-center text-destructive">
-                                    <FileWarning className="mx-auto h-12 w-12" />
-                                    <p className="mt-4 text-sm font-semibold">Could not load inbox</p>
-                                    <p className="text-xs">{error}</p>
-                                </div>
-                            ) : emails.length === 0 ? (
-                                <div className="p-4 text-center text-muted-foreground">
-                                    <Inbox className="mx-auto h-12 w-12" />
-                                    <p className="mt-4">The inbox is empty.</p>
-                                </div>
-                            ) : (
-                                <div className="flex flex-col">
-                                    {emails.map((email) => {
-                                      const hasPdf = email.attachments.some(a => a.contentType === 'application/pdf');
-                                      const canSelect = hasPdf && !email.isProcessed;
-                                      return (
-                                        <div
-                                            key={email.uid}
-                                            onClick={() => setSelectedEmail(email)}
-                                            className={`flex items-start gap-4 p-4 text-left border-b hover:bg-muted/50 cursor-pointer ${selectedEmail?.uid === email.uid ? 'bg-muted' : ''}`}
-                                        >
-                                            {canSelect ? (
-                                                <Checkbox 
-                                                  id={`select-${email.uid}`} 
-                                                  onCheckedChange={(checked) => handleSelectOne(email.uid, !!checked)}
-                                                  checked={selectedUids.has(email.uid)}
-                                                  onClick={(e) => e.stopPropagation()}
-                                                  className="mt-1"
-                                                />
-                                            ) : (
-                                              <div className="w-4 h-4 mt-1 flex-shrink-0" />
-                                            )}
-                                            <div className="flex-grow">
-                                                <div className="flex justify-between items-start">
-                                                    <p className="font-semibold truncate">{email.from}</p>
-                                                    {email.isProcessed && <Badge variant="success" className="text-xs">Processed</Badge>}
-                                                </div>
-                                                <p className="text-sm truncate">{email.subject}</p>
-                                                <div className="flex justify-between items-center text-xs text-muted-foreground">
-                                                    <span>{format(new Date(email.date), 'dd MMM yyyy, HH:mm')}</span>
-                                                    {hasPdf && (
-                                                      <div className="flex items-center gap-1 text-primary">
-                                                          <Paperclip className="h-3 w-3" />
-                                                          <span>{email.attachments.filter(a => a.contentType === 'application/pdf').length} PDF(s)</span>
-                                                      </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                      );
-                                    })}
-                                </div>
-                            )}
-                        </ScrollArea>
+            <Card>
+                <CardHeader>
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <CardTitle>invoices2@myacc.co.za</CardTitle>
+                            <CardDescription>
+                                {isLoading ? 'Loading messages...' : `Showing ${emails.length} messages.`}
+                            </CardDescription>
+                        </div>
                     </div>
-                    <div className="md:col-span-2">
-                        {selectedEmail ? (
-                            <div className="flex flex-col h-full">
-                                <div className="p-4 border-b">
-                                    <div className="flex justify-between items-start">
-                                        <h2 className="font-semibold text-lg">{selectedEmail.subject}</h2>
-                                        {selectedEmail.isProcessed && <Badge variant="success"><CheckCircle2 className="mr-1 h-3 w-3"/> Processed</Badge>}
-                                    </div>
-                                    <p className="text-sm"><strong>From:</strong> {selectedEmail.from}</p>
-                                    <p className="text-sm text-muted-foreground"><strong>Date:</strong> {format(new Date(selectedEmail.date), 'dd MMMM yyyy, HH:mm')}</p>
-                                    {selectedEmail.attachments && selectedEmail.attachments.length > 0 && (
-                                        <>
-                                            <Separator className="my-2" />
-                                            <div className="flex flex-wrap items-center gap-2">
-                                                {selectedEmail.attachments.map((att, index) => (
-                                                    <Button key={index} asChild variant="outline" size="sm">
-                                                        <a href={att.dataUrl} download={att.filename}>
-                                                            <Paperclip className="mr-2 h-4 w-4" />
-                                                            {att.filename}
-                                                        </a>
-                                                    </Button>
-                                                ))}
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                                <div className="p-4 text-sm text-muted-foreground">
-                                    Email body preview has been removed to simplify the interface. Select an email to see its attachments.
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="flex items-center justify-center h-full text-muted-foreground">
-                                { !isLoading && !error && <p>Select an email to view attachments</p> }
-                            </div>
-                        )}
-                    </div>
-                </div>
+                </CardHeader>
+                <CardContent>
+                    {isLoading ? (
+                        <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div>
+                    ) : error ? (
+                        <div className="p-4 text-center text-destructive"><FileWarning className="mx-auto h-12 w-12" /><p className="mt-4 text-sm font-semibold">Could not load inbox</p><p className="text-xs">{error}</p></div>
+                    ) : emails.length === 0 ? (
+                        <div className="p-4 text-center text-muted-foreground"><Inbox className="mx-auto h-12 w-12" /><p className="mt-4">The inbox is empty.</p></div>
+                    ) : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="w-[50px]">
+                                         <Checkbox 
+                                            id="select-all" 
+                                            onCheckedChange={handleSelectAll}
+                                            checked={selectableEmails.length > 0 && selectedUids.size === selectableEmails.length}
+                                            />
+                                    </TableHead>
+                                    <TableHead>From</TableHead>
+                                    <TableHead>Subject</TableHead>
+                                    <TableHead>Attachments</TableHead>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Status</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                             <TableBody>
+                                {emails.map((email) => {
+                                    const hasPdf = email.attachments.some(a => a.contentType === 'application/pdf');
+                                    const canSelect = hasPdf && !email.isProcessed;
+                                    return (
+                                        <TableRow key={email.uid}>
+                                            <TableCell>
+                                                {canSelect ? (
+                                                    <Checkbox 
+                                                        id={`select-${email.uid}`} 
+                                                        onCheckedChange={(checked) => handleSelectOne(email.uid, !!checked)}
+                                                        checked={selectedUids.has(email.uid)}
+                                                    />
+                                                ) : <div className="w-4 h-4" />}
+                                            </TableCell>
+                                            <TableCell className="font-medium">{email.from}</TableCell>
+                                            <TableCell>{email.subject}</TableCell>
+                                            <TableCell>
+                                                {email.attachments.length > 0 ? (
+                                                    <div className="flex items-center gap-1 text-primary">
+                                                        <Paperclip className="h-4 w-4"/>
+                                                        <span>{email.attachments.length}</span>
+                                                    </div>
+                                                ) : "None"}
+                                            </TableCell>
+                                            <TableCell>{format(new Date(email.date), 'dd MMM, HH:mm')}</TableCell>
+                                            <TableCell>
+                                                {email.isProcessed ? <Badge variant="success"><CheckCircle2 className="mr-1 h-3 w-3"/>Processed</Badge> : <Badge variant="outline">Unprocessed</Badge>}
+                                            </TableCell>
+                                        </TableRow>
+                                    )
+                                })}
+                            </TableBody>
+                        </Table>
+                    )}
+                </CardContent>
             </Card>
         </div>
     );
