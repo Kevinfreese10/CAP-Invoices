@@ -432,7 +432,7 @@ type ParsedTransaction = {
     Amount: number;
 }
 
-function ImportDialog({ client, bankAccountId, onImportComplete }: { client: User | null, bankAccountId: string, onImportComplete: () => void }) {
+function ImportDialog({ client, bankAccountId, onImportComplete, globalRules }: { client: User | null, bankAccountId: string, onImportComplete: () => void, globalRules: AllocationRule[] }) {
     const [isOpen, setIsOpen] = useState(false);
     const [file, setFile] = useState<File | null>(null);
     const [parsedTransactions, setParsedTransactions] = useState<ParsedTransaction[]>([]);
@@ -485,12 +485,14 @@ function ImportDialog({ client, bankAccountId, onImportComplete }: { client: Use
 
                         let ruleAllocationCount = 0;
                         let aiAllocationCount = 0;
+                        
+                        const allRules = [...(client?.allocationRules || []), ...globalRules];
 
-                        if (client?.allocationRules) {
+                        if (allRules.length > 0) {
                             for (const tx of transactions) {
                                 const txDescriptionLower = tx.Description.toLowerCase();
-                                const matchedRule = client.allocationRules.find(rule => 
-                                    rule.keywords.some(kw => txDescriptionLower.includes(kw))
+                                const matchedRule = allRules.find(rule => 
+                                    rule.keywords.some(kw => txDescriptionLower.includes(kw.toLowerCase()))
                                 );
                                 if (matchedRule) {
                                     ruleAllocationCount++;
@@ -522,6 +524,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete }: { client: Use
             const batch = writeBatch(db);
             let importedCount = 0;
             const dailyCounters: { [key: string]: number } = {};
+            const allRules = [...(client.allocationRules || []), ...globalRules];
 
             parsedTransactions.forEach((row, index) => {
                 const parsedDate = new Date(row.Date.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1'));
@@ -536,10 +539,10 @@ function ImportDialog({ client, bankAccountId, onImportComplete }: { client: Use
                 const dailyIndex = String(dailyCounters[dateString]).padStart(2, '0');
                 const reference = `${dateString}${dailyIndex}`;
                 
-                const newTransactionRef = doc(collection(db, 'aiAccountantClients', client.uid, 'transactions'));
+                const newTransactionRef = doc(collection(db, 'aiAccountantClients', client.uid!, 'transactions'));
                 
                 let transaction: Omit<ImportedTransaction, 'id'> = {
-                    clientId: client.uid,
+                    clientId: client.uid!,
                     date: parsedDate.toISOString(),
                     reference: reference,
                     description: row.Description,
@@ -549,8 +552,8 @@ function ImportDialog({ client, bankAccountId, onImportComplete }: { client: Use
                 };
                 
                 const txDescriptionLower = row.Description.toLowerCase();
-                const matchedRule = client.allocationRules?.find(rule => 
-                    rule.keywords.some(kw => txDescriptionLower.includes(kw))
+                const matchedRule = allRules.find(rule => 
+                    rule.keywords.some(kw => txDescriptionLower.includes(kw.toLowerCase()))
                 );
 
                 if (matchedRule) {
@@ -932,22 +935,14 @@ const NewTransactionsTab = React.forwardRef<
     
         const batch = writeBatch(db);
         let allocatedCount = 0;
-        const clientRules = client.allocationRules || [];
+        const allRules = [...(client.allocationRules || []), ...globalRules];
     
         transactions.forEach(tx => {
             const txDescriptionLower = tx.description.toLowerCase();
             
-            // Prioritize client-specific rules
-            let matchedRule = clientRules.find(rule => 
-                rule.keywords.some(kw => txDescriptionLower.includes(kw))
+            const matchedRule = allRules.find(rule => 
+                rule.keywords.some(kw => txDescriptionLower.includes(kw.toLowerCase()))
             );
-    
-            // If no client rule matches, check global rules
-            if (!matchedRule) {
-                matchedRule = globalRules.find(rule => 
-                    rule.keywords.some(kw => txDescriptionLower.includes(kw))
-                );
-            }
     
             if (matchedRule) {
                 const transactionRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
@@ -1950,7 +1945,7 @@ export default function BankTransactionsPage() {
 
                 <div className="flex items-center gap-2 sm:gap-4 w-full md:w-auto justify-end">
                     {client && selectedAccountId && <UploadStatementDialog client={client} bankAccountId={selectedAccountId} onImportComplete={handleImportComplete} />}
-                    {client && selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={handleImportComplete} />}
+                    {client && selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={handleImportComplete} globalRules={globalRules} />}
                 </div>
             </div>
 
@@ -1994,4 +1989,5 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
+
 
