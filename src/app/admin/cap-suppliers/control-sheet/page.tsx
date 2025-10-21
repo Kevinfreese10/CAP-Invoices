@@ -75,8 +75,8 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
             date: invoice?.date || '',
             lineItems: invoice?.lineItems.map(item => ({ ...item, paye: item.paye || false })) || [],
             invoiceTotal: invoice?.invoiceTotal || 0,
-            expenseType: invoice?.expenseType || 'CAP',
-            paymentBatch: invoice?.paymentBatch || undefined,
+            expenseType: invoice?.expenseType || 'S38',
+            paymentBatch: invoice?.paymentBatch || 'month_end',
         }
     });
 
