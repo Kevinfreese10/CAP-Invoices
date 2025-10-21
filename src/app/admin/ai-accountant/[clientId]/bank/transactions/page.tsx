@@ -1205,7 +1205,7 @@ const NewTransactionsTab = React.forwardRef<
                 onOpenChange={(isOpen) => {
                     setIsCreateRuleOpen(isOpen);
                     if (!isOpen) {
-                        setRuleDefaultValues({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases'});
+                        setRuleDefaultValues({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases', scope: 'client' });
                     }
                 }}
                 defaultValues={ruleDefaultValues}
@@ -1391,7 +1391,13 @@ const NewTransactionsTab = React.forwardRef<
                                                      <DropdownMenuItem onSelect={() => {
                                                         const firstKeyword = tx.description.split(/\s+/)[0];
                                                         setIsCreateRuleOpen(true);
-                                                        setRuleDefaultValues({ keywords: firstKeyword });
+                                                        setRuleDefaultValues({ 
+                                                            description: '', 
+                                                            keywords: firstKeyword, 
+                                                            accountId: '', 
+                                                            vatType: 'standard_rated_purchases',
+                                                            scope: 'client',
+                                                        });
                                                      }}>
                                                         Create Rule from Transaction
                                                     </DropdownMenuItem>
