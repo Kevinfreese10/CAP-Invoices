@@ -1,4 +1,5 @@
 
+
 export type VatType =
   // Output Tax
   | 'standard_rated_sales'
@@ -329,7 +330,13 @@ export type ExtractedInvoice = {
   supplier: string;
   invoiceNumber: string;
   date: string;
-  lineItems: { description: string; exclusiveAmount: number; vatAmount: number; accountId?: string; }[];
+  lineItems: { 
+    description: string; 
+    exclusiveAmount: number; 
+    vatAmount: number; 
+    accountId?: string;
+    paye?: boolean;
+  }[];
   invoiceTotal: number;
   status: 'pending_review' | 'approved' | 'approved_for_payment' | 'rejected' | 'batched_for_payment';
   fileName: string;

@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -27,6 +28,7 @@ import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import InvoiceRejectionEmail from '@/components/emails/InvoiceRejectionEmail';
 import { ExtractedInvoice } from '@/lib/types';
+import { Checkbox } from '@/components/ui/checkbox';
 
 
 const db = getFirestore(firebaseApp);
@@ -36,6 +38,7 @@ type LineItem = {
     exclusiveAmount: number;
     vatAmount: number;
     accountId?: string;
+    paye?: boolean;
 }
 
 const lineItemSchema = z.object({
@@ -43,6 +46,7 @@ const lineItemSchema = z.object({
   exclusiveAmount: z.preprocess((val) => Number(val), z.number()),
   vatAmount: z.preprocess((val) => Number(val), z.number()),
   accountId: z.string().optional(),
+  paye: z.boolean().optional(),
 });
 
 const formSchema = z.object({
@@ -69,7 +73,7 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
             invoiceNumber: invoice?.invoiceNumber || '',
             commissionNumber: invoice?.commissionNumber || '',
             date: invoice?.date || '',
-            lineItems: invoice?.lineItems || [],
+            lineItems: invoice?.lineItems.map(item => ({ ...item, paye: item.paye || false })) || [],
             invoiceTotal: invoice?.invoiceTotal || 0,
             expenseType: invoice?.expenseType || 'CAP',
             paymentBatch: invoice?.paymentBatch || undefined,
@@ -167,27 +171,29 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
                 <h4 className="font-medium">Line Items</h4>
                 <div className="space-y-2">
                     {fields.map((field, index) => {
-                        const exclusive = watchedLineItems?.[index]?.exclusiveAmount || 0;
-                        const vat = watchedLineItems?.[index]?.vatAmount || 0;
+                        const lineItem = watchedLineItems?.[index];
+                        const exclusive = lineItem?.exclusiveAmount || 0;
+                        const vat = lineItem?.vatAmount || 0;
                         const inclusive = exclusive + vat;
+                        const payeDeduction = lineItem?.paye ? inclusive * 0.25 : 0;
+                        const lineTotal = inclusive - payeDeduction;
+
                         return (
                         <div key={field.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end border p-2 rounded-md">
                             <FormField control={form.control} name={`lineItems.${index}.description`} render={({ field }) => (<FormItem className="md:col-span-12"><FormLabel className={index > 0 ? "hidden": ""}>Description</FormLabel><FormControl><Textarea {...field} rows={1} /></FormControl></FormItem>)} />
-                            <FormField control={form.control} name={`lineItems.${index}.exclusiveAmount`} render={({ field }) => (<FormItem className="md:col-span-3"><FormLabel className={index > 0 ? "hidden": ""}>Exclusive</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
-                            <FormField control={form.control} name={`lineItems.${index}.vatAmount`} render={({ field }) => (<FormItem className="md:col-span-3"><FormLabel className={index > 0 ? "hidden": ""}>VAT</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
-                            <FormItem className="md:col-span-3">
-                                <FormLabel className={index > 0 ? "hidden": ""}>Inclusive</FormLabel>
-                                <Input type="number" value={inclusive.toFixed(2)} readOnly className="bg-muted" />
-                            </FormItem>
-                             <div className="md:col-span-3 flex justify-end">
-                                <Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>
-                             </div>
+                            <FormField control={form.control} name={`lineItems.${index}.exclusiveAmount`} render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>Exclusive</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
+                            <FormField control={form.control} name={`lineItems.${index}.vatAmount`} render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>VAT</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
+                            <FormItem className="md:col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>Inclusive</FormLabel><Input type="number" value={inclusive.toFixed(2)} readOnly className="bg-muted" /></FormItem>
+                            <FormField control={form.control} name={`lineItems.${index}.paye`} render={({ field }) => ( <FormItem className="flex flex-col items-center justify-center h-full pb-1 md:col-span-1"><FormLabel className="text-xs">PAYE</FormLabel><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)}/>
+                            <FormItem className="md:col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>PAYE Deduction</FormLabel><Input type="number" value={payeDeduction.toFixed(2)} readOnly className="bg-muted text-red-600" /></FormItem>
+                            <FormItem className="md:col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>Line Total</FormLabel><Input type="number" value={lineTotal.toFixed(2)} readOnly className="bg-muted font-semibold" /></FormItem>
+                             <div className="md:col-span-1 flex justify-end"><Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button></div>
                             <FormField control={form.control} name={`lineItems.${index}.accountId`} render={({ field }) => (<FormItem className="md:col-span-12"><FormLabel className={index > 0 ? "hidden": ""}>Account</FormLabel> <Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl><SelectContent>{chartOfAccounts.map((account) => (<SelectItem key={account.accountNumber} value={account.accountNumber}>{account.accountNumber} - {account.description}</SelectItem>))}</SelectContent></Select> <FormMessage /></FormItem>)} />
                         </div>
                         )
                     })}
                 </div>
-                 <Button type="button" variant="outline" size="sm" onClick={() => append({ description: '', exclusiveAmount: 0, vatAmount: 0 })}>Add Line</Button>
+                 <Button type="button" variant="outline" size="sm" onClick={() => append({ description: '', exclusiveAmount: 0, vatAmount: 0, paye: false })}>Add Line</Button>
                 
                 <FormField control={form.control} name="invoiceTotal" render={({ field }) => ( <FormItem><FormLabel>Invoice Total</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem> )} />
                 
