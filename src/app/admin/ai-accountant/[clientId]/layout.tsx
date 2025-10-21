@@ -99,6 +99,17 @@ export default function AIAccountantClientLayout({ children }: { children: React
                         <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/bank/transactions`}>Bank & Credit Cards</Link></MenubarItem>
                      </MenubarContent>
                 </MenubarMenu>
+                <MenubarMenu>
+                    <MenubarTrigger>Reports <ChevronDown className="h-4 w-4 ml-1" /></MenubarTrigger>
+                    <MenubarContent>
+                        <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/trial-balance`}>Trial Balance</Link></MenubarItem>
+                        <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/general-ledger`}>General Ledger</Link></MenubarItem>
+                        <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/customer-ledger`}>Customer Ledger</Link></MenubarItem>
+                        <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/age-analysis`}>Age Analysis</Link></MenubarItem>
+                        <MenubarSeparator />
+                        <MenubarItem asChild><Link href={`/admin/ai-accountant/${clientId}/reports/account-transactions`}>Account Transactions</Link></MenubarItem>
+                    </MenubarContent>
+                </MenubarMenu>
             </Menubar>
             
             <main>
