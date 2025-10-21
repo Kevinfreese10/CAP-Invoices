@@ -14,9 +14,9 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { getNextOrderId } from '@/lib/sequence';
-import { generatePayFastSignature } from '@/app/actions/payfast';
 import { doc, setDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { useRouter } from 'next/navigation';
 
 const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -46,10 +46,9 @@ const planDetails = {
 
 export default function SubscriptionsPage() {
     const { user, updateUser } = useAuth();
+    const router = useRouter();
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
-    const [payfastFormData, setPayfastFormData] = useState<{ [key: string]: string } | null>(null);
-
     
     const [isAiActive, setIsAiActive] = useState(user?.subscription?.serviceLevel === 'ai_addon');
     const [extraUsers, setExtraUsers] = useState(user?.subscription?.extraUsers || 0);
@@ -61,22 +60,13 @@ export default function SubscriptionsPage() {
     const companiesPrice = extraCompanies * pricing.extraCompany;
     const newTotal = planPrice + usersPrice + companiesPrice;
 
-    useEffect(() => {
-        if (payfastFormData) {
-            const formElement = document.getElementById('payfast-redirect-form');
-            if (formElement) {
-                (formElement as HTMLFormElement).submit();
-            }
-        }
-    }, [payfastFormData]);
-
     const handleSave = async () => {
         if (!user) return;
         setIsLoading(true);
         
         toast({
             title: 'Processing Subscription Change...',
-            description: 'Please wait while we redirect you to payment.',
+            description: 'Please wait while we prepare your order.',
         });
 
         try {
@@ -108,21 +98,7 @@ export default function SubscriptionsPage() {
             };
             
             await setDoc(doc(db, 'orders', orderId), orderData);
-            
-            const dataForSignature = {
-                merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID,
-                merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY,
-                return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success/${orderId}`,
-                cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/subscriptions`,
-                notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
-                email_address: user.email,
-                m_payment_id: orderId,
-                amount: newTotal.toFixed(2),
-                item_name: `Subscription Update for ${user.name}`,
-            };
-
-            const signature = await generatePayFastSignature(dataForSignature);
-            setPayfastFormData({ ...dataForSignature, signature });
+            router.push(`/order-confirmation/${orderId}`);
 
         } catch (e) {
             console.error(e);
@@ -261,13 +237,6 @@ export default function SubscriptionsPage() {
                 </CardFooter>
             </Card>
         </div>
-        {payfastFormData && (
-            <form id="payfast-redirect-form" action={process.env.NEXT_PUBLIC_PAYFAST_URL} method="post" style={{ display: 'none' }}>
-                {Object.entries(payfastFormData).map(([key, value]) => (
-                    <input key={key} type="hidden" name={key} value={value as string} />
-                ))}
-            </form>
-        )}
         </>
     );
 }

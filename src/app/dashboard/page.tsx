@@ -15,7 +15,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import ServicePreview from '@/components/admin/ServicePreview';
 import { useToast } from '@/hooks/use-toast';
 import { getNextOrderId } from '@/lib/sequence';
-import { generatePayFastSignature } from '@/app/actions/payfast';
 import { Input } from '@/components/ui/input';
 
 
@@ -41,8 +40,8 @@ export default function DashboardPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [viewingService, setViewingService] = useState<Service | null>(null);
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-    const [payfastFormData, setPayfastFormData] = useState<{ [key: string]: string } | null>(null);
     const { toast } = useToast();
+    const router = useRouter();
     const [searchTerm, setSearchTerm] = useState('');
 
     const monthlyPackages = [
@@ -107,15 +106,6 @@ export default function DashboardPage() {
         }
     }, []);
 
-    useEffect(() => {
-        if (payfastFormData) {
-          const formElement = document.getElementById('payfast-redirect-form') as HTMLFormElement;
-          if (formElement) {
-            formElement.submit();
-          }
-        }
-    }, [payfastFormData]);
-
     const handleBuyNow = async (service: Service) => {
         if (!user) {
             toast({ title: 'Not Logged In', description: 'Please log in to make a purchase.', variant: 'destructive'});
@@ -123,7 +113,7 @@ export default function DashboardPage() {
         }
 
         setIsProcessingPayment(true);
-        toast({ title: "Processing Order...", description: "Please wait while we redirect you to payment."});
+        toast({ title: "Processing Order...", description: "Please wait while we prepare your order."});
 
         try {
             const orderId = await getNextOrderId();
@@ -143,21 +133,7 @@ export default function DashboardPage() {
             };
 
             await setDoc(doc(db, 'orders', orderId), orderData);
-
-            const dataForSignature = {
-                merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID,
-                merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY,
-                return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success/${orderId}`,
-                cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
-                notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
-                email_address: user.email,
-                m_payment_id: orderId,
-                amount: service.price.toFixed(2),
-                item_name: service.title,
-            };
-
-            const signature = await generatePayFastSignature(dataForSignature);
-            setPayfastFormData({ ...dataForSignature, signature });
+            router.push(`/order-confirmation/${orderId}`);
 
         } catch (error) {
             console.error("Error creating order:", error);
@@ -336,14 +312,6 @@ export default function DashboardPage() {
                 )}
             </DialogContent>
             </Dialog>
-
-            {payfastFormData && (
-                <form id="payfast-redirect-form" action={process.env.NEXT_PUBLIC_PAYFAST_URL} method="post" style={{ display: 'none' }}>
-                    {Object.entries(payfastFormData).map(([key, value]) => (
-                        <input key={key} type="hidden" name={key} value={value as string} />
-                    ))}
-                </form>
-            )}
         </>
     );
 }

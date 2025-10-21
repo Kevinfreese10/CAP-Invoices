@@ -25,7 +25,6 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Order } from '@/lib/types';
 import { getNextOrderId } from '@/lib/sequence';
 import { Timestamp } from 'firebase/firestore';
-import { generatePayFastSignature } from '@/app/actions/payfast';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import AIAccountantWelcomeEmail from '../emails/AIAccountantWelcomeEmail';
@@ -61,7 +60,6 @@ export default function AIAccountantSignupForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [step, setStep] = useState(1);
   const [monthlyTotal, setMonthlyTotal] = useState(0);
-  const [payfastFormData, setPayfastFormData] = useState<{ [key: string]: string } | null>(null);
   const { login } = useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -95,14 +93,6 @@ export default function AIAccountantSignupForm() {
 
   }, [watchedValues]);
 
-   useEffect(() => {
-    if (payfastFormData) {
-      const formElement = document.getElementById('payfast-redirect-form') as HTMLFormElement;
-      if (formElement) {
-        formElement.submit();
-      }
-    }
-  }, [payfastFormData]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
@@ -255,13 +245,6 @@ export default function AIAccountantSignupForm() {
             </AnimatePresence>
         </form>
         </Form>
-        {payfastFormData && (
-            <form id="payfast-redirect-form" action={process.env.NEXT_PUBLIC_PAYFAST_URL} method="post" style={{ display: 'none' }}>
-                {Object.entries(payfastFormData).map(([key, value]) => (
-                    <input key={key} type="hidden" name={key} value={value} />
-                ))}
-            </form>
-      )}
     </>
   );
 }

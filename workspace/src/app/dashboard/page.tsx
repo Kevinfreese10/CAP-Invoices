@@ -16,6 +16,7 @@ import ServicePreview from '@/components/admin/ServicePreview';
 import { useToast } from '@/hooks/use-toast';
 import { getNextOrderId } from '@/lib/sequence';
 import { Input } from '@/components/ui/input';
+import { useRouter } from 'next/navigation';
 
 
 const db = getFirestore(firebaseApp);
@@ -40,8 +41,8 @@ export default function DashboardPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [viewingService, setViewingService] = useState<Service | null>(null);
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-    const [payfastFormData, setPayfastFormData] = useState<{ [key: string]: string } | null>(null);
     const { toast } = useToast();
+    const router = useRouter();
     const [searchTerm, setSearchTerm] = useState('');
 
     const monthlyPackages = [
@@ -106,15 +107,6 @@ export default function DashboardPage() {
         }
     }, []);
 
-    useEffect(() => {
-        if (payfastFormData) {
-          const formElement = document.getElementById('payfast-redirect-form') as HTMLFormElement;
-          if (formElement) {
-            formElement.submit();
-          }
-        }
-    }, [payfastFormData]);
-
     const handleBuyNow = async (service: Service) => {
         if (!user) {
             toast({ title: 'Not Logged In', description: 'Please log in to make a purchase.', variant: 'destructive'});
@@ -122,7 +114,7 @@ export default function DashboardPage() {
         }
 
         setIsProcessingPayment(true);
-        toast({ title: "Processing Order...", description: "Please wait while we redirect you to payment."});
+        toast({ title: "Processing Order...", description: "Please wait while we prepare your order."});
 
         try {
             const orderId = await getNextOrderId();
@@ -322,18 +314,6 @@ export default function DashboardPage() {
                 )}
             </DialogContent>
             </Dialog>
-
-            {payfastFormData && (
-                <form id="payfast-redirect-form" action={process.env.NEXT_PUBLIC_PAYFAST_URL} method="post" style={{ display: 'none' }}>
-                    {Object.entries(payfastFormData).map(([key, value]) => (
-                        <input key={key} type="hidden" name={key} value={value as string} />
-                    ))}
-                </form>
-            )}
         </>
     );
 }
-
-    
-
-    

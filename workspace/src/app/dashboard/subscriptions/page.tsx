@@ -66,7 +66,7 @@ export default function SubscriptionsPage() {
         
         toast({
             title: 'Processing Subscription Change...',
-            description: 'Please wait while we redirect you to payment.',
+            description: 'Please wait while we prepare your order.',
         });
 
         try {
@@ -98,7 +98,6 @@ export default function SubscriptionsPage() {
             };
             
             await setDoc(doc(db, 'orders', orderId), orderData);
-            
             router.push(`/order-confirmation/${orderId}`);
 
         } catch (e) {
@@ -242,4 +241,3 @@ export default function SubscriptionsPage() {
     );
 }
 
-    

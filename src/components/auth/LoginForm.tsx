@@ -29,7 +29,6 @@ export default function LoginForm() {
   const [isLapsedOpen, setIsLapsedOpen] = useState(false);
   const [lapsedUser, setLapsedUser] = useState<User | null>(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-  const [payfastFormData, setPayfastFormData] = useState<{ [key: string]: string } | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -42,7 +41,7 @@ export default function LoginForm() {
    async function handleRenew() {
     if (!lapsedUser || !lapsedUser.subscription) return;
     setIsProcessingPayment(true);
-    toast({ title: "Creating renewal order...", description: "Please wait while we redirect you to payment." });
+    toast({ title: "Creating renewal order...", description: "Please wait." });
     
     // EFT Logic: Redirect to a confirmation page with instructions
     try {
@@ -77,11 +76,6 @@ export default function LoginForm() {
     }
   }
   
-  if (payfastFormData) {
-      setTimeout(() => {
-          document.getElementById('payfast-redirect-form')?.submit();
-      }, 500);
-  }
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     const result = await login(values.email, values.password);
@@ -190,13 +184,6 @@ export default function LoginForm() {
           </Button>
         </form>
       </Form>
-      {payfastFormData && (
-        <form id="payfast-redirect-form" action={process.env.NEXT_PUBLIC_PAYFAST_URL} method="post" style={{ display: 'none' }}>
-            {Object.entries(payfastFormData).map(([key, value]) => (
-                <input key={key} type="hidden" name={key} value={value as string} />
-            ))}
-        </form>
-      )}
     </>
   );
 }

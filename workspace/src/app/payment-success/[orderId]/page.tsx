@@ -1,22 +1,31 @@
 
 'use client';
 import { useEffect, useState } from 'react';
-import { useParams, notFound } from 'next/navigation';
+import { useParams, notFound, useRouter } from 'next/navigation';
 import { getFirestore, doc, getDoc, collection, query, where, getDocs, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, Service, User, OrderNote } from '@/lib/types';
-import { Loader2, CheckCircle, Clock, ClipboardCheck, User as UserIcon } from 'lucide-react';
-import { services as allServices } from '@/lib/data';
+import { Loader2, CheckCircle, Banknote } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { sendEmail } from '@/lib/email';
+import { format } from 'date-fns';
+import { useAuth } from '@/contexts/AuthContext';
+import { services as allServices } from '@/lib/data';
 import { render } from '@react-email/components';
 import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
+import { sendEmail } from '@/lib/email';
 import { useToast } from '@/hooks/use-toast';
 
 const db = getFirestore(firebaseApp);
+
+const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
+    }).format(price);
+};
 
 export default function PaymentSuccessPage() {
     const params = useParams();
@@ -34,10 +43,9 @@ export default function PaymentSuccessPage() {
                 const orderSnap = await getDoc(orderRef);
 
                 if (orderSnap.exists()) {
-                    const orderData = orderSnap.data() as Order;
+                    const orderData = { ...orderSnap.data(), id: orderSnap.id } as Order;
                     
                     if (orderData.status !== 'Processing' && !orderData.notes?.some(n => n.subject === `Action Required for Your Order #${orderId}`)) {
-                        // Order is not yet processed by ITN, or email not sent, let's process it client side
                         
                         const itemsWithServices = orderData.items.map(item => {
                             const service = allServices.find(s => s.id === item.id);
@@ -90,21 +98,11 @@ export default function PaymentSuccessPage() {
                 setIsLoading(false);
             };
 
-            // It can take a moment for the ITN to update the order status.
-            // We'll poll a few times to give it a chance to complete.
-            let attempts = 0;
-            const interval = setInterval(() => {
-                fetchOrderDetails();
-                attempts++;
-                if (attempts > 5 || (order && order.status === 'Processing')) {
-                    clearInterval(interval);
-                }
-            }, 2000);
-            
-            return () => clearInterval(interval);
+            // Since there is no ITN, we can call this immediately
+            fetchOrderDetails();
 
         }
-    }, [orderId, order?.status, toast]);
+    }, [orderId, toast]);
     
     if (isLoading) {
         return (
@@ -130,9 +128,9 @@ export default function PaymentSuccessPage() {
             <Card>
                 <CardHeader className="text-center">
                     <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
-                    <CardTitle className="text-3xl mt-4">Payment Successful!</CardTitle>
+                    <CardTitle className="text-3xl mt-4">Order Placed Successfully!</CardTitle>
                     <CardDescription>
-                        Thank you for your order. We have received your payment and will begin processing your services shortly.
+                       We have received your order. Please remember to complete your payment via EFT.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-8">
@@ -151,13 +149,13 @@ export default function PaymentSuccessPage() {
                             {order.items.map((item, index) => (
                                 <div key={index} className="flex justify-between items-center">
                                     <p>{item.title}</p>
-                                    <p className="font-semibold">R {item.price.toFixed(2)}</p>
+                                    <p className="font-semibold">{formatPrice(item.price)}</p>
                                 </div>
                             ))}
                              <Separator />
                             <div className="flex justify-between font-bold text-lg">
-                                <p>Total Paid</p>
-                                <p>R {order.total.toFixed(2)}</p>
+                                <p>Total Due</p>
+                                <p>{formatPrice(order.total)}</p>
                             </div>
                         </div>
                     </section>
@@ -165,7 +163,7 @@ export default function PaymentSuccessPage() {
                     <section>
                         <h3 className="font-semibold text-lg mb-2">Next Steps: Required Documents</h3>
                          <p className="text-sm text-muted-foreground mb-4">
-                            To get started, please prepare the following documents. You will receive an email shortly with instructions on where to upload them.
+                            To get started, please check your email for instructions on where to upload the following documents.
                         </p>
                         <div className="space-y-4">
                             {orderedServices.map(service => (
@@ -180,21 +178,6 @@ export default function PaymentSuccessPage() {
                             ))}
                         </div>
                     </section>
-                    
-                    {assignee && (
-                         <section>
-                            <h3 className="font-semibold text-lg mb-2">Your Consultant</h3>
-                            <div className="border rounded-lg p-4 flex items-center gap-4">
-                                <UserIcon className="h-8 w-8 text-primary"/>
-                                <div>
-                                    <p className="font-semibold">{assignee.name}</p>
-                                    <p className="text-sm text-muted-foreground">
-                                        Your order has been assigned. You can contact them directly with any questions.
-                                    </p>
-                                </div>
-                            </div>
-                        </section>
-                    )}
                     
                     <div className="text-center pt-4">
                         <Button asChild>
