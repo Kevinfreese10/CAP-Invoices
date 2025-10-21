@@ -974,32 +974,34 @@ export default function AdminDashboardPage() {
                     <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.name}!</h1>
                     <p className="text-muted-foreground">Here's a summary of what's happening today.</p>
                 </div>
-                <div className="flex gap-2">
-                     <Dialog open={isFormOpen} onOpenChange={handleFormOpenChange}>
-                        <DialogTrigger asChild>
-                            <Button onClick={handleAdd}>
-                                <PlusCircle className="mr-2 h-4 w-4" />
-                                Create Task
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-xl">
-                            <DialogHeader>
-                                <DialogTitle>{selectedTask?.id ? 'Edit Task' : 'Create New Task'}</DialogTitle>
-                                <DialogDescription>
-                                    {selectedTask?.id ? 'Update the details of this task.' : 'Fill out the form to add a new task for a staff member.'}
-                                </DialogDescription>
-                            </DialogHeader>
-                            <TaskForm 
-                                task={selectedTask} 
-                                onSubmit={handleFormSubmit}
-                                onCancel={() => handleFormOpenChange(false)}
-                                onCommentSubmit={handleCommentSubmit}
-                                allStaff={allStaff}
-                                staffByDept={staffByDept}
-                            />
-                        </DialogContent>
-                    </Dialog>
-                </div>
+                {user?.role !== 'cap_staff' && (
+                    <div className="flex gap-2">
+                        <Dialog open={isFormOpen} onOpenChange={handleFormOpenChange}>
+                            <DialogTrigger asChild>
+                                <Button onClick={handleAdd}>
+                                    <PlusCircle className="mr-2 h-4 w-4" />
+                                    Create Task
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-xl">
+                                <DialogHeader>
+                                    <DialogTitle>{selectedTask?.id ? 'Edit Task' : 'Create New Task'}</DialogTitle>
+                                    <DialogDescription>
+                                        {selectedTask?.id ? 'Update the details of this task.' : 'Fill out the form to add a new task for a staff member.'}
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <TaskForm 
+                                    task={selectedTask} 
+                                    onSubmit={handleFormSubmit}
+                                    onCancel={() => handleFormOpenChange(false)}
+                                    onCommentSubmit={handleCommentSubmit}
+                                    allStaff={allStaff}
+                                    staffByDept={staffByDept}
+                                />
+                            </DialogContent>
+                        </Dialog>
+                    </div>
+                )}
             </div>
             
              <Separator />
@@ -1011,7 +1013,7 @@ export default function AdminDashboardPage() {
                     <div className="flex justify-center items-center h-64">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     </div>
-                ) : (
+                ) : user?.role !== 'cap_staff' ? (
                     <>
                         <WeeklyTaskCalendar tasks={tasks} allStaff={allStaff} currentUser={user} onTaskUpdate={handleUpdate} onEdit={handleEdit} />
 
@@ -1108,8 +1110,19 @@ export default function AdminDashboardPage() {
                             />
                         )}
                     </>
+                ) : (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Dashboard</CardTitle>
+                            <CardDescription>Welcome to the CAP Suppliers dashboard.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <p>As a CAP Staff member, your view is focused on CAP Supplier modules.</p>
+                        </CardContent>
+                    </Card>
                 )}
             </div>
         </div>
     );
 }
+
