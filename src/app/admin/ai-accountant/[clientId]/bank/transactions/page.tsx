@@ -974,43 +974,74 @@ const NewTransactionsTab = React.forwardRef<
     }, [activeSubTab, refetch]);
     
     const handleAllocateByRules = useCallback(async () => {
-        if (!client || !client.uid || transactions.length === 0) return;
+        if (!client || !client.uid || !bankAccountId) return;
         setIsRuleAllocating(true);
-        toast({ title: "Applying Rules...", description: "Allocating transactions based on client and global rules." });
-    
-        const batch = writeBatch(db);
-        let allocatedCount = 0;
-        const allRules = [...(client.allocationRules || []), ...globalRules];
-    
-        transactions.forEach(tx => {
-            const txDescriptionLower = tx.description.toLowerCase();
-            
-            const matchedRule = allRules.find(rule => 
-                rule.keywords.some(kw => txDescriptionLower.includes(kw.toLowerCase()))
-            );
-    
-            if (matchedRule) {
-                const transactionRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
-                batch.update(transactionRef, {
-                    status: 'review',
-                    allocatedTo: { value: matchedRule.accountId, type: 'account' },
-                    vatType: matchedRule.vatType,
-                    allocatedAt: new Date(),
-                });
-                allocatedCount++;
+        toast({ title: "Applying Rules...", description: "Allocating all new transactions based on rules." });
+
+        try {
+            const allRules = [...(client.allocationRules || []), ...globalRules];
+            if (allRules.length === 0) {
+                toast({ title: 'No Rules Found', description: 'There are no allocation rules to apply.' });
+                setIsRuleAllocating(false);
+                return;
             }
-        });
-        
-        if (allocatedCount > 0) {
-            await batch.commit();
-            toast({ title: 'Rules Applied', description: `${allocatedCount} transaction(s) have been allocated for review.` });
-            refetch();
-        } else {
-            toast({ title: 'No Matches Found', description: 'No transactions matched your existing rules.' });
+
+            // Query for all 'new' transactions for the specific bank account and type
+            let baseQuery = query(
+                collection(db, 'aiAccountantClients', client.uid, 'transactions'),
+                where('bankAccountId', '==', bankAccountId),
+                where('status', '==', 'new')
+            );
+            if (activeSubTab === 'expenses') {
+                baseQuery = query(baseQuery, where('amount', '<', 0));
+            } else {
+                baseQuery = query(baseQuery, where('amount', '>=', 0));
+            }
+
+            const snapshot = await getDocs(baseQuery);
+            const allNewTransactions = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ImportedTransaction);
+
+            if (allNewTransactions.length === 0) {
+                toast({ title: 'No New Transactions', description: 'No transactions to allocate.' });
+                setIsRuleAllocating(false);
+                return;
+            }
+            
+            const batch = writeBatch(db);
+            let allocatedCount = 0;
+
+            allNewTransactions.forEach(tx => {
+                const txDescriptionLower = tx.description.toLowerCase();
+                const matchedRule = allRules.find(rule =>
+                    rule.keywords.some(kw => txDescriptionLower.includes(kw.toLowerCase()))
+                );
+
+                if (matchedRule) {
+                    const transactionRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
+                    batch.update(transactionRef, {
+                        status: 'review',
+                        allocatedTo: { value: matchedRule.accountId, type: 'account' },
+                        vatType: matchedRule.vatType,
+                        allocatedAt: new Date(),
+                    });
+                    allocatedCount++;
+                }
+            });
+
+            if (allocatedCount > 0) {
+                await batch.commit();
+                toast({ title: 'Rules Applied', description: `${allocatedCount} transaction(s) have been allocated for review.` });
+                refetch();
+            } else {
+                toast({ title: 'No Matches Found', description: 'No transactions matched your existing rules.' });
+            }
+        } catch (error) {
+            console.error("Error applying rules:", error);
+            toast({ title: "Allocation Failed", description: "An error occurred while applying rules.", variant: "destructive" });
+        } finally {
+            setIsRuleAllocating(false);
         }
-        
-        setIsRuleAllocating(false);
-    }, [client, transactions, globalRules, toast, refetch]);
+    }, [client, bankAccountId, activeSubTab, globalRules, toast, refetch]);
 
     const handleRuleCreated = useCallback(() => {
         fetchClientData();
