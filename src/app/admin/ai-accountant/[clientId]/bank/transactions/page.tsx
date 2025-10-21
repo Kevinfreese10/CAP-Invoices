@@ -920,6 +920,7 @@ const NewTransactionsTab = React.forwardRef<
     const [ruleDefaultValues, setRuleDefaultValues] = useState<Partial<z.infer<typeof ruleFormSchema>>>({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases', scope: 'client' });
     const [isAiAllocating, setIsAiAllocating] = useState(false);
     const [isRuleAllocating, setIsRuleAllocating] = useState(false);
+    const [isDownloading, setIsDownloading] = useState(false);
 
     type SortField = 'date' | 'description' | 'amount';
     type SortDirection = 'asc' | 'desc';
@@ -1218,6 +1219,56 @@ const NewTransactionsTab = React.forwardRef<
             toast({ title: "Allocation Failed", variant: "destructive" });
         }
     };
+
+    const handleDownloadExcel = async () => {
+        if (!client || !client.uid || !bankAccountId) return;
+        setIsDownloading(true);
+        toast({ title: "Preparing Download...", description: "Fetching all new transactions." });
+    
+        try {
+            const incomeQuery = query(
+                collection(db, 'aiAccountantClients', client.uid, 'transactions'),
+                where('bankAccountId', '==', bankAccountId),
+                where('status', '==', 'new'),
+                where('amount', '>=', 0)
+            );
+            const expensesQuery = query(
+                collection(db, 'aiAccountantClients', client.uid, 'transactions'),
+                where('bankAccountId', '==', bankAccountId),
+                where('status', '==', 'new'),
+                where('amount', '<', 0)
+            );
+    
+            const [incomeSnapshot, expensesSnapshot] = await Promise.all([
+                getDocs(incomeQuery),
+                getDocs(expensesQuery)
+            ]);
+    
+            const incomeData = incomeSnapshot.docs
+                .map(doc => doc.data() as ImportedTransaction)
+                .map(({ date, description, amount }) => ({ Date: format(new Date(date), 'dd/MM/yyyy'), Description: description, Amount: amount }));
+    
+            const expensesData = expensesSnapshot.docs
+                .map(doc => doc.data() as ImportedTransaction)
+                .map(({ date, description, amount }) => ({ Date: format(new Date(date), 'dd/MM/yyyy'), Description: description, Amount: amount }));
+    
+            const wb = XLSX.utils.book_new();
+            const incomeSheet = XLSX.utils.json_to_sheet(incomeData);
+            const expensesSheet = XLSX.utils.json_to_sheet(expensesData);
+            
+            XLSX.utils.book_append_sheet(wb, incomeSheet, "Income");
+            XLSX.utils.book_append_sheet(wb, expensesSheet, "Expenses");
+    
+            XLSX.writeFile(wb, `New_Transactions_${client.name.replace(/\s/g, '_')}.xlsx`);
+    
+            toast({ title: 'Download Ready!', description: 'Your Excel file has been downloaded.' });
+        } catch (error) {
+            console.error("Error downloading excel:", error);
+            toast({ title: 'Download Failed', description: 'Could not generate the Excel file.', variant: 'destructive' });
+        } finally {
+            setIsDownloading(false);
+        }
+    };
     
     const allocationOptions = useMemo(() => {
         const accounts = client?.chartOfAccounts?.map(acc => ({
@@ -1335,6 +1386,10 @@ const NewTransactionsTab = React.forwardRef<
                            AI Allocate Selected
                         </Button>
                      )}
+                     <Button variant="outline" onClick={handleDownloadExcel} disabled={isDownloading}>
+                        {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                        Download Excel
+                    </Button>
                 </div>
             </CardHeader>
             <CardContent className="p-0">
