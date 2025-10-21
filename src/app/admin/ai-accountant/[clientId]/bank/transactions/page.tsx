@@ -790,6 +790,7 @@ const ruleFormSchema = z.object({
   keywords: z.string().min(2, "At least one keyword is required."),
   accountId: z.string().min(1, "Account is required."),
   vatType: z.enum(allVatTypes.map(v => v.name) as [string, ...string[]]),
+  scope: z.enum(['client', 'global']).default('client'),
 });
 
 function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultValues }: { client: User | null; onRuleCreated: () => void; open: boolean; onOpenChange: (open: boolean) => void; defaultValues?: Partial<z.infer<typeof ruleFormSchema>> }) {
@@ -802,6 +803,7 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
       keywords: "",
       accountId: "",
       vatType: "standard_rated_purchases",
+      scope: "client",
     },
   });
   
@@ -811,11 +813,11 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
       keywords: "",
       accountId: "",
       vatType: "standard_rated_purchases",
+      scope: "client",
     });
   }, [open, defaultValues, form]);
 
   const handleSaveRule = async (values: z.infer<typeof ruleFormSchema>) => {
-    if (!client || !client.uid) return;
     setIsSaving(true);
     
     const newRule: Partial<AllocationRule> = {
@@ -823,19 +825,29 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
       keywords: values.keywords.split(',').map(k => k.trim().toLowerCase()),
       accountId: values.accountId,
       vatType: values.vatType,
-      type: 'hard', // All client-level rules are 'hard' rules
+      type: 'hard', // All user-created rules are 'hard' rules
     };
 
     try {
-      const clientRef = doc(db, 'aiAccountantClients', client.uid);
-      await updateDoc(clientRef, {
-        allocationRules: arrayUnion(newRule),
-      });
+        if (values.scope === 'global') {
+            await addDoc(collection(db, 'allocationRules'), newRule);
+            toast({ title: "Global Rule Created", description: `The rule "${values.description}" has been added globally.`});
+        } else {
+            if (!client || !client.uid) {
+                toast({ title: 'Error', description: 'No client selected for client-specific rule.', variant: 'destructive'});
+                setIsSaving(false);
+                return;
+            }
+            const clientRef = doc(db, 'aiAccountantClients', client.uid);
+            await updateDoc(clientRef, {
+                allocationRules: arrayUnion(newRule),
+            });
+            toast({ title: "Client Rule Created", description: `The rule "${values.description}" has been added to this client.`});
+        }
 
-      toast({ title: "Rule Created", description: `The rule "${values.description}" has been added to this client.`});
       form.reset();
       onOpenChange(false);
-      onRuleCreated(); // Callback to refetch client data
+      onRuleCreated(); // Callback to refetch client/global data
     } catch (error) {
       console.error("Error creating rule:", error);
       toast({ title: 'Error', description: 'Could not create the allocation rule.', variant: 'destructive'});
@@ -850,11 +862,37 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
         <DialogHeader>
           <DialogTitle>Create New Allocation Rule</DialogTitle>
           <DialogDescription>
-            This rule will be applied to this client's transactions.
+            This rule will be applied to transactions to automatically categorize them.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSaveRule)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="scope"
+              render={({ field }) => (
+                <FormItem className="space-y-3">
+                  <FormLabel>Rule Scope</FormLabel>
+                  <FormControl>
+                    <RadioGroup
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                      className="flex items-center space-x-4"
+                    >
+                      <FormItem className="flex items-center space-x-2 space-y-0">
+                        <FormControl><RadioGroupItem value="client" /></FormControl>
+                        <FormLabel className="font-normal">Client Specific</FormLabel>
+                      </FormItem>
+                      <FormItem className="flex items-center space-x-2 space-y-0">
+                        <FormControl><RadioGroupItem value="global" /></FormControl>
+                        <FormLabel className="font-normal">Global (All Clients)</FormLabel>
+                      </FormItem>
+                    </RadioGroup>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Rule Description</FormLabel><FormControl><Input placeholder="e.g., Monthly bank charges" {...field} /></FormControl><FormMessage /></FormItem> )} />
             <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords (comma-separated)</FormLabel><FormControl><Input placeholder="e.g., monthly account fee, service fee" {...field} /></FormControl><FormMessage /></FormItem> )} />
             <FormField control={form.control} name="accountId" render={({ field }) => ( <FormItem><FormLabel>Allocate To Account</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl><SelectContent>{client?.chartOfAccounts?.map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem> )}/>
