@@ -432,7 +432,7 @@ type ParsedTransaction = {
     Amount: number;
 }
 
-function ImportDialog({ client, bankAccountId, onImportComplete }: { client: User | null, bankAccountId: string, onImportComplete: () => void }) {
+function ImportDialog({ client, bankAccountId, onImportComplete, globalRules }: { client: User | null, bankAccountId: string, onImportComplete: () => void, globalRules: AllocationRule[] }) {
     const [isOpen, setIsOpen] = useState(false);
     const [file, setFile] = useState<File | null>(null);
     const [parsedTransactions, setParsedTransactions] = useState<ParsedTransaction[]>([]);
@@ -485,12 +485,14 @@ function ImportDialog({ client, bankAccountId, onImportComplete }: { client: Use
 
                         let ruleAllocationCount = 0;
                         let aiAllocationCount = 0;
+                        
+                        const allRules = [...(client?.allocationRules || []), ...globalRules];
 
-                        if (client?.allocationRules) {
+                        if (allRules.length > 0) {
                             for (const tx of transactions) {
                                 const txDescriptionLower = tx.Description.toLowerCase();
-                                const matchedRule = client.allocationRules.find(rule => 
-                                    rule.keywords.some(kw => txDescriptionLower.includes(kw))
+                                const matchedRule = allRules.find(rule => 
+                                    rule.keywords.some(kw => txDescriptionLower.includes(kw.toLowerCase()))
                                 );
                                 if (matchedRule) {
                                     ruleAllocationCount++;
@@ -522,6 +524,7 @@ function ImportDialog({ client, bankAccountId, onImportComplete }: { client: Use
             const batch = writeBatch(db);
             let importedCount = 0;
             const dailyCounters: { [key: string]: number } = {};
+            const allRules = [...(client.allocationRules || []), ...globalRules];
 
             parsedTransactions.forEach((row, index) => {
                 const parsedDate = new Date(row.Date.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1'));
@@ -536,10 +539,10 @@ function ImportDialog({ client, bankAccountId, onImportComplete }: { client: Use
                 const dailyIndex = String(dailyCounters[dateString]).padStart(2, '0');
                 const reference = `${dateString}${dailyIndex}`;
                 
-                const newTransactionRef = doc(collection(db, 'aiAccountantClients', client.uid, 'transactions'));
+                const newTransactionRef = doc(collection(db, 'aiAccountantClients', client.uid!, 'transactions'));
                 
                 let transaction: Omit<ImportedTransaction, 'id'> = {
-                    clientId: client.uid,
+                    clientId: client.uid!,
                     date: parsedDate.toISOString(),
                     reference: reference,
                     description: row.Description,
@@ -549,8 +552,8 @@ function ImportDialog({ client, bankAccountId, onImportComplete }: { client: Use
                 };
                 
                 const txDescriptionLower = row.Description.toLowerCase();
-                const matchedRule = client.allocationRules?.find(rule => 
-                    rule.keywords.some(kw => txDescriptionLower.includes(kw))
+                const matchedRule = allRules.find(rule => 
+                    rule.keywords.some(kw => txDescriptionLower.includes(kw.toLowerCase()))
                 );
 
                 if (matchedRule) {
@@ -787,6 +790,7 @@ const ruleFormSchema = z.object({
   keywords: z.string().min(2, "At least one keyword is required."),
   accountId: z.string().min(1, "Account is required."),
   vatType: z.enum(allVatTypes.map(v => v.name) as [string, ...string[]]),
+  scope: z.enum(['client', 'global']).default('client'),
 });
 
 function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultValues }: { client: User | null; onRuleCreated: () => void; open: boolean; onOpenChange: (open: boolean) => void; defaultValues?: Partial<z.infer<typeof ruleFormSchema>> }) {
@@ -794,12 +798,7 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
   const { toast } = useToast();
   const form = useForm<z.infer<typeof ruleFormSchema>>({
     resolver: zodResolver(ruleFormSchema),
-    defaultValues: defaultValues || {
-      description: "",
-      keywords: "",
-      accountId: "",
-      vatType: "standard_rated_purchases",
-    },
+    defaultValues: defaultValues,
   });
   
   useEffect(() => {
@@ -808,11 +807,11 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
       keywords: "",
       accountId: "",
       vatType: "standard_rated_purchases",
+      scope: "client",
     });
   }, [open, defaultValues, form]);
 
   const handleSaveRule = async (values: z.infer<typeof ruleFormSchema>) => {
-    if (!client || !client.uid) return;
     setIsSaving(true);
     
     const newRule: Partial<AllocationRule> = {
@@ -820,19 +819,29 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
       keywords: values.keywords.split(',').map(k => k.trim().toLowerCase()),
       accountId: values.accountId,
       vatType: values.vatType,
-      type: 'hard', // All client-level rules are 'hard' rules
+      type: 'hard', // All user-created rules are 'hard' rules
     };
 
     try {
-      const clientRef = doc(db, 'aiAccountantClients', client.uid);
-      await updateDoc(clientRef, {
-        allocationRules: arrayUnion(newRule),
-      });
+        if (values.scope === 'global') {
+            await addDoc(collection(db, 'allocationRules'), newRule);
+            toast({ title: "Global Rule Created", description: `The rule "${values.description}" has been added globally.`});
+        } else {
+            if (!client || !client.uid) {
+                toast({ title: 'Error', description: 'No client selected for client-specific rule.', variant: 'destructive'});
+                setIsSaving(false);
+                return;
+            }
+            const clientRef = doc(db, 'aiAccountantClients', client.uid);
+            await updateDoc(clientRef, {
+                allocationRules: arrayUnion(newRule),
+            });
+            toast({ title: "Client Rule Created", description: `The rule "${values.description}" has been added to this client.`});
+        }
 
-      toast({ title: "Rule Created", description: `The rule "${values.description}" has been added to this client.`});
       form.reset();
       onOpenChange(false);
-      onRuleCreated(); // Callback to refetch client data
+      onRuleCreated(); // Callback to refetch client/global data
     } catch (error) {
       console.error("Error creating rule:", error);
       toast({ title: 'Error', description: 'Could not create the allocation rule.', variant: 'destructive'});
@@ -847,11 +856,37 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
         <DialogHeader>
           <DialogTitle>Create New Allocation Rule</DialogTitle>
           <DialogDescription>
-            This rule will be applied to this client's transactions.
+            This rule will be applied to transactions to automatically categorize them.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSaveRule)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="scope"
+              render={({ field }) => (
+                <FormItem className="space-y-3">
+                  <FormLabel>Rule Scope</FormLabel>
+                  <FormControl>
+                    <RadioGroup
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                      className="flex items-center space-x-4"
+                    >
+                      <FormItem className="flex items-center space-x-2 space-y-0">
+                        <FormControl><RadioGroupItem value="client" /></FormControl>
+                        <FormLabel className="font-normal">Client Specific</FormLabel>
+                      </FormItem>
+                      <FormItem className="flex items-center space-x-2 space-y-0">
+                        <FormControl><RadioGroupItem value="global" /></FormControl>
+                        <FormLabel className="font-normal">Global (All Clients)</FormLabel>
+                      </FormItem>
+                    </RadioGroup>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Rule Description</FormLabel><FormControl><Input placeholder="e.g., Monthly bank charges" {...field} /></FormControl><FormMessage /></FormItem> )} />
             <FormField control={form.control} name="keywords" render={({ field }) => ( <FormItem><FormLabel>Keywords (comma-separated)</FormLabel><FormControl><Input placeholder="e.g., monthly account fee, service fee" {...field} /></FormControl><FormMessage /></FormItem> )} />
             <FormField control={form.control} name="accountId" render={({ field }) => ( <FormItem><FormLabel>Allocate To Account</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl><SelectContent>{client?.chartOfAccounts?.map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem> )}/>
@@ -882,7 +917,7 @@ const NewTransactionsTab = React.forwardRef<
     const [allocations, setAllocations] = useState<{ [txId: string]: { value: string, type: 'account' | 'customer' | 'supplier', vatType?: VatType } }>({});
     const [searchAccountTerm, setSearchAccountTerm] = useState('');
     const [isCreateRuleOpen, setIsCreateRuleOpen] = useState(false);
-    const [ruleDefaultValues, setRuleDefaultValues] = useState<Partial<z.infer<typeof ruleFormSchema>>>({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases'});
+    const [ruleDefaultValues, setRuleDefaultValues] = useState<Partial<z.infer<typeof ruleFormSchema>>>({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases', scope: 'client' });
     const [isAiAllocating, setIsAiAllocating] = useState(false);
     const [isRuleAllocating, setIsRuleAllocating] = useState(false);
     
@@ -932,22 +967,14 @@ const NewTransactionsTab = React.forwardRef<
     
         const batch = writeBatch(db);
         let allocatedCount = 0;
-        const clientRules = client.allocationRules || [];
+        const allRules = [...(client.allocationRules || []), ...globalRules];
     
         transactions.forEach(tx => {
             const txDescriptionLower = tx.description.toLowerCase();
             
-            // Prioritize client-specific rules
-            let matchedRule = clientRules.find(rule => 
-                rule.keywords.some(kw => txDescriptionLower.includes(kw))
+            const matchedRule = allRules.find(rule => 
+                rule.keywords.some(kw => txDescriptionLower.includes(kw.toLowerCase()))
             );
-    
-            // If no client rule matches, check global rules
-            if (!matchedRule) {
-                matchedRule = globalRules.find(rule => 
-                    rule.keywords.some(kw => txDescriptionLower.includes(kw))
-                );
-            }
     
             if (matchedRule) {
                 const transactionRef = doc(db, 'aiAccountantClients', client.uid!, 'transactions', tx.id);
@@ -1172,7 +1199,7 @@ const NewTransactionsTab = React.forwardRef<
                 onOpenChange={(isOpen) => {
                     setIsCreateRuleOpen(isOpen);
                     if (!isOpen) {
-                        setRuleDefaultValues({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases'});
+                        setRuleDefaultValues({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases', scope: 'client' });
                     }
                 }}
                 defaultValues={ruleDefaultValues}
@@ -1279,12 +1306,18 @@ const NewTransactionsTab = React.forwardRef<
                                         }}
                                     />
                                 </TableCell>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Description</TableHead>
+                                <TableHead>
+                                    <Button variant="ghost" onClick={() => {}}>Date <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button>
+                                </TableHead>
+                                <TableHead>
+                                     <Button variant="ghost" onClick={() => {}}>Description <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button>
+                                </TableHead>
                                 <TableHead>Reference</TableHead>
                                 <TableHead className="w-[250px]">Allocate To</TableHead>
                                 {client?.isVatRegistered && <TableHead className="w-[180px]">VAT Type</TableHead>}
-                                <TableHead className="text-right">Amount</TableHead>
+                                <TableHead className="text-right">
+                                     <Button variant="ghost" onClick={() => {}}>Amount <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button>
+                                </TableHead>
                                 <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -1358,7 +1391,13 @@ const NewTransactionsTab = React.forwardRef<
                                                      <DropdownMenuItem onSelect={() => {
                                                         const firstKeyword = tx.description.split(/\s+/)[0];
                                                         setIsCreateRuleOpen(true);
-                                                        setRuleDefaultValues({ keywords: firstKeyword });
+                                                        setRuleDefaultValues({ 
+                                                            description: '', 
+                                                            keywords: firstKeyword, 
+                                                            accountId: '', 
+                                                            vatType: 'standard_rated_purchases',
+                                                            scope: 'client',
+                                                        });
                                                      }}>
                                                         Create Rule from Transaction
                                                     </DropdownMenuItem>
@@ -1950,7 +1989,7 @@ export default function BankTransactionsPage() {
 
                 <div className="flex items-center gap-2 sm:gap-4 w-full md:w-auto justify-end">
                     {client && selectedAccountId && <UploadStatementDialog client={client} bankAccountId={selectedAccountId} onImportComplete={handleImportComplete} />}
-                    {client && selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={handleImportComplete} />}
+                    {client && selectedAccountId && <ImportDialog client={client} bankAccountId={selectedAccountId} onImportComplete={handleImportComplete} globalRules={globalRules} />}
                 </div>
             </div>
 
@@ -1995,3 +2034,6 @@ export default function BankTransactionsPage() {
     );
 }
 
+
+
+    

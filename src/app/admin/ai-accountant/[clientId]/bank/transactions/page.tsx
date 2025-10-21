@@ -798,13 +798,7 @@ function CreateRuleDialog({ client, onRuleCreated, open, onOpenChange, defaultVa
   const { toast } = useToast();
   const form = useForm<z.infer<typeof ruleFormSchema>>({
     resolver: zodResolver(ruleFormSchema),
-    defaultValues: defaultValues || {
-      description: "",
-      keywords: "",
-      accountId: "",
-      vatType: "standard_rated_purchases",
-      scope: "client",
-    },
+    defaultValues: defaultValues,
   });
   
   useEffect(() => {
@@ -923,9 +917,23 @@ const NewTransactionsTab = React.forwardRef<
     const [allocations, setAllocations] = useState<{ [txId: string]: { value: string, type: 'account' | 'customer' | 'supplier', vatType?: VatType } }>({});
     const [searchAccountTerm, setSearchAccountTerm] = useState('');
     const [isCreateRuleOpen, setIsCreateRuleOpen] = useState(false);
-    const [ruleDefaultValues, setRuleDefaultValues] = useState<Partial<z.infer<typeof ruleFormSchema>>>({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases'});
+    const [ruleDefaultValues, setRuleDefaultValues] = useState<Partial<z.infer<typeof ruleFormSchema>>>({ description: '', keywords: '', accountId: '', vatType: 'standard_rated_purchases', scope: 'client' });
     const [isAiAllocating, setIsAiAllocating] = useState(false);
     const [isRuleAllocating, setIsRuleAllocating] = useState(false);
+
+    type SortField = 'date' | 'description' | 'amount';
+    type SortDirection = 'asc' | 'desc';
+    const [sortField, setSortField] = useState<SortField>('date');
+    const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+    const handleSort = (field: SortField) => {
+        if (sortField === field) {
+            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortField(field);
+            setSortDirection('asc');
+        }
+    };
     
     const newTransactionsQuery = useMemo(() => {
         if (!client?.uid || !bankAccountId) return null;
@@ -941,11 +949,10 @@ const NewTransactionsTab = React.forwardRef<
             constraints.push(where('amount', '>=', 0));
         }
         
-        constraints.push(orderBy('amount', 'asc'));
-        constraints.push(orderBy('date', 'desc'));
+        constraints.push(orderBy(sortField, sortDirection));
         
         return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
-    }, [client?.uid, bankAccountId, activeSubTab]);
+    }, [client?.uid, bankAccountId, activeSubTab, sortField, sortDirection]);
 
     const {
         documents: transactions,
@@ -1312,12 +1319,18 @@ const NewTransactionsTab = React.forwardRef<
                                         }}
                                     />
                                 </TableCell>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Description</TableHead>
+                                <TableHead>
+                                    <Button variant="ghost" onClick={() => handleSort('date')}>Date <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button>
+                                </TableHead>
+                                <TableHead>
+                                     <Button variant="ghost" onClick={() => handleSort('description')}>Description <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button>
+                                </TableHead>
                                 <TableHead>Reference</TableHead>
                                 <TableHead className="w-[250px]">Allocate To</TableHead>
                                 {client?.isVatRegistered && <TableHead className="w-[180px]">VAT Type</TableHead>}
-                                <TableHead className="text-right">Amount</TableHead>
+                                <TableHead className="text-right">
+                                     <Button variant="ghost" onClick={() => handleSort('amount')}>Amount <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button>
+                                </TableHead>
                                 <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -1449,6 +1462,19 @@ const ForReviewTab = React.forwardRef<
     const { toast } = useToast();
     const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'income'>('expenses');
     const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
+    type SortField = 'date' | 'description' | 'amount';
+    type SortDirection = 'asc' | 'desc';
+    const [sortField, setSortField] = useState<SortField>('date');
+    const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+    const handleSort = (field: SortField) => {
+        if (sortField === field) {
+            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortField(field);
+            setSortDirection('asc');
+        }
+    };
     
     const reviewTransactionsQuery = useMemo(() => {
         if (!client?.uid || !bankAccountId) return null;
@@ -1464,10 +1490,10 @@ const ForReviewTab = React.forwardRef<
             constraints.push(where('amount', '>=', 0));
         }
         
-        constraints.push(orderBy('date', 'desc'));
+        constraints.push(orderBy(sortField, sortDirection));
         
         return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
-    }, [client?.uid, bankAccountId, activeSubTab]);
+    }, [client?.uid, bankAccountId, activeSubTab, sortField, sortDirection]);
 
     const {
         documents: transactions,
@@ -1576,11 +1602,11 @@ const ForReviewTab = React.forwardRef<
                                         }}
                                     />
                                 </TableCell>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Description</TableHead>
+                                <TableHead><Button variant="ghost" onClick={() => handleSort('date')}>Date <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
+                                <TableHead><Button variant="ghost" onClick={() => handleSort('description')}>Description <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
                                 <TableHead>Suggested Allocation</TableHead>
                                 <TableHead>Suggested VAT</TableHead>
-                                <TableHead className="text-right">Amount</TableHead>
+                                <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('amount')}>Amount <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1648,6 +1674,20 @@ const ReviewedTab = React.forwardRef<
     { client: User | null; bankAccountId: string | null; customers: ClientCustomer[]; }
 >(({ client, bankAccountId, customers }, ref) => {
     
+    type SortField = 'date' | 'description' | 'amount';
+    type SortDirection = 'asc' | 'desc';
+    const [sortField, setSortField] = useState<SortField>('date');
+    const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+    const handleSort = (field: SortField) => {
+        if (sortField === field) {
+            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortField(field);
+            setSortDirection('asc');
+        }
+    };
+    
     const reviewedTransactionsQuery = useMemo(() => {
         if (!client?.uid || !bankAccountId) return null;
         
@@ -1655,9 +1695,9 @@ const ReviewedTab = React.forwardRef<
             collection(db, 'aiAccountantClients', client.uid, 'transactions'),
             where('bankAccountId', '==', bankAccountId),
             where('status', '==', 'allocated'),
-            orderBy('date', 'desc')
+            orderBy(sortField, sortDirection)
         );
-    }, [client?.uid, bankAccountId]);
+    }, [client?.uid, bankAccountId, sortField, sortDirection]);
 
     const {
         documents: transactions,
@@ -1690,11 +1730,11 @@ const ReviewedTab = React.forwardRef<
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Description</TableHead>
+                                <TableHead><Button variant="ghost" onClick={() => handleSort('date')}>Date <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
+                                <TableHead><Button variant="ghost" onClick={() => handleSort('description')}>Description <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
                                 <TableHead>Allocated To</TableHead>
                                 <TableHead>VAT Type</TableHead>
-                                <TableHead className="text-right">Amount</TableHead>
+                                <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('amount')}>Amount <ArrowUpDown className="ml-2 h-4 w-4 inline" /></Button></TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -2035,3 +2075,5 @@ export default function BankTransactionsPage() {
 }
 
 
+
+    
