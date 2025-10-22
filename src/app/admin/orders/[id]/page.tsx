@@ -571,10 +571,10 @@ export default function AdminOrderDetailsPage() {
                             <div className="flex justify-between items-start">
                                 <div>
                                     <CardTitle>Order {order.id}</CardTitle>
-                                    <CardDescription>
-                                    Date: {format(new Date(order.date), 'dd/MM/yyyy')} | Status: <Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
-                                    {order.originalOrderId && <span className="ml-2">| Original Order: <Link href={`/reseller/orders/${order.originalOrderId}`} className="text-primary hover:underline">{order.originalOrderId}</Link></span>}
-                                    </CardDescription>
+                                    <div className="text-sm text-muted-foreground">
+                                        Date: {format(new Date(order.date), 'dd/MM/yyyy')} | Status: <Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
+                                        {order.originalOrderId && <span className="ml-2">| Original Order: <Link href={`/reseller/orders/${order.originalOrderId}`} className="text-primary hover:underline">{order.originalOrderId}</Link></span>}
+                                    </div>
                                 </div>
                                 <DialogTrigger asChild>
                                     <Button variant="outline" size="sm" onClick={() => setViewingBackendSummary(order)}>
