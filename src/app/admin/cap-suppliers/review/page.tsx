@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, MoreHorizontal, Edit, Trash2, FileCheck2, Hourglass, CheckCircle2, Eye } from 'lucide-react';
+import { Loader2, MoreHorizontal, Edit, Trash2, FileCheck2, Hourglass, CheckCircle2, Eye, Download } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
@@ -21,7 +21,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import Link from 'next/link';
-
+import * as XLSX from 'xlsx';
 
 const db = getFirestore(firebaseApp);
 
@@ -186,15 +186,47 @@ export default function ReviewPage() {
         }
     }
 
+    const handleDownloadExcel = () => {
+        const dataToExport = invoices.flatMap(invoice => 
+            invoice.lineItems.map(item => ({
+                'Invoice ID': invoice.id,
+                'Supplier': invoice.supplier,
+                'Invoice Number': invoice.invoiceNumber,
+                'Commission Number': invoice.commissionNumber || '',
+                'Invoice Date': invoice.date,
+                'Line Item Description': item.description,
+                'Exclusive Amount': item.exclusiveAmount,
+                'VAT Amount': item.vatAmount,
+                'Line Total': item.exclusiveAmount + item.vatAmount,
+                'Invoice Total': invoice.invoiceTotal,
+                'Status': invoice.status,
+                'File Name': invoice.fileName,
+            }))
+        );
+
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Pending Review Invoices');
+        XLSX.writeFile(workbook, 'pending-review-invoices.xlsx');
+    };
+
   return (
     <div className="space-y-8">
       <h1 className="text-3xl font-bold tracking-tight">Review Invoices</h1>
       <Card>
         <CardHeader>
-          <CardTitle>Extracted Invoices for Review</CardTitle>
-          <CardDescription>
-            Review, edit, and approve the data extracted from uploaded invoices. Approved invoices will be moved to the control sheet.
-          </CardDescription>
+            <div className="flex justify-between items-center">
+                 <div>
+                    <CardTitle>Extracted Invoices for Review</CardTitle>
+                    <CardDescription>
+                        Review, edit, and approve the data extracted from uploaded invoices. Approved invoices will be moved to the control sheet.
+                    </CardDescription>
+                </div>
+                 <Button onClick={handleDownloadExcel} variant="outline" disabled={invoices.length === 0}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Export to Excel
+                </Button>
+            </div>
         </CardHeader>
         <CardContent>
             {isLoading ? (
@@ -292,3 +324,5 @@ export default function ReviewPage() {
     </div>
   );
 }
+
+    
