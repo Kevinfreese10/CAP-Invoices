@@ -141,35 +141,21 @@ export default function AdminOrdersPage() {
         const ordersRef = collection(db, 'orders');
         let filteredOrders: Order[] = [];
 
-        if (user?.role === 'staff') {
-          // Staff view: only see orders assigned to them
-          const q = query(ordersRef, where('assignedTo', 'array-contains', user.id), orderBy('date', 'desc'));
-          const querySnapshot = await getDocs(q);
-          filteredOrders = querySnapshot.docs.map(doc => {
+        // Admins and Staff see all non-cancelled orders
+        const allOrdersSnapshot = await getDocs(query(ordersRef, orderBy('date', 'desc')));
+        const allFetchedOrders = allOrdersSnapshot.docs.map(doc => {
             const data = doc.data();
             return {
-              ...data,
-              id: doc.id,
-              date: data.date.toDate(),
-              notes: (data.notes || []).map((note: any) => ({...note, date: note.date.toDate()})),
+                ...data,
+                id: doc.id,
+                date: data.date.toDate(),
+                notes: (data.notes || []).map((note: any) => ({...note, date: note.date.toDate()})),
+                itnHistory: (data.itnHistory || []).map((log: any) => ({...log, receivedAt: log.receivedAt.toDate()})),
             } as Order;
-          });
-        } else {
-          // Admin view: See main store orders OR outsourced reseller orders
-          const allOrdersSnapshot = await getDocs(query(ordersRef, orderBy('date', 'desc')));
-          const allFetchedOrders = allOrdersSnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-              ...data,
-              id: doc.id,
-              date: data.date.toDate(),
-              notes: (data.notes || []).map((note: any) => ({...note, date: note.date.toDate()})),
-              itnHistory: (data.itnHistory || []).map((log: any) => ({...log, receivedAt: log.receivedAt.toDate()})),
-            } as Order;
-          });
-          
-          const ordersWithClientDetails = await Promise.all(allFetchedOrders.map(async (order) => {
-              if (order.resellerId && order.originalOrderId && !order.endCustomerEmail) {
+        });
+        
+        const ordersWithClientDetails = await Promise.all(allFetchedOrders.map(async (order) => {
+            if (order.resellerId && order.originalOrderId && !order.endCustomerEmail) {
                 const originalOrderRef = doc(db, 'orders', order.originalOrderId);
                 const originalOrderSnap = await getDoc(originalOrderRef);
                 if (originalOrderSnap.exists()) {
@@ -177,12 +163,11 @@ export default function AdminOrdersPage() {
                     order.endCustomerName = originalOrderData.customerName;
                     order.endCustomerEmail = originalOrderData.customerEmail;
                 }
-              }
-              return order;
-          }));
+            }
+            return order;
+        }));
 
-          filteredOrders = ordersWithClientDetails.filter(order => !order.resellerId || (order.resellerId && order.originalOrderId));
-        }
+        filteredOrders = ordersWithClientDetails.filter(order => !order.resellerId || (order.resellerId && order.originalOrderId));
         
         setOrders(filteredOrders.filter(order => order.status !== 'Cancelled'));
       } catch (error) {
@@ -606,6 +591,7 @@ export default function AdminOrdersPage() {
     </Dialog>
   );
 }
+
 
 
 
