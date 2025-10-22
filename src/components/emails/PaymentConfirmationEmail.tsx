@@ -10,6 +10,7 @@ import {
   Section,
   Text,
   Link,
+  Button,
 } from '@react-email/components';
 import * as React from 'react';
 import { Order, User } from '@/lib/types';
