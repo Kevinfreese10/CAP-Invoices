@@ -22,12 +22,10 @@ import { render } from '@react-email/components';
 import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 import { getNextOrderId } from '@/lib/sequence';
 import { useAuth } from '@/contexts/AuthContext';
-import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { Alert, AlertTitle, AlertDescription } from '../ui/alert';
 
 
 const db = getFirestore(firebaseApp);
-const auth = getAuth(firebaseApp);
 
 const lineItemSchema = z.object({
   isCustom: z.boolean().default(false),
@@ -203,41 +201,12 @@ export default function CreateOrderForm() {
 
     try {
         let userId = existingUser?.uid;
-        let generatedPassword: null | string = null;
 
         if (!existingUser) {
-            generatedPassword = Math.random().toString(36).slice(-8);
-            try {
-                const userCredential = await createUserWithEmailAndPassword(auth, values.customerEmail, generatedPassword);
-                const firebaseUser = userCredential.user;
-                userId = firebaseUser.uid;
-                
-                const newUserDocRef = doc(db, "users", userId);
-                const newUser: Omit<User, 'id'> = {
-                    uid: userId,
-                    name: values.customerName,
-                    email: values.customerEmail,
-                    contactNumber: values.customerPhone,
-                    role: 'client',
-                    createdAt: Timestamp.now(),
-                };
-                await setDoc(newUserDocRef, newUser);
-
-            } catch (authError: any) {
-                if (authError.code === 'auth/email-already-in-use') {
-                    toast({ title: 'User Exists', description: 'This email is already registered. Please check the user first.', variant: 'destructive'});
-                } else {
-                    toast({ title: 'Authentication Error', description: 'Could not create user account.', variant: 'destructive'});
-                }
-                setIsLoading(false);
-                return;
-            }
-        }
-        
-        if (!userId) {
-             toast({ title: 'User Error', description: 'Could not resolve the user for this order.', variant: 'destructive'});
-             setIsLoading(false);
-             return;
+            // A new user record will be created in Firestore, but not in Firebase Auth
+            // For simplicity, we can use a generated ID or the email as a temporary ID.
+            // A more robust solution would be to create a proper user record without auth credentials.
+            // For now, we will link the order to the email and name, not a full user profile.
         }
 
         const orderId = await getNextOrderId();
@@ -256,7 +225,7 @@ export default function CreateOrderForm() {
 
       const orderData: Order = {
         id: orderId,
-        userId: userId,
+        userId: userId || null, // Can be null if it's a new client without an account
         customerName: values.customerName,
         customerEmail: values.customerEmail,
         customerPhone: values.customerPhone,
@@ -280,7 +249,7 @@ export default function CreateOrderForm() {
 
       await setDoc(doc(db, 'orders', orderId), orderData);
       
-      const emailHtml = render(<OrderConfirmationEmail order={orderData} isNewUser={!existingUser} generatedPassword={generatedPassword} />);
+      const emailHtml = render(<OrderConfirmationEmail order={orderData} isNewUser={!existingUser} generatedPassword={null} />);
       await sendEmail({
         to: values.customerEmail,
         bcc: 'kev@thinkestry.co.za',
@@ -364,9 +333,9 @@ export default function CreateOrderForm() {
         </div>
         {!existingUser && (
             <Alert variant="destructive">
-                <AlertTitle>New Client Account</AlertTitle>
+                <AlertTitle>New Client</AlertTitle>
                 <AlertDescription>
-                    A new client account will be created. A randomly generated password will be included in the order confirmation email.
+                   No existing account found. A new client record will be associated with this order.
                 </AlertDescription>
             </Alert>
         )}

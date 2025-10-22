@@ -42,6 +42,7 @@ import {
 } from '@/components/ui/tooltip';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
+import PaymentConfirmationEmail from '@/components/emails/PaymentConfirmationEmail';
 import DocumentRequestEmail from '@/components/emails/DocumentRequestEmail';
 import ReviewRequestEmail from '@/components/emails/ReviewRequestEmail';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -330,38 +331,22 @@ export default function AdminOrdersPage() {
       const emailOrder = {...orderToUpdate, customerName, id: orderToUpdate.originalOrderId || orderToUpdate.id };
       
       if (newStatus === 'Processing' && emailTo) {
-        const itemsWithServices = orderToUpdate.items.map(item => {
-            const service = allServices.find(s => s.id === item.id);
-            return { ...item, service };
-        }).filter(item => item.service) as { service: Service }[];
-        
-        const subject = `Action Required for Your Order #${emailOrder.id}`;
-        const message = "Sent 'Request Documents' email to client.";
-        const replyToEmail = assignedStaffMember?.email || 'info@myacc.co.za';
+        const subject = `Payment Received for Order #${emailOrder.id}`;
+        const message = "Sent 'Payment Received' email to client.";
+        const emailHtml = render(<PaymentConfirmationEmail order={emailOrder} reseller={reseller} />);
 
-        const emailHtml = render(<DocumentRequestEmail order={emailOrder} items={itemsWithServices} reseller={reseller} replyTo={replyToEmail} />);
-        
-        const attachments = itemsWithServices
-            .filter(item => item.service.attachmentUrl)
-            .map(item => ({
-                filename: `${item.service.title.replace(/\s/g, '_')}.pdf`,
-                path: item.service.attachmentUrl!,
-            }));
-        
         await sendEmail({
             to: emailTo,
             subject: subject,
             html: emailHtml,
             resellerId: orderToUpdate.resellerId,
-            attachments: attachments,
-            replyTo: replyToEmail,
         });
-        
+
         await addEmailToHistory(orderToUpdate.id, subject, message);
 
         toast({
-            title: 'Document Request Sent',
-            description: `An email has been sent to the client requesting the necessary documents.`
+            title: 'Payment Confirmation Sent',
+            description: `An email has been sent to the client.`
         });
       }
 
@@ -423,7 +408,7 @@ export default function AdminOrdersPage() {
 
 
   return (
-    <Dialog>
+    <Dialog onOpenChange={(isOpen) => !isOpen && setViewingBackendSummary(null)}>
         <div className="space-y-8">
         <div className="flex items-center justify-between">
             <h1 className="text-3xl font-bold tracking-tight">Manage Orders</h1>
@@ -591,8 +576,3 @@ export default function AdminOrdersPage() {
     </Dialog>
   );
 }
-
-
-
-
-
