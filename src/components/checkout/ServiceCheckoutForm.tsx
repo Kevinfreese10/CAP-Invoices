@@ -17,7 +17,6 @@ import { nanoid } from 'nanoid';
 import { render } from '@react-email/components';
 import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 import { sendEmail } from '@/lib/email';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '../ui/input';
 import { useForm } from 'react-hook-form';
@@ -44,7 +43,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
   const [isLoading, setIsLoading] = useState(false);
   const [hasPrerequisites, setHasPrerequisites] = useState(false);
   const [agreedToRefundPolicy, setAgreedToRefundPolicy] = useState(false);
-  const [isGuestModalOpen, setIsGuestModalOpen] = useState(false);
+  const [showGuestForm, setShowGuestForm] = useState(false);
 
   const form = useForm<z.infer<typeof guestFormSchema>>({
     resolver: zodResolver(guestFormSchema),
@@ -172,38 +171,13 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
       if(user) {
           handleLoggedInCheckout();
       } else {
-          setIsGuestModalOpen(true);
+          setShowGuestForm(true);
       }
   }
 
 
   return (
     <>
-    <Dialog open={isGuestModalOpen} onOpenChange={setIsGuestModalOpen}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Guest Checkout</DialogTitle>
-          <DialogDescription>Please provide your details to complete the order. An account will be created for you to track your progress.</DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleGuestCheckout)} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField control={form.control} name="name_first" render={({ field }) => ( <FormItem><FormLabel>First Name</FormLabel><FormControl><Input placeholder="John" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                <FormField control={form.control} name="name_last" render={({ field }) => ( <FormItem><FormLabel>Last Name</FormLabel><FormControl><Input placeholder="Doe" {...field} /></FormControl><FormMessage /></FormItem> )} />
-              </div>
-              <FormField control={form.control} name="email_address" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input placeholder="name@example.com" {...field} /></FormControl><FormMessage /></FormItem> )} />
-              <FormField control={form.control} name="cell_number" render={({ field }) => ( <FormItem><FormLabel>Cell Number</FormLabel><FormControl><Input placeholder="082 123 4567" {...field} /></FormControl><FormMessage /></FormItem> )} />
-            <DialogFooter>
-                <Button type="button" variant="ghost" onClick={() => setIsGuestModalOpen(false)}>Cancel</Button>
-                <Button type="submit" disabled={isLoading}>
-                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Place Order
-                </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
     <div className="sticky top-24 space-y-4">
         <div className="space-y-4">
             <div className="flex items-start space-x-2">
@@ -228,19 +202,40 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
                     </label>
                 </div>
             </div>
+             {!user && (
+              <p className="text-xs text-center text-muted-foreground pt-2">
+                  You can <Link href="/login" className="text-primary underline">log in</Link> for a faster checkout.
+              </p>
+            )}
         </div>
-      <Button 
-        onClick={handleMainButtonClick}
-        disabled={isLoading || !canPurchase}
-        className="w-full"
-        size="lg"
-      >
-        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        {isLoading ? 'Processing...' : user ? 'Buy Now' : 'Proceed to Checkout'}
-      </Button>
-       {!user && (
-        <p className="text-xs text-center text-muted-foreground">You can <Link href="/login" className="text-primary underline">log in</Link> for a faster checkout.</p>
+      
+      {showGuestForm && !user ? (
+           <Form {...form}>
+              <form onSubmit={form.handleSubmit(handleGuestCheckout)} className="space-y-4 pt-4 border-t">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="name_first" render={({ field }) => ( <FormItem><FormLabel>First Name</FormLabel><FormControl><Input placeholder="John" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="name_last" render={({ field }) => ( <FormItem><FormLabel>Last Name</FormLabel><FormControl><Input placeholder="Doe" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                  </div>
+                  <FormField control={form.control} name="email_address" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input placeholder="name@example.com" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                  <FormField control={form.control} name="cell_number" render={({ field }) => ( <FormItem><FormLabel>Cell Number</FormLabel><FormControl><Input placeholder="082 123 4567" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                <Button type="submit" className="w-full" size="lg" disabled={isLoading || !canPurchase}>
+                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Place Order
+                </Button>
+              </form>
+            </Form>
+      ) : (
+          <Button 
+            onClick={handleMainButtonClick}
+            disabled={isLoading || !canPurchase}
+            className="w-full"
+            size="lg"
+          >
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isLoading ? 'Processing...' : user ? 'Buy Now' : 'Proceed to Checkout'}
+          </Button>
       )}
+
     </div>
     </>
   );
