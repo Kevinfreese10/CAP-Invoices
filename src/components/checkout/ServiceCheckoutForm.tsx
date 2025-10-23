@@ -12,6 +12,8 @@ import { getFirestore, doc, setDoc, Timestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { getNextOrderId } from '@/lib/sequence';
 import Link from 'next/link';
+import { Checkbox } from '../ui/checkbox';
+import { Label } from '../ui/label';
 
 const db = getFirestore(firebaseApp);
 
@@ -20,10 +22,22 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [hasPrerequisites, setHasPrerequisites] = useState(false);
+  const [agreedToRefundPolicy, setAgreedToRefundPolicy] = useState(false);
+
 
   async function handleDirectCheckout() {
     if (!user) {
       router.push('/login');
+      return;
+    }
+
+    if (!hasPrerequisites || !agreedToRefundPolicy) {
+      toast({
+        title: 'Confirmation Required',
+        description: 'Please confirm you have the prerequisites and agree to the refund policy.',
+        variant: 'destructive',
+      });
       return;
     }
 
@@ -76,11 +90,37 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
     )
   }
 
+  const canPurchase = hasPrerequisites && agreedToRefundPolicy;
+
   return (
     <div className="sticky top-24 space-y-4">
+        <div className="space-y-4">
+            <div className="flex items-start space-x-2">
+                <Checkbox id="prerequisites" checked={hasPrerequisites} onCheckedChange={(checked) => setHasPrerequisites(checked as boolean)} />
+                <div className="grid gap-1.5 leading-none">
+                    <label
+                    htmlFor="prerequisites"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                    I confirm I have all the prerequisites for this service.
+                    </label>
+                </div>
+            </div>
+             <div className="flex items-start space-x-2">
+                <Checkbox id="refund_policy" checked={agreedToRefundPolicy} onCheckedChange={(checked) => setAgreedToRefundPolicy(checked as boolean)} />
+                <div className="grid gap-1.5 leading-none">
+                    <label
+                    htmlFor="refund_policy"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                    I have read and agree to the <Link href="/refund-policy" className="text-primary underline" target="_blank">refund policy</Link>.
+                    </label>
+                </div>
+            </div>
+        </div>
       <Button 
         onClick={handleDirectCheckout}
-        disabled={isLoading}
+        disabled={isLoading || !canPurchase}
         className="w-full"
         size="lg"
       >
