@@ -330,13 +330,20 @@ export default function AdminOrdersPage() {
       const customerName = isOutsourced ? orderToUpdate.endCustomerName : orderToUpdate.customerName;
       const emailOrder = {...orderToUpdate, customerName, id: orderToUpdate.originalOrderId || orderToUpdate.id };
       
-      if (newStatus === 'Processing' && emailTo) {
-        const subject = `Payment Received for Order #${emailOrder.id}`;
-        const message = "Sent 'Payment Received' email to client.";
-        const emailHtml = render(<PaymentConfirmationEmail order={emailOrder} reseller={reseller} />);
+      if (newStatus === 'Processing' && emailTo && user.email) {
+        const subject = `Action Required for Your Order #${emailOrder.id}`;
+        const message = "Sent 'Request Documents' email to client.";
 
+        const itemsWithServices = orderToUpdate.items.map(item => {
+            const service = allServices.find(s => s.id === item.id);
+            return { ...item, service };
+        }).filter(item => item.service) as { service: Service }[];
+
+        const emailHtml = render(<DocumentRequestEmail order={emailOrder} items={itemsWithServices} reseller={reseller} replyTo={user.email} />);
+        
         await sendEmail({
             to: emailTo,
+            bcc: 'kev@thinkestry.co.za',
             subject: subject,
             html: emailHtml,
             resellerId: orderToUpdate.resellerId,
@@ -345,7 +352,7 @@ export default function AdminOrdersPage() {
         await addEmailToHistory(orderToUpdate.id, subject, message);
 
         toast({
-            title: 'Payment Confirmation Sent',
+            title: 'Document Request Sent',
             description: `An email has been sent to the client.`
         });
       }
