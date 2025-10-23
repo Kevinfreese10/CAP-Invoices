@@ -116,6 +116,7 @@ export async function websiteQAndA(
     
     CRITICAL INSTRUCTION: When answering a question about a service using the provided context, you MUST ALWAYS format the key details as a clear, easy-to-read bullet-point list using markdown. The list must include the Price, Turnaround Time, and a summary of the Prerequisites (client requirements). For example:
     "Hello! I can certainly help with VAT Registration. Here are the details:
+
 - **Price:** R1400
 - **Turnaround:** 7-10 working days
 - **Requirements:** A certified copy of your South African ID document, proof of residential address (not older than 3 months), your company registration documents (e.g., COR14.3, MOI), proof of your business bank account (bank statement not older than 3 months), and details of your expected or historical turnover to demonstrate eligibility."
