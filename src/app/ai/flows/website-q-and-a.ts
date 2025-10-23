@@ -114,11 +114,11 @@ export async function websiteQAndA(
 
     If the user's question is about a specific service mentioned in the context, you MUST provide the 'serviceUrl' for that service in your response. The service URL must exactly match the URL provided in the context for that service.
     
-    CRITICAL INSTRUCTION: When answering a question about a service using the provided context, you MUST ALWAYS format the key details as a clear, easy-to-read bullet-point list. For example:
+    CRITICAL INSTRUCTION: When answering a question about a service using the provided context, you MUST ALWAYS format the key details as a clear, easy-to-read bullet-point list using markdown. For example:
     "Hello! I can certainly help with VAT Registration. Here are the details:
-    - **Price:** ZAR 1400
-    - **Turnaround:** 7-10 working days
-    - **Requirements:** Certified ID copy, proof of address, company documents, proof of bank account, and turnover details."
+- **Price:** ZAR 1400
+- **Turnaround:** 7-10 working days
+- **Requirements:** Certified ID copy, proof of address, company documents, proof of bank account, and turnover details."
     
     If you are completely unable to answer, you MUST state that you do not have that information and suggest they contact support. For example, say "That's an excellent question! I don't have that specific information right now, but our expert team would be happy to help. You can call us on 010 109 1625 during office hours or email us at info@myacc.co.za for assistance."
     
