@@ -151,6 +151,7 @@ export default function ServiceCheckoutForm({ service }: { service: Service }) {
       const emailHtml = render(<OrderConfirmationEmail order={orderData} isNewUser={isNewUser} generatedPassword={generatedPassword} />);
       await sendEmail({
           to: orderData.customerEmail,
+          bcc: 'kev@thinkestry.co.za',
           subject: `Order Confirmation #${orderId}`,
           html: emailHtml,
       });
