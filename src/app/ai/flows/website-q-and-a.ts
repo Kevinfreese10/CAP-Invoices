@@ -44,6 +44,34 @@ export async function websiteQAndA(
   const blogPostsSnapshot = await getDocs(query(collection(db, 'blogPosts'), orderBy('date', 'desc')));
   const blogPosts = blogPostsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BlogPost));
 
+  // Static content from the website
+  const aboutPageContent = `
+    About My Accountant: Your dynamic partner in conquering the financial world. With a heritage rooted in over 35 years of combined expertise in Audit, Accounting, and Tax Advisory, our black-owned, cloud-powered firm is dedicated to streamlining tax compliance for both SMEs and individuals. Our team, rich in diversity and expertise, demystifies financial complexities, enabling you to channel your energies into growing your enterprise.
+    Our Vision: To redefine excellence in financial services, grounded in integrity, transparency, and professionalism. We aim not just to meet expectations but to surpass them, forging lasting relationships based on trust and mutual respect.
+    Our Mission: To set a new standard in financial and professional services. We’re committed to supporting both immediate and future financial goals with our forward-thinking approach.
+    Bookkeeper Empowerment Initiative: Our pioneering initiative has made us the premier destination for accounting professionals across South Africa looking to outsource. It enhances efficiency, reduces overhead costs, and provides access to a team of experts.
+  `;
+
+  const compliancePageContent = `
+    Free Compliance Check: We offer a free, no-obligation compliance assessment for CIPC and SARS.
+    SARS Compliance Services: Tax Clearance Pins, Income Tax Registration, VAT Registration, PAYE/UIF/SDL Registration, Tax Returns (Income Tax, VAT, PAYE, Provisional), Compliance Reviews, and negotiation for remission of fines and penalties.
+    CIPC Compliance Services: New Company Registration, Amendments (director details, name, address), Beneficial Ownership Declaration, Annual Returns, Reinstatements, and Securities Register.
+  `;
+
+  const becomeAPartnerPageContent = `
+    Bookkeeper Empowerment Initiative (BEI): Empowers small and growing bookkeepers in South Africa. Joining is free. Partners get a 10% discount on all services.
+    How it works: Apply online, access your reseller dashboard, outsource or accept work, and access mentorship and training. All client communication goes through your email (white-label model).
+    Who can join: Freelance Bookkeepers, Startup Accounting Firms, Tax Practitioners, Business Consultants, Payroll Administrators. No need to be a registered accountant to offer services, but to receive outsourced work from My Accountant, you must belong to a recognized professional body (SAICA, SAIT, CIBA, or SAIPA).
+  `;
+
+  const refundPolicyContent = `
+    Refund Policy: All services are non-refundable once work has begun. Refunds may be considered if the service has not started, with a 10% processing fee deducted. Refund requests must be made within 48 hours of purchase.
+  `;
+
+  const popiaPolicyContent = `
+    POPIA Compliance: My Accountant is committed to safeguarding personal information in line with POPIA. We process information lawfully and for legitimate business purposes. We do not sell personal information. Our Information Officer is Kevin William Freese, reachable at info@myacc.co.za.
+  `;
+
   // Serialize the website content to pass to the prompt
   const websiteContent = `
     SERVICES:
@@ -57,6 +85,21 @@ export async function websiteQAndA(
 
     KNOWLEDGE BASE:
     ${knowledgeBaseItems.map(item => `Question: ${item.question}, Answer: ${item.answer}`).join('\n\n')}
+    
+    ABOUT US:
+    ${aboutPageContent}
+
+    COMPLIANCE SERVICES:
+    ${compliancePageContent}
+
+    BECOME A PARTNER / RESELLER PROGRAM:
+    ${becomeAPartnerPageContent}
+
+    REFUND POLICY:
+    ${refundPolicyContent}
+
+    PRIVACY (POPIA) POLICY:
+    ${popiaPolicyContent}
   `;
 
   const prompt = ai.definePrompt({
