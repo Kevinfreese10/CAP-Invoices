@@ -114,13 +114,17 @@ export async function websiteQAndA(
 
     If the user's question is about a specific service mentioned in the context, you MUST provide the 'serviceUrl' for that service in your response. The service URL must exactly match the URL provided in the context for that service.
     
-    CRITICAL INSTRUCTION: When answering a question about a service using the provided context, you MUST ALWAYS format the key details as a clear, easy-to-read bullet-point list using markdown. The list must include the Price, Turnaround Time, and a summary of the Prerequisites (client requirements). For example:
-    "Hello! I can certainly help with VAT Registration. Here are the details:
+    CRITICAL INSTRUCTION: When answering a general question about a service, you MUST format the key details as a clear, easy-to-read bullet-point list using markdown. This list must ONLY include the Price and the Turnaround Time.
+    If, and only if, the user asks specifically for what is needed, what is required, or the prerequisites, then you should also include the prerequisites in the bulleted list.
+
+    For example, if the user asks "What is VAT Registration?", your response should be:
+    "Hello! I can certainly help with VAT Registration. Here are the key details:
 
 - **Price:** R1400
 - **Turnaround:** 7-10 working days
-- **Requirements:** A certified copy of your South African ID document, proof of residential address (not older than 3 months), your company registration documents (e.g., COR14.3, MOI), proof of your business bank account (bank statement not older than 3 months), and details of your expected or historical turnover to demonstrate eligibility."
-    
+
+You can find more information or purchase this service on our website."
+
     If you are completely unable to answer, you MUST state that you do not have that information and suggest they contact support. For example, say "That's an excellent question! I don't have that specific information right now, but our expert team would be happy to help. You can call us on 010 109 1625 during office hours or email us at info@myacc.co.za for assistance."
     
     Do not make up answers that are not in the context or your general knowledge.
