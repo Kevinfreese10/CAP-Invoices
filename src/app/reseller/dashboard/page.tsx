@@ -1,5 +1,4 @@
 
-
 'use client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -23,11 +22,13 @@ import { services as allServices } from '@/lib/data';
 import { Separator } from '@/components/ui/separator';
 import CreateResellerOrderForm from '@/components/reseller/CreateResellerOrderForm';
 import CommunityQnA from '@/components/reseller/CommunityQnA';
+import { useRouter } from 'next/navigation';
 
 const db = getFirestore(firebaseApp);
 
 export default function ResellerDashboardPage() {
     const { user } = useAuth();
+    const router = useRouter();
     const { blogPosts, isLoading: isBlogLoading } = useBlog();
     const [orders, setOrders] = useState<Order[]>([]);
     const [outsourcedOrders, setOutsourcedOrders] = useState<Order[]>([]);
@@ -110,74 +111,69 @@ export default function ResellerDashboardPage() {
     }, [user, toast]);
 
     const handleOutsource = async (orderToOutsource: Order) => {
-    if (!user) return;
+        if (!user) return;
+        
+        toast({
+            title: 'Outsourcing Order...',
+            description: `Submitting order ${orderToOutsource.id} to My Accountant.`
+        });
     
-    toast({
-        title: 'Outsourcing Order...',
-        description: `Submitting order ${orderToOutsource.id} to My Accountant.`
-    });
-
-    try {
-        const newOrderId = `ORD-${Date.now().toString().slice(-6)}`;
-        const firstServiceId = orderToOutsource.items[0]?.id;
-        const serviceDetails = allServices.find(s => s.id === firstServiceId);
-        const department = serviceDetails?.department;
-        
-        const newOrderData: Partial<Order> = {
-            id: newOrderId,
-            customerName: user.companyName || user.name,
-            customerEmail: user.email,
-            endCustomerName: orderToOutsource.customerName,
-            endCustomerEmail: orderToOutsource.customerEmail,
-            date: Timestamp.now(),
-            items: orderToOutsource.items.map(item => ({
-                id: item.id,
-                title: item.title,
-                price: item.price,
-                quantity: item.quantity,
-            })),
-            total: orderToOutsource.total,
-            status: 'Pending Payment',
-            resellerId: user.uid,
-            originalOrderId: orderToOutsource.id,
-        };
-        
-        if (department) {
-          const assignedStaff = getNextStaffMember(department);
-          newOrderData.department = department;
-          newOrderData.assignedTo = assignedStaff?.id ? [assignedStaff.id] : null;
-        } else {
-            newOrderData.department = null;
-            newOrderData.assignedTo = null;
+        try {
+            const newOrderId = `ORD-${Date.now().toString().slice(-6)}`;
+            const firstServiceId = orderToOutsource.items[0]?.id;
+            const serviceDetails = allServices.find(s => s.id === firstServiceId);
+            const department = serviceDetails?.department;
+            
+            const newOrderData: Partial<Order> = {
+                id: newOrderId,
+                customerName: user.companyName || user.name,
+                customerEmail: user.email,
+                endCustomerName: orderToOutsource.customerName,
+                endCustomerEmail: orderToOutsource.customerEmail,
+                date: Timestamp.now(),
+                items: orderToOutsource.items.map(item => ({
+                    id: item.id,
+                    title: item.title,
+                    price: item.price,
+                    quantity: item.quantity,
+                })),
+                total: orderToOutsource.total,
+                status: 'Pending Payment',
+                resellerId: user.uid,
+                originalOrderId: orderToOutsource.id,
+            };
+            
+            if (department) {
+              const assignedStaff = getNextStaffMember(department);
+              newOrderData.department = department;
+              newOrderData.assignedTo = assignedStaff?.id ? [assignedStaff.id] : null;
+            } else {
+                newOrderData.department = null;
+                newOrderData.assignedTo = null;
+            }
+            
+            await setDoc(doc(db, 'orders', newOrderId), newOrderData);
+    
+            const originalOrderRef = doc(db, 'orders', orderToOutsource.id);
+            await updateDoc(originalOrderRef, {
+                isOutsourced: true,
+                status: 'Outsourced',
+            });
+    
+            fetchOrdersAndStaff();
+            
+            setOutsourcedOrderDetails(newOrderData as Order);
+            router.push(`/order-confirmation/${newOrderId}`);
+    
+        } catch (error) {
+             console.error('Error outsourcing order: ', error);
+            toast({
+                title: 'Outsourcing Failed',
+                description: 'There was a problem submitting your order. Please try again.',
+                variant: 'destructive',
+            });
         }
-        
-        await setDoc(doc(db, 'orders', newOrderId), newOrderData);
-
-        const originalOrderRef = doc(db, 'orders', orderToOutsource.id);
-        await updateDoc(originalOrderRef, {
-            isOutsourced: true,
-            status: 'Outsourced',
-        });
-
-        fetchOrdersAndStaff();
-        
-        setOutsourcedOrderDetails(newOrderData as Order);
-        setIsOutsourceModalOpen(true);
-        
-        toast({
-            title: 'Order Outsourced Successfully!',
-            description: `Your order has been sent to My Accountant for processing. New order ID: ${newOrderId}`
-        });
-
-    } catch (error) {
-         console.error('Error outsourcing order: ', error);
-        toast({
-            title: 'Outsourcing Failed',
-            description: 'There was a problem submitting your order. Please try again.',
-            variant: 'destructive',
-        });
-    }
-  };
+      };
 
     const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
     try {
@@ -280,7 +276,7 @@ export default function ResellerDashboardPage() {
                             <Users className="h-8 w-8 text-primary flex-shrink-0 mt-1" />
                             <div>
                                 <h4 className="font-semibold">White-Label Outsourcing</h4>
-                                <p className="text-sm text-muted-foreground">Offer professional accounting and compliance services under your own brand. Our team communicates with your clients directly through your email, ensuring your brand identity stays intact while we handle the work in the background.</p>
+                                <p className="text-sm text-muted-foreground">Offer professional accounting and compliance products under your own brand. Our team communicates with your clients directly through your email, ensuring your brand identity stays intact while we handle the work in the background.</p>
                             </div>
                         </div>
                         <Separator />
@@ -299,7 +295,7 @@ export default function ResellerDashboardPage() {
                                             <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> AI Accountant access</li>
                                             <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> Practice Manager</li>
                                             <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> White-Label Outsourcing</li>
-                                            <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> 25% discount on all services</li>
+                                            <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> 25% discount on all products</li>
                                             <li className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" /> Partner support & client dashboard</li>
                                         </ul>
                                     </CardContent>
@@ -312,7 +308,7 @@ export default function ResellerDashboardPage() {
                                     <CardContent className="space-y-2 text-sm text-muted-foreground">
                                         <p>Add AI automation to any of your client profiles.</p>
                                         <p>Upload their CSV or bank statements — and the AI Accountant will allocate and categorize all transactions in minutes.</p>
-                                        <p className="font-semibold text-foreground">Pay only for the clients you activate AI services for.</p>
+                                        <p className="font-semibold text-foreground">Pay only for the clients you activate AI products for.</p>
                                     </CardContent>
                                 </Card>
                                 <Card>
@@ -568,8 +564,8 @@ export default function ResellerDashboardPage() {
                     <TableCell>{format(new Date(order.date), 'dd/MM/yyyy')}</TableCell>
                     <TableCell className="text-right font-semibold">{formatPrice(order.total)}</TableCell>
                     <TableCell className="text-right">
-                       <Button onClick={() => { setOutsourcedOrderDetails(order); setIsOutsourceModalOpen(true); }}>
-                            Pay Now
+                       <Button asChild>
+                           <Link href={`/order-confirmation/${order.id}`}>Pay Now</Link>
                         </Button>
                     </TableCell>
                   </TableRow>
@@ -649,81 +645,6 @@ export default function ResellerDashboardPage() {
         </CardContent>
       </Card>
     </div>
-    
-     <Dialog open={isOutsourceModalOpen} onOpenChange={setIsOutsourceModalOpen}>
-        <DialogContent className="sm:max-w-2xl">
-            <DialogHeader>
-                <DialogTitle>Order Outsourced: Payment Required</DialogTitle>
-                <DialogDescription>
-                    Your new internal order has been created. Please make payment using the details below to begin fulfillment.
-                </DialogDescription>
-            </DialogHeader>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-4">
-                {outsourcedOrderDetails && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>New Internal Order</CardTitle>
-                            <CardDescription>
-                                Order ID: <span className="font-semibold text-primary">{outsourcedOrderDetails.id}</span>
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                             <div className="space-y-2">
-                                {outsourcedOrderDetails.items.map((item: any) => (
-                                    <div key={item.id} className="flex justify-between items-center text-sm">
-                                        <p>{item.title}</p>
-                                        <p className="font-medium">{formatPrice(item.price)}</p>
-                                    </div>
-                                ))}
-                            </div>
-                            <Separator className="my-3" />
-                            <div className="flex justify-between font-bold text-base">
-                                <span>Total Due</span>
-                                <span>{formatPrice(outsourcedOrderDetails.total)}</span>
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
-                 <Card>
-                    <CardHeader>
-                        <div className="flex items-center gap-3">
-                            <Banknote className="h-6 w-6 text-primary" />
-                            <CardTitle>EFT Instructions</CardTitle>
-                        </div>
-                    </CardHeader>
-                     <CardContent className="space-y-3 text-sm">
-                         <div className="grid grid-cols-[auto_1fr] items-center gap-x-4">
-                            <span className="font-medium text-muted-foreground">Bank Name:</span>
-                            <span className="font-semibold">FNB</span>
-                        </div>
-                         <div className="grid grid-cols-[auto_1fr] items-center gap-x-4">
-                            <span className="font-medium text-muted-foreground">Account Holder:</span>
-                            <span className="font-semibold">My Accountant (Pty) Ltd</span>
-                        </div>
-                         <div className="grid grid-cols-[auto_1fr] items-center gap-x-4">
-                            <span className="font-medium text-muted-foreground">Account Number:</span>
-                            <span className="font-semibold">63084378223</span>
-                        </div>
-                         <div className="grid grid-cols-[auto_1fr] items-center gap-x-4">
-                            <span className="font-medium text-muted-foreground">Branch Code:</span>
-                            <span className="font-semibold">250655</span>
-                        </div>
-                        <div className="grid grid-cols-[auto_1fr] items-center gap-x-4 mt-2">
-                            <span className="font-medium text-muted-foreground">Reference:</span>
-                            <span className="font-semibold text-destructive p-1 bg-destructive/10 rounded-sm">{outsourcedOrderDetails?.id}</span>
-                        </div>
-                         <Separator className="my-4" />
-                         <p className="font-semibold text-foreground">
-                            Please send your proof of payment to{' '}
-                            <a href="mailto:info@myacc.co.za" className="text-primary underline">
-                                info@myacc.co.za
-                            </a>
-                        </p>
-                    </CardContent>
-                </Card>
-            </div>
-        </DialogContent>
-    </Dialog>
     </>
     );
 }

@@ -17,7 +17,7 @@ import { getFirestore, doc, setDoc, Timestamp, getDoc, updateDoc } from 'firebas
 import { firebaseApp } from '@/lib/firebase';
 import { Order, User, Service, DiscountCode, OrderNote } from '@/lib/types';
 import { getNextOrderId } from '@/lib/sequence';
-import { Separator } from '../ui/separator';
+import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 import { sendEmail } from '@/lib/email';
 import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
