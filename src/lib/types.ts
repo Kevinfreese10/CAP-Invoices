@@ -1,6 +1,7 @@
 
 
 
+
 export type VatType =
   // Output Tax
   | 'standard_rated_sales'
@@ -117,7 +118,7 @@ export type ItnLog = {
 
 export type Order = {
   id: string;
-  userId?: string;
+  userId?: string | null;
   resellerId?: string;
   customerName: string;
   customerEmail: string;
@@ -348,6 +349,7 @@ export type ExtractedInvoice = {
   commissionNumber?: string;
   rejectionReason?: string;
   paymentBatch?: 'this_week' | 'month_end';
+  sourceEmailUid?: number;
 };
 
 export type CommunityQuestion = {

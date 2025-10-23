@@ -13,7 +13,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, Tag } from 'lucide-react';
-import { getFirestore, doc, setDoc, Timestamp, getDoc, updateDoc } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, Timestamp, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Order, User, Service, DiscountCode, OrderNote } from '@/lib/types';
 import { getNextOrderId } from '@/lib/sequence';
@@ -22,8 +22,11 @@ import Link from 'next/link';
 import { sendEmail } from '@/lib/email';
 import OrderConfirmationEmail from '../emails/OrderConfirmationEmail';
 import { render } from '@react-email/components';
+import { nanoid } from 'nanoid';
+import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 
 const db = getFirestore(firebaseApp);
+const auth = getAuth(firebaseApp);
 
 const formSchema = z.object({
   name_first: z.string().min(1, 'First name is required.'),
@@ -93,10 +96,6 @@ export default function CheckoutForm() {
   const finalTotal = appliedDiscount ? cartTotal - appliedDiscount.amount : cartTotal;
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!currentUser) {
-       toast({ title: 'Please Log In', description: 'You must be logged in to place an order.', variant: 'destructive' });
-       return;
-    }
     setIsLoading(true);
     toast({
       title: 'Placing Your Order...',
@@ -104,13 +103,46 @@ export default function CheckoutForm() {
     });
 
     try {
+        let userId = currentUser?.uid;
+        let isNewUser = !currentUser;
+        let generatedPassword: string | null = null;
+        
+        // If it's a guest, check if the user exists. If not, create them.
+        if (!currentUser) {
+            const usersRef = collection(db, 'users');
+            const q = query(usersRef, where('email', '==', values.email_address));
+            const querySnapshot = await getDocs(q);
+
+            if (querySnapshot.empty) {
+                // New user - create them in Auth and Firestore
+                generatedPassword = nanoid(8);
+                const userCredential = await createUserWithEmailAndPassword(auth, values.email_address, generatedPassword);
+                userId = userCredential.user.uid;
+                
+                const newUser: Partial<User> = {
+                    uid: userId,
+                    id: userId,
+                    name: `${values.name_first} ${values.name_last}`,
+                    email: values.email_address,
+                    contactNumber: values.cell_number,
+                    role: 'client',
+                    createdAt: serverTimestamp(),
+                };
+                await setDoc(doc(db, 'users', userId), newUser);
+            } else {
+                // Existing user, just get their ID
+                userId = querySnapshot.docs[0].id;
+                isNewUser = false; // Not a new user after all
+            }
+        }
+
       const orderId = await getNextOrderId();
       const firstService = cartItems[0]?.service;
       const department = firstService?.department as 'Accounting and Tax' | 'Administration' | 'CAP' | undefined;
       
       const orderData: Order = {
         id: orderId,
-        userId: currentUser.uid,
+        userId: userId || null, 
         customerName: `${values.name_first} ${values.name_last}`,
         customerEmail: values.email_address,
         customerPhone: values.cell_number,
@@ -142,8 +174,7 @@ export default function CheckoutForm() {
           });
       }
       
-      // Send confirmation email with EFT details
-      const emailHtml = render(<OrderConfirmationEmail order={orderData} />);
+      const emailHtml = render(<OrderConfirmationEmail order={orderData} isNewUser={isNewUser} generatedPassword={generatedPassword} />);
       await sendEmail({
           to: orderData.customerEmail,
           subject: `Order Confirmation #${orderId}`,
@@ -153,31 +184,19 @@ export default function CheckoutForm() {
       clearCart();
       router.push(`/order-confirmation/${orderId}`);
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error creating order: ", error);
+        let description = 'There was a problem saving your order. Please try again.';
+        if (error.code === 'auth/email-already-in-use') {
+            description = 'An account with this email already exists. Please log in to complete your purchase.';
+        }
         toast({
             title: 'Order Failed',
-            description: 'There was a problem saving your order. Please try again.',
+            description: description,
             variant: 'destructive',
         });
         setIsLoading(false);
     }
-  }
-
-  if (!currentUser) {
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Please Log In</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <p className="text-muted-foreground">You need to be logged in to place an order.</p>
-                <Button asChild className="mt-4">
-                    <Link href="/login">Log In or Sign Up</Link>
-                </Button>
-            </CardContent>
-        </Card>
-    )
   }
 
   return (
@@ -217,7 +236,11 @@ export default function CheckoutForm() {
                   {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   {isLoading ? 'Processing...' : 'Place Order via EFT'}
               </Button>
-
+               {!currentUser && (
+                    <p className="text-xs text-center text-muted-foreground mt-2">
+                        An account will be created for you with this email. You can use it to track your order.
+                    </p>
+                )}
             </form>
           </Form>
         </CardContent>
