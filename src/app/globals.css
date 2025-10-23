@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -64,6 +65,9 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+  .prose strong {
+    @apply font-bold;
   }
 }
 

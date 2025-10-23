@@ -13,6 +13,7 @@ import { Form, FormControl, FormField, FormItem, FormMessage } from '@/component
 import { Loader2, MessageCircle, Send, X, Bot, User, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { ReactMarkdown } from 'react-markdown/lib/react-markdown';
 
 const formSchema = z.object({
   question: z.string().min(1, 'Cannot send an empty message.'),
@@ -23,26 +24,6 @@ type ChatMessage = {
   text: string;
   serviceUrl?: string;
 }
-
-// Utility to render text with basic markdown (like bullet points)
-const ChatMessageContent = ({ text }: { text: string }) => {
-    const lines = text.split('\n');
-    return (
-        <>
-            {lines.map((line, index) => {
-                if (line.trim().startsWith('- ')) {
-                    return (
-                        <li key={index} className="ml-4 list-disc">
-                            {line.substring(2)}
-                        </li>
-                    );
-                }
-                return <p key={index} className="text-sm">{line}</p>;
-            })}
-        </>
-    );
-};
-
 
 export default function WebsiteAIWidget() {
   const [isOpen, setIsOpen] = useState(false);
@@ -116,10 +97,16 @@ export default function WebsiteAIWidget() {
                 <div key={index} className={cn("flex items-end gap-2", message.role === 'user' ? 'justify-end' : 'justify-start')}>
                   {message.role === 'bot' && <Bot className="h-6 w-6 text-primary flex-shrink-0" />}
                    <div className={cn(
-                        "p-3 rounded-lg max-w-xs",
+                        "p-3 rounded-lg max-w-xs prose prose-sm",
                         message.role === 'user' ? 'bg-gradient text-primary-foreground' : 'bg-muted'
                     )}>
-                        <ChatMessageContent text={message.text} />
+                        <ReactMarkdown
+                            components={{
+                                p: ({node, ...props}) => <p className="text-sm my-0" {...props} />,
+                                ul: ({node, ...props}) => <ul className="list-disc pl-4 my-2" {...props} />,
+                                li: ({node, ...props}) => <li className="my-1" {...props} />,
+                            }}
+                        >{message.text}</ReactMarkdown>
                         {message.role === 'bot' && message.serviceUrl && (
                            <Button asChild variant="link" className="p-0 h-auto mt-2 text-primary">
                              <Link href={message.serviceUrl}>
