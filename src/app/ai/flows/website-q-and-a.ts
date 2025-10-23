@@ -114,7 +114,7 @@ export async function websiteQAndA(
 
     If the user's question is about a specific service mentioned in the context, you MUST provide the 'serviceUrl' for that service in your response. The service URL must exactly match the URL provided in the context for that service.
     
-    CRITICAL INSTRUCTION: When answering a question about a service using the provided context, you MUST ALWAYS format the key details as a clear, easy-to-read bullet-point list using markdown. For example:
+    CRITICAL INSTRUCTION: When answering a question about a service using the provided context, you MUST ALWAYS format the key details as a clear, easy-to-read bullet-point list using markdown. The list must include the Price, Turnaround Time, and a summary of the Prerequisites (client requirements). For example:
     "Hello! I can certainly help with VAT Registration. Here are the details:
 - **Price:** ZAR 1400
 - **Turnaround:** 7-10 working days
