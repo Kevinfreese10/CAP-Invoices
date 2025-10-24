@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, PlusCircle, Trash2, Edit, MoreHorizontal, FileUp } from 'lucide-react';
+import { Loader2, PlusCircle, Trash2, Edit, MoreHorizontal, FileUp, Download } from 'lucide-react';
 import { getFirestore, collection, query, getDocs, doc, deleteDoc, addDoc, writeBatch, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Supplier } from '@/lib/types';
@@ -18,6 +18,7 @@ import { useParams } from 'next/navigation';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import * as XLSX from 'xlsx';
+import { Label } from '@/components/ui/label';
 
 const formSchema = z.object({
   id: z.string().optional(),
@@ -25,7 +26,7 @@ const formSchema = z.object({
 });
 
 const importSchema = z.object({
-  file: z.any().refine((files) => files && files.length > 0, "An Excel file is required."),
+  file: z.any().refine((files) => files && files.length > 0, "An Excel/CSV file is required."),
 });
 
 function ImportSuppliersDialog({ clientId, onImportComplete }: { clientId: string; onImportComplete: () => void }) {
@@ -55,7 +56,7 @@ function ImportSuppliersDialog({ clientId, onImportComplete }: { clientId: strin
                 const supplierNames = json.map(row => row['Supplier Name']).filter((name): name is string => !!name);
 
                 if (supplierNames.length === 0) {
-                    toast({ title: "No suppliers found", description: "Make sure your Excel file has a column named 'Supplier Name'.", variant: "destructive" });
+                    toast({ title: "No suppliers found", description: "Make sure your Excel/CSV file has a column named 'Supplier Name'.", variant: "destructive" });
                     return;
                 }
 
@@ -79,6 +80,17 @@ function ImportSuppliersDialog({ clientId, onImportComplete }: { clientId: strin
         };
         reader.readAsArrayBuffer(file);
     };
+
+    const handleDownloadExample = () => {
+        const csvContent = "Supplier Name\n\"Example Supplier Inc.\"\n\"Another Supplier Co.\"";
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.setAttribute('download', 'example-suppliers.csv');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
     
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -87,11 +99,15 @@ function ImportSuppliersDialog({ clientId, onImportComplete }: { clientId: strin
             </DialogTrigger>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Import Suppliers from Excel</DialogTitle>
-                    <DialogDescription>Upload an .xlsx file with a column named "Supplier Name" to bulk import suppliers.</DialogDescription>
+                    <DialogTitle>Import Suppliers from Excel/CSV</DialogTitle>
+                    <DialogDescription>Upload an .xlsx or .csv file with a column named "Supplier Name" to bulk import suppliers.</DialogDescription>
                 </DialogHeader>
-                <div className="py-4">
-                    <Input id="supplier-file" type="file" accept=".xlsx" onChange={handleFileChange} disabled={isUploading} />
+                <div className="py-4 space-y-4">
+                     <div className="flex items-center justify-between">
+                         <Label htmlFor="supplier-file">Supplier File</Label>
+                         <Button variant="outline" size="sm" onClick={handleDownloadExample}><Download className="mr-2 h-4 w-4"/> Download Example</Button>
+                     </div>
+                    <Input id="supplier-file" type="file" accept=".xlsx, .csv" onChange={handleFileChange} disabled={isUploading} />
                     {isUploading && <div className="flex items-center mt-2 text-muted-foreground"><Loader2 className="mr-2 animate-spin"/>Processing...</div>}
                 </div>
             </DialogContent>
