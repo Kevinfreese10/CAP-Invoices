@@ -1,3 +1,4 @@
+
 'use client';
 
 import Image from 'next/image';
@@ -163,8 +164,12 @@ export default function MediaPage() {
     const uniqueImages = Array.from(new Map(combinedImages.map(item => [item.url, item])).values());
     
     const copyToClipboard = (text: string) => {
-        navigator.clipboard.writeText(text);
-        toast({ title: 'URL Copied!', description: 'The link has been copied to your clipboard.'});
+        navigator.clipboard.writeText(text).then(() => {
+            toast({ title: 'URL Copied!', description: 'The link has been copied to your clipboard.'});
+        }).catch(err => {
+            console.error('Failed to copy text: ', err);
+            toast({ title: 'Copy Failed', description: 'Could not copy the link to your clipboard.', variant: 'destructive'});
+        });
     }
 
 
@@ -247,10 +252,10 @@ export default function MediaPage() {
                             </AlertDialog>
                         )}
                         </div>
-                        <div className="text-sm">
-                             <h3 className="font-medium truncate">{image.title}</h3>
+                         <div className="text-sm space-y-1">
+                            <h3 className="font-medium truncate">{image.title}</h3>
                              <p className="text-xs text-muted-foreground">{image.source}</p>
-                             <div className="flex items-center gap-1 mt-1">
+                            <div className="flex items-center gap-1">
                                 <Input value={image.url} readOnly className="h-7 text-xs flex-grow truncate" />
                                 <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0" onClick={() => copyToClipboard(image.url)}>
                                     <Copy className="h-4 w-4" />
