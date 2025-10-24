@@ -218,7 +218,7 @@ export default function MediaPage() {
                     const isImage = image.url.includes('.png') || image.url.includes('.jpg') || image.url.includes('.jpeg') || image.url.includes('.gif') || image.url.includes('firebasestorage');
                     return (
                     <div key={image.id} className="group relative space-y-2">
-                        <div className="aspect-w-16 aspect-h-9 w-full overflow-hidden rounded-lg bg-gray-200">
+                        <div className="aspect-square w-full overflow-hidden rounded-lg bg-muted border">
                         {isImage ? (
                             <Image
                                 src={image.url}
@@ -228,8 +228,9 @@ export default function MediaPage() {
                                 data-ai-hint={image.hint}
                             />
                         ) : (
-                            <div className="flex flex-col items-center justify-center h-full bg-muted p-2 text-center">
+                            <div className="flex flex-col items-center justify-center h-full p-2 text-center">
                                 <FileText className="w-8 h-8 text-muted-foreground" />
+                                <p className="text-xs text-muted-foreground mt-2 truncate">{image.title}</p>
                             </div>
                         )}
                         {image.source === 'Uploaded' && (
