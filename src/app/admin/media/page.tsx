@@ -12,7 +12,7 @@ import { firebaseApp } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Upload, Trash2, RefreshCw } from 'lucide-react';
+import { Loader2, Upload, Trash2, RefreshCw, Copy } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { useAuth } from '@/contexts/AuthContext';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -162,6 +162,11 @@ export default function MediaPage() {
 
     const combinedImages = [...allImages, ...uploadedImages];
     const uniqueImages = Array.from(new Map(combinedImages.map(item => [item.url, item])).values());
+    
+    const copyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(text);
+        toast({ title: 'URL Copied!', description: 'The link has been copied to your clipboard.'});
+    }
 
 
   return (
@@ -246,6 +251,12 @@ export default function MediaPage() {
                         <div className="mt-2 text-sm text-foreground">
                              <h3 className="font-medium truncate">{image.title}</h3>
                              <p className="text-xs text-muted-foreground">{image.source}</p>
+                             <div className="flex items-center gap-1 mt-1">
+                                <Input value={image.url} readOnly className="h-7 text-xs flex-grow" />
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => copyToClipboard(image.url)}>
+                                    <Copy className="h-4 w-4" />
+                                </Button>
+                             </div>
                         </div>
                     </div>
                 )})}
