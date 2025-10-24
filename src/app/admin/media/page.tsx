@@ -1,4 +1,3 @@
-
 'use client';
 
 import Image from 'next/image';
@@ -12,7 +11,7 @@ import { firebaseApp } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Upload, Trash2, RefreshCw, Copy } from 'lucide-react';
+import { Loader2, Upload, Trash2, RefreshCw, Copy, FileText } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { useAuth } from '@/contexts/AuthContext';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -209,12 +208,12 @@ export default function MediaPage() {
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : uniqueImages.length > 0 ? (
-             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
                 {uniqueImages.map((image) => {
                     const isImage = image.url.includes('.png') || image.url.includes('.jpg') || image.url.includes('.jpeg') || image.url.includes('.gif') || image.url.includes('firebasestorage');
                     return (
-                    <div key={image.id} className="group relative">
-                        <div className="aspect-w-1 aspect-h-1 w-full overflow-hidden rounded-lg bg-gray-200 xl:aspect-w-7 xl:aspect-h-8">
+                    <div key={image.id} className="group relative space-y-2">
+                        <div className="aspect-w-16 aspect-h-9 w-full overflow-hidden rounded-lg bg-gray-200">
                         {isImage ? (
                             <Image
                                 src={image.url}
@@ -224,8 +223,8 @@ export default function MediaPage() {
                                 data-ai-hint={image.hint}
                             />
                         ) : (
-                            <div className="flex items-center justify-center h-full bg-muted">
-                                <p className="text-xs text-center p-2">{image.title}</p>
+                            <div className="flex flex-col items-center justify-center h-full bg-muted p-2 text-center">
+                                <FileText className="w-8 h-8 text-muted-foreground" />
                             </div>
                         )}
                         {image.source === 'Uploaded' && (
@@ -248,12 +247,12 @@ export default function MediaPage() {
                             </AlertDialog>
                         )}
                         </div>
-                        <div className="mt-2 text-sm text-foreground">
+                        <div className="text-sm">
                              <h3 className="font-medium truncate">{image.title}</h3>
                              <p className="text-xs text-muted-foreground">{image.source}</p>
                              <div className="flex items-center gap-1 mt-1">
-                                <Input value={image.url} readOnly className="h-7 text-xs flex-grow" />
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => copyToClipboard(image.url)}>
+                                <Input value={image.url} readOnly className="h-7 text-xs flex-grow truncate" />
+                                <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0" onClick={() => copyToClipboard(image.url)}>
                                     <Copy className="h-4 w-4" />
                                 </Button>
                              </div>
