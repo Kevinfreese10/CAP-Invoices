@@ -89,7 +89,7 @@ export default function WebsiteAIWidget() {
           <Card className="flex flex-col h-[60vh] shadow-xl">
             <CardHeader className="flex flex-row items-center justify-between bg-gradient text-primary-foreground p-4">
               <div className="flex items-center gap-3">
-                  <div className="relative h-8 w-8 rounded-full overflow-hidden">
+                  <div className="relative h-10 w-10 rounded-full overflow-hidden">
                     <Image src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1761278314476-Playful%20Accountant%20Co.%20Logo%20Design.png?alt=media&token=d0f0c369-7b88-4e41-bdaf-400d292b592b" alt="Khai AI Assistant" fill className="object-cover" />
                   </div>
                   <CardTitle className="text-lg">Khai - Your AI Assistant</CardTitle>
@@ -99,7 +99,7 @@ export default function WebsiteAIWidget() {
               {chatHistory.map((message, index) => (
                 <div key={index} className={cn("flex items-end gap-2", message.role === 'user' ? 'justify-end' : 'justify-start')}>
                   {message.role === 'bot' && (
-                    <div className="relative h-6 w-6 rounded-full overflow-hidden flex-shrink-0">
+                    <div className="relative h-8 w-8 rounded-full overflow-hidden flex-shrink-0">
                       <Image src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1761278314476-Playful%20Accountant%20Co.%20Logo%20Design.png?alt=media&token=d0f0c369-7b88-4e41-bdaf-400d292b592b" alt="Khai AI Assistant" fill className="object-cover" />
                     </div>
                   )}
@@ -127,7 +127,7 @@ export default function WebsiteAIWidget() {
               ))}
               {isLoading && (
                  <div className="flex items-end gap-2 justify-start">
-                    <div className="relative h-6 w-6 rounded-full overflow-hidden flex-shrink-0">
+                    <div className="relative h-8 w-8 rounded-full overflow-hidden flex-shrink-0">
                       <Image src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1761278314476-Playful%20Accountant%20Co.%20Logo%20Design.png?alt=media&token=d0f0c369-7b88-4e41-bdaf-400d292b592b" alt="Khai AI Assistant" fill className="object-cover" />
                     </div>
                     <div className="p-3 rounded-lg bg-muted flex items-center">
