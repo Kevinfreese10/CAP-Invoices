@@ -98,7 +98,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   ];
   
   const aiAccountantItems = [
-     { href: `${basePath}/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['admin', 'ai_accountant'] },
+     { href: `${basePath}/ai-accountant/clients`, label: 'Clients', icon: Users, roles: ['admin'] },
   ];
 
   const capSupplierItems = [
@@ -197,7 +197,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
         ))}
 
 
-        {(user.role === 'admin' || user.role === 'ai_accountant') && (
+        {user.role === 'admin' && (
             <Collapsible open={isAiAccountantOpen} onOpenChange={setIsAiAccountantOpen}>
             <SidebarMenuItem>
                 <CollapsibleTrigger asChild>
