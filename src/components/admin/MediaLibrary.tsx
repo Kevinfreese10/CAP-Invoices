@@ -8,6 +8,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import Image from 'next/image';
 import { Loader2, FileText } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
+import { services } from '@/lib/data';
+import { useBlog } from '@/contexts/BlogContext';
 
 const storage = getStorage(firebaseApp);
 
@@ -20,38 +22,63 @@ export default function MediaLibrary({ onSelectImage, accept = "image/*" }: Medi
   const [images, setImages] = useState<{ url: string; title: string; isImage: boolean; }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useAuth();
+  const { blogPosts } = useBlog();
 
   useEffect(() => {
     const fetchImages = async () => {
-      if (!user?.uid) {
-        setIsLoading(false);
-        return;
-      }
       setIsLoading(true);
-      try {
-        const storageRef = ref(storage, `uploads/${user.uid}`);
-        const result = await listAll(storageRef);
-        
-        const urls = await Promise.all(
-          result.items.map(async (itemRef) => {
-            const url = await getDownloadURL(itemRef);
-            return {
-              url: url,
-              title: itemRef.name,
-              isImage: itemRef.name.match(/\.(jpeg|jpg|gif|png)$/) != null,
-            };
-          })
-        );
-        setImages(urls);
-      } catch (error) {
-        console.error("Error fetching images:", error);
-      } finally {
-        setIsLoading(false);
+      let allImages: { url: string; title: string; isImage: boolean; }[] = [];
+
+      // 1. Fetch from static service data
+      services.forEach(service => {
+        allImages.push({
+          url: service.imageUrl,
+          title: service.title,
+          isImage: true,
+        });
+      });
+
+      // 2. Fetch from blog posts
+      blogPosts.forEach(post => {
+        allImages.push({
+          url: post.imageUrl,
+          title: post.title,
+          isImage: true,
+        });
+      });
+
+      // 3. Fetch from user uploads in Firebase Storage
+      if (user?.uid) {
+        try {
+          const storageRef = ref(storage, `uploads/${user.uid}`);
+          const result = await listAll(storageRef);
+          
+          const uploadedUrls = await Promise.all(
+            result.items.map(async (itemRef) => {
+              const url = await getDownloadURL(itemRef);
+              return {
+                url: url,
+                title: itemRef.name,
+                isImage: itemRef.name.match(/\.(jpeg|jpg|gif|png|webp)$/i) != null,
+              };
+            })
+          );
+          allImages.push(...uploadedUrls);
+        } catch (error) {
+          console.error("Error fetching uploaded images:", error);
+          // Don't show toast here as it can be annoying
+        }
       }
+
+      // Remove duplicates by URL and set state
+      const uniqueImages = Array.from(new Map(allImages.map(item => [item.url, item])).values());
+      setImages(uniqueImages);
+
+      setIsLoading(false);
     };
 
     fetchImages();
-  }, [user]);
+  }, [user, blogPosts]);
 
   const filteredImages = images.filter(image => {
       if (accept === 'application/pdf') {
