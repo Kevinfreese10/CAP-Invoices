@@ -97,11 +97,27 @@ export default function JournalsPage() {
                     // Pre-fill one leg of the journal if customer/supplier is in URL
                     if (customerId) {
                        const customerControlAccount = clientData.chartOfAccounts?.find(acc => acc.accountNumber === '8000-001')?.id;
-                       if (customerControlAccount) form.setValue('lines.0.accountId', customerControlAccount);
+                       if (customerControlAccount) {
+                           form.setValue('lines.0.accountId', customerControlAccount, { shouldValidate: true });
+                           // Find customer name
+                           const customerRef = doc(db, `aiAccountantClients/${clientId}/customers`, customerId);
+                           const customerSnap = await getDoc(customerRef);
+                           if (customerSnap.exists()) {
+                               form.setValue('description', `Journal for ${customerSnap.data().name}`);
+                           }
+                       }
                     }
                     if (supplierId) {
                         const supplierControlAccount = clientData.chartOfAccounts?.find(acc => acc.accountNumber === '7000-000')?.id;
-                        if(supplierControlAccount) form.setValue('lines.0.accountId', supplierControlAccount);
+                        if(supplierControlAccount) {
+                            form.setValue('lines.0.accountId', supplierControlAccount, { shouldValidate: true });
+                            // Find supplier name
+                            const supplierRef = doc(db, `aiAccountantClients/${clientId}/suppliers`, supplierId);
+                            const supplierSnap = await getDoc(supplierRef);
+                            if (supplierSnap.exists()) {
+                                form.setValue('description', `Journal for ${supplierSnap.data().name}`);
+                            }
+                        }
                     }
                 }
             } catch (e) {
@@ -161,10 +177,16 @@ export default function JournalsPage() {
     
     const formatPrice = (price: number) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(price);
 
+    const journalContext = customerId ? 'Customer' : supplierId ? 'Supplier' : 'General';
+    let journalTitle = 'Post a General Journal';
+    if(journalContext === 'Customer') journalTitle = 'Post Customer Journal';
+    if(journalContext === 'Supplier') journalTitle = 'Post Supplier Journal';
+    
+
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Post a Journal</CardTitle>
+                <CardTitle>{journalTitle}</CardTitle>
                 <CardDescription>Create a manual journal entry for {client?.name || 'this client'}.</CardDescription>
             </CardHeader>
             <CardContent>
@@ -182,7 +204,7 @@ export default function JournalsPage() {
                             {fields.map((field, index) => (
                                 <div key={field.id} className="grid grid-cols-12 gap-2 items-start md:items-end">
                                     <div className="col-span-12 md:col-span-6">
-                                        <FormField control={form.control} name={`lines.${index}.accountId`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Account</FormLabel><FormControl><AccountSelector client={client} field={field} /></FormControl><FormMessage /></FormItem> )}/>
+                                        <FormField control={form.control} name={`lines.${index}.accountId`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Account</FormLabel><FormControl><AccountSelector client={client} field={field} disabled={index === 0 && (!!customerId || !!supplierId)}/></FormControl><FormMessage /></FormItem> )}/>
                                     </div>
                                     <div className="col-span-5 md:col-span-2">
                                         <FormField control={form.control} name={`lines.${index}.debit`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Debit</FormLabel><FormControl><Input type="number" step="0.01" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl><FormMessage /></FormItem> )}/>
@@ -233,13 +255,20 @@ export default function JournalsPage() {
     );
 }
 
-function AccountSelector({ client, field }: { client: User | null; field: any }) {
+function AccountSelector({ client, field, disabled }: { client: User | null; field: any, disabled?: boolean }) {
     const [open, setOpen] = useState(false);
+    
+    const accountDescription = useMemo(() => {
+        if (!field.value || !client?.chartOfAccounts) return "Select account...";
+        const account = client.chartOfAccounts.find(acc => acc.id === field.value);
+        return account ? `${account.accountNumber} - ${account.description}` : "Select account...";
+    }, [field.value, client?.chartOfAccounts]);
+
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-                <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between">
-                    {field.value ? client?.chartOfAccounts?.find(acc => acc.id === field.value)?.description : "Select account..."}
+                <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between" disabled={disabled}>
+                    <span className="truncate">{accountDescription}</span>
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-[400px] p-0">
