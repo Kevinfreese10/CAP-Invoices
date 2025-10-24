@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, PlusCircle, FileUp, Download } from 'lucide-react';
-import { getFirestore, collection, query, getDocs, doc, deleteDoc, addDoc, writeBatch, setDoc, serverTimestamp, orderBy, where } from 'firebase/firestore';
+import { getFirestore, collection, query, getDocs, doc, deleteDoc, addDoc, writeBatch, setDoc, serverTimestamp, orderBy, where, onSnapshot } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { User } from '@/lib/types';
+import { User, AllocatedTransaction } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import ClientForm from '@/components/admin/ClientForm';
@@ -40,6 +40,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
+import { format } from 'date-fns';
 
 
 const db = getFirestore(firebaseApp);
@@ -58,6 +59,12 @@ const importSchema = z.object({
   file: z.any().refine((files) => files && files.length > 0, "An Excel file is required."),
 });
 
+const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
+    }).format(price);
+};
 
 function ImportCustomersDialog({ clientId, onImportComplete }: { clientId: string; onImportComplete: () => void }) {
     const [isOpen, setIsOpen] = useState(false);
@@ -192,20 +199,39 @@ export default function ClientCustomersPage() {
     const { toast } = useToast();
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [selectedCustomer, setSelectedCustomer] = useState<ClientCustomer | null>(null);
+    const [journals, setJournals] = useState<AllocatedTransaction[]>([]);
+    const [client, setClient] = useState<User | null>(null);
 
-    const fetchCustomers = useCallback(async () => {
+    const fetchCustomersAndJournals = useCallback(async () => {
         if (!clientId) return;
         setIsLoading(true);
         try {
-            const q = query(collection(db, `aiAccountantClients/${clientId}/customers`), orderBy("name"));
-            const querySnapshot = await getDocs(q);
-            const fetchedCustomers = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as ClientCustomer));
+            const clientDoc = await getDoc(doc(db, 'aiAccountantClients', clientId));
+            if(clientDoc.exists()) setClient(clientDoc.data() as User);
+
+            const custQuery = query(collection(db, `aiAccountantClients/${clientId}/customers`), orderBy("name"));
+            const custSnapshot = await getDocs(custQuery);
+            const fetchedCustomers = custSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as ClientCustomer));
             setCustomers(fetchedCustomers);
+            
+            const customerControlAccount = clientDoc.data()?.chartOfAccounts?.find((acc: any) => acc.accountNumber === '8000-001')?.id;
+            
+            const journalQuery = query(
+                collection(db, `aiAccountantClients/${clientId}/transactions`), 
+                where("bankAccountId", "==", "JOURNAL"),
+                where("allocatedTo.value", "==", customerControlAccount),
+                orderBy("date", "desc")
+            );
+            
+            const journalSnapshot = await getDocs(journalQuery);
+            const fetchedJournals = journalSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as AllocatedTransaction));
+            setJournals(fetchedJournals);
+
         } catch (error) {
-            console.error("Error fetching customers:", error);
+            console.error("Error fetching data:", error);
             toast({
                 title: 'Error',
-                description: 'Could not fetch customers.',
+                description: 'Could not fetch customers or journals.',
                 variant: 'destructive',
             });
         } finally {
@@ -214,8 +240,8 @@ export default function ClientCustomersPage() {
     }, [clientId, toast]);
 
     useEffect(() => {
-        fetchCustomers();
-    }, [fetchCustomers]);
+        fetchCustomersAndJournals();
+    }, [fetchCustomersAndJournals]);
     
     const handleAdd = () => {
         setSelectedCustomer(null);
@@ -248,7 +274,7 @@ export default function ClientCustomersPage() {
                 toast({ title: 'Customer Created' });
             }
 
-            fetchCustomers();
+            fetchCustomersAndJournals();
             setIsFormOpen(false);
             setSelectedCustomer(null);
         } catch (error) {
@@ -266,7 +292,7 @@ export default function ClientCustomersPage() {
                 description: `The customer has been removed.`,
                 variant: 'destructive',
             });
-            fetchCustomers();
+            fetchCustomersAndJournals();
         } catch (error) {
             console.error("Error deleting customer:", error);
             toast({ title: 'Error', description: 'Could not delete customer.', variant: 'destructive' });
@@ -294,7 +320,7 @@ export default function ClientCustomersPage() {
                     <Card>
                         <CardHeader>
                              <div className="flex items-center gap-2">
-                                <ImportCustomersDialog clientId={clientId} onImportComplete={fetchCustomers} />
+                                <ImportCustomersDialog clientId={clientId} onImportComplete={fetchCustomersAndJournals} />
                                 <Dialog open={isFormOpen} onOpenChange={(isOpen) => { setIsFormOpen(isOpen); if (!isOpen) setSelectedCustomer(null); }}>
                                    <DialogTrigger asChild>
                                         <Button onClick={handleAdd}>
@@ -411,10 +437,34 @@ export default function ClientCustomersPage() {
                             </div>
                         </CardHeader>
                         <CardContent>
-                             <div className="text-center py-10 border-2 border-dashed rounded-lg">
-                                <h3 className="text-lg font-medium">Coming Soon</h3>
-                                <p className="text-sm text-muted-foreground">Functionality to manage customer journals will be available here.</p>
-                            </div>
+                             <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Reference</TableHead>
+                                        <TableHead>Description</TableHead>
+                                        <TableHead className="text-right">Amount</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {journals.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={4} className="text-center h-24 text-muted-foreground">
+                                                No customer journals have been posted yet.
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        journals.map(journal => (
+                                            <TableRow key={journal.id}>
+                                                <TableCell>{format(new Date(journal.date), 'dd/MM/yyyy')}</TableCell>
+                                                <TableCell>{journal.reference}</TableCell>
+                                                <TableCell>{journal.description}</TableCell>
+                                                <TableCell className="text-right font-mono">{formatPrice(journal.amount)}</TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
                         </CardContent>
                     </Card>
                 </TabsContent>

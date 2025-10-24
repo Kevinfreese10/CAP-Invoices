@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, PlusCircle, Trash2, Edit, MoreHorizontal, FileUp, Download, BookUser } from 'lucide-react';
-import { getFirestore, collection, query, getDocs, doc, deleteDoc, addDoc, writeBatch, orderBy } from 'firebase/firestore';
+import { getFirestore, collection, query, getDocs, doc, deleteDoc, addDoc, writeBatch, orderBy, where, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Supplier } from '@/lib/types';
+import { Supplier, AllocatedTransaction, User } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -21,6 +21,7 @@ import * as XLSX from 'xlsx';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
+import { format } from 'date-fns';
 
 const formSchema = z.object({
   id: z.string().optional(),
@@ -30,6 +31,14 @@ const formSchema = z.object({
 const importSchema = z.object({
   file: z.any().refine((files) => files && files.length > 0, "An Excel/CSV file is required."),
 });
+
+const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
+    }).format(price);
+};
+
 
 function ImportSuppliersDialog({ clientId, onImportComplete }: { clientId: string; onImportComplete: () => void }) {
     const [isOpen, setIsOpen] = useState(false);
@@ -158,6 +167,7 @@ export default function SuppliersPage() {
     const params = useParams();
     const clientId = params.clientId as string;
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+    const [journals, setJournals] = useState<AllocatedTransaction[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -167,13 +177,30 @@ export default function SuppliersPage() {
         resolver: zodResolver(formSchema),
     });
 
-    const fetchSuppliers = useCallback(async () => {
+    const fetchSuppliersAndJournals = useCallback(async () => {
         if (!clientId) return;
         setIsLoading(true);
         try {
-            const q = query(collection(db, `aiAccountantClients/${clientId}/suppliers`), orderBy("name"));
-            const querySnapshot = await getDocs(q);
-            setSuppliers(querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Supplier)));
+            const clientDoc = await getDoc(doc(db, 'aiAccountantClients', clientId));
+            if(!clientDoc.exists()) throw new Error("Client not found");
+
+            const supQuery = query(collection(db, `aiAccountantClients/${clientId}/suppliers`), orderBy("name"));
+            const supSnapshot = await getDocs(supQuery);
+            setSuppliers(supSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Supplier)));
+            
+            const supplierControlAccount = clientDoc.data()?.chartOfAccounts?.find((acc: any) => acc.accountNumber === '7000-000')?.id;
+            
+            const journalQuery = query(
+                collection(db, `aiAccountantClients/${clientId}/transactions`), 
+                where("bankAccountId", "==", "JOURNAL"),
+                where("allocatedTo.value", "==", supplierControlAccount),
+                orderBy("date", "desc")
+            );
+            
+            const journalSnapshot = await getDocs(journalQuery);
+            const fetchedJournals = journalSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as AllocatedTransaction));
+            setJournals(fetchedJournals);
+
         } catch (error) {
             toast({ title: 'Error', description: 'Could not fetch suppliers.', variant: 'destructive' });
         } finally {
@@ -182,8 +209,8 @@ export default function SuppliersPage() {
     }, [clientId, toast]);
 
     useEffect(() => {
-        fetchSuppliers();
-    }, [fetchSuppliers]);
+        fetchSuppliersAndJournals();
+    }, [fetchSuppliersAndJournals]);
 
     const handleAdd = () => {
         setSelectedSupplier(null);
@@ -206,7 +233,7 @@ export default function SuppliersPage() {
                 await addDoc(collection(db, `aiAccountantClients/${clientId}/suppliers`), data);
                 toast({ title: 'Supplier Created' });
             }
-            fetchSuppliers();
+            fetchSuppliersAndJournals();
             setIsFormOpen(false);
         } catch (error) {
             toast({ title: 'Error', description: 'Could not save the supplier.', variant: 'destructive'});
@@ -217,7 +244,7 @@ export default function SuppliersPage() {
         try {
             await deleteDoc(doc(db, `aiAccountantClients/${clientId}/suppliers`, supplierId));
             toast({ title: 'Supplier Deleted', variant: 'destructive' });
-            fetchSuppliers();
+            fetchSuppliersAndJournals();
         } catch (error) {
             toast({ title: 'Error', description: 'Could not delete supplier.', variant: 'destructive' });
         }
@@ -259,7 +286,7 @@ export default function SuppliersPage() {
                     <Card>
                         <CardHeader>
                             <div className="flex items-center gap-2">
-                                <ImportSuppliersDialog clientId={clientId} onImportComplete={fetchSuppliers} />
+                                <ImportSuppliersDialog clientId={clientId} onImportComplete={fetchSuppliersAndJournals} />
                                 <Button onClick={handleAdd}><PlusCircle className="mr-2 h-4 w-4" /> Create Supplier</Button>
                             </div>
                         </CardHeader>
@@ -323,10 +350,34 @@ export default function SuppliersPage() {
                             </div>
                         </CardHeader>
                         <CardContent>
-                             <div className="text-center py-10 border-2 border-dashed rounded-lg">
-                                <h3 className="text-lg font-medium">Coming Soon</h3>
-                                <p className="text-sm text-muted-foreground">Functionality to manage supplier journals will be available here.</p>
-                            </div>
+                              <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Reference</TableHead>
+                                        <TableHead>Description</TableHead>
+                                        <TableHead className="text-right">Amount</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {journals.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={4} className="text-center h-24 text-muted-foreground">
+                                                No supplier journals have been posted yet.
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        journals.map(journal => (
+                                            <TableRow key={journal.id}>
+                                                <TableCell>{format(new Date(journal.date), 'dd/MM/yyyy')}</TableCell>
+                                                <TableCell>{journal.reference}</TableCell>
+                                                <TableCell>{journal.description}</TableCell>
+                                                <TableCell className="text-right font-mono">{formatPrice(journal.amount)}</TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
                         </CardContent>
                     </Card>
                 </TabsContent>
