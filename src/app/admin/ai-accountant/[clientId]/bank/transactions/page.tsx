@@ -951,8 +951,7 @@ const NewTransactionsTab = React.forwardRef<
             constraints.push(where('amount', '>=', 0));
         }
         
-        // Firestore doesn't support inequality filters on multiple fields,
-        // so if we are searching, we cannot sort by a different field.
+        // Use a single orderBy clause. If searching, sort by description. Otherwise, by the selected field.
         if (searchTerm) {
             constraints.push(where('description', '>=', searchTerm.toUpperCase()));
             constraints.push(where('description', '<=', searchTerm.toUpperCase() + '\uf8ff'));
