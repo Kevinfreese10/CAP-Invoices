@@ -939,27 +939,32 @@ const NewTransactionsTab = React.forwardRef<
     
     const newTransactionsQuery = useMemo(() => {
         if (!client?.uid || !bankAccountId) return null;
-        
+    
         let constraints: QueryConstraint[] = [
             where('bankAccountId', '==', bankAccountId),
             where('status', '==', 'new'),
         ];
-        
+    
         if (activeSubTab === 'expenses') {
             constraints.push(where('amount', '<', 0));
         } else {
             constraints.push(where('amount', '>=', 0));
         }
-        
-        // Use a single orderBy clause. If searching, sort by description. Otherwise, by the selected field.
+    
         if (searchTerm) {
-            constraints.push(where('description', '>=', searchTerm.toUpperCase()));
-            constraints.push(where('description', '<=', searchTerm.toUpperCase() + '\uf8ff'));
-            constraints.push(orderBy('description', sortDirection));
+            const searchTermLower = searchTerm.toLowerCase();
+            constraints.push(where('description', '>=', searchTermLower));
+            constraints.push(where('description', '<=', searchTermLower + '\uf8ff'));
+            constraints.push(orderBy('description', 'asc')); // Firestore requires the first orderBy to be on the inequality field.
         } else {
-            constraints.push(orderBy(sortField, sortDirection));
+            // Firestore requires the first orderBy field to be the same as the inequality field, if one exists.
+            if(constraints.some(c => c.type === 'where' && (c as any)._op === '<')) {
+                constraints.push(orderBy('amount', sortDirection === 'asc' ? 'desc' : 'asc')); // Amount < 0, so sorting visually asc means firestore desc
+            } else {
+                 constraints.push(orderBy(sortField, sortDirection));
+            }
         }
-
+    
         return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
     }, [client?.uid, bankAccountId, activeSubTab, sortField, sortDirection, searchTerm]);
 
@@ -1598,11 +1603,16 @@ const ForReviewTab = React.forwardRef<
         }
 
         if (searchTerm) {
-            constraints.push(where('description', '>=', searchTerm.toUpperCase()));
-            constraints.push(where('description', '<=', searchTerm.toUpperCase() + '\uf8ff'));
-            constraints.push(orderBy('description', sortDirection));
+            const searchTermLower = searchTerm.toLowerCase();
+            constraints.push(where('description', '>=', searchTermLower));
+            constraints.push(where('description', '<=', searchTermLower + '\uf8ff'));
+            constraints.push(orderBy('description', 'asc')); // Firestore requires the first orderBy to be on the inequality field.
         } else {
-            constraints.push(orderBy(sortField, sortDirection));
+            if(constraints.some(c => c.type === 'where' && (c as any)._op === '<')) {
+                constraints.push(orderBy('amount', sortDirection === 'asc' ? 'desc' : 'asc'));
+            } else {
+                 constraints.push(orderBy(sortField, sortDirection));
+            }
         }
         
         return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
@@ -1823,9 +1833,10 @@ const ReviewedTab = React.forwardRef<
         ];
         
         if (searchTerm) {
-            constraints.push(where('description', '>=', searchTerm.toUpperCase()));
-            constraints.push(where('description', '<=', searchTerm.toUpperCase() + '\uf8ff'));
-            constraints.push(orderBy('description', sortDirection));
+            const searchTermLower = searchTerm.toLowerCase();
+            constraints.push(where('description', '>=', searchTermLower));
+            constraints.push(where('description', '<=', searchTermLower + '\uf8ff'));
+            constraints.push(orderBy('description', 'asc'));
         } else {
             constraints.push(orderBy(sortField, sortDirection));
         }
