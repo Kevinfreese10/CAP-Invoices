@@ -10,42 +10,41 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useForm, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Plus, Trash2 } from 'lucide-react';
-import { getFirestore, doc, addDoc, getDoc, collection, writeBatch } from 'firebase/firestore';
+import { Loader2, Plus, Trash2, CalendarIcon } from 'lucide-react';
+import { getFirestore, doc, addDoc, getDoc, collection, writeBatch, query, where, getDocs } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { User, ChartOfAccount } from '@/lib/types';
+import { User, ChartOfAccount, ClientCustomer, Supplier } from '@/lib/types';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { CalendarIcon } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { allVatTypes } from '@/lib/vat-types';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const db = getFirestore(firebaseApp);
 
 const journalLineSchema = z.object({
-    accountId: z.string().min(1, "Account is required."),
-    debit: z.number().min(0).optional(),
-    credit: z.number().min(0).optional(),
+    date: z.date(),
+    effect: z.enum(['Increase', 'Decrease']),
+    customerId: z.string().optional(),
+    supplierId: z.string().optional(),
+    reference: z.string().optional(),
+    description: z.string().min(1, "Description is required."),
+    vatType: z.string(),
+    exclusiveAmount: z.number().min(0, "Amount must be positive."),
+    vatAmount: z.number(),
+    inclusiveAmount: z.number(),
+    affectingAccountId: z.string().min(1, "Affecting account is required."),
 });
 
-const journalFormSchema = z.object({
-    date: z.date({ required_error: "A date is required." }),
-    description: z.string().min(3, "Description is required."),
-    lines: z.array(journalLineSchema).min(2, "At least two lines are required."),
-    narration: z.string().optional(),
-}).refine(data => {
-    const totalDebits = data.lines.reduce((sum, line) => sum + (line.debit || 0), 0);
-    const totalCredits = data.lines.reduce((sum, line) => sum + (line.credit || 0), 0);
-    return Math.abs(totalDebits - totalCredits) < 0.01; // Allow for floating point inaccuracies
-}, {
-    message: "Total debits must equal total credits.",
-    path: ["lines"],
+const formSchema = z.object({
+  lines: z.array(journalLineSchema).min(1, "At least one journal line is required."),
 });
 
-type JournalFormValues = z.infer<typeof journalFormSchema>;
+type JournalFormValues = z.infer<typeof formSchema>;
 
 export default function JournalsPage() {
     const params = useParams();
@@ -54,19 +53,26 @@ export default function JournalsPage() {
     const customerId = searchParams.get('customer');
     const supplierId = searchParams.get('supplier');
     const [client, setClient] = useState<User | null>(null);
+    const [customers, setCustomers] = useState<ClientCustomer[]>([]);
+    const [suppliers, setSuppliers] = useState<Supplier[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
 
     const form = useForm<JournalFormValues>({
-        resolver: zodResolver(journalFormSchema),
+        resolver: zodResolver(formSchema),
         defaultValues: {
-            date: new Date(),
-            description: '',
-            narration: '',
-            lines: [
-                { accountId: '', debit: 0, credit: 0 },
-                { accountId: '', debit: 0, credit: 0 },
-            ],
+            lines: [{
+                date: new Date(),
+                effect: 'Increase',
+                description: '',
+                vatType: 'no_vat',
+                exclusiveAmount: 0,
+                vatAmount: 0,
+                inclusiveAmount: 0,
+                affectingAccountId: '',
+                ...(customerId && { customerId: customerId }),
+                ...(supplierId && { supplierId: supplierId }),
+            }],
         },
     });
 
@@ -74,60 +80,45 @@ export default function JournalsPage() {
         control: form.control,
         name: "lines",
     });
-    
+
     const watchedLines = form.watch("lines");
 
-    const totals = useMemo(() => {
-        const totalDebits = watchedLines.reduce((sum, line) => sum + (Number(line.debit) || 0), 0);
-        const totalCredits = watchedLines.reduce((sum, line) => sum + (Number(line.credit) || 0), 0);
-        return { totalDebits, totalCredits, difference: totalDebits - totalCredits };
-    }, [watchedLines]);
-
     useEffect(() => {
-        const fetchClient = async () => {
+        const fetchRelatedData = async () => {
             if (!clientId) return;
             setIsLoading(true);
             try {
                 const clientRef = doc(db, 'aiAccountantClients', clientId);
                 const clientSnap = await getDoc(clientRef);
                 if (clientSnap.exists()) {
-                    const clientData = { id: clientSnap.id, ...clientSnap.data() } as User;
-                    setClient(clientData);
-
-                    // Pre-fill one leg of the journal if customer/supplier is in URL
-                    if (customerId) {
-                       const customerControlAccount = clientData.chartOfAccounts?.find(acc => acc.accountNumber === '8000-001')?.id;
-                       if (customerControlAccount) {
-                           form.setValue('lines.0.accountId', customerControlAccount, { shouldValidate: true });
-                           // Find customer name
-                           const customerRef = doc(db, `aiAccountantClients/${clientId}/customers`, customerId);
-                           const customerSnap = await getDoc(customerRef);
-                           if (customerSnap.exists()) {
-                               form.setValue('description', `Journal for ${customerSnap.data().name}`);
-                           }
-                       }
-                    }
-                    if (supplierId) {
-                        const supplierControlAccount = clientData.chartOfAccounts?.find(acc => acc.accountNumber === '7000-000')?.id;
-                        if(supplierControlAccount) {
-                            form.setValue('lines.0.accountId', supplierControlAccount, { shouldValidate: true });
-                            // Find supplier name
-                            const supplierRef = doc(db, `aiAccountantClients/${clientId}/suppliers`, supplierId);
-                            const supplierSnap = await getDoc(supplierRef);
-                            if (supplierSnap.exists()) {
-                                form.setValue('description', `Journal for ${supplierSnap.data().name}`);
-                            }
-                        }
-                    }
+                    setClient(clientSnap.data() as User);
                 }
+
+                const customersQuery = query(collection(db, `aiAccountantClients/${clientId}/customers`));
+                const customersSnapshot = await getDocs(customersQuery);
+                setCustomers(customersSnapshot.docs.map(d => ({id: d.id, ...d.data()} as ClientCustomer)));
+
+                const suppliersQuery = query(collection(db, `aiAccountantClients/${clientId}/suppliers`));
+                const suppliersSnapshot = await getDocs(suppliersQuery);
+                setSuppliers(suppliersSnapshot.docs.map(d => ({id: d.id, ...d.data()} as Supplier)));
+
             } catch (e) {
                 toast({ title: 'Error', description: 'Failed to fetch client data.', variant: 'destructive' });
             } finally {
                 setIsLoading(false);
             }
         };
-        fetchClient();
-    }, [clientId, customerId, supplierId, toast, form]);
+        fetchRelatedData();
+    }, [clientId, toast]);
+    
+     const updateLineAmounts = (index: number) => {
+        const line = form.getValues(`lines.${index}`);
+        const vatRate = line.vatType === 'standard_rated_sales' || line.vatType === 'standard_rated_purchases' ? 0.15 : 0;
+        const vatAmount = line.exclusiveAmount * vatRate;
+        const inclusiveAmount = line.exclusiveAmount + vatAmount;
+        form.setValue(`lines.${index}.vatAmount`, vatAmount);
+        form.setValue(`lines.${index}.inclusiveAmount`, inclusiveAmount);
+    };
 
     const onSubmit = async (data: JournalFormValues) => {
         if (!client) return;
@@ -137,35 +128,71 @@ export default function JournalsPage() {
             const batch = writeBatch(db);
             const journalRef = `JNL-${Date.now()}`;
 
+            const customerControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '8000-001')?.id;
+            const supplierControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '7000-000')?.id;
+            
+            if (!customerControlAccount || !supplierControlAccount) {
+                toast({ title: 'Error', description: 'Customer or Supplier control account not found.', variant: 'destructive' });
+                setIsLoading(false);
+                return;
+            }
+
             data.lines.forEach((line) => {
-                if((line.debit || 0) > 0 || (line.credit || 0) > 0) {
-                    const transRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
-                    batch.set(transRef, {
-                        clientId: client.id,
-                        date: data.date.toISOString(),
-                        reference: journalRef,
-                        description: data.description,
-                        amount: (line.debit || 0) - (line.credit || 0),
-                        bankAccountId: 'JOURNAL', // Special identifier for journals
-                        allocatedTo: { value: line.accountId, type: 'account' },
-                        vatType: 'no_vat',
-                        status: 'allocated',
-                        allocatedAt: new Date(),
-                    });
+                let primaryAmount = line.inclusiveAmount;
+                if (line.effect === 'Decrease') {
+                    primaryAmount = -primaryAmount;
                 }
+
+                const primaryAccountId = line.customerId ? customerControlAccount : supplierControlAccount;
+                const primaryActorName = line.customerId ? customers.find(c => c.id === line.customerId)?.name : suppliers.find(s => s.id === line.supplierId)?.name;
+
+                // Entry for the Customer/Supplier control account
+                const primaryRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
+                batch.set(primaryRef, {
+                    clientId: client.id,
+                    date: line.date.toISOString(),
+                    reference: line.reference || journalRef,
+                    description: `Journal for ${primaryActorName}: ${line.description}`,
+                    amount: primaryAmount,
+                    bankAccountId: 'JOURNAL',
+                    allocatedTo: { value: primaryAccountId, type: 'account' },
+                    vatType: 'no_vat',
+                    status: 'allocated',
+                    allocatedAt: new Date(),
+                });
+
+                // Contra Entry
+                const contraRef = doc(collection(db, 'aiAccountantClients', client.id, 'transactions'));
+                batch.set(contraRef, {
+                    clientId: client.id,
+                    date: line.date.toISOString(),
+                    reference: line.reference || journalRef,
+                    description: line.description,
+                    amount: -primaryAmount,
+                    bankAccountId: 'JOURNAL',
+                    allocatedTo: { value: line.affectingAccountId, type: 'account' },
+                    vatType: line.vatType,
+                    status: 'allocated',
+                    allocatedAt: new Date(),
+                });
             });
 
             await batch.commit();
 
             toast({ title: 'Journal Posted', description: 'The journal entry has been successfully recorded.' });
             form.reset({
-                date: new Date(),
-                description: '',
-                narration: '',
-                lines: [
-                    { accountId: '', debit: 0, credit: 0 },
-                    { accountId: '', debit: 0, credit: 0 },
-                ],
+                lines: [{
+                    date: new Date(),
+                    effect: 'Increase',
+                    description: '',
+                    vatType: 'no_vat',
+                    exclusiveAmount: 0,
+                    vatAmount: 0,
+                    inclusiveAmount: 0,
+                    affectingAccountId: '',
+                    ...(customerId && { customerId: customerId }),
+                    ...(supplierId && { supplierId: supplierId }),
+                }],
             });
         } catch (error) {
             toast({ title: 'Error', description: 'Failed to post journal entry.', variant: 'destructive' });
@@ -175,77 +202,73 @@ export default function JournalsPage() {
         }
     };
     
-    const formatPrice = (price: number) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(price);
-
-    const journalContext = customerId ? 'Customer' : supplierId ? 'Supplier' : 'General';
-    let journalTitle = 'Post a General Journal';
-    if(journalContext === 'Customer') journalTitle = 'Post Customer Journal';
-    if(journalContext === 'Supplier') journalTitle = 'Post Supplier Journal';
-    
-
     return (
         <Card>
             <CardHeader>
-                <CardTitle>{journalTitle}</CardTitle>
-                <CardDescription>Create a manual journal entry for {client?.name || 'this client'}.</CardDescription>
+                <div className="flex justify-between items-center">
+                    <div>
+                        <CardTitle>Post Journals</CardTitle>
+                        <CardDescription>Create manual journal entries. Each line represents a distinct entry.</CardDescription>
+                    </div>
+                    <Button>Import</Button>
+                </div>
             </CardHeader>
             <CardContent>
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                             <FormField control={form.control} name="date" render={({ field }) => ( <FormItem><FormLabel>Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => date > new Date() || date < new Date("1900-01-01")} initialFocus/></PopoverContent></Popover><FormMessage /></FormItem> )}/>
-                            <div className="md:col-span-2">
-                                <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Journal Description</FormLabel><FormControl><Input {...field} placeholder="e.g., To record monthly salaries" /></FormControl><FormMessage /></FormItem> )}/>
-                            </div>
-                        </div>
-
-                        <div className="space-y-2">
-                            <div className="hidden md:grid md:grid-cols-12 gap-2 text-sm font-medium"><div className="col-span-6"><p>Account</p></div><div className="col-span-2"><p>Debit</p></div><div className="col-span-2"><p>Credit</p></div><div className="col-span-2"></div></div>
-                            {fields.map((field, index) => (
-                                <div key={field.id} className="grid grid-cols-12 gap-2 items-start md:items-end">
-                                    <div className="col-span-12 md:col-span-6">
-                                        <FormField control={form.control} name={`lines.${index}.accountId`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Account</FormLabel><FormControl><AccountSelector client={client} field={field} disabled={index === 0 && (!!customerId || !!supplierId)}/></FormControl><FormMessage /></FormItem> )}/>
-                                    </div>
-                                    <div className="col-span-5 md:col-span-2">
-                                        <FormField control={form.control} name={`lines.${index}.debit`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Debit</FormLabel><FormControl><Input type="number" step="0.01" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl><FormMessage /></FormItem> )}/>
-                                    </div>
-                                    <div className="col-span-5 md:col-span-2">
-                                        <FormField control={form.control} name={`lines.${index}.credit`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Credit</FormLabel><FormControl><Input type="number" step="0.01" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)}/></FormControl><FormMessage /></FormItem> )}/>
-                                    </div>
-                                    <div className="col-span-2 flex justify-end">
-                                        <Button type="button" variant="destructive" size="icon" onClick={() => remove(index)} disabled={fields.length <= 2}>
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                        <Button type="button" variant="outline" size="sm" onClick={() => append({ accountId: '', debit: 0, credit: 0 })}>
-                            <Plus className="mr-2 h-4 w-4" /> Add Line
-                        </Button>
-
-                         {form.formState.errors.lines?.root && (
-                            <FormMessage>{form.formState.errors.lines.root.message}</FormMessage>
-                        )}
-                        
-                        <CardFooter className="p-4 bg-muted rounded-lg mt-4 flex justify-between items-center">
-                            <div className="flex gap-8">
-                                <div>
-                                    <p className="text-sm">Total Debits</p>
-                                    <p className="font-mono font-semibold">{formatPrice(totals.totalDebits)}</p>
-                                </div>
-                                 <div>
-                                    <p className="text-sm">Total Credits</p>
-                                    <p className="font-mono font-semibold">{formatPrice(totals.totalCredits)}</p>
-                                </div>
-                                 <div>
-                                    <p className="text-sm">Difference</p>
-                                    <p className={cn("font-mono font-semibold", totals.difference !== 0 && "text-destructive")}>{formatPrice(totals.difference)}</p>
-                                </div>
-                            </div>
-                             <Button type="submit" disabled={isLoading || totals.difference !== 0}>
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                         <div className="border rounded-lg overflow-x-auto">
+                           <table className="min-w-full divide-y divide-gray-200">
+                             <thead className="bg-gray-50">
+                               <tr>
+                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Effect</th>
+                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{supplierId ? 'Supplier' : 'Customer'}</th>
+                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reference</th>
+                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">VAT %</th>
+                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Excl. VAT</th>
+                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">VAT</th>
+                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Incl. VAT</th>
+                                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">by Affecting Acc.</th>
+                                 <th className="px-3 py-2"></th>
+                               </tr>
+                             </thead>
+                             <tbody className="bg-white divide-y divide-gray-200">
+                                {fields.map((field, index) => (
+                                   <tr key={field.id}>
+                                        <td className="px-2 py-1 whitespace-nowrap">
+                                            <FormField control={form.control} name={`lines.${index}.date`} render={({ field }) => ( <FormItem><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} size="sm" className="w-[150px] justify-start text-left font-normal h-8"><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "dd/MM/yyyy") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover></FormItem> )}/>
+                                        </td>
+                                         <td className="px-2 py-1 whitespace-nowrap">
+                                            <FormField control={form.control} name={`lines.${index}.effect`} render={({ field }) => ( <FormItem><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="h-8 w-[120px]"><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="Increase">Increase</SelectItem><SelectItem value="Decrease">Decrease</SelectItem></SelectContent></Select></FormItem> )}/>
+                                        </td>
+                                         <td className="px-2 py-1 whitespace-nowrap">
+                                             <FormField control={form.control} name={supplierId ? `lines.${index}.supplierId` : `lines.${index}.customerId`} render={({ field }) => ( <FormItem><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="h-8 w-[200px]"><SelectValue placeholder="Select..." /></SelectTrigger></FormControl><SelectContent>{(supplierId ? suppliers : customers).map(item => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></FormItem> )}/>
+                                        </td>
+                                        <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.reference`} render={({ field }) => ( <Input className="h-8" {...field} /> )}/></td>
+                                        <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.description`} render={({ field }) => ( <Input className="h-8" {...field} /> )}/></td>
+                                        <td className="px-2 py-1 whitespace-nowrap">
+                                            <FormField control={form.control} name={`lines.${index}.vatType`} render={({ field }) => ( <FormItem><Select onValueChange={(value) => { field.onChange(value); updateLineAmounts(index); }} defaultValue={field.value}><FormControl><SelectTrigger className="h-8 w-[180px]"><SelectValue /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select></FormItem> )}/>
+                                        </td>
+                                        <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.exclusiveAmount`} render={({ field }) => ( <Input type="number" className="h-8" {...field} onChange={(e) => {field.onChange(parseFloat(e.target.value) || 0); updateLineAmounts(index); }} /> )}/></td>
+                                        <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.vatAmount`} render={({ field }) => ( <Input type="number" className="h-8 bg-muted" readOnly {...field} /> )}/></td>
+                                        <td className="px-2 py-1 whitespace-nowrap"><FormField control={form.control} name={`lines.${index}.inclusiveAmount`} render={({ field }) => ( <Input type="number" className="h-8 bg-muted" readOnly {...field} /> )}/></td>
+                                        <td className="px-2 py-1 whitespace-nowrap">
+                                            <FormField control={form.control} name={`lines.${index}.affectingAccountId`} render={({ field }) => ( <FormItem><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="h-8 w-[200px]"><SelectValue placeholder="Select account..." /></SelectTrigger></FormControl><SelectContent>{client?.chartOfAccounts?.filter(a => a.section === 'Income Statement').map(acc => ( <SelectItem key={acc.id} value={acc.id}>{acc.description}</SelectItem>))}</SelectContent></Select></FormItem> )}/>
+                                        </td>
+                                        <td className="px-2 py-1 whitespace-nowrap">
+                                            <Button type="button" size="icon" variant="ghost" onClick={() => append({ date: new Date(), effect: 'Increase', description: '', vatType: 'no_vat', exclusiveAmount: 0, vatAmount: 0, inclusiveAmount: 0, affectingAccountId: '', ...(customerId && { customerId: customerId }), ...(supplierId && { supplierId: supplierId })})}><Plus className="h-4 w-4 text-green-600" /></Button>
+                                            <Button type="button" size="icon" variant="ghost" onClick={() => remove(index)} disabled={fields.length <= 1}><Trash2 className="h-4 w-4 text-red-600" /></Button>
+                                        </td>
+                                  </tr>
+                                ))}
+                             </tbody>
+                           </table>
+                         </div>
+                         <CardFooter className="p-4 bg-muted rounded-b-lg mt-4 flex justify-end">
+                             <Button type="submit" disabled={isLoading}>
                                 {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                Post Journal
+                                Post Journals
                             </Button>
                         </CardFooter>
                     </form>
@@ -255,42 +278,3 @@ export default function JournalsPage() {
     );
 }
 
-function AccountSelector({ client, field, disabled }: { client: User | null; field: any, disabled?: boolean }) {
-    const [open, setOpen] = useState(false);
-    
-    const accountDescription = useMemo(() => {
-        if (!field.value || !client?.chartOfAccounts) return "Select account...";
-        const account = client.chartOfAccounts.find(acc => acc.id === field.value);
-        return account ? `${account.accountNumber} - ${account.description}` : "Select account...";
-    }, [field.value, client?.chartOfAccounts]);
-
-    return (
-        <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-                <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between" disabled={disabled}>
-                    <span className="truncate">{accountDescription}</span>
-                </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[400px] p-0">
-                <Command>
-                    <CommandInput placeholder="Search account..." />
-                    <CommandEmpty>No account found.</CommandEmpty>
-                    <CommandList>
-                        {client?.chartOfAccounts?.map(acc => (
-                            <CommandItem
-                                key={acc.id}
-                                value={`${acc.accountNumber} ${acc.description}`}
-                                onSelect={() => {
-                                    field.onChange(acc.id);
-                                    setOpen(false);
-                                }}
-                            >
-                                {acc.accountNumber} - {acc.description}
-                            </CommandItem>
-                        ))}
-                    </CommandList>
-                </Command>
-            </PopoverContent>
-        </Popover>
-    );
-}
