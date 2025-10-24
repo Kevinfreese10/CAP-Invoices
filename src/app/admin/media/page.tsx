@@ -217,8 +217,8 @@ export default function MediaPage() {
                 {uniqueImages.map((image) => {
                     const isImage = image.url.includes('.png') || image.url.includes('.jpg') || image.url.includes('.jpeg') || image.url.includes('.gif') || image.url.includes('firebasestorage');
                     return (
-                    <div key={image.id} className="group relative space-y-2">
-                        <div className="aspect-square w-full overflow-hidden rounded-lg bg-muted border">
+                    <div key={image.id} className="group space-y-2">
+                        <div className="aspect-square w-full overflow-hidden rounded-lg bg-muted border relative">
                         {isImage ? (
                             <Image
                                 src={image.url}
