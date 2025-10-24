@@ -14,6 +14,7 @@ import { Loader2, MessageCircle, Send, X, Bot, User, ArrowRight } from 'lucide-r
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
+import Image from 'next/image';
 
 const formSchema = z.object({
   question: z.string().min(1, 'Cannot send an empty message.'),
@@ -88,7 +89,9 @@ export default function WebsiteAIWidget() {
           <Card className="flex flex-col h-[60vh] shadow-xl">
             <CardHeader className="flex flex-row items-center justify-between bg-gradient text-primary-foreground p-4">
               <div className="flex items-center gap-3">
-                  <Bot className="h-6 w-6" />
+                  <div className="relative h-8 w-8 rounded-full overflow-hidden">
+                    <Image src="https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1761278314476-Playful%20Accountant%20Co.%20Logo%20Design.png?alt=media&token=d0f0c369-7b88-4e41-bdaf-400d292b592b" alt="Khai AI Assistant" fill className="object-cover" />
+                  </div>
                   <CardTitle className="text-lg">Khai - Your AI Assistant</CardTitle>
               </div>
             </CardHeader>
