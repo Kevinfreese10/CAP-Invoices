@@ -2,6 +2,7 @@
 
 
 
+
 export type VatType =
   // Output Tax
   | 'standard_rated_sales'
@@ -251,6 +252,12 @@ export type ClientCustomer = {
     vatNumber?: string;
 }
 
+export type Supplier = {
+  id: string;
+  name: string;
+};
+
+
 export type DiscountCode = {
   id: string; // The code itself
   percentage: number;
@@ -317,14 +324,6 @@ export type AllocatedTransaction = {
     vatAmount: number;
     status: 'allocated';
     allocatedAt: any; // Using `any` for Firestore Timestamp compatibility
-};
-
-export type Supplier = {
-    id: string;
-    name: string;
-    contactPerson?: string;
-    email?: string;
-    phone?: string;
 };
 
 export type ExtractedInvoice = {

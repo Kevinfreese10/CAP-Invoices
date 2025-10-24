@@ -1,15 +1,15 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, PlusCircle } from 'lucide-react';
+import { Loader2, PlusCircle, FileUp } from 'lucide-react';
 import { getFirestore, collection, query, getDocs, doc, deleteDoc, addDoc, writeBatch, setDoc, serverTimestamp, orderBy, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { User } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import ClientForm from '@/components/admin/ClientForm';
 import { useAuth } from '@/contexts/AuthContext';
 import { useParams } from 'next/navigation';
@@ -33,6 +33,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { Input } from '@/components/ui/input';
+import * as XLSX from 'xlsx';
 
 
 const db = getFirestore(firebaseApp);
@@ -47,6 +49,84 @@ type ClientCustomer = {
     vatNumber?: string;
 }
 
+const importSchema = z.object({
+  file: z.any().refine((files) => files && files.length > 0, "An Excel file is required."),
+});
+
+
+function ImportCustomersDialog({ clientId, onImportComplete }: { clientId: string; onImportComplete: () => void }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const { toast } = useToast();
+    const form = useForm<z.infer<typeof importSchema>>({
+        resolver: zodResolver(importSchema),
+    });
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsUploading(true);
+        toast({ title: "Reading file..." });
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const data = new Uint8Array(event.target?.result as ArrayBuffer);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                const json = XLSX.utils.sheet_to_json(worksheet) as { 'Customer Name'?: string }[];
+
+                const customerNames = json.map(row => row['Customer Name']).filter((name): name is string => !!name);
+
+                if (customerNames.length === 0) {
+                    toast({ title: "No customers found", description: "Make sure your Excel file has a column named 'Customer Name'.", variant: "destructive" });
+                    setIsUploading(false);
+                    return;
+                }
+
+                const batch = writeBatch(db);
+                customerNames.forEach(name => {
+                    const docRef = doc(collection(db, `aiAccountantClients/${clientId}/customers`));
+                    batch.set(docRef, { name });
+                });
+
+                await batch.commit();
+
+                toast({ title: "Import Successful", description: `${customerNames.length} customers have been imported.` });
+                onImportComplete();
+                setIsOpen(false);
+            } catch (error) {
+                console.error("Error importing customers:", error);
+                toast({ title: "Import Failed", description: "An error occurred during the import.", variant: "destructive" });
+            } finally {
+                setIsUploading(false);
+                form.reset();
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    };
+    
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline"><FileUp className="mr-2 h-4 w-4" /> Import Customers</Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Import Customers from Excel</DialogTitle>
+                    <DialogDescription>Upload an .xlsx file with a column named "Customer Name" to bulk import customers.</DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                    <Input id="customer-file" type="file" accept=".xlsx" onChange={handleFileChange} disabled={isUploading} />
+                    {isUploading && <div className="flex items-center mt-2 text-muted-foreground"><Loader2 className="mr-2 animate-spin"/>Processing...</div>}
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 export default function ClientCustomersPage() {
     const params = useParams();
     const clientId = params.clientId as string;
@@ -56,7 +136,7 @@ export default function ClientCustomersPage() {
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [selectedCustomer, setSelectedCustomer] = useState<ClientCustomer | null>(null);
 
-    const fetchCustomers = async () => {
+    const fetchCustomers = useCallback(async () => {
         if (!clientId) return;
         setIsLoading(true);
         try {
@@ -74,11 +154,11 @@ export default function ClientCustomersPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [clientId, toast]);
 
     useEffect(() => {
         fetchCustomers();
-    }, [clientId]);
+    }, [fetchCustomers]);
     
     const handleAdd = () => {
         setSelectedCustomer(null);
@@ -145,6 +225,7 @@ export default function ClientCustomersPage() {
                     <p className="text-muted-foreground">Manage your client's customers.</p>
                 </div>
                 <div className="flex items-center gap-2">
+                    <ImportCustomersDialog clientId={clientId} onImportComplete={fetchCustomers} />
                     <Dialog open={isFormOpen} onOpenChange={(isOpen) => { setIsFormOpen(isOpen); if (!isOpen) setSelectedCustomer(null); }}>
                        <DialogTrigger asChild>
                             <Button onClick={handleAdd}>
