@@ -67,6 +67,7 @@ function TrialBalanceReport({ client, transactions, dateRange }: { client: User,
         const reportEndDate = dateRange?.to ? endOfDay(dateRange.to) : new Date();
         
         const retainedIncomeAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '9000-004');
+        const vatControlAccount = client.chartOfAccounts?.find(acc => acc.accountNumber === '7000-008');
         
         let priorPeriodNetIncome = 0;
 
@@ -81,45 +82,51 @@ function TrialBalanceReport({ client, transactions, dateRange }: { client: User,
 
                 if (isPriorPeriod) {
                     if (account.section === 'Income Statement') {
-                        // For prior periods, P&L items contribute to retained income.
-                        // We credit retained income for profits (income > expenses), so income (negative amount) becomes positive, and expenses (positive amount) become negative.
                         priorPeriodNetIncome -= amount;
                     } else if (balances.has(accountId)) {
-                        // Balance sheet items just accumulate.
                         balances.set(accountId, (balances.get(accountId) || 0) + amount);
                     }
                 } else if (txDate <= reportEndDate) {
-                    // For the current period, all transactions affect their respective accounts.
                     if (balances.has(accountId)) {
                         balances.set(accountId, (balances.get(accountId) || 0) + amount);
                     }
                 }
             };
             
-            // For journal entries, amount is already directional (debit/credit)
             if (tx.bankAccountId === 'JOURNAL') {
                 if (tx.allocatedTo?.value) {
                     processEntry(tx.allocatedTo.value, tx.amount);
                 }
             } 
-            // For bank transactions, we create the double entry
-            else {
-                // Bank account entry
-                processEntry(tx.bankAccountId, tx.amount);
+            else { // Bank Transactions
+                const inclusiveAmount = tx.amount;
+                const isStandardVat = tx.vatType === 'standard_rated_purchases' || tx.vatType === 'standard_rated_sales';
+                
+                let vatAmount = 0;
+                let exclusiveAmount = inclusiveAmount;
+                
+                if (isStandardVat) {
+                    vatAmount = (inclusiveAmount / 1.15) * 0.15;
+                    exclusiveAmount = inclusiveAmount - vatAmount;
+                }
 
-                // Contra-entry
-                if (tx.status === 'allocated' && tx.allocatedTo) {
-                    // Normal allocated transaction
-                     processEntry(tx.allocatedTo.value, -tx.amount);
-                } else {
-                    // Unallocated transaction -> Suspense Account
-                    const suspenseAccountId = '9500-001'; 
-                    processEntry(suspenseAccountId, -tx.amount);
+                // 1. Bank Account Entry (always inclusive)
+                processEntry(tx.bankAccountId, inclusiveAmount);
+
+                // 2. Contra Account Entry (exclusive amount)
+                const contraAccountId = tx.status === 'allocated' && tx.allocatedTo 
+                    ? tx.allocatedTo.value 
+                    : '9500-001'; // Suspense Account
+                
+                processEntry(contraAccountId, -exclusiveAmount);
+
+                // 3. VAT Control Account Entry
+                if (isStandardVat && vatControlAccount) {
+                    processEntry(vatControlAccount.id, -vatAmount);
                 }
             }
         });
         
-        // Add the calculated prior period profit/loss to the retained income account for the current period.
         if (retainedIncomeAccount) {
             balances.set(retainedIncomeAccount.id, (balances.get(retainedIncomeAccount.id) || 0) + priorPeriodNetIncome);
         }
