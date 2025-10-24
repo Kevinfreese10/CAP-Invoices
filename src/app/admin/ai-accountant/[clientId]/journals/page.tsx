@@ -13,7 +13,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, Plus, Trash2 } from 'lucide-react';
 import { getFirestore, doc, addDoc, getDoc, collection, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { User, ChartOfAccount } from '@/lib/types';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -35,6 +35,7 @@ const journalFormSchema = z.object({
     date: z.date({ required_error: "A date is required." }),
     description: z.string().min(3, "Description is required."),
     lines: z.array(journalLineSchema).min(2, "At least two lines are required."),
+    narration: z.string().optional(),
 }).refine(data => {
     const totalDebits = data.lines.reduce((sum, line) => sum + (line.debit || 0), 0);
     const totalCredits = data.lines.reduce((sum, line) => sum + (line.credit || 0), 0);
@@ -48,7 +49,10 @@ type JournalFormValues = z.infer<typeof journalFormSchema>;
 
 export default function JournalsPage() {
     const params = useParams();
+    const searchParams = useSearchParams();
     const clientId = params.clientId as string;
+    const customerId = searchParams.get('customer');
+    const supplierId = searchParams.get('supplier');
     const [client, setClient] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
@@ -58,6 +62,7 @@ export default function JournalsPage() {
         defaultValues: {
             date: new Date(),
             description: '',
+            narration: '',
             lines: [
                 { accountId: '', debit: 0, credit: 0 },
                 { accountId: '', debit: 0, credit: 0 },
@@ -86,7 +91,18 @@ export default function JournalsPage() {
                 const clientRef = doc(db, 'aiAccountantClients', clientId);
                 const clientSnap = await getDoc(clientRef);
                 if (clientSnap.exists()) {
-                    setClient({ id: clientSnap.id, ...clientSnap.data() } as User);
+                    const clientData = { id: clientSnap.id, ...clientSnap.data() } as User;
+                    setClient(clientData);
+
+                    // Pre-fill one leg of the journal if customer/supplier is in URL
+                    if (customerId) {
+                       const customerControlAccount = clientData.chartOfAccounts?.find(acc => acc.accountNumber === '8000-001')?.id;
+                       if (customerControlAccount) form.setValue('lines.0.accountId', customerControlAccount);
+                    }
+                    if (supplierId) {
+                        const supplierControlAccount = clientData.chartOfAccounts?.find(acc => acc.accountNumber === '7000-000')?.id;
+                        if(supplierControlAccount) form.setValue('lines.0.accountId', supplierControlAccount);
+                    }
                 }
             } catch (e) {
                 toast({ title: 'Error', description: 'Failed to fetch client data.', variant: 'destructive' });
@@ -95,7 +111,7 @@ export default function JournalsPage() {
             }
         };
         fetchClient();
-    }, [clientId, toast]);
+    }, [clientId, customerId, supplierId, toast, form]);
 
     const onSubmit = async (data: JournalFormValues) => {
         if (!client) return;
@@ -129,6 +145,7 @@ export default function JournalsPage() {
             form.reset({
                 date: new Date(),
                 description: '',
+                narration: '',
                 lines: [
                     { accountId: '', debit: 0, credit: 0 },
                     { accountId: '', debit: 0, credit: 0 },
@@ -156,21 +173,22 @@ export default function JournalsPage() {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
                              <FormField control={form.control} name="date" render={({ field }) => ( <FormItem><FormLabel>Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => date > new Date() || date < new Date("1900-01-01")} initialFocus/></PopoverContent></Popover><FormMessage /></FormItem> )}/>
                             <div className="md:col-span-2">
-                                <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Textarea {...field} placeholder="e.g., To record monthly salaries" /></FormControl><FormMessage /></FormItem> )}/>
+                                <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Journal Description</FormLabel><FormControl><Input {...field} placeholder="e.g., To record monthly salaries" /></FormControl><FormMessage /></FormItem> )}/>
                             </div>
                         </div>
 
                         <div className="space-y-2">
+                            <div className="hidden md:grid md:grid-cols-12 gap-2 text-sm font-medium"><div className="col-span-6"><p>Account</p></div><div className="col-span-2"><p>Debit</p></div><div className="col-span-2"><p>Credit</p></div><div className="col-span-2"></div></div>
                             {fields.map((field, index) => (
-                                <div key={field.id} className="grid grid-cols-12 gap-2 items-end">
-                                    <div className="col-span-6">
-                                        <FormField control={form.control} name={`lines.${index}.accountId`} render={({ field }) => ( <FormItem><FormLabel className={index > 0 ? "hidden" : ""}>Account</FormLabel><FormControl><AccountSelector client={client} field={field} /></FormControl><FormMessage /></FormItem> )}/>
+                                <div key={field.id} className="grid grid-cols-12 gap-2 items-start md:items-end">
+                                    <div className="col-span-12 md:col-span-6">
+                                        <FormField control={form.control} name={`lines.${index}.accountId`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Account</FormLabel><FormControl><AccountSelector client={client} field={field} /></FormControl><FormMessage /></FormItem> )}/>
                                     </div>
-                                    <div className="col-span-2">
-                                        <FormField control={form.control} name={`lines.${index}.debit`} render={({ field }) => ( <FormItem><FormLabel className={index > 0 ? "hidden" : ""}>Debit</FormLabel><FormControl><Input type="number" step="0.01" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl><FormMessage /></FormItem> )}/>
+                                    <div className="col-span-5 md:col-span-2">
+                                        <FormField control={form.control} name={`lines.${index}.debit`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Debit</FormLabel><FormControl><Input type="number" step="0.01" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl><FormMessage /></FormItem> )}/>
                                     </div>
-                                    <div className="col-span-2">
-                                        <FormField control={form.control} name={`lines.${index}.credit`} render={({ field }) => ( <FormItem><FormLabel className={index > 0 ? "hidden" : ""}>Credit</FormLabel><FormControl><Input type="number" step="0.01" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)}/></FormControl><FormMessage /></FormItem> )}/>
+                                    <div className="col-span-5 md:col-span-2">
+                                        <FormField control={form.control} name={`lines.${index}.credit`} render={({ field }) => ( <FormItem><FormLabel className="md:hidden">Credit</FormLabel><FormControl><Input type="number" step="0.01" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)}/></FormControl><FormMessage /></FormItem> )}/>
                                     </div>
                                     <div className="col-span-2 flex justify-end">
                                         <Button type="button" variant="destructive" size="icon" onClick={() => remove(index)} disabled={fields.length <= 2}>

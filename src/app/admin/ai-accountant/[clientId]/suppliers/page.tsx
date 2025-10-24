@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, PlusCircle, Trash2, Edit, MoreHorizontal, FileUp, Download } from 'lucide-react';
+import { Loader2, PlusCircle, Trash2, Edit, MoreHorizontal, FileUp, Download, BookUser } from 'lucide-react';
 import { getFirestore, collection, query, getDocs, doc, deleteDoc, addDoc, writeBatch, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Supplier } from '@/lib/types';
@@ -19,6 +19,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import * as XLSX from 'xlsx';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import Link from 'next/link';
 
 const formSchema = z.object({
   id: z.string().optional(),
@@ -115,6 +117,43 @@ function ImportSuppliersDialog({ clientId, onImportComplete }: { clientId: strin
     );
 }
 
+function ImportJournalsDialog() {
+    const handleDownloadExample = () => {
+        const csvContent = "Date,Description,Account,Debit,Credit\nDD/MM/YYYY,Example Entry,2000/000,100.00,\nDD/MM/YYYY,Example Entry,8000/004,,100.00";
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.setAttribute('download', 'example-journal.csv');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button variant="outline"><FileUp className="mr-2 h-4 w-4" /> Import Journal</Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Import Supplier Journal</DialogTitle>
+                    <DialogDescription>Upload a CSV file with journal entries.</DialogDescription>
+                </DialogHeader>
+                 <div className="py-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                         <Label htmlFor="journal-file">Journal File</Label>
+                         <Button variant="outline" size="sm" onClick={handleDownloadExample}><Download className="mr-2 h-4 w-4"/> Download Example</Button>
+                    </div>
+                    <Input id="journal-file" type="file" accept=".csv" />
+                </div>
+                <DialogFooter>
+                    <Button>Import</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 export default function SuppliersPage() {
     const params = useParams();
     const clientId = params.clientId as string;
@@ -191,10 +230,6 @@ export default function SuppliersPage() {
                     <h1 className="text-3xl font-bold tracking-tight">Suppliers</h1>
                     <p className="text-muted-foreground">Manage your client's suppliers.</p>
                 </div>
-                <div className="flex items-center gap-2">
-                    <ImportSuppliersDialog clientId={clientId} onImportComplete={fetchSuppliers} />
-                    <Button onClick={handleAdd}><PlusCircle className="mr-2 h-4 w-4" /> Create Supplier</Button>
-                </div>
             </div>
              <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
                 <DialogContent>
@@ -213,49 +248,89 @@ export default function SuppliersPage() {
                 </DialogContent>
             </Dialog>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Supplier List</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    {isLoading ? (
-                        <div className="flex justify-center items-center h-40"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-                    ) : suppliers.length === 0 ? (
-                        <div className="text-center text-muted-foreground py-10"><p>No suppliers created for this client yet.</p></div>
-                    ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Supplier Name</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {suppliers.map(supplier => (
-                                    <TableRow key={supplier.id}>
-                                        <TableCell className="font-medium">{supplier.name}</TableCell>
-                                        <TableCell className="text-right">
-                                             <AlertDialog>
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end">
-                                                        <DropdownMenuItem onSelect={() => handleEdit(supplier)}><Edit className="mr-2 h-4 w-4" /> Edit</DropdownMenuItem>
-                                                        <AlertDialogTrigger asChild><DropdownMenuItem className="text-destructive"><Trash2 className="mr-2 h-4 w-4" /> Delete</DropdownMenuItem></AlertDialogTrigger>
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
-                                                <AlertDialogContent>
-                                                    <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will permanently delete the supplier "{supplier.name}".</AlertDialogDescription></AlertDialogHeader>
-                                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDelete(supplier.id)}>Yes, Delete</AlertDialogAction></AlertDialogFooter>
-                                                </AlertDialogContent>
-                                            </AlertDialog>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    )}
-                </CardContent>
-            </Card>
+            <Tabs defaultValue="list">
+                 <div className="flex justify-between items-center">
+                    <TabsList>
+                        <TabsTrigger value="list">Supplier List</TabsTrigger>
+                        <TabsTrigger value="journals">Journals</TabsTrigger>
+                    </TabsList>
+                </div>
+                 <TabsContent value="list">
+                    <Card>
+                        <CardHeader>
+                            <div className="flex items-center gap-2">
+                                <ImportSuppliersDialog clientId={clientId} onImportComplete={fetchSuppliers} />
+                                <Button onClick={handleAdd}><PlusCircle className="mr-2 h-4 w-4" /> Create Supplier</Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            {isLoading ? (
+                                <div className="flex justify-center items-center h-40"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+                            ) : suppliers.length === 0 ? (
+                                <div className="text-center text-muted-foreground py-10"><p>No suppliers created for this client yet.</p></div>
+                            ) : (
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Supplier Name</TableHead>
+                                            <TableHead className="text-right">Actions</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {suppliers.map(supplier => (
+                                            <TableRow key={supplier.id}>
+                                                <TableCell className="font-medium">{supplier.name}</TableCell>
+                                                <TableCell className="text-right">
+                                                    <AlertDialog>
+                                                        <DropdownMenu>
+                                                            <DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                                                            <DropdownMenuContent align="end">
+                                                                <DropdownMenuItem onSelect={() => handleEdit(supplier)}><Edit className="mr-2 h-4 w-4" /> Edit</DropdownMenuItem>
+                                                                <DropdownMenuItem asChild>
+                                                                    <Link href={`/admin/ai-accountant/${clientId}/journals?supplier=${supplier.id}`}><BookUser className="mr-2 h-4 w-4" /> Post Journal</Link>
+                                                                </DropdownMenuItem>
+                                                                <AlertDialogTrigger asChild><DropdownMenuItem className="text-destructive"><Trash2 className="mr-2 h-4 w-4" /> Delete</DropdownMenuItem></AlertDialogTrigger>
+                                                            </DropdownMenuContent>
+                                                        </DropdownMenu>
+                                                        <AlertDialogContent>
+                                                            <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will permanently delete the supplier "{supplier.name}".</AlertDialogDescription></AlertDialogHeader>
+                                                            <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDelete(supplier.id)}>Yes, Delete</AlertDialogAction></AlertDialogFooter>
+                                                        </AlertDialogContent>
+                                                    </AlertDialog>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            )}
+                        </CardContent>
+                    </Card>
+                 </TabsContent>
+                 <TabsContent value="journals">
+                     <Card>
+                        <CardHeader>
+                             <div className="flex justify-between items-center">
+                                <div>
+                                    <CardTitle>Supplier Journals</CardTitle>
+                                    <CardDescription>Post and import journals for suppliers.</CardDescription>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                     <ImportJournalsDialog />
+                                    <Button asChild>
+                                        <Link href={`/admin/ai-accountant/${clientId}/journals`}><PlusCircle className="mr-2 h-4 w-4"/>Post Journal</Link>
+                                    </Button>
+                                </div>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                             <div className="text-center py-10 border-2 border-dashed rounded-lg">
+                                <h3 className="text-lg font-medium">Coming Soon</h3>
+                                <p className="text-sm text-muted-foreground">Functionality to manage supplier journals will be available here.</p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }
