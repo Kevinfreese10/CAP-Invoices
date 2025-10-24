@@ -951,25 +951,17 @@ const NewTransactionsTab = React.forwardRef<
             constraints.push(where('amount', '>=', 0));
         }
     
-        if (searchTerm) {
-            const searchTermLower = searchTerm.toLowerCase();
-            constraints.push(where('description', '>=', searchTermLower));
-            constraints.push(where('description', '<=', searchTermLower + '\uf8ff'));
-            constraints.push(orderBy('description', 'asc')); // Firestore requires the first orderBy to be on the inequality field.
+        if(constraints.some(c => c.type === 'where' && (c as any)._op === '<')) {
+            constraints.push(orderBy('amount', sortDirection === 'asc' ? 'desc' : 'asc')); // Amount < 0, so sorting visually asc means firestore desc
         } else {
-            // Firestore requires the first orderBy field to be the same as the inequality field, if one exists.
-            if(constraints.some(c => c.type === 'where' && (c as any)._op === '<')) {
-                constraints.push(orderBy('amount', sortDirection === 'asc' ? 'desc' : 'asc')); // Amount < 0, so sorting visually asc means firestore desc
-            } else {
-                 constraints.push(orderBy(sortField, sortDirection));
-            }
+             constraints.push(orderBy(sortField, sortDirection));
         }
     
         return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
-    }, [client?.uid, bankAccountId, activeSubTab, sortField, sortDirection, searchTerm]);
+    }, [client?.uid, bankAccountId, activeSubTab, sortField, sortDirection]);
 
     const {
-        documents: transactions,
+        documents,
         isLoading,
         goToNextPage,
         goToPreviousPage,
@@ -978,6 +970,11 @@ const NewTransactionsTab = React.forwardRef<
         currentPage,
         refetch
     } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: newTransactionsQuery, pageSize: PAGE_SIZE });
+
+    const transactions = useMemo(() => {
+      if (!searchTerm) return documents;
+      return documents.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()));
+    }, [documents, searchTerm]);
     
     React.useImperativeHandle(ref, () => ({
         refetch,
@@ -1602,24 +1599,17 @@ const ForReviewTab = React.forwardRef<
             constraints.push(where('amount', '>=', 0));
         }
 
-        if (searchTerm) {
-            const searchTermLower = searchTerm.toLowerCase();
-            constraints.push(where('description', '>=', searchTermLower));
-            constraints.push(where('description', '<=', searchTermLower + '\uf8ff'));
-            constraints.push(orderBy('description', 'asc')); // Firestore requires the first orderBy to be on the inequality field.
+        if(constraints.some(c => c.type === 'where' && (c as any)._op === '<')) {
+            constraints.push(orderBy('amount', sortDirection === 'asc' ? 'desc' : 'asc'));
         } else {
-            if(constraints.some(c => c.type === 'where' && (c as any)._op === '<')) {
-                constraints.push(orderBy('amount', sortDirection === 'asc' ? 'desc' : 'asc'));
-            } else {
-                 constraints.push(orderBy(sortField, sortDirection));
-            }
+             constraints.push(orderBy(sortField, sortDirection));
         }
         
         return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
-    }, [client?.uid, bankAccountId, activeSubTab, sortField, sortDirection, searchTerm]);
+    }, [client?.uid, bankAccountId, activeSubTab, sortField, sortDirection]);
 
     const {
-        documents: transactions,
+        documents,
         isLoading,
         goToNextPage,
         goToPreviousPage,
@@ -1628,6 +1618,11 @@ const ForReviewTab = React.forwardRef<
         currentPage,
         refetch
     } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: reviewTransactionsQuery, pageSize: PAGE_SIZE });
+
+     const transactions = useMemo(() => {
+      if (!searchTerm) return documents;
+      return documents.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()));
+    }, [documents, searchTerm]);
     
     React.useImperativeHandle(ref, () => ({
         refetch,
@@ -1830,22 +1825,14 @@ const ReviewedTab = React.forwardRef<
         let constraints: QueryConstraint[] = [
             where('bankAccountId', '==', bankAccountId),
             where('status', '==', 'allocated'),
+            orderBy(sortField, sortDirection),
         ];
         
-        if (searchTerm) {
-            const searchTermLower = searchTerm.toLowerCase();
-            constraints.push(where('description', '>=', searchTermLower));
-            constraints.push(where('description', '<=', searchTermLower + '\uf8ff'));
-            constraints.push(orderBy('description', 'asc'));
-        } else {
-            constraints.push(orderBy(sortField, sortDirection));
-        }
-
         return query(collection(db, 'aiAccountantClients', client.uid, 'transactions'), ...constraints);
-    }, [client?.uid, bankAccountId, sortField, sortDirection, searchTerm]);
+    }, [client?.uid, bankAccountId, sortField, sortDirection]);
 
     const {
-        documents: transactions,
+        documents,
         isLoading,
         goToNextPage,
         goToPreviousPage,
@@ -1854,6 +1841,11 @@ const ReviewedTab = React.forwardRef<
         currentPage,
         refetch
     } = usePaginatedFirestore<ImportedTransaction>({ baseQuery: reviewedTransactionsQuery, pageSize: PAGE_SIZE });
+
+     const transactions = useMemo(() => {
+      if (!searchTerm) return documents;
+      return documents.filter(tx => tx.description.toLowerCase().includes(searchTerm.toLowerCase()));
+    }, [documents, searchTerm]);
     
     React.useImperativeHandle(ref, () => ({
         refetch,
@@ -2232,3 +2224,4 @@ export default function BankTransactionsPage() {
         </div>
     );
 }
+
