@@ -1,11 +1,12 @@
 
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc, where } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc, where, addDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, MoreHorizontal, Edit, Trash2, FileCheck2, Hourglass, CheckCircle2, Eye, Download } from 'lucide-react';
+import { Loader2, MoreHorizontal, Edit, Trash2, FileCheck2, Hourglass, CheckCircle2, Eye, Download, Sparkles } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
@@ -22,22 +23,11 @@ import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
+import { AllocationRule, ExtractedInvoice } from '@/lib/types';
+import { allVatTypes } from '@/lib/vat-types';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const db = getFirestore(firebaseApp);
-
-type ExtractedInvoice = {
-  id: string;
-  supplier: string;
-  invoiceNumber: string;
-  commissionNumber?: string;
-  date: string;
-  lineItems: { description: string; exclusiveAmount: number; vatAmount: number; }[];
-  invoiceTotal: number;
-  status: 'pending_review' | 'approved';
-  fileName: string;
-  fileUrl: string;
-  createdAt: any;
-};
 
 const lineItemSchema = z.object({
   description: z.string().min(1, "Description is required"),
@@ -54,8 +44,77 @@ const formSchema = z.object({
   invoiceTotal: z.preprocess((val) => Number(val), z.number()),
 });
 
+const ruleFormSchema = z.object({
+  supplierName: z.string(),
+  defaultVatType: z.enum(allVatTypes.map(v => v.name) as [string, ...string[]]),
+});
+
+function CreateRuleDialog({ open, onOpenChange, supplierName, onRuleCreated }: { open: boolean; onOpenChange: (open: boolean) => void; supplierName: string; onRuleCreated: () => void; }) {
+    const { toast } = useToast();
+    const [isSaving, setIsSaving] = useState(false);
+    const form = useForm<z.infer<typeof ruleFormSchema>>({
+        resolver: zodResolver(ruleFormSchema),
+        defaultValues: {
+            supplierName: supplierName,
+            defaultVatType: 'standard_rated_purchases',
+        },
+    });
+
+    const handleSaveRule = async (values: z.infer<typeof ruleFormSchema>) => {
+        setIsSaving(true);
+        const newRule: Partial<AllocationRule> = {
+            description: `Default VAT type for supplier: ${values.supplierName}`,
+            keywords: [values.supplierName.toLowerCase()],
+            // accountId is not strictly needed for this type of rule, but the type requires it
+            // We can use a placeholder or a specific suspense account if needed
+            accountId: 'supplier_vat_rule', 
+            vatType: values.defaultVatType,
+            type: 'hard',
+            scope: 'global',
+        };
+
+        try {
+            await addDoc(collection(db, 'allocationRules'), newRule);
+            toast({ title: "Rule Created", description: `Default VAT type for ${values.supplierName} has been set.` });
+            onRuleCreated();
+            onOpenChange(false);
+        } catch (error) {
+            console.error("Error creating rule:", error);
+            toast({ title: 'Error', description: 'Could not create the rule.', variant: 'destructive' });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Create Rule for {supplierName}</DialogTitle>
+                    <DialogDescription>
+                        Set a default VAT type for all future invoices from this supplier to improve processing accuracy.
+                    </DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleSaveRule)} className="space-y-4">
+                        <FormField control={form.control} name="supplierName" render={({ field }) => ( <FormItem><FormLabel>Supplier</FormLabel><FormControl><Input {...field} readOnly disabled /></FormControl></FormItem> )} />
+                        <FormField control={form.control} name="defaultVatType" render={({ field }) => ( <FormItem><FormLabel>Default VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                        <DialogFooter>
+                            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+                            <Button type="submit" disabled={isSaving}>
+                                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Save Rule
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvoice | null, onSave: (id: string, data: any) => void, onCancel: () => void }) {
+    const [isCreateRuleOpen, setIsCreateRuleOpen] = useState(false);
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
@@ -85,45 +144,58 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
     };
 
     return (
-        <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto pr-4">
-                <div className="grid grid-cols-2 gap-4">
-                    <FormField control={form.control} name="supplier" render={({ field }) => ( <FormItem><FormLabel>Supplier</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="invoiceNumber" render={({ field }) => ( <FormItem><FormLabel>Invoice Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                </div>
-                 <FormField control={form.control} name="date" render={({ field }) => ( <FormItem><FormLabel>Date</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                 <FormField control={form.control} name="commissionNumber" render={({ field }) => ( <FormItem><FormLabel>Commission Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                
-                <h4 className="font-medium">Line Items</h4>
-                <div className="space-y-2">
-                    {fields.map((field, index) => {
-                        const exclusive = watchedLineItems?.[index]?.exclusiveAmount || 0;
-                        const vat = watchedLineItems?.[index]?.vatAmount || 0;
-                        const inclusive = exclusive + vat;
-                        return (
-                        <div key={field.id} className="grid grid-cols-12 gap-2 items-end">
-                            <FormField control={form.control} name={`lineItems.${index}.description`} render={({ field }) => (<FormItem className="col-span-5"><FormLabel className={index > 0 ? "hidden": ""}>Description</FormLabel><FormControl><Textarea {...field} rows={1} /></FormControl></FormItem>)} />
-                            <FormField control={form.control} name={`lineItems.${index}.exclusiveAmount`} render={({ field }) => (<FormItem className="col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>Exclusive</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
-                            <FormField control={form.control} name={`lineItems.${index}.vatAmount`} render={({ field }) => (<FormItem className="col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>VAT</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
-                            <FormItem className="col-span-2">
-                                <FormLabel className={index > 0 ? "hidden": ""}>Inclusive</FormLabel>
-                                <Input type="number" value={inclusive.toFixed(2)} readOnly className="bg-muted" />
-                            </FormItem>
-                            <div className="col-span-1"><Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button></div>
+        <>
+            <CreateRuleDialog 
+                open={isCreateRuleOpen}
+                onOpenChange={setIsCreateRuleOpen}
+                supplierName={invoice?.supplier || ''}
+                onRuleCreated={() => { /* maybe refetch something if needed */ }}
+            />
+            <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto pr-4">
+                    <div className="flex items-center justify-between gap-4">
+                         <div className="grid grid-cols-2 gap-4 flex-grow">
+                            <FormField control={form.control} name="supplier" render={({ field }) => ( <FormItem><FormLabel>Supplier</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                            <FormField control={form.control} name="invoiceNumber" render={({ field }) => ( <FormItem><FormLabel>Invoice Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                         </div>
-                        )
-                    })}
-                </div>
-                 <Button type="button" variant="outline" size="sm" onClick={() => append({ description: '', exclusiveAmount: 0, vatAmount: 0 })}>Add Line</Button>
-                
-                <FormField control={form.control} name="invoiceTotal" render={({ field }) => ( <FormItem><FormLabel>Invoice Total</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                
-                <DialogFooter>
-                    <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
-                    <Button type="submit">Save Changes</Button>
-                </DialogFooter>
-            </form>
-        </Form>
+                        <Button type="button" variant="outline" size="sm" className="mt-8" onClick={() => setIsCreateRuleOpen(true)}>
+                            <Sparkles className="mr-2 h-4 w-4" /> Create Rule
+                        </Button>
+                    </div>
+                    <FormField control={form.control} name="date" render={({ field }) => ( <FormItem><FormLabel>Date</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="commissionNumber" render={({ field }) => ( <FormItem><FormLabel>Commission Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    
+                    <h4 className="font-medium">Line Items</h4>
+                    <div className="space-y-2">
+                        {fields.map((field, index) => {
+                            const exclusive = watchedLineItems?.[index]?.exclusiveAmount || 0;
+                            const vat = watchedLineItems?.[index]?.vatAmount || 0;
+                            const inclusive = exclusive + vat;
+                            return (
+                            <div key={field.id} className="grid grid-cols-12 gap-2 items-end">
+                                <FormField control={form.control} name={`lineItems.${index}.description`} render={({ field }) => (<FormItem className="col-span-5"><FormLabel className={index > 0 ? "hidden": ""}>Description</FormLabel><FormControl><Textarea {...field} rows={1} /></FormControl></FormItem>)} />
+                                <FormField control={form.control} name={`lineItems.${index}.exclusiveAmount`} render={({ field }) => (<FormItem className="col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>Exclusive</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
+                                <FormField control={form.control} name={`lineItems.${index}.vatAmount`} render={({ field }) => (<FormItem className="col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>VAT</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
+                                <FormItem className="col-span-2">
+                                    <FormLabel className={index > 0 ? "hidden": ""}>Inclusive</FormLabel>
+                                    <Input type="number" value={inclusive.toFixed(2)} readOnly className="bg-muted" />
+                                </FormItem>
+                                <div className="col-span-1"><Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button></div>
+                            </div>
+                            )
+                        })}
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={() => append({ description: '', exclusiveAmount: 0, vatAmount: 0 })}>Add Line</Button>
+                    
+                    <FormField control={form.control} name="invoiceTotal" render={({ field }) => ( <FormItem><FormLabel>Invoice Total</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    
+                    <DialogFooter>
+                        <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
+                        <Button type="submit">Save Changes</Button>
+                    </DialogFooter>
+                </form>
+            </Form>
+        </>
     );
 }
 
