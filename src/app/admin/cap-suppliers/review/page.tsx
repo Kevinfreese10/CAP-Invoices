@@ -5,13 +5,13 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc, where, addDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, MoreHorizontal, Edit, Trash2, FileCheck2, Hourglass, CheckCircle2, Eye, Download, Sparkles } from 'lucide-react';
+import { Loader2, MoreHorizontal, Edit, Trash2, FileCheck2, Hourglass, CheckCircle2, Eye, Download, Sparkles, Brain } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -25,6 +25,8 @@ import * as XLSX from 'xlsx';
 import { AllocationRule, ExtractedInvoice } from '@/lib/types';
 import { allVatTypes } from '@/lib/vat-types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { findStoryName } from '@/ai/flows/find-story-name';
+import { commissionList as defaultCommissionList } from '@/lib/commission-list';
 
 const db = getFirestore(firebaseApp);
 
@@ -41,6 +43,7 @@ const formSchema = z.object({
   date: z.string().min(1, "Date is required"),
   lineItems: z.array(lineItemSchema),
   invoiceTotal: z.preprocess((val) => Number(val), z.number()),
+  storyName: z.string().optional(),
 });
 
 const ruleFormSchema = z.object({
@@ -64,8 +67,6 @@ function CreateRuleDialog({ open, onOpenChange, supplierName, onRuleCreated }: {
         const newRule: Partial<AllocationRule> = {
             description: `Default VAT type for supplier: ${values.supplierName}`,
             keywords: [values.supplierName.toLowerCase()],
-            // accountId is not strictly needed for this type of rule, but the type requires it
-            // We can use a placeholder or a specific suspense account if needed
             accountId: 'supplier_vat_rule', 
             vatType: values.defaultVatType,
             type: 'hard',
@@ -123,6 +124,7 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
             date: invoice?.date || '',
             lineItems: invoice?.lineItems || [],
             invoiceTotal: invoice?.invoiceTotal || 0,
+            storyName: invoice?.storyName || '',
         }
     });
 
@@ -179,7 +181,10 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
                         </Button>
                     </div>
                     <FormField control={form.control} name="date" render={({ field }) => ( <FormItem><FormLabel>Date</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="commissionNumber" render={({ field }) => ( <FormItem><FormLabel>Commission Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField control={form.control} name="commissionNumber" render={({ field }) => ( <FormItem><FormLabel>Commission Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                        <FormField control={form.control} name="storyName" render={({ field }) => ( <FormItem><FormLabel>Story Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    </div>
                     
                     <h4 className="font-medium">Line Items</h4>
                     <div className="space-y-2">
@@ -215,10 +220,81 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
     );
 }
 
+function AnalyzeStoryDialog({ open, onOpenChange, invoices, onAnalyzeComplete }: { open: boolean; onOpenChange: (open: boolean) => void; invoices: ExtractedInvoice[]; onAnalyzeComplete: () => void; }) {
+    const { toast } = useToast();
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [knowledgeBase, setKnowledgeBase] = useState(defaultCommissionList);
+
+    const handleAnalyze = async () => {
+        setIsAnalyzing(true);
+        toast({ title: `Analyzing ${invoices.length} invoice(s)...` });
+
+        try {
+            const batch = writeBatch(db);
+            let updatedCount = 0;
+
+            for (const invoice of invoices) {
+                if (invoice.commissionNumber) {
+                    const result = await findStoryName({
+                        commissionNumber: invoice.commissionNumber,
+                        knowledgeBase: knowledgeBase,
+                    });
+                    if (result.storyName) {
+                        const invoiceRef = doc(db, 'extractedInvoices', invoice.id);
+                        batch.update(invoiceRef, { storyName: result.storyName });
+                        updatedCount++;
+                    }
+                }
+            }
+            if (updatedCount > 0) {
+                await batch.commit();
+                toast({ title: 'Analysis Complete', description: `${updatedCount} invoice(s) were updated with a story name.` });
+                onAnalyzeComplete();
+            } else {
+                 toast({ title: 'No Matches Found', description: 'No story names could be found for the selected invoices.', variant: 'default' });
+            }
+            onOpenChange(false);
+        } catch (error) {
+            console.error("Error analyzing story names:", error);
+            toast({ title: 'Error', description: 'An error occurred during analysis.', variant: 'destructive' });
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
+    
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-xl">
+                <DialogHeader>
+                    <DialogTitle>Analyze Story Names</DialogTitle>
+                    <DialogDescription>Paste your commission list from Google Sheets below. The AI will match commission numbers to find the story name.</DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                     <Textarea
+                        value={knowledgeBase}
+                        onChange={(e) => setKnowledgeBase(e.target.value)}
+                        rows={15}
+                        placeholder="Paste your two-column data here (e.g., CM-123   My Story)"
+                    />
+                </div>
+                <DialogFooter>
+                    <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+                    <Button onClick={handleAnalyze} disabled={isAnalyzing}>
+                         {isAnalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Brain className="mr-2 h-4 w-4" />}
+                        Analyze and Update
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 export default function ReviewPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
+    const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
+    const [isAnalyzeDialogOpen, setIsAnalyzeDialogOpen] = useState(false);
     const { toast } = useToast();
     const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
 
@@ -253,7 +329,6 @@ export default function ReviewPage() {
             const docRef = doc(db, 'extractedInvoices', id);
             await updateDoc(docRef, data);
 
-            // After saving, check if we need to apply this logic to other invoices
             const supplier = data.supplier;
             const supplierRule = globalRules.find(r => r.keywords.includes(supplier.toLowerCase()) && r.accountId === 'supplier_vat_rule');
 
@@ -324,6 +399,7 @@ export default function ReviewPage() {
                 'Supplier': invoice.supplier,
                 'Invoice Number': invoice.invoiceNumber,
                 'Commission Number': invoice.commissionNumber || '',
+                'Story Name': invoice.storyName || '',
                 'Invoice Date': invoice.date,
                 'Date Processed': invoice.createdAt?.toDate ? format(invoice.createdAt.toDate(), 'dd/MM/yyyy HH:mm') : 'N/A',
                 'Line Item Description': item.description,
@@ -340,6 +416,20 @@ export default function ReviewPage() {
         XLSX.writeFile(workbook, 'pending-review-invoices.xlsx');
     };
 
+    const handleToggleSelect = (id: string) => {
+        setSelectedInvoices(prev => 
+            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        );
+    }
+    
+    const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if(e.target.checked) {
+            setSelectedInvoices(invoices.map(i => i.id));
+        } else {
+            setSelectedInvoices([]);
+        }
+    }
+
   return (
     <div className="space-y-8">
       <h1 className="text-3xl font-bold tracking-tight">Review Invoices</h1>
@@ -352,10 +442,22 @@ export default function ReviewPage() {
                         Review, edit, and approve the data extracted from uploaded invoices. Approved invoices will be moved to the control sheet.
                     </CardDescription>
                 </div>
-                 <Button onClick={handleDownloadExcel} variant="outline" disabled={invoices.length === 0}>
-                    <Download className="mr-2 h-4 w-4" />
-                    Export to Excel
-                </Button>
+                 <div className="flex items-center gap-2">
+                    <AnalyzeStoryDialog
+                        open={isAnalyzeDialogOpen}
+                        onOpenChange={setIsAnalyzeDialogOpen}
+                        invoices={invoices.filter(i => selectedInvoices.includes(i.id))}
+                        onAnalyzeComplete={fetchInvoicesAndRules}
+                    />
+                    <Button onClick={() => setIsAnalyzeDialogOpen(true)} variant="outline" disabled={selectedInvoices.length === 0}>
+                        <Brain className="mr-2 h-4 w-4"/>
+                        Analyze ({selectedInvoices.length})
+                    </Button>
+                    <Button onClick={handleDownloadExcel} variant="outline" disabled={invoices.length === 0}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Export to Excel
+                    </Button>
+                 </div>
             </div>
         </CardHeader>
         <CardContent>
@@ -369,11 +471,14 @@ export default function ReviewPage() {
                 <Table>
                     <TableHeader>
                         <TableRow>
+                            <TableHead className="w-10">
+                                <input type="checkbox" onChange={handleSelectAll} checked={selectedInvoices.length === invoices.length && invoices.length > 0} />
+                            </TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead>Supplier</TableHead>
                             <TableHead>Invoice #</TableHead>
+                            <TableHead>Story Name</TableHead>
                             <TableHead>Date Processed</TableHead>
-                            <TableHead>File</TableHead>
                             <TableHead className="text-right">Total</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -382,6 +487,9 @@ export default function ReviewPage() {
                         {invoices.map((invoice) => (
                             <TableRow key={invoice.id}>
                                 <TableCell>
+                                    <input type="checkbox" checked={selectedInvoices.includes(invoice.id)} onChange={() => handleToggleSelect(invoice.id)} />
+                                </TableCell>
+                                <TableCell>
                                     <Badge variant={'warning'}>
                                          <Hourglass className="mr-1 h-3 w-3" />
                                         {invoice.status.replace('_', ' ')}
@@ -389,14 +497,8 @@ export default function ReviewPage() {
                                 </TableCell>
                                 <TableCell className="font-medium">{invoice.supplier}</TableCell>
                                 <TableCell>{invoice.invoiceNumber}</TableCell>
+                                <TableCell>{invoice.storyName || 'N/A'}</TableCell>
                                 <TableCell>{invoice.createdAt?.toDate ? format(invoice.createdAt.toDate(), 'dd/MM/yyyy HH:mm') : 'N/A'}</TableCell>
-                                <TableCell>
-                                    <Button variant="link" className="p-0 h-auto" asChild>
-                                        <Link href={invoice.fileUrl} target="_blank" rel="noopener noreferrer">
-                                            {invoice.fileName}
-                                        </Link>
-                                    </Button>
-                                </TableCell>
                                 <TableCell className="text-right font-mono">R {invoice.invoiceTotal.toFixed(2)}</TableCell>
                                 <TableCell className="text-right">
                                      <DropdownMenu>
