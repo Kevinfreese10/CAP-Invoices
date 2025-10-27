@@ -321,7 +321,6 @@ export default function ReviewPage() {
     const handleDownloadExcel = () => {
         const dataToExport = invoices.flatMap(invoice => 
             invoice.lineItems.map(item => ({
-                'Invoice ID': invoice.id,
                 'Supplier': invoice.supplier,
                 'Invoice Number': invoice.invoiceNumber,
                 'Commission Number': invoice.commissionNumber || '',
@@ -332,8 +331,6 @@ export default function ReviewPage() {
                 'VAT Amount': item.vatAmount,
                 'Line Total': item.exclusiveAmount + item.vatAmount,
                 'Invoice Total': invoice.invoiceTotal,
-                'Status': invoice.status,
-                'File Name': invoice.fileName,
             }))
         );
 
