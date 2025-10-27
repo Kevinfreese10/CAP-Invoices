@@ -96,17 +96,14 @@ export const DocumentRequestEmail = ({ order, items, reseller, replyTo }: Docume
         <Body style={main}>
             <Container style={container}>
             <Section style={box}>
-                <Heading style={heading}>Action Required for Your Order</Heading>
+                <Heading style={heading}>Your Order is Being Processed</Heading>
                 <Text style={paragraph}>
                     Hi {order.customerName},
                 </Text>
                 <Text style={paragraph}>
-                    Your order <strong style={{color: '#214392'}}>{order.id}</strong> is now being processed. To continue, we need some information from you. Please log into your client dashboard to upload the required documents.
+                    Your order <strong style={{color: '#214392'}}>{order.id}</strong> is now being processed. To continue, we need some
+                    information from you. A consultant will be in touch with you shortly to request the relevant information.
                 </Text>
-                
-                 <Button style={button} href={`${process.env.NEXT_PUBLIC_APP_URL}/dashboard/orders/${order.id}`}>
-                    Go to My Dashboard
-                </Button>
                 
                 <Hr style={hr} />
                 
