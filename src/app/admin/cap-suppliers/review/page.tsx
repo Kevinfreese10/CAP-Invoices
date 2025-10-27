@@ -22,7 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
-import { AllocationRule, ExtractedInvoice } from '@/lib/types';
+import { AllocationRule, ExtractedInvoice, FindStoryNameInput, FindStoryNameInputSchema, FindStoryNameOutput, FindStoryNameOutputSchema } from '@/lib/types';
 import { allVatTypes } from '@/lib/vat-types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { findStoryName } from '@/ai/flows/find-story-name';
@@ -396,12 +396,11 @@ export default function ReviewPage() {
     const handleDownloadExcel = () => {
         const dataToExport = invoices.flatMap(invoice => 
             invoice.lineItems.map(item => ({
+                'Date Processed': invoice.createdAt?.toDate ? format(invoice.createdAt.toDate(), 'dd/MM/yyyy HH:mm') : 'N/A',
                 'Supplier': invoice.supplier,
-                'Invoice Number': invoice.invoiceNumber,
                 'Commission Number': invoice.commissionNumber || '',
                 'Story Name': invoice.storyName || '',
                 'Invoice Date': invoice.date,
-                'Date Processed': invoice.createdAt?.toDate ? format(invoice.createdAt.toDate(), 'dd/MM/yyyy HH:mm') : 'N/A',
                 'Line Item Description': item.description,
                 'Exclusive Amount': item.exclusiveAmount,
                 'VAT Amount': item.vatAmount,
@@ -429,6 +428,8 @@ export default function ReviewPage() {
             setSelectedInvoices([]);
         }
     }
+    
+    const formatPrice = (price: number) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(price);
 
   return (
     <div className="space-y-8">
@@ -476,61 +477,69 @@ export default function ReviewPage() {
                             </TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead>Supplier</TableHead>
-                            <TableHead>Invoice #</TableHead>
+                            <TableHead>Commission #</TableHead>
                             <TableHead>Story Name</TableHead>
                             <TableHead>Date Processed</TableHead>
+                            <TableHead className="text-right">Excl. Amount</TableHead>
+                            <TableHead className="text-right">VAT Amount</TableHead>
                             <TableHead className="text-right">Total</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {invoices.map((invoice) => (
-                            <TableRow key={invoice.id}>
-                                <TableCell>
-                                    <input type="checkbox" checked={selectedInvoices.includes(invoice.id)} onChange={() => handleToggleSelect(invoice.id)} />
-                                </TableCell>
-                                <TableCell>
-                                    <Badge variant={'warning'}>
-                                         <Hourglass className="mr-1 h-3 w-3" />
-                                        {invoice.status.replace('_', ' ')}
-                                    </Badge>
-                                </TableCell>
-                                <TableCell className="font-medium">{invoice.supplier}</TableCell>
-                                <TableCell>{invoice.invoiceNumber}</TableCell>
-                                <TableCell>{invoice.storyName || 'N/A'}</TableCell>
-                                <TableCell>{invoice.createdAt?.toDate ? format(invoice.createdAt.toDate(), 'dd/MM/yyyy HH:mm') : 'N/A'}</TableCell>
-                                <TableCell className="text-right font-mono">R {invoice.invoiceTotal.toFixed(2)}</TableCell>
-                                <TableCell className="text-right">
-                                     <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent>
-                                            <DropdownMenuItem onSelect={() => handleApprove(invoice.id)}>
-                                                <FileCheck2 className="mr-2 h-4 w-4" /> Approve
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem onSelect={() => setEditingInvoice(invoice)}>
-                                                <Edit className="mr-2 h-4 w-4" /> Edit
-                                            </DropdownMenuItem>
-                                            <AlertDialog>
-                                                <AlertDialogTrigger asChild>
-                                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
-                                                        <Trash2 className="mr-2 h-4 w-4" /> Delete
-                                                    </DropdownMenuItem>
-                                                </AlertDialogTrigger>
-                                                <AlertDialogContent>
-                                                    <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone. This will permanently delete the invoice for {invoice.supplier}.</AlertDialogDescription></AlertDialogHeader>
-                                                    <AlertDialogFooter>
-                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                        <AlertDialogAction onClick={() => handleDelete(invoice.id)}>Delete</AlertDialogAction>
-                                                    </AlertDialogFooter>
-                                                </AlertDialogContent>
-                                            </AlertDialog>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </TableCell>
-                            </TableRow>
-                        ))}
+                        {invoices.map((invoice) => {
+                            const totalExclusive = invoice.lineItems.reduce((sum, item) => sum + item.exclusiveAmount, 0);
+                            const totalVat = invoice.lineItems.reduce((sum, item) => sum + item.vatAmount, 0);
+                            return (
+                                <TableRow key={invoice.id}>
+                                    <TableCell>
+                                        <input type="checkbox" checked={selectedInvoices.includes(invoice.id)} onChange={() => handleToggleSelect(invoice.id)} />
+                                    </TableCell>
+                                    <TableCell>
+                                        <Badge variant={'warning'}>
+                                            <Hourglass className="mr-1 h-3 w-3" />
+                                            {invoice.status.replace('_', ' ')}
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell className="font-medium">{invoice.supplier}</TableCell>
+                                    <TableCell>{invoice.commissionNumber || 'N/A'}</TableCell>
+                                    <TableCell>{invoice.storyName || 'N/A'}</TableCell>
+                                    <TableCell>{invoice.createdAt?.toDate ? format(invoice.createdAt.toDate(), 'dd/MM/yyyy HH:mm') : 'N/A'}</TableCell>
+                                    <TableCell className="text-right font-mono">{formatPrice(totalExclusive)}</TableCell>
+                                    <TableCell className="text-right font-mono">{formatPrice(totalVat)}</TableCell>
+                                    <TableCell className="text-right font-mono">{formatPrice(invoice.invoiceTotal)}</TableCell>
+                                    <TableCell className="text-right">
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent>
+                                                <DropdownMenuItem onSelect={() => handleApprove(invoice.id)}>
+                                                    <FileCheck2 className="mr-2 h-4 w-4" /> Approve
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onSelect={() => setEditingInvoice(invoice)}>
+                                                    <Edit className="mr-2 h-4 w-4" /> Edit
+                                                </DropdownMenuItem>
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                                            <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                                        </DropdownMenuItem>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone. This will permanently delete the invoice for {invoice.supplier}.</AlertDialogDescription></AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => handleDelete(invoice.id)}>Delete</AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </TableCell>
+                                </TableRow>
+                            )
+                        })}
                     </TableBody>
                 </Table>
             )}
