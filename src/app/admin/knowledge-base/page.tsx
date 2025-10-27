@@ -103,16 +103,18 @@ export default function AdminKnowledgeBasePage() {
   const loadData = async () => {
       setIsLoading(true);
       try {
-        const [kbItems, unanswered] = await Promise.all([
-           fetchKnowledgeBase(),
-           getDocs(query(collection(db, 'unansweredQuestions'), orderBy('timestamp', 'desc')))
-        ]);
-        setItems(kbItems);
-        setQuestions(unanswered.docs.map(doc => ({
+        const kbItemsSnapshot = await getDocs(query(collection(db, "knowledgeBase"), orderBy("question")));
+        const fetchedKbItems = kbItemsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as KnowledgeBaseItem));
+        setItems(fetchedKbItems);
+
+        const unansweredSnapshot = await getDocs(query(collection(db, 'unansweredQuestions'), orderBy('timestamp', 'desc')));
+        const fetchedUnanswered = unansweredSnapshot.docs.map(doc => ({
           id: doc.id,
           question: doc.data().question,
           timestamp: doc.data().timestamp.toDate(),
-        })));
+        }));
+        setQuestions(fetchedUnanswered);
+
       } catch (error) {
         console.error("Error fetching data:", error);
         toast({
@@ -185,7 +187,7 @@ export default function AdminKnowledgeBasePage() {
     try {
       if (selectedItem && selectedItem.id && items.some(i => i.id === selectedItem.id)) {
         // Editing an existing KB item
-        await updateDoc(doc(db, 'knowledgeBase', selectedItem.id), data);
+        await updateDoc(doc(db, 'knowledgeBase', selectedItem.id), { question: data.question, answer: data.answer });
         toast({ title: 'Item Updated', description: 'The knowledge base has been updated.' });
       } else { 
         // Adding a new item
@@ -264,7 +266,7 @@ export default function AdminKnowledgeBasePage() {
                             <TableCell className="font-medium max-w-2xl">{q.question}</TableCell>
                             <TableCell>{formatDistanceToNow(q.timestamp, { addSuffix: true })}</TableCell>
                             <TableCell className="text-right">
-                                <AlertDialog onOpenChange={(e) => e.stopPropagation()}>
+                                <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                         <Button variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
                                             <Trash className="h-4 w-4 text-destructive" />
