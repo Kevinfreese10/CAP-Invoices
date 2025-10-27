@@ -28,6 +28,7 @@ import { allVatTypes } from '@/lib/vat-types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { findStoryName } from '@/ai/flows/find-story-name';
 import { commissionList as defaultCommissionList } from '@/lib/commission-list';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const db = getFirestore(firebaseApp);
 
@@ -202,7 +203,7 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
                                     <FormLabel className={index > 0 ? "hidden": ""}>Inclusive</FormLabel>
                                     <Input type="number" value={inclusive.toFixed(2)} readOnly className="bg-muted" />
                                 </FormItem>
-                                <div className="col-span-1 flex justify-end"><Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button></div>
+                                <div className="col-span-12 flex justify-end"><Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button></div>
                             </div>
                             )
                         })}
@@ -394,36 +395,36 @@ export default function ReviewPage() {
         }
     }
 
-    const handleDownloadExcel = () => {
-        const dataToExport = invoices.flatMap(invoice => 
-            invoice.lineItems.map(item => ({
-                'Date Processed': invoice.createdAt?.toDate ? format(invoice.createdAt.toDate(), 'dd/MM/yyyy HH:mm') : 'N/A',
-                'Supplier': invoice.supplier,
-                'Commission Number': invoice.commissionNumber || '',
-                'Story Name': invoice.storyName || '',
-                'Invoice Date': invoice.date,
-                'Line Item Description': item.description,
-                'Exclusive Amount': item.exclusiveAmount,
-                'VAT Amount': item.vatAmount,
-                'Line Total': item.exclusiveAmount + item.vatAmount,
-                'Invoice Total': invoice.invoiceTotal,
-            }))
-        );
+    const handleDeleteSelected = async () => {
+        if (selectedInvoices.length === 0) return;
+        try {
+            const batch = writeBatch(db);
+            selectedInvoices.forEach(id => {
+                const docRef = doc(db, 'extractedInvoices', id);
+                batch.delete(docRef);
+            });
+            await batch.commit();
+            toast({ title: 'Invoices Deleted', description: `${selectedInvoices.length} invoices have been removed.`, variant: 'destructive'});
+            setSelectedInvoices([]);
+            fetchInvoicesAndRules();
+        } catch (error) {
+            toast({ title: 'Error', description: 'Could not delete selected invoices.', variant: 'destructive'});
+        }
+    };
 
-        const worksheet = XLSX.utils.json_to_sheet(dataToExport, {
-            header: [
-                'Date Processed',
-                'Supplier',
-                'Commission Number',
-                'Story Name',
-                'Invoice Date',
-                'Line Item Description',
-                'Exclusive Amount',
-                'VAT Amount',
-                'Line Total',
-                'Invoice Total',
-            ]
-        });
+    const handleDownloadExcel = () => {
+        const dataToExport = invoices.map(invoice => ({
+            'Date Processed': invoice.createdAt?.toDate ? format(invoice.createdAt.toDate(), 'dd/MM/yyyy HH:mm') : 'N/A',
+            'Supplier': invoice.supplier,
+            'Commission Number': invoice.commissionNumber || '',
+            'Story Name': invoice.storyName || '',
+            'Invoice Date': invoice.date,
+            'Exclusive Amount': invoice.lineItems.reduce((sum, item) => sum + item.exclusiveAmount, 0),
+            'VAT Amount': invoice.lineItems.reduce((sum, item) => sum + item.vatAmount, 0),
+            'Invoice Total': invoice.invoiceTotal,
+        }));
+    
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Pending Review Invoices');
         XLSX.writeFile(workbook, 'pending-review-invoices.xlsx');
@@ -435,8 +436,9 @@ export default function ReviewPage() {
         );
     }
     
-    const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if(e.target.checked) {
+    const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement> | React.MouseEvent<HTMLButtonElement>) => {
+        const target = e.target as HTMLInputElement;
+        if(target.checked) {
             setSelectedInvoices(invoices.map(i => i.id));
         } else {
             setSelectedInvoices([]);
@@ -464,6 +466,28 @@ export default function ReviewPage() {
                         invoices={invoices.filter(i => selectedInvoices.includes(i.id))}
                         onAnalyzeComplete={fetchInvoicesAndRules}
                     />
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="destructive" disabled={selectedInvoices.length === 0}>
+                                <Trash2 className="mr-2 h-4 w-4"/>
+                                Delete ({selectedInvoices.length})
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This will permanently delete {selectedInvoices.length} invoice(s). This action cannot be undone.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleDeleteSelected}>
+                                    Yes, Delete
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                     <Button onClick={() => setIsAnalyzeDialogOpen(true)} variant="outline" disabled={selectedInvoices.length === 0}>
                         <Brain className="mr-2 h-4 w-4"/>
                         Analyze ({selectedInvoices.length})
@@ -487,7 +511,11 @@ export default function ReviewPage() {
                     <TableHeader>
                         <TableRow>
                             <TableHead className="w-10">
-                                <input type="checkbox" onChange={handleSelectAll} checked={selectedInvoices.length === invoices.length && invoices.length > 0} />
+                                <Checkbox
+                                    onChange={(e) => handleSelectAll(e as unknown as React.ChangeEvent<HTMLInputElement>)}
+                                    checked={selectedInvoices.length === invoices.length && invoices.length > 0} 
+                                    aria-label="Select all"
+                                />
                             </TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead>Supplier</TableHead>
@@ -507,7 +535,11 @@ export default function ReviewPage() {
                             return (
                                 <TableRow key={invoice.id}>
                                     <TableCell>
-                                        <input type="checkbox" checked={selectedInvoices.includes(invoice.id)} onChange={() => handleToggleSelect(invoice.id)} />
+                                        <Checkbox
+                                            checked={selectedInvoices.includes(invoice.id)}
+                                            onCheckedChange={() => handleToggleSelect(invoice.id)}
+                                            aria-label={`Select invoice ${invoice.id}`}
+                                        />
                                     </TableCell>
                                     <TableCell>
                                         <Badge variant={'warning'}>
