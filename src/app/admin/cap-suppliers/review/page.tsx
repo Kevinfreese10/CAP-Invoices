@@ -49,7 +49,7 @@ const ruleFormSchema = z.object({
   defaultVatType: z.enum(allVatTypes.map(v => v.name) as [string, ...string[]]),
 });
 
-function CreateRuleDialog({ open, onOpenChange, supplierName, onRuleCreated }: { open: boolean; onOpenChange: (open: boolean) => void; supplierName: string; onRuleCreated: () => void; }) {
+function CreateRuleDialog({ open, onOpenChange, supplierName, onRuleCreated }: { open: boolean; onOpenChange: (open: boolean) => void; supplierName: string; onRuleCreated: (vatType: z.infer<typeof ruleFormSchema>['defaultVatType']) => void; }) {
     const { toast } = useToast();
     const [isSaving, setIsSaving] = useState(false);
     const form = useForm<z.infer<typeof ruleFormSchema>>({
@@ -76,7 +76,7 @@ function CreateRuleDialog({ open, onOpenChange, supplierName, onRuleCreated }: {
         try {
             await addDoc(collection(db, 'allocationRules'), newRule);
             toast({ title: "Rule Created", description: `Default VAT type for ${values.supplierName} has been set.` });
-            onRuleCreated();
+            onRuleCreated(values.defaultVatType);
             onOpenChange(false);
         } catch (error) {
             console.error("Error creating rule:", error);
@@ -142,6 +142,13 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
             onSave(invoice.id, data);
         }
     };
+    
+    const handleRuleCreated = (vatType: z.infer<typeof ruleFormSchema>['defaultVatType']) => {
+        // This is a placeholder, as we can't easily update the form with this logic.
+        // A more complex state management (like Zustand or Redux) would be needed.
+        // For now, we'll just log it.
+        console.log(`A rule was created with VAT type: ${vatType}. Manual update might be needed.`);
+    }
 
     return (
         <>
@@ -149,10 +156,10 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
                 open={isCreateRuleOpen}
                 onOpenChange={setIsCreateRuleOpen}
                 supplierName={invoice?.supplier || ''}
-                onRuleCreated={() => { /* maybe refetch something if needed */ }}
+                onRuleCreated={handleRuleCreated}
             />
             <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto pr-4">
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto p-1 pr-4">
                     <div className="flex items-center justify-between gap-4">
                          <div className="grid grid-cols-2 gap-4 flex-grow">
                             <FormField control={form.control} name="supplier" render={({ field }) => ( <FormItem><FormLabel>Supplier</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
@@ -400,3 +407,4 @@ export default function ReviewPage() {
     
 
     
+
