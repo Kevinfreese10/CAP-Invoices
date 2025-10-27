@@ -1,10 +1,9 @@
 
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc, where, addDoc } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc, where, addDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, MoreHorizontal, Edit, Trash2, FileCheck2, Hourglass, CheckCircle2, Eye, Download, Sparkles } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -144,15 +143,25 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
     };
     
     const handleRuleCreated = (vatType: z.infer<typeof ruleFormSchema>['defaultVatType']) => {
-        // This is a placeholder, as we can't easily update the form with this logic.
-        // A more complex state management (like Zustand or Redux) would be needed.
-        // For now, we'll just log it.
-        console.log(`A rule was created with VAT type: ${vatType}. Manual update might be needed.`);
+       const updatedLineItems = form.getValues('lineItems').map(item => {
+           const isCapitalGoods = item.description.toLowerCase().includes('asset') || item.description.toLowerCase().includes('equipment');
+           let newVatAmount = 0;
+           
+           if(vatType === 'standard_rated_purchases') {
+                newVatAmount = isCapitalGoods ? 0 : (item.exclusiveAmount * 0.15);
+           } else if (vatType === 'capital_goods_purchases') {
+               newVatAmount = isCapitalGoods ? (item.exclusiveAmount * 0.15) : 0;
+           }
+
+           return {...item, vatAmount: newVatAmount };
+       });
+
+       form.setValue('lineItems', updatedLineItems);
     }
 
     return (
         <>
-            <CreateRuleDialog 
+             <CreateRuleDialog
                 open={isCreateRuleOpen}
                 onOpenChange={setIsCreateRuleOpen}
                 supplierName={invoice?.supplier || ''}
@@ -160,7 +169,7 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
             />
             <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto p-1 pr-4">
-                    <div className="flex items-center justify-between gap-4">
+                     <div className="flex items-center justify-between gap-4">
                          <div className="grid grid-cols-2 gap-4 flex-grow">
                             <FormField control={form.control} name="supplier" render={({ field }) => ( <FormItem><FormLabel>Supplier</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                             <FormField control={form.control} name="invoiceNumber" render={({ field }) => ( <FormItem><FormLabel>Invoice Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
@@ -211,14 +220,22 @@ export default function ReviewPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
     const { toast } = useToast();
+    const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
 
-    const fetchInvoices = async () => {
+
+    const fetchInvoicesAndRules = async () => {
         setIsLoading(true);
         try {
+            const rulesQuery = query(collection(db, "allocationRules"), orderBy("description"));
+            const rulesSnapshot = await getDocs(rulesQuery);
+            const fetchedRules = rulesSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as AllocationRule));
+            setGlobalRules(fetchedRules);
+            
             const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'pending_review'), orderBy('createdAt', 'desc'));
             const querySnapshot = await getDocs(q);
             const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
             setInvoices(fetchedInvoices);
+
         } catch (error) {
             console.error("Error fetching invoices:", error);
             toast({ title: 'Error', description: 'Could not fetch invoices for review.', variant: 'destructive'});
@@ -228,16 +245,52 @@ export default function ReviewPage() {
     };
     
     useEffect(() => {
-        fetchInvoices();
+        fetchInvoicesAndRules();
     }, []);
 
     const handleSave = async (id: string, data: any) => {
         try {
             const docRef = doc(db, 'extractedInvoices', id);
             await updateDoc(docRef, data);
+
+            // After saving, check if we need to apply this logic to other invoices
+            const supplier = data.supplier;
+            const supplierRule = globalRules.find(r => r.keywords.includes(supplier.toLowerCase()) && r.accountId === 'supplier_vat_rule');
+
+            if (supplierRule) {
+                const batch = writeBatch(db);
+                let updatedCount = 0;
+                
+                invoices.forEach(invoice => {
+                    if (invoice.supplier === supplier && invoice.id !== id && invoice.status === 'pending_review') {
+                        const updatedLineItems = invoice.lineItems.map(item => {
+                            const isCapitalGoods = item.description.toLowerCase().includes('asset') || item.description.toLowerCase().includes('equipment');
+                            let newVatAmount = 0;
+                            
+                            if(supplierRule.vatType === 'standard_rated_purchases') {
+                                 newVatAmount = isCapitalGoods ? 0 : (item.exclusiveAmount * 0.15);
+                            } else if (supplierRule.vatType === 'capital_goods_purchases') {
+                                newVatAmount = isCapitalGoods ? (item.exclusiveAmount * 0.15) : 0;
+                            }
+                            return {...item, vatAmount: newVatAmount };
+                        });
+                        
+                        const invoiceRef = doc(db, 'extractedInvoices', invoice.id);
+                        batch.update(invoiceRef, { lineItems: updatedLineItems });
+                        updatedCount++;
+                    }
+                });
+
+                if (updatedCount > 0) {
+                    await batch.commit();
+                    toast({ title: 'Batch Update', description: `${updatedCount} other invoice(s) for ${supplier} were updated with the new rule.`});
+                }
+            }
+
+
             toast({ title: 'Invoice Updated', description: 'Your changes have been saved.' });
             setEditingInvoice(null);
-            fetchInvoices();
+            fetchInvoicesAndRules();
         } catch (error) {
             console.error("Error updating invoice:", error);
             toast({ title: 'Error', description: 'Could not save changes.', variant: 'destructive'});
@@ -249,7 +302,7 @@ export default function ReviewPage() {
             const docRef = doc(db, 'extractedInvoices', id);
             await updateDoc(docRef, { status: 'approved' });
             toast({ title: 'Invoice Approved', description: 'The invoice has been moved to the control sheet.' });
-            fetchInvoices();
+            fetchInvoicesAndRules();
         } catch (error) {
             toast({ title: 'Error', description: 'Could not approve the invoice.', variant: 'destructive'});
         }
@@ -259,7 +312,7 @@ export default function ReviewPage() {
          try {
             await deleteDoc(doc(db, 'extractedInvoices', id));
             toast({ title: 'Invoice Deleted', description: 'The invoice has been removed.', variant: 'destructive'});
-            fetchInvoices();
+            fetchInvoicesAndRules();
         } catch (error) {
             toast({ title: 'Error', description: 'Could not delete the invoice.', variant: 'destructive'});
         }
