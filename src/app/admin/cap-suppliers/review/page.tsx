@@ -326,6 +326,7 @@ export default function ReviewPage() {
                 'Invoice Number': invoice.invoiceNumber,
                 'Commission Number': invoice.commissionNumber || '',
                 'Invoice Date': invoice.date,
+                'Date Processed': invoice.createdAt?.toDate ? format(invoice.createdAt.toDate(), 'dd/MM/yyyy HH:mm') : 'N/A',
                 'Line Item Description': item.description,
                 'Exclusive Amount': item.exclusiveAmount,
                 'VAT Amount': item.vatAmount,
