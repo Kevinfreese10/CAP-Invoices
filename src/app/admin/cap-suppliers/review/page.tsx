@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -7,7 +8,7 @@ import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, dele
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, MoreHorizontal, Edit, Trash2, FileCheck2, Hourglass, CheckCircle2, Eye, Download, Sparkles, Brain } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { format } from 'date-fns';
+import { format, toDate } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -189,19 +190,19 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
                     <h4 className="font-medium">Line Items</h4>
                     <div className="space-y-2">
                         {fields.map((field, index) => {
-                            const exclusive = watchedLineItems?.[index]?.exclusiveAmount || 0;
-                            const vat = watchedLineItems?.[index]?.vatAmount || 0;
+                            const exclusive = Number(watchedLineItems?.[index]?.exclusiveAmount) || 0;
+                            const vat = Number(watchedLineItems?.[index]?.vatAmount) || 0;
                             const inclusive = exclusive + vat;
                             return (
                             <div key={field.id} className="grid grid-cols-12 gap-2 items-end">
-                                <FormField control={form.control} name={`lineItems.${index}.description`} render={({ field }) => (<FormItem className="col-span-5"><FormLabel className={index > 0 ? "hidden": ""}>Description</FormLabel><FormControl><Textarea {...field} rows={1} /></FormControl></FormItem>)} />
+                                <FormField control={form.control} name={`lineItems.${index}.description`} render={({ field }) => (<FormItem className="col-span-6"><FormLabel className={index > 0 ? "hidden": ""}>Description</FormLabel><FormControl><Textarea {...field} rows={1} /></FormControl></FormItem>)} />
                                 <FormField control={form.control} name={`lineItems.${index}.exclusiveAmount`} render={({ field }) => (<FormItem className="col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>Exclusive</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
                                 <FormField control={form.control} name={`lineItems.${index}.vatAmount`} render={({ field }) => (<FormItem className="col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>VAT</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
                                 <FormItem className="col-span-2">
                                     <FormLabel className={index > 0 ? "hidden": ""}>Inclusive</FormLabel>
                                     <Input type="number" value={inclusive.toFixed(2)} readOnly className="bg-muted" />
                                 </FormItem>
-                                <div className="col-span-1"><Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button></div>
+                                <div className="col-span-1 flex justify-end"><Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button></div>
                             </div>
                             )
                         })}
@@ -274,7 +275,7 @@ function AnalyzeStoryDialog({ open, onOpenChange, invoices, onAnalyzeComplete }:
                         value={knowledgeBase}
                         onChange={(e) => setKnowledgeBase(e.target.value)}
                         rows={15}
-                        placeholder="Paste your two-column data here (e.g., CM-123   My Story)"
+                        placeholder="Paste your two-column data here (e.g., CM-123	My Story Name)"
                     />
                 </div>
                 <DialogFooter>
@@ -409,7 +410,20 @@ export default function ReviewPage() {
             }))
         );
 
-        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport, {
+            header: [
+                'Date Processed',
+                'Supplier',
+                'Commission Number',
+                'Story Name',
+                'Invoice Date',
+                'Line Item Description',
+                'Exclusive Amount',
+                'VAT Amount',
+                'Line Total',
+                'Invoice Total',
+            ]
+        });
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Pending Review Invoices');
         XLSX.writeFile(workbook, 'pending-review-invoices.xlsx');
@@ -504,7 +518,7 @@ export default function ReviewPage() {
                                     <TableCell className="font-medium">{invoice.supplier}</TableCell>
                                     <TableCell>{invoice.commissionNumber || 'N/A'}</TableCell>
                                     <TableCell>{invoice.storyName || 'N/A'}</TableCell>
-                                    <TableCell>{invoice.createdAt?.toDate ? format(invoice.createdAt.toDate(), 'dd/MM/yyyy HH:mm') : 'N/A'}</TableCell>
+                                    <TableCell>{invoice.createdAt?.toDate ? format(toDate(invoice.createdAt.toDate()), 'dd/MM/yyyy HH:mm') : 'N/A'}</TableCell>
                                     <TableCell className="text-right font-mono">{formatPrice(totalExclusive)}</TableCell>
                                     <TableCell className="text-right font-mono">{formatPrice(totalVat)}</TableCell>
                                     <TableCell className="text-right font-mono">{formatPrice(invoice.invoiceTotal)}</TableCell>
