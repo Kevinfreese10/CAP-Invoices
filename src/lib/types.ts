@@ -3,6 +3,7 @@
 
 
 
+
 export type VatType =
   // Output Tax
   | 'standard_rated_sales'
@@ -346,6 +347,7 @@ export type ExtractedInvoice = {
   uploadedBy: string;
   expenseType?: 'CAP' | 'S38';
   commissionNumber?: string;
+  storyName?: string;
   rejectionReason?: string;
   paymentBatch?: 'this_week' | 'month_end';
   sourceEmailUid?: number;
