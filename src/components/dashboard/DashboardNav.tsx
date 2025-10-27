@@ -94,7 +94,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/community/questions', label: 'Community Q&A', icon: MessageCircleQuestion, roles: ['admin'] },
     { href: '/admin/clients', label: 'Manage Clients', icon: BookUser, roles: ['admin'] },
     { href: '/admin/services', label: 'Manage Products', icon: Briefcase, roles: ['admin'] },
-    { href: '/admin/tools', label: 'Tools', icon: Wrench, roles: ['admin'] },
   ];
   
   const aiAccountantItems = [
