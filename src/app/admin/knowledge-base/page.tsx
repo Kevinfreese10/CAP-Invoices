@@ -136,7 +136,8 @@ export default function AdminKnowledgeBasePage() {
     setIsFormOpen(true);
   };
 
-  const handleDeleteUnanswered = async (id: string) => {
+  const handleDeleteUnanswered = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation(); // Prevent row click
     try {
       await deleteDoc(doc(db, 'unansweredQuestions', id));
       setQuestions(prev => prev.filter(q => q.id !== id));
@@ -195,8 +196,8 @@ export default function AdminKnowledgeBasePage() {
         toast({ title: 'Item Added', description: 'The new information has been added to the knowledge base.'});
         
         // If it was from an unanswered question, delete it
-        if (selectedItem && selectedItem.id) {
-             await handleDeleteUnanswered(selectedItem.id);
+        if (selectedItem && selectedItem.id && questions.some(q => q.id === selectedItem.id)) {
+             await deleteDoc(doc(db, 'unansweredQuestions', selectedItem.id));
         }
       }
       setIsFormOpen(false);
@@ -281,7 +282,7 @@ export default function AdminKnowledgeBasePage() {
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={() => handleDeleteUnanswered(q.id)}>
+                                            <AlertDialogAction onClick={(e) => handleDeleteUnanswered(e, q.id)}>
                                                 Continue
                                             </AlertDialogAction>
                                         </AlertDialogFooter>
