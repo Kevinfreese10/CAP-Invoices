@@ -374,8 +374,7 @@ export default function ReviewPage() {
                             <TableHead>Status</TableHead>
                             <TableHead>Supplier</TableHead>
                             <TableHead>Invoice #</TableHead>
-                            <TableHead>Comm #</TableHead>
-                            <TableHead>Date</TableHead>
+                            <TableHead>Date Processed</TableHead>
                             <TableHead>File</TableHead>
                             <TableHead className="text-right">Total</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
@@ -392,8 +391,7 @@ export default function ReviewPage() {
                                 </TableCell>
                                 <TableCell className="font-medium">{invoice.supplier}</TableCell>
                                 <TableCell>{invoice.invoiceNumber}</TableCell>
-                                <TableCell>{invoice.commissionNumber}</TableCell>
-                                <TableCell>{invoice.date}</TableCell>
+                                <TableCell>{invoice.createdAt?.toDate ? format(invoice.createdAt.toDate(), 'dd/MM/yyyy HH:mm') : 'N/A'}</TableCell>
                                 <TableCell>
                                     <Button variant="link" className="p-0 h-auto" asChild>
                                         <Link href={invoice.fileUrl} target="_blank" rel="noopener noreferrer">
@@ -456,8 +454,3 @@ export default function ReviewPage() {
     </div>
   );
 }
-
-    
-
-    
-
