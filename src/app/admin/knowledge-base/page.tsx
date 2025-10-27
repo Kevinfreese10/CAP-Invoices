@@ -15,8 +15,8 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { KnowledgeBaseItem } from '@/lib/types';
-import { knowledgeBaseItems as initialKnowledgeBaseItems } from '@/lib/knowledge-base';
-import { collection, getDocs, deleteDoc, doc, query, orderBy, getFirestore } from 'firebase/firestore';
+import { fetchKnowledgeBase } from '@/lib/knowledge-base';
+import { collection, getDocs, deleteDoc, doc, query, orderBy, getFirestore, addDoc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { formatDistanceToNow } from 'date-fns';
 import { Separator } from '@/components/ui/separator';
@@ -36,7 +36,7 @@ const formSchema = z.object({
   answer: z.string().min(20, 'Answer must be at least 20 characters.'),
 });
 
-function KnowledgeBaseForm({ item, onSubmit, onCancel }: { item: KBItem | null, onSubmit: (data: any) => void, onCancel: () => void }) {
+function KnowledgeBaseForm({ item, onSubmit, onCancel }: { item: Partial<KBItem> | null, onSubmit: (data: any) => void, onCancel: () => void }) {
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
@@ -93,37 +93,40 @@ function KnowledgeBaseForm({ item, onSubmit, onCancel }: { item: KBItem | null, 
 }
 
 export default function AdminKnowledgeBasePage() {
-  const [items, setItems] = useState<KBItem[]>(initialKnowledgeBaseItems);
+  const [items, setItems] = useState<KBItem[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<KBItem | null>(null);
+  const [selectedItem, setSelectedItem] = useState<Partial<KBItem> | null>(null);
   const [questions, setQuestions] = useState<UnansweredQuestion[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  useEffect(() => {
-    const fetchQuestions = async () => {
+  const loadData = async () => {
       setIsLoading(true);
       try {
-        const q = query(collection(db, 'unansweredQuestions'), orderBy('timestamp', 'desc'));
-        const querySnapshot = await getDocs(q);
-        const fetchedQuestions = querySnapshot.docs.map(doc => ({
+        const [kbItems, unanswered] = await Promise.all([
+           fetchKnowledgeBase(),
+           getDocs(query(collection(db, 'unansweredQuestions'), orderBy('timestamp', 'desc')))
+        ]);
+        setItems(kbItems);
+        setQuestions(unanswered.docs.map(doc => ({
           id: doc.id,
           question: doc.data().question,
           timestamp: doc.data().timestamp.toDate(),
-        }));
-        setQuestions(fetchedQuestions);
+        })));
       } catch (error) {
-        console.error("Error fetching unanswered questions:", error);
+        console.error("Error fetching data:", error);
         toast({
           title: "Error",
-          description: "Could not fetch unanswered questions.",
+          description: "Could not fetch knowledge base data.",
           variant: "destructive",
         });
       } finally {
         setIsLoading(false);
       }
     };
-    fetchQuestions();
+
+  useEffect(() => {
+    loadData();
   }, [toast]);
 
   const handleAddToKnowledgeBase = (question: UnansweredQuestion) => {
@@ -159,34 +162,48 @@ export default function AdminKnowledgeBasePage() {
     setIsFormOpen(true);
   };
   
-  const handleDeleteKB = (itemId: string) => {
-    setItems(prev => prev.filter(c => c.id !== itemId));
-    toast({
+  const handleDeleteKB = async (itemId: string) => {
+    try {
+      await deleteDoc(doc(db, 'knowledgeBase', itemId));
+      toast({
         title: 'Item Deleted',
         description: 'The knowledge base item has been removed.',
         variant: 'destructive',
-    })
+      });
+      loadData();
+    } catch (error) {
+      console.error("Error deleting knowledge base item:", error);
+      toast({
+        title: 'Error',
+        description: 'Could not delete the item.',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleFormSubmit = (data: Omit<KBItem, 'id'> & { id?: string }) => {
-    const isEditingExistingKB = selectedItem && selectedItem.id && !questions.some(q => q.id === selectedItem.id);
-
-    if (isEditingExistingKB) {
-      // Logic for editing an item that is already in the knowledge base
-      setItems(prev => prev.map(c => (c.id === selectedItem.id ? { ...c, ...data } : c)));
-      toast({ title: 'Item Updated', description: 'The knowledge base has been updated.' });
-    } else { 
-      // Logic for adding a new item, either from scratch or from an unanswered question
-      setItems(prev => [...prev, { ...data, id: `kb-${Date.now()}` }]);
-      toast({ title: 'Item Added', description: 'The new information has been added to the knowledge base.'});
-      
-      // If it was from an unanswered question, we should remove it from that list
-      if (selectedItem && selectedItem.id) {
-           handleDeleteUnanswered(selectedItem.id);
+  const handleFormSubmit = async (data: Omit<KBItem, 'id'> & { id?: string }) => {
+    try {
+      if (selectedItem && selectedItem.id && items.some(i => i.id === selectedItem.id)) {
+        // Editing an existing KB item
+        await updateDoc(doc(db, 'knowledgeBase', selectedItem.id), data);
+        toast({ title: 'Item Updated', description: 'The knowledge base has been updated.' });
+      } else { 
+        // Adding a new item
+        await addDoc(collection(db, 'knowledgeBase'), { question: data.question, answer: data.answer });
+        toast({ title: 'Item Added', description: 'The new information has been added to the knowledge base.'});
+        
+        // If it was from an unanswered question, delete it
+        if (selectedItem && selectedItem.id) {
+             await handleDeleteUnanswered(selectedItem.id);
+        }
       }
+      setIsFormOpen(false);
+      setSelectedItem(null);
+      loadData(); // Reload all data
+    } catch (error) {
+       console.error("Error submitting form:", error);
+       toast({ title: 'Error', description: 'Could not save the item.', variant: 'destructive'});
     }
-    setIsFormOpen(false);
-    setSelectedItem(null);
   };
 
   return (
@@ -345,5 +362,3 @@ export default function AdminKnowledgeBasePage() {
     </div>
   );
 }
-
-    
