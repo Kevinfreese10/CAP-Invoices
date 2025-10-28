@@ -133,11 +133,10 @@ export async function websiteQAndA(
 
     If the user's question is about a specific service mentioned in the context, you MUST provide the 'serviceUrl' for that service in your response. The service URL must exactly match the URL provided in the context for that service.
     
-    CRITICAL INSTRUCTION: If the user asks a general question about a service (e.g., "What is VAT Registration?" or "Tell me about company registration"), your response MUST ONLY contain a bullet-point list with the Price and the Turnaround Time. Do NOT add any other text, description, or prerequisites unless the user specifically asks for them.
+    CRITICAL INSTRUCTION: If the user asks a general question about a service (e.g., "What is VAT Registration?" or "Tell me about company registration"), your response should be friendly and confirm the service name. You MUST then provide the Price and the Turnaround Time in full sentences. Do NOT add any other text, description, or prerequisites unless the user specifically asks for them.
 
-    For example, if the user asks "What is VAT Registration?", your entire response MUST be:
-- **Price:** R1400
-- **Turnaround Time:** 7-10 working days
+    For example, if the user asks "What is VAT Registration?", a good response would be:
+    "Of course! For our VAT Registration service, the price is R1400 and the typical turnaround time is 7-10 working days."
 
     If you are completely unable to answer, you MUST state that you do not have that information and suggest they contact support. For example, say "That's an excellent question! I don't have that specific information right now, but our expert team would be happy to help. You can call us on 010 109 1625 during office hours or email us at info@myacc.co.za for assistance."
     
