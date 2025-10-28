@@ -3,18 +3,20 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Inbox, RefreshCw, FileWarning, Plug, Paperclip, CheckCircle2, RotateCw } from 'lucide-react';
+import { Loader2, Inbox, RefreshCw, FileWarning, Plug, Paperclip, CheckCircle2, RotateCw, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { getFirestore, collection, getDocs } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, deleteDoc, doc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { sendEmail } from '@/lib/email';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+
 
 const db = getFirestore(firebaseApp);
 
@@ -44,7 +46,7 @@ export default function InboxPage() {
     const [selectedUids, setSelectedUids] = useState<Set<number>>(new Set());
     const { toast } = useToast();
     
-    const handleProcessAttachments = useCallback(async (email: Email) => {
+    const handleProcessAttachments = useCallback(async (email: Email, reprocess = false) => {
         const pdfAttachments = email.attachments.filter(att => att.contentType === 'application/pdf');
         if (pdfAttachments.length === 0) {
             return;
@@ -54,7 +56,7 @@ export default function InboxPage() {
             await fetch('/api/emails/process-attachments', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email }),
+                body: JSON.stringify({ email, reprocess }),
             });
         } catch (err: any) {
              toast({
@@ -103,15 +105,13 @@ export default function InboxPage() {
                  toast({ title: 'No Unprocessed Emails', description: 'All selected emails have already been processed. Use "Reprocess" to process them again.' });
                  return;
             }
-            // If there's a mix, or only processed, we continue but only process the unprocessed ones.
-            // This is handled by the API's duplicate check.
         }
 
         setIsProcessing(true);
         toast({ title: `Processing ${emailsToProcess.length} email(s)...`, description: 'This may take a moment.' });
         
         for (const email of emailsToProcess) {
-            await handleProcessAttachments(email);
+            await handleProcessAttachments(email, reprocess);
         }
 
         setIsProcessing(false);
@@ -137,10 +137,36 @@ export default function InboxPage() {
            });
         }
         
-        // Refresh the list to show updated "processed" status
         fetchEmails();
-        setSelectedUids(new Set()); // Clear selection
+        setSelectedUids(new Set()); 
     };
+
+    const handleDeleteSelected = async () => {
+        if (selectedUids.size === 0) return;
+        
+        setIsProcessing(true);
+        try {
+            const response = await fetch('/api/emails/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ uids: Array.from(selectedUids) }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to delete emails');
+            }
+            
+            toast({ title: 'Emails Deleted', description: `${selectedUids.size} email(s) have been deleted.` });
+            fetchEmails();
+            setSelectedUids(new Set());
+        } catch (error: any) {
+            toast({ title: 'Error', description: error.message, variant: 'destructive'});
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
 
     const handleSelectAll = (checked: boolean) => {
         if (checked) {
@@ -206,6 +232,25 @@ export default function InboxPage() {
                         <RotateCw className="mr-2 h-4 w-4"/>
                         Reprocess {selectedUids.size > 0 ? `(${selectedUids.size})` : ''} Selected
                     </Button>
+                     <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="destructive" disabled={isProcessing || selectedUids.size === 0}>
+                                <Trash2 className="mr-2 h-4 w-4"/> Delete {selectedUids.size > 0 ? `(${selectedUids.size})` : ''}
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This will permanently delete {selectedUids.size} email(s) from the server. This action cannot be undone.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleDeleteSelected}>Yes, Delete</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                     </AlertDialog>
                      <Button onClick={handleTestConnection} variant="outline" disabled={isTesting}>
                         <Plug className={`mr-2 h-4 w-4 ${isTesting ? 'animate-pulse' : ''}`} />
                         Test Connection
