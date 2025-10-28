@@ -414,11 +414,9 @@ export default function ReviewPage() {
 
     const handleDownloadExcel = () => {
         const dataToExport = invoices.map(invoice => ({
-            'Date Processed': invoice.createdAt?.toDate ? format(invoice.createdAt.toDate(), 'dd/MM/yyyy HH:mm') : 'N/A',
             'Supplier': invoice.supplier,
             'Commission Number': invoice.commissionNumber || '',
             'Story Name': invoice.storyName || '',
-            'Exclusive Amount': invoice.lineItems.reduce((sum, item) => sum + item.exclusiveAmount, 0),
             'VAT Amount': invoice.lineItems.reduce((sum, item) => sum + item.vatAmount, 0),
             'Invoice Total': invoice.invoiceTotal,
         }));
@@ -520,8 +518,7 @@ export default function ReviewPage() {
                             <TableHead>Supplier</TableHead>
                             <TableHead>Commission #</TableHead>
                             <TableHead>Story Name</TableHead>
-                            <TableHead>Date Processed</TableHead>
-                            <TableHead className="text-right">Excl. Amount</TableHead>
+                            <TableHead>File</TableHead>
                             <TableHead className="text-right">VAT Amount</TableHead>
                             <TableHead className="text-right">Total</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
@@ -529,7 +526,6 @@ export default function ReviewPage() {
                     </TableHeader>
                     <TableBody>
                         {invoices.map((invoice) => {
-                            const totalExclusive = invoice.lineItems.reduce((sum, item) => sum + item.exclusiveAmount, 0);
                             const totalVat = invoice.lineItems.reduce((sum, item) => sum + item.vatAmount, 0);
                             return (
                                 <TableRow key={invoice.id}>
@@ -556,8 +552,11 @@ export default function ReviewPage() {
                                     <TableCell className="font-medium">{invoice.supplier}</TableCell>
                                     <TableCell>{invoice.commissionNumber || 'N/A'}</TableCell>
                                     <TableCell>{invoice.storyName || 'N/A'}</TableCell>
-                                    <TableCell>{invoice.createdAt?.toDate ? format(toDate(invoice.createdAt.toDate()), 'dd/MM/yyyy HH:mm') : 'N/A'}</TableCell>
-                                    <TableCell className="text-right font-mono">{formatPrice(totalExclusive)}</TableCell>
+                                    <TableCell>
+                                        <Button asChild variant="link" className="p-0 h-auto">
+                                            <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer">{invoice.fileName}</a>
+                                        </Button>
+                                    </TableCell>
                                     <TableCell className="text-right font-mono">{formatPrice(totalVat)}</TableCell>
                                     <TableCell className="text-right font-mono">{formatPrice(invoice.invoiceTotal)}</TableCell>
                                     <TableCell className="text-right">
