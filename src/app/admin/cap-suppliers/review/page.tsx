@@ -413,13 +413,27 @@ export default function ReviewPage() {
     };
 
     const handleDownloadExcel = () => {
-        const dataToExport = invoices.map(invoice => ({
-            'Supplier': invoice.supplier,
-            'Commission Number': invoice.commissionNumber || '',
-            'Story Name': invoice.storyName || '',
-            'VAT Amount': invoice.lineItems.reduce((sum, item) => sum + item.vatAmount, 0),
-            'Invoice Total': invoice.invoiceTotal,
-        }));
+        const sortedInvoices = [...invoices].sort((a, b) => {
+            if (a.supplier.toLowerCase() < b.supplier.toLowerCase()) return -1;
+            if (a.supplier.toLowerCase() > b.supplier.toLowerCase()) return 1;
+            if (a.invoiceNumber < b.invoiceNumber) return -1;
+            if (a.invoiceNumber > b.invoiceNumber) return 1;
+            return 0;
+        });
+
+        let dataToExport: any[] = [];
+        
+        sortedInvoices.forEach(invoice => {
+            dataToExport.push({
+                'Supplier': invoice.supplier,
+                'Commission Number': invoice.commissionNumber || '',
+                'Story Name': invoice.storyName || '',
+                'VAT Amount': invoice.lineItems.reduce((sum, item) => sum + item.vatAmount, 0),
+                'Invoice Total': invoice.invoiceTotal,
+            });
+            // Add a blank row after each invoice
+            dataToExport.push({});
+        });
     
         const worksheet = XLSX.utils.json_to_sheet(dataToExport);
         const workbook = XLSX.utils.book_new();
@@ -554,7 +568,7 @@ export default function ReviewPage() {
                                     <TableCell>{invoice.storyName || 'N/A'}</TableCell>
                                     <TableCell>
                                         <Button asChild variant="link" className="p-0 h-auto">
-                                            <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer">{invoice.fileName}</a>
+                                            <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer">View Invoice</a>
                                         </Button>
                                     </TableCell>
                                     <TableCell className="text-right font-mono">{formatPrice(totalVat)}</TableCell>
@@ -614,3 +628,4 @@ export default function ReviewPage() {
     </div>
   );
 }
+
