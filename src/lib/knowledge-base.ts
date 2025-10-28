@@ -37,3 +37,5 @@ export async function fetchKnowledgeBase() {
         return knowledgeBaseItems;
     }
 }
+
+    
