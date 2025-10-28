@@ -432,6 +432,7 @@ export default function ReviewPage() {
                         'Invoice Number': index === 0 ? invoice.invoiceNumber : '',
                         'Line Description': item.description,
                         'Exclusive Amount': item.exclusiveAmount,
+                        'VAT Amount': item.vatAmount,
                         'Invoice Total': index === 0 ? invoice.invoiceTotal : '',
                     });
                 });
@@ -442,6 +443,7 @@ export default function ReviewPage() {
                     'Invoice Number': invoice.invoiceNumber,
                     'Line Description': '',
                     'Exclusive Amount': 0,
+                    'VAT Amount': 0,
                     'Invoice Total': invoice.invoiceTotal,
                 });
             }
@@ -643,4 +645,3 @@ export default function ReviewPage() {
     </div>
   );
 }
-
