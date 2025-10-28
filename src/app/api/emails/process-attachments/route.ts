@@ -46,21 +46,7 @@ export async function POST(req: Request) {
 
     for (const attachment of pdfAttachments) {
       try {
-        // --- Duplicate Prevention Check (only if not reprocessing) ---
-        if (!reprocess) {
-          const invoiceQuery = query(
-            collection(db, "extractedInvoices"),
-            where("sourceEmailUid", "==", email.uid),
-            where("fileName", "==", attachment.filename)
-          );
-          const existingInvoices = await getDocs(invoiceQuery);
-          if (!existingInvoices.empty) {
-            console.log(`Skipping duplicate attachment: ${attachment.filename} from email UID ${email.uid}`);
-            continue; // Skip to the next attachment
-          }
-        }
-        // --- End of Duplicate Prevention Check ---
-
+        
         // 1. Upload the file to Firebase Storage from data URL
         const storageRef = ref(storage, `invoices/email-${email.uid}/${Date.now()}-${attachment.filename}`);
         // Data URL format: 'data:<mime_type>;base64,<encoded_data>'
@@ -71,17 +57,30 @@ export async function POST(req: Request) {
         // 2. Extract data using AI
         const result = await extractInvoiceData({ invoiceImage: attachment.dataUrl });
 
-        if (!result || !result.supplier) {
+        if (!result || !result.supplier || !result.invoiceNumber) {
           console.warn(`AI could not extract valid data for ${attachment.filename}. Skipping.`);
           continue; // Skip this attachment if AI fails
         }
         
+        // --- Duplicate Prevention Check ---
+        let status: 'pending_review' | 'duplicate' = 'pending_review';
+        const invoiceQuery = query(
+            collection(db, "extractedInvoices"),
+            where("supplier", "==", result.supplier),
+            where("invoiceNumber", "==", result.invoiceNumber)
+        );
+        const existingInvoices = await getDocs(invoiceQuery);
+        if (!existingInvoices.empty) {
+            status = 'duplicate';
+        }
+        // --- End of Duplicate Prevention Check ---
+
         // 3. Save to Firestore with the download URL
         const invoiceData = {
           ...result,
           fileName: attachment.filename || 'N/A',
           fileUrl: downloadURL,
-          status: 'pending_review' as const,
+          status: status,
           uploadedBy: 'email_inbox', // Mark as system upload
           createdAt: serverTimestamp(),
           sourceEmailUid: email.uid,

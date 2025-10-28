@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc, where, addDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, MoreHorizontal, Edit, Trash2, FileCheck2, Hourglass, CheckCircle2, Eye, Download, Sparkles, Brain } from 'lucide-react';
+import { Loader2, MoreHorizontal, Edit, Trash2, FileCheck2, Hourglass, CheckCircle2, Eye, Download, Sparkles, Brain, AlertTriangle } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format, toDate } from 'date-fns';
 import { Button } from '@/components/ui/button';
@@ -201,7 +201,7 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
                                 <FormField control={form.control} name={`lineItems.${index}.vatAmount`} render={({ field }) => (<FormItem className="col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>VAT</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
                                 <FormItem className="col-span-2">
                                     <FormLabel className={index > 0 ? "hidden": ""}>Inclusive</FormLabel>
-                                    <Input type="number" value={inclusive.toFixed(2)} readOnly className="bg-muted" />
+                                    <Input type="number" value={Number(inclusive).toFixed(2)} readOnly className="bg-muted" />
                                 </FormItem>
                                 <div className="col-span-12 flex justify-end"><Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button></div>
                             </div>
@@ -276,7 +276,7 @@ function AnalyzeStoryDialog({ open, onOpenChange, invoices, onAnalyzeComplete }:
                         value={knowledgeBase}
                         onChange={(e) => setKnowledgeBase(e.target.value)}
                         rows={15}
-                        placeholder="Paste your two-column data here (e.g., CM-123	My Story Name)"
+                        placeholder="Paste your two-column data here (e.g., CM-123\tMy Story Name)"
                     />
                 </div>
                 <DialogFooter>
@@ -309,7 +309,7 @@ export default function ReviewPage() {
             const fetchedRules = rulesSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as AllocationRule));
             setGlobalRules(fetchedRules);
             
-            const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'pending_review'), orderBy('createdAt', 'desc'));
+            const q = query(collection(db, 'extractedInvoices'), where('status', 'in', ['pending_review', 'duplicate']), orderBy('createdAt', 'desc'));
             const querySnapshot = await getDocs(q);
             const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
             setInvoices(fetchedInvoices);
@@ -418,7 +418,6 @@ export default function ReviewPage() {
             'Supplier': invoice.supplier,
             'Commission Number': invoice.commissionNumber || '',
             'Story Name': invoice.storyName || '',
-            'Invoice Date': invoice.date,
             'Exclusive Amount': invoice.lineItems.reduce((sum, item) => sum + item.exclusiveAmount, 0),
             'VAT Amount': invoice.lineItems.reduce((sum, item) => sum + item.vatAmount, 0),
             'Invoice Total': invoice.invoiceTotal,
@@ -542,10 +541,17 @@ export default function ReviewPage() {
                                         />
                                     </TableCell>
                                     <TableCell>
-                                        <Badge variant={'warning'}>
-                                            <Hourglass className="mr-1 h-3 w-3" />
-                                            {invoice.status.replace('_', ' ')}
-                                        </Badge>
+                                        {invoice.status === 'duplicate' ? (
+                                            <Badge variant={'destructive'}>
+                                                <AlertTriangle className="mr-1 h-3 w-3" />
+                                                Duplicate
+                                            </Badge>
+                                        ) : (
+                                            <Badge variant={'warning'}>
+                                                <Hourglass className="mr-1 h-3 w-3" />
+                                                {invoice.status.replace('_', ' ')}
+                                            </Badge>
+                                        )}
                                     </TableCell>
                                     <TableCell className="font-medium">{invoice.supplier}</TableCell>
                                     <TableCell>{invoice.commissionNumber || 'N/A'}</TableCell>

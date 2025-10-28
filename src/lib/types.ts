@@ -1,10 +1,4 @@
 
-
-
-
-
-
-
 export type VatType =
   // Output Tax
   | 'standard_rated_sales'
@@ -341,7 +335,7 @@ export type ExtractedInvoice = {
     paye?: boolean;
   }[];
   invoiceTotal: number;
-  status: 'pending_review' | 'approved' | 'approved_for_payment' | 'rejected' | 'batched_for_payment';
+  status: 'pending_review' | 'approved' | 'approved_for_payment' | 'rejected' | 'batched_for_payment' | 'duplicate';
   fileName: string;
   fileUrl: string;
   createdAt: any;
