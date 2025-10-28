@@ -99,19 +99,19 @@ export default function InboxPage() {
             return;
         }
         
-        if (!reprocess && emailsToProcess.some(e => e.isProcessed)) {
-            const unprocessedEmails = emailsToProcess.filter(e => !e.isProcessed);
-            if (unprocessedEmails.length === 0) {
-                 toast({ title: 'No Unprocessed Emails', description: 'All selected emails have already been processed. Use "Reprocess" to process them again.' });
-                 return;
-            }
+        if (!reprocess && emailsToProcess.every(e => e.isProcessed)) {
+             toast({ title: 'No Unprocessed Emails', description: 'All selected emails have already been processed. Use "Reprocess" to process them again.' });
+             return;
         }
 
         setIsProcessing(true);
         toast({ title: `Processing ${emailsToProcess.length} email(s)...`, description: 'This may take a moment.' });
         
         for (const email of emailsToProcess) {
-            await handleProcessAttachments(email, reprocess);
+            // Only process if it's unprocessed, OR if reprocess is true
+            if (!email.isProcessed || reprocess) {
+               await handleProcessAttachments(email, reprocess);
+            }
         }
 
         setIsProcessing(false);

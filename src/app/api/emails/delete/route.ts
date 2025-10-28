@@ -1,6 +1,10 @@
 
 import { NextResponse } from 'next/server';
 import imaps from 'imap-simple';
+import { getFirestore, doc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
+
+const db = getFirestore(firebaseApp);
 
 export async function POST(req: Request) {
   const config = {
@@ -26,13 +30,19 @@ export async function POST(req: Request) {
     connection = await imaps.connect(config);
     await connection.openBox('INBOX');
     
-    // Mark emails for deletion
-    await connection.addFlags(uids.join(','), '\\Deleted');
-    
-    // Expunge to permanently delete
-    await connection.expunge();
+    await connection.deleteMessage(uids);
     
     connection.end();
+
+    // Now, delete the records from Firestore
+    const batch = writeBatch(db);
+    uids.forEach(uid => {
+      const docRef = doc(db, 'inboxEmails', String(uid));
+      const processedDocRef = doc(db, 'processedEmails', String(uid));
+      batch.delete(docRef);
+      batch.delete(processedDocRef);
+    });
+    await batch.commit();
     
     return NextResponse.json({ message: `${uids.length} email(s) deleted successfully.` });
 
