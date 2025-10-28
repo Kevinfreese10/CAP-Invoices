@@ -39,6 +39,7 @@ export default function Home() {
   const [services, setServices] = useState<Service[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
   
   useEffect(() => {
     const servicesUnsubscribe = onSnapshot(query(collection(db, 'services'), orderBy('title')), (snapshot) => {
@@ -77,13 +78,20 @@ export default function Home() {
   ];
   
   const categorizedServices = useMemo(() => {
+    let filteredServices = services;
+    if (searchTerm) {
+        filteredServices = services.filter(service => 
+            service.title.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }
+
     return categories
       .map(category => ({
           ...category,
-          data: services.filter(s => s.category === category.name)
+          data: filteredServices.filter(s => s.category === category.name)
       }))
       .filter(c => c.data.length > 0);
-  }, [categories, services]);
+  }, [categories, services, searchTerm]);
 
 
   return (
@@ -135,21 +143,20 @@ export default function Home() {
 
       <section>
         <div className="container mx-auto max-w-2xl px-4">
-          <form className="relative">
+          <form className="relative" onSubmit={(e) => e.preventDefault()}>
             <Input
               type="search"
               placeholder="Search for a product (e.g., 'Company Registration')"
               className="h-12 w-full rounded-md border-input bg-background pr-14 text-base"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
             />
-            <Button
-              type="submit"
-              size="icon"
-              variant="ghost"
-              className="absolute right-1 top-1/2 h-10 w-10 -translate-y-1/2"
+            <div
+              className="absolute right-1 top-1/2 h-10 w-10 -translate-y-1/2 flex items-center justify-center"
             >
-              <Search className="h-5 w-5" />
+              <Search className="h-5 w-5 text-muted-foreground" />
               <span className="sr-only">Search</span>
-            </Button>
+            </div>
           </form>
         </div>
       </section>
@@ -160,41 +167,47 @@ export default function Home() {
                   <Loader2 className="h-12 w-12 animate-spin text-primary" />
                 </div>
             ) : (
-              categorizedServices.map(category => (
-              <section key={category.name} id={category.name.toLowerCase().replace(/ /g, '-')}>
-                  <div className="text-center mb-8">
-                      <h2 className="text-3xl font-bold">{category.name}</h2>
-                      <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
-                          {category.description}
-                      </p>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                  {category.data.map(service => (
-                      <Card
-                      key={service.id}
-                      className="flex flex-col overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
-                      >
-                      <CardHeader>
-                          <CardTitle>{service.title}</CardTitle>
-                          <p className="text-2xl font-bold text-primary pt-2">{formatPrice(service.price)}</p>
-                          <div className="flex items-center text-muted-foreground pt-1">
-                              <Clock className="h-4 w-4 mr-1.5" />
-                              <span className="text-xs font-medium">{service.turnaroundTime}</span>
-                          </div>
-                      </CardHeader>
-                      <CardContent className="flex-grow">
-                          <CardDescription>{service.description}</CardDescription>
-                      </CardContent>
-                      <CardFooter>
-                          <Button asChild className="w-full">
-                          <Link href={`/products/${service.slug}`}>Learn More</Link>
-                          </Button>
-                      </CardFooter>
-                      </Card>
-                  ))}
-                  </div>
-              </section>
-              ))
+              categorizedServices.length > 0 ? (
+                categorizedServices.map(category => (
+                <section key={category.name} id={category.name.toLowerCase().replace(/ /g, '-')}>
+                    <div className="text-center mb-8">
+                        <h2 className="text-3xl font-bold">{category.name}</h2>
+                        <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
+                            {category.description}
+                        </p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {category.data.map(service => (
+                        <Card
+                        key={service.id}
+                        className="flex flex-col overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
+                        >
+                        <CardHeader>
+                            <CardTitle>{service.title}</CardTitle>
+                            <p className="text-2xl font-bold text-primary pt-2">{formatPrice(service.price)}</p>
+                            <div className="flex items-center text-muted-foreground pt-1">
+                                <Clock className="h-4 w-4 mr-1.5" />
+                                <span className="text-xs font-medium">{service.turnaroundTime}</span>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="flex-grow">
+                            <CardDescription>{service.description}</CardDescription>
+                        </CardContent>
+                        <CardFooter>
+                            <Button asChild className="w-full">
+                            <Link href={`/products/${service.slug}`}>Learn More</Link>
+                            </Button>
+                        </CardFooter>
+                        </Card>
+                    ))}
+                    </div>
+                </section>
+                ))
+              ) : (
+                 <div className="text-center py-10">
+                    <p className="text-muted-foreground">No services found for "{searchTerm}".</p>
+                 </div>
+              )
             )}
       </div>
     </div>
