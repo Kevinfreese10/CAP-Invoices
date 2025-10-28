@@ -424,14 +424,29 @@ export default function ReviewPage() {
         let dataToExport: any[] = [];
         
         sortedInvoices.forEach(invoice => {
-            dataToExport.push({
-                'Supplier': invoice.supplier,
-                'Commission Number': invoice.commissionNumber || '',
-                'Story Name': invoice.storyName || '',
-                'VAT Amount': invoice.lineItems.reduce((sum, item) => sum + item.vatAmount, 0),
-                'Invoice Total': invoice.invoiceTotal,
-            });
-            // Add a blank row after each invoice
+            if (invoice.lineItems.length > 0) {
+                invoice.lineItems.forEach((item, index) => {
+                    dataToExport.push({
+                        'Invoice Date': index === 0 ? invoice.date : '',
+                        'Supplier': index === 0 ? invoice.supplier : '',
+                        'Invoice Number': index === 0 ? invoice.invoiceNumber : '',
+                        'Line Description': item.description,
+                        'Exclusive Amount': item.exclusiveAmount,
+                        'Invoice Total': index === 0 ? invoice.invoiceTotal : '',
+                    });
+                });
+            } else {
+                 dataToExport.push({
+                    'Invoice Date': invoice.date,
+                    'Supplier': invoice.supplier,
+                    'Invoice Number': invoice.invoiceNumber,
+                    'Line Description': '',
+                    'Exclusive Amount': 0,
+                    'Invoice Total': invoice.invoiceTotal,
+                });
+            }
+            
+            // Add a blank row after each invoice group
             dataToExport.push({});
         });
     
