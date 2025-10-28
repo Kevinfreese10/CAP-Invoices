@@ -2,7 +2,7 @@
 // /src/app/api/emails/process-attachments/route.ts
 import { NextResponse } from 'next/server';
 import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
-import { addDoc, collection, getFirestore, serverTimestamp, doc, setDoc, getDocs, query, where } from 'firebase/firestore';
+import { addDoc, collection, getFirestore, serverTimestamp, doc, setDoc, getDocs, query, where, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
 
@@ -11,7 +11,7 @@ const db = getFirestore(firebaseApp);
 
 export async function POST(req: Request) {
   try {
-    const { email } = await req.json();
+    const { email, reprocess } = await req.json();
 
     if (!email || !email.attachments) {
       return NextResponse.json({ error: 'Invalid email data provided.' }, { status: 400 });
@@ -26,19 +26,38 @@ export async function POST(req: Request) {
     }
 
     let processedCount = 0;
+    
+    // If reprocessing, delete existing invoices first
+    if (reprocess) {
+        const q = query(
+          collection(db, "extractedInvoices"),
+          where("sourceEmailUid", "==", email.uid)
+        );
+        const existingInvoicesSnapshot = await getDocs(q);
+        if (!existingInvoicesSnapshot.empty) {
+            const deleteBatch = writeBatch(db);
+            existingInvoicesSnapshot.forEach(doc => {
+                deleteBatch.delete(doc.ref);
+            });
+            await deleteBatch.commit();
+        }
+    }
+
 
     for (const attachment of pdfAttachments) {
       try {
-        // --- Duplicate Prevention Check ---
-        const invoiceQuery = query(
-          collection(db, "extractedInvoices"),
-          where("sourceEmailUid", "==", email.uid),
-          where("fileName", "==", attachment.filename)
-        );
-        const existingInvoices = await getDocs(invoiceQuery);
-        if (!existingInvoices.empty) {
-          console.log(`Skipping duplicate attachment: ${attachment.filename} from email UID ${email.uid}`);
-          continue; // Skip to the next attachment
+        // --- Duplicate Prevention Check (only if not reprocessing) ---
+        if (!reprocess) {
+          const invoiceQuery = query(
+            collection(db, "extractedInvoices"),
+            where("sourceEmailUid", "==", email.uid),
+            where("fileName", "==", attachment.filename)
+          );
+          const existingInvoices = await getDocs(invoiceQuery);
+          if (!existingInvoices.empty) {
+            console.log(`Skipping duplicate attachment: ${attachment.filename} from email UID ${email.uid}`);
+            continue; // Skip to the next attachment
+          }
         }
         // --- End of Duplicate Prevention Check ---
 

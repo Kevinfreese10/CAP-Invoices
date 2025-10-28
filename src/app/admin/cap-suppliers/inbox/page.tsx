@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Inbox, RefreshCw, FileWarning, Plug, Paperclip, CheckCircle2 } from 'lucide-react';
+import { Loader2, Inbox, RefreshCw, FileWarning, Plug, Paperclip, CheckCircle2, RotateCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -90,11 +90,21 @@ export default function InboxPage() {
         }
     }, []);
 
-    const handleProcessSelected = async () => {
+    const handleProcessSelected = async (reprocess = false) => {
         const emailsToProcess = emails.filter(email => selectedUids.has(email.uid));
         if (emailsToProcess.length === 0) {
             toast({ title: 'No Emails Selected', description: 'Please select at least one email to process.' });
             return;
+        }
+        
+        if (!reprocess && emailsToProcess.some(e => e.isProcessed)) {
+            const unprocessedEmails = emailsToProcess.filter(e => !e.isProcessed);
+            if (unprocessedEmails.length === 0) {
+                 toast({ title: 'No Unprocessed Emails', description: 'All selected emails have already been processed. Use "Reprocess" to process them again.' });
+                 return;
+            }
+            // If there's a mix, or only processed, we continue but only process the unprocessed ones.
+            // This is handled by the API's duplicate check.
         }
 
         setIsProcessing(true);
@@ -105,7 +115,7 @@ export default function InboxPage() {
         }
 
         setIsProcessing(false);
-        toast({ title: 'Processing Complete', description: `${emailsToProcess.length} email(s) have been processed.` });
+        toast({ title: 'Processing Complete', description: `${emailsToProcess.length} email(s) have been submitted for processing.` });
 
         try {
             await sendEmail({
@@ -134,7 +144,7 @@ export default function InboxPage() {
 
     const handleSelectAll = (checked: boolean) => {
         if (checked) {
-            const allUids = new Set(emails.filter(e => !e.isProcessed && e.attachments.some(a => a.contentType === 'application/pdf')).map(e => e.uid));
+            const allUids = new Set(emails.map(e => e.uid));
             setSelectedUids(allUids);
         } else {
             setSelectedUids(new Set());
@@ -183,17 +193,18 @@ export default function InboxPage() {
         fetchEmails();
     }, [fetchEmails]);
 
-    const selectableEmails = emails.filter(e => !e.isProcessed && e.attachments.some(a => a.contentType === 'application/pdf'));
-
-
     return (
         <div className="space-y-8">
             <div className="flex items-center justify-between">
                 <h1 className="text-3xl font-bold tracking-tight">Email Inbox</h1>
                 <div className="flex gap-2">
-                     <Button onClick={handleProcessSelected} disabled={isProcessing || selectedUids.size === 0}>
+                     <Button onClick={() => handleProcessSelected()} disabled={isProcessing || selectedUids.size === 0}>
                         {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
                         Process {selectedUids.size > 0 ? `(${selectedUids.size})` : ''} Selected
+                    </Button>
+                     <Button onClick={() => handleProcessSelected(true)} variant="secondary" disabled={isProcessing || selectedUids.size === 0}>
+                        <RotateCw className="mr-2 h-4 w-4"/>
+                        Reprocess {selectedUids.size > 0 ? `(${selectedUids.size})` : ''} Selected
                     </Button>
                      <Button onClick={handleTestConnection} variant="outline" disabled={isTesting}>
                         <Plug className={`mr-2 h-4 w-4 ${isTesting ? 'animate-pulse' : ''}`} />
@@ -230,8 +241,8 @@ export default function InboxPage() {
                                     <TableHead className="w-[50px]">
                                          <Checkbox 
                                             id="select-all" 
-                                            onCheckedChange={handleSelectAll}
-                                            checked={selectableEmails.length > 0 && selectedUids.size === selectableEmails.length}
+                                            onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                                            checked={emails.length > 0 && selectedUids.size === emails.length}
                                             />
                                     </TableHead>
                                     <TableHead>From</TableHead>
@@ -244,17 +255,14 @@ export default function InboxPage() {
                              <TableBody>
                                 {emails.map((email) => {
                                     const hasPdf = email.attachments.some(a => a.contentType === 'application/pdf');
-                                    const canSelect = hasPdf && !email.isProcessed;
                                     return (
                                         <TableRow key={email.uid}>
                                             <TableCell>
-                                                {canSelect ? (
-                                                    <Checkbox 
-                                                        id={`select-${email.uid}`} 
-                                                        onCheckedChange={(checked) => handleSelectOne(email.uid, !!checked)}
-                                                        checked={selectedUids.has(email.uid)}
-                                                    />
-                                                ) : <div className="w-4 h-4" />}
+                                                <Checkbox 
+                                                    id={`select-${email.uid}`} 
+                                                    onCheckedChange={(checked) => handleSelectOne(email.uid, !!checked)}
+                                                    checked={selectedUids.has(email.uid)}
+                                                />
                                             </TableCell>
                                             <TableCell className="font-medium">{email.from}</TableCell>
                                             <TableCell>{email.subject}</TableCell>
