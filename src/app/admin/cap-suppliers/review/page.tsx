@@ -425,17 +425,13 @@ export default function ReviewPage() {
         for (let i = 0; i < invoices.length; i++) {
             const invoice = invoices[i];
             try {
-                const response = await fetch(invoice.fileUrl);
-                if (!response.ok) throw new Error(`Failed to fetch ${invoice.fileUrl}`);
-                const blob = await response.blob();
+                // This workaround creates a temporary link to trigger the browser's download behavior, bypassing CORS.
                 const link = document.createElement('a');
-                link.href = window.URL.createObjectURL(blob);
-                const fileExtension = invoice.fileName.split('.').pop() || 'pdf';
-                link.download = `${invoice.supplier} - ${invoice.invoiceNumber}.${fileExtension}`;
+                link.href = invoice.fileUrl;
+                link.setAttribute('download', `${invoice.supplier} - ${invoice.invoiceNumber}.pdf`); // You can customize the filename here
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-                window.URL.revokeObjectURL(link.href);
                 // A small delay to allow browsers to handle multiple downloads
                 await new Promise(resolve => setTimeout(resolve, 300));
             } catch (error) {
@@ -466,7 +462,6 @@ export default function ReviewPage() {
                         'Invoice Date': index === 0 ? invoice.date : '',
                         'Supplier': index === 0 ? invoice.supplier : '',
                         'Invoice Number': index === 0 ? invoice.invoiceNumber : '',
-                        'Commission #': index === 0 ? invoice.commissionNumber : '',
                         'Line Description': item.description,
                         'Exclusive Amount': item.exclusiveAmount,
                         'VAT Amount': item.vatAmount,
@@ -478,7 +473,6 @@ export default function ReviewPage() {
                     'Invoice Date': invoice.date,
                     'Supplier': invoice.supplier,
                     'Invoice Number': invoice.invoiceNumber,
-                    'Commission #': invoice.commissionNumber,
                     'Line Description': '',
                     'Exclusive Amount': 0,
                     'VAT Amount': 0,
