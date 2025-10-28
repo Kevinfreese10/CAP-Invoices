@@ -294,6 +294,7 @@ function AnalyzeStoryDialog({ open, onOpenChange, invoices, onAnalyzeComplete }:
 export default function ReviewPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isDownloading, setIsDownloading] = useState(false);
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
     const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
     const [isAnalyzeDialogOpen, setIsAnalyzeDialogOpen] = useState(false);
@@ -412,6 +413,41 @@ export default function ReviewPage() {
         }
     };
 
+    const handleDownloadAll = async () => {
+        if (invoices.length === 0) {
+            toast({ title: 'No Invoices', description: 'There are no invoices to download.' });
+            return;
+        }
+
+        setIsDownloading(true);
+        toast({ title: 'Preparing Download', description: `Starting download for ${invoices.length} invoices. This may take a moment.` });
+
+        for (let i = 0; i < invoices.length; i++) {
+            const invoice = invoices[i];
+            try {
+                const response = await fetch(invoice.fileUrl);
+                if (!response.ok) throw new Error(`Failed to fetch ${invoice.fileUrl}`);
+                const blob = await response.blob();
+                const link = document.createElement('a');
+                link.href = window.URL.createObjectURL(blob);
+                const fileExtension = invoice.fileName.split('.').pop() || 'pdf';
+                link.download = `${invoice.supplier} - ${invoice.invoiceNumber}.${fileExtension}`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(link.href);
+                // A small delay to allow browsers to handle multiple downloads
+                await new Promise(resolve => setTimeout(resolve, 300));
+            } catch (error) {
+                console.error(`Failed to download ${invoice.fileName}:`, error);
+                toast({ title: 'Download Failed', description: `Could not download ${invoice.fileName}.`, variant: 'destructive' });
+            }
+        }
+        
+        setIsDownloading(false);
+        toast({ title: 'Download Complete', description: 'All invoices have been downloaded.' });
+    };
+
     const handleDownloadExcel = () => {
         const sortedInvoices = [...invoices].sort((a, b) => {
             if (a.supplier.toLowerCase() < b.supplier.toLowerCase()) return -1;
@@ -521,6 +557,10 @@ export default function ReviewPage() {
                     <Button onClick={() => setIsAnalyzeDialogOpen(true)} variant="outline" disabled={selectedInvoices.length === 0}>
                         <Brain className="mr-2 h-4 w-4"/>
                         Analyze ({selectedInvoices.length})
+                    </Button>
+                     <Button onClick={handleDownloadAll} variant="outline" disabled={invoices.length === 0 || isDownloading}>
+                        {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Download className="mr-2 h-4 w-4" />}
+                        Download All
                     </Button>
                     <Button onClick={handleDownloadExcel} variant="outline" disabled={invoices.length === 0}>
                         <Download className="mr-2 h-4 w-4" />
