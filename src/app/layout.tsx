@@ -49,7 +49,10 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <Script async src="https://www.googletagmanager.com/gtag/js?id=G-KBTZN40DGY"></Script>
+        <Script
+          async
+          src="https://www.googletagmanager.com/gtag/js?id=G-KBTZN40DGY"
+        />
         <Script id="google-analytics">
           {`
             window.dataLayer = window.dataLayer || [];
