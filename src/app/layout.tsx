@@ -8,6 +8,7 @@ import { bodyFont, headlineFont } from '@/app/fonts';
 import { cn } from '@/lib/utils';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 import WebsiteAIWidget from '@/components/shared/WebsiteAIWidget';
+import Script from 'next/script';
 
 
 export const metadata: Metadata = {
@@ -48,6 +49,16 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <Script async src="https://www.googletagmanager.com/gtag/js?id=G-KBTZN40DGY"></Script>
+        <Script id="google-analytics">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+
+            gtag('config', 'G-KBTZN40DGY');
+          `}
+        </Script>
       </head>
       <body className={cn("antialiased", bodyFont.variable, headlineFont.variable)}>
         <AuthProvider>
