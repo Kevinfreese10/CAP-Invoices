@@ -29,7 +29,7 @@ import { render } from '@react-email/components';
 import InvoiceRejectionEmail from '@/components/emails/InvoiceRejectionEmail';
 import { ExtractedInvoice } from '@/lib/types';
 import { Checkbox } from '@/components/ui/checkbox';
-import { format, nextFriday, addWeeks } from 'date-fns';
+import { format, nextFriday, addWeeks, addMonths, endOfMonth, isFriday, eachDayOfInterval, isLastDayOfMonth } from 'date-fns';
 
 
 const db = getFirestore(firebaseApp);
@@ -66,18 +66,36 @@ const rejectionFormSchema = z.object({
 });
 
 
-function getUpcomingFridays(count: number = 4): { value: string; label: string }[] {
+function getUpcomingFridays(): { value: string; label: string }[] {
     const fridays = [];
-    let currentDate = new Date();
-    let nextFri = nextFriday(currentDate);
+    const today = new Date();
+    const nextMonthEnd = endOfMonth(addMonths(today, 1));
+    
+    const days = eachDayOfInterval({
+        start: today,
+        end: nextMonthEnd,
+    });
+    
+    for (const day of days) {
+        if (isFriday(day)) {
+            const isMonthEndFriday = isLastDayOfMonth(day) || getMonth(addDays(day, 7)) !== getMonth(day);
+            fridays.push({
+                value: format(day, 'yyyy-MM-dd'),
+                label: `${format(day, 'dd MMMM yyyy')}${isMonthEndFriday ? ' (Month End)' : ''}`,
+            });
+        }
+    }
 
-    for (let i = 0; i < count; i++) {
-        const date = addWeeks(nextFri, i);
-        fridays.push({
-            value: format(date, 'yyyy-MM-dd'),
-            label: format(date, 'dd MMMM yyyy'),
+    // If today is a Friday, it might be missed by the loop starting "today".
+    // Let's ensure it's included if it hasn't been already.
+    if (isFriday(today) && !fridays.some(f => f.value === format(today, 'yyyy-MM-dd'))) {
+        const isMonthEndFriday = isLastDayOfMonth(today) || getMonth(addDays(today, 7)) !== getMonth(today);
+         fridays.unshift({
+            value: format(today, 'yyyy-MM-dd'),
+            label: `${format(today, 'dd MMMM yyyy')}${isMonthEndFriday ? ' (Month End)' : ''}`,
         });
     }
+
     return fridays;
 }
 
