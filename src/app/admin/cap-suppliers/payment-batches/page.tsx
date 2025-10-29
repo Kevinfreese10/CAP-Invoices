@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -12,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { format } from 'date-fns';
 
 
 const db = getFirestore(firebaseApp);
@@ -179,8 +181,31 @@ export default function PaymentBatchesPage() {
         }
     }
 
-    const thisWeekBatch = useMemo(() => invoices.filter(inv => inv.paymentBatch === 'this_week'), [invoices]);
-    const monthEndBatch = useMemo(() => invoices.filter(inv => inv.paymentBatch === 'month_end'), [invoices]);
+    const { thisWeekBatch, monthEndBatch, otherBatches } = useMemo(() => {
+        const batches: { [key: string]: ExtractedInvoice[] } = {};
+        
+        invoices.forEach(inv => {
+            const batchKey = inv.paymentBatch || 'Uncategorized';
+            if (!batches[batchKey]) {
+                batches[batchKey] = [];
+            }
+            batches[batchKey].push(inv);
+        });
+
+        const sortedBatchKeys = Object.keys(batches).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+
+        return {
+            thisWeekBatch: batches['this_week'] || [],
+            monthEndBatch: batches['month_end'] || [],
+            otherBatches: sortedBatchKeys
+                .filter(key => key !== 'this_week' && key !== 'month_end')
+                .map(key => ({
+                    title: `Payment for ${format(new Date(key), 'dd MMMM yyyy')}`,
+                    invoices: batches[key],
+                    total: batches[key].reduce((sum, inv) => sum + inv.invoiceTotal, 0)
+                }))
+        };
+    }, [invoices]);
     
     const thisWeekTotal = useMemo(() => thisWeekBatch.reduce((sum, inv) => sum + inv.invoiceTotal, 0), [thisWeekBatch]);
     const monthEndTotal = useMemo(() => monthEndBatch.reduce((sum, inv) => sum + inv.invoiceTotal, 0), [monthEndBatch]);
@@ -202,18 +227,15 @@ export default function PaymentBatchesPage() {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-                    <PaymentBatchTable 
-                        title="This Week's Payments"
-                        invoices={thisWeekBatch}
-                        totalAmount={thisWeekTotal}
-                        onDelete={handleDelete}
-                    />
-                    <PaymentBatchTable 
-                        title="Month End Payments"
-                        invoices={monthEndBatch}
-                        totalAmount={monthEndTotal}
-                        onDelete={handleDelete}
-                    />
+                    {otherBatches.map(batch => (
+                         <PaymentBatchTable 
+                            key={batch.title}
+                            title={batch.title}
+                            invoices={batch.invoices}
+                            totalAmount={batch.total}
+                            onDelete={handleDelete}
+                        />
+                    ))}
                 </div>
             )}
         </div>

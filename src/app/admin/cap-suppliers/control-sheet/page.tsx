@@ -29,6 +29,7 @@ import { render } from '@react-email/components';
 import InvoiceRejectionEmail from '@/components/emails/InvoiceRejectionEmail';
 import { ExtractedInvoice } from '@/lib/types';
 import { Checkbox } from '@/components/ui/checkbox';
+import { format, nextFriday, addWeeks } from 'date-fns';
 
 
 const db = getFirestore(firebaseApp);
@@ -57,7 +58,7 @@ const formSchema = z.object({
   lineItems: z.array(lineItemSchema),
   invoiceTotal: z.preprocess((val) => Number(val), z.number()),
   expenseType: z.enum(['CAP', 'S38']).optional(),
-  paymentBatch: z.enum(['this_week', 'month_end']).optional(),
+  paymentBatch: z.string().optional(),
 });
 
 const rejectionFormSchema = z.object({
@@ -65,7 +66,24 @@ const rejectionFormSchema = z.object({
 });
 
 
+function getUpcomingFridays(count: number = 4): { value: string; label: string }[] {
+    const fridays = [];
+    let currentDate = new Date();
+    let nextFri = nextFriday(currentDate);
+
+    for (let i = 0; i < count; i++) {
+        const date = addWeeks(nextFri, i);
+        fridays.push({
+            value: format(date, 'yyyy-MM-dd'),
+            label: format(date, 'dd MMMM yyyy'),
+        });
+    }
+    return fridays;
+}
+
 function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvoice | null, onSave: (id: string, data: any) => void, onCancel: () => void }) {
+    const upcomingFridays = getUpcomingFridays();
+    
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
@@ -76,7 +94,7 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
             lineItems: invoice?.lineItems.map(item => ({ ...item, paye: item.paye || false })) || [],
             invoiceTotal: invoice?.invoiceTotal || 0,
             expenseType: invoice?.expenseType || 'S38',
-            paymentBatch: invoice?.paymentBatch || 'month_end',
+            paymentBatch: invoice?.paymentBatch || upcomingFridays[0]?.value,
         }
     });
 
@@ -160,20 +178,18 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
                             <FormItem className="space-y-3">
                             <FormLabel>Payment Batch</FormLabel>
                             <FormControl>
-                                <RadioGroup
-                                onValueChange={field.onChange}
-                                defaultValue={field.value}
-                                className="flex items-center space-x-4"
-                                >
-                                <FormItem className="flex items-center space-x-2 space-y-0">
-                                    <FormControl><RadioGroupItem value="this_week" /></FormControl>
-                                    <FormLabel className="font-normal">This Week</FormLabel>
-                                </FormItem>
-                                <FormItem className="flex items-center space-x-2 space-y-0">
-                                    <FormControl><RadioGroupItem value="month_end" /></FormControl>
-                                    <FormLabel className="font-normal">Month End</FormLabel>
-                                </FormItem>
-                                </RadioGroup>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select a payment date" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {upcomingFridays.map(friday => (
+                                            <SelectItem key={friday.value} value={friday.value}>
+                                                {friday.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </FormControl>
                             <FormMessage />
                             </FormItem>
@@ -408,7 +424,7 @@ export default function SecondReviewPage() {
                                     <TableCell>{invoice.invoiceNumber}</TableCell>
                                     <TableCell>
                                         {invoice.paymentBatch ? (
-                                            <Badge variant="outline">{invoice.paymentBatch === 'this_week' ? 'This Week' : 'Month End'}</Badge>
+                                            <Badge variant="outline">{format(new Date(invoice.paymentBatch), 'dd MMM yyyy')}</Badge>
                                         ) : (
                                             <span className="text-muted-foreground text-xs">Not set</span>
                                         )}
