@@ -3,9 +3,9 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { getFirestore, collection, getDocs, query, orderBy, where, doc, updateDoc } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query, orderBy, where, doc, updateDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, CheckCircle } from 'lucide-react';
+import { Loader2, CheckCircle, MoreHorizontal, Edit } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ExtractedInvoice } from '@/lib/types';
@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import EditInvoiceForm from '@/components/admin/cap-suppliers/EditInvoiceForm';
 
 
 const db = getFirestore(firebaseApp);
@@ -25,6 +26,7 @@ export default function PaymentControlSheetPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [supplierFilter, setSupplierFilter] = useState('');
     const { toast } = useToast();
+    const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
 
     const fetchInvoices = async () => {
         setIsLoading(true);
@@ -63,6 +65,25 @@ export default function PaymentControlSheetPage() {
         }
     };
     
+    const handleSave = async (id: string, data: any) => {
+        try {
+            const docRef = doc(db, 'extractedInvoices', id);
+            const dataToSave = {
+                ...data,
+                commissionNumber: data.commissionNumber || null,
+                paymentBatch: data.paymentBatch || null,
+                expenseType: data.expenseType || null,
+            };
+            await updateDoc(docRef, dataToSave);
+            toast({ title: 'Invoice Updated', description: 'Your changes have been saved.' });
+            setEditingInvoice(null);
+            fetchInvoices();
+        } catch (error) {
+            console.error("Error updating invoice:", error);
+            toast({ title: 'Error', description: 'Could not save changes.', variant: 'destructive'});
+        }
+    };
+
     const formatPrice = (price: number) => {
         return new Intl.NumberFormat('en-ZA', {
           style: 'currency',
@@ -71,9 +92,9 @@ export default function PaymentControlSheetPage() {
     };
 
     const getAccountDescription = (accountId?: string) => {
-        if (!accountId) return 'N/A';
+        if (!accountId) return { description: 'N/A', number: '' };
         const account = allAccounts.find(acc => acc.accountNumber === accountId);
-        return account ? account.description : accountId;
+        return account ? { description: account.description, number: account.accountNumber } : { description: accountId, number: accountId };
     }
 
     const filteredInvoices = useMemo(() => {
@@ -124,10 +145,22 @@ export default function PaymentControlSheetPage() {
                                                 {invoice.commissionNumber && ` | Commission #: ${invoice.commissionNumber}`}
                                             </CardDescription>
                                         </div>
-                                        <div className="text-right">
-                                             <p className="text-sm text-muted-foreground">Total</p>
-                                             <p className="font-bold text-lg">{formatPrice(invoice.invoiceTotal)}</p>
-                                        </div>
+                                         <div className="flex items-center gap-2">
+                                            <div className="text-right">
+                                                <p className="text-sm text-muted-foreground">Amount Payable</p>
+                                                <p className="font-bold text-lg">{formatPrice(invoice.lineItems.reduce((acc, item) => acc + (item.exclusiveAmount + item.vatAmount - ((item.paye ? (item.exclusiveAmount + item.vatAmount) * 0.25 : 0))), 0))}</p>
+                                            </div>
+                                             <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent>
+                                                    <DropdownMenuItem onSelect={() => setEditingInvoice(invoice)}>
+                                                        <Edit className="mr-2 h-4 w-4" /> Edit
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                         </div>
                                     </div>
                                 </CardHeader>
                                 <CardContent className="p-0">
@@ -138,23 +171,24 @@ export default function PaymentControlSheetPage() {
                                                 <TableHead>Allocated Account</TableHead>
                                                 <TableHead>Payment Batch</TableHead>
                                                 <TableHead className="text-right">Amount (Excl. VAT)</TableHead>
-                                                <TableHead className="text-right">VAT</TableHead>
-                                                <TableHead className="text-right">Total (Incl. VAT)</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {invoice.lineItems.map((item, index) => (
+                                            {invoice.lineItems.map((item, index) => {
+                                                const account = getAccountDescription(item.accountId);
+                                                return (
                                                 <TableRow key={index}>
                                                     <TableCell className="font-semibold">{item.description}</TableCell>
-                                                    <TableCell>{getAccountDescription(item.accountId)}</TableCell>
                                                     <TableCell>
-                                                        <Badge variant="outline">{invoice.paymentBatch === 'this_week' ? 'This Week' : 'Month End'}</Badge>
+                                                        <p className="font-semibold">{account.description}</p>
+                                                        <p className="text-xs text-muted-foreground">({account.number} - {invoice.expenseType})</p>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Badge variant="outline">{invoice.paymentBatch ? invoice.paymentBatch.replace(/_/g, ' ') : 'N/A'}</Badge>
                                                     </TableCell>
                                                     <TableCell className="text-right font-mono">{formatPrice(item.exclusiveAmount)}</TableCell>
-                                                    <TableCell className="text-right font-mono">{formatPrice(item.vatAmount)}</TableCell>
-                                                    <TableCell className="text-right font-mono font-semibold">{formatPrice(item.exclusiveAmount + item.vatAmount)}</TableCell>
                                                 </TableRow>
-                                            ))}
+                                            )})}
                                         </TableBody>
                                     </Table>
                                 </CardContent>
@@ -188,6 +222,19 @@ export default function PaymentControlSheetPage() {
                 )}
             </CardContent>
         </Card>
+        <Dialog open={!!editingInvoice} onOpenChange={(isOpen) => !isOpen && setEditingInvoice(null)}>
+            <DialogContent className="sm:max-w-4xl">
+                <DialogHeader>
+                    <DialogTitle>Edit Invoice: {editingInvoice?.supplier}</DialogTitle>
+                    <DialogDescription>Review and correct the extracted data.</DialogDescription>
+                </DialogHeader>
+                <EditInvoiceForm 
+                    invoice={editingInvoice} 
+                    onSave={handleSave} 
+                    onCancel={() => setEditingInvoice(null)} 
+                />
+            </DialogContent>
+      </Dialog>
         </div>
     );
 }

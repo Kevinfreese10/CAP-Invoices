@@ -1,0 +1,239 @@
+
+'use client';
+
+import { useState, useEffect, useMemo } from 'react';
+import { useForm, useFieldArray, useWatch } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Button } from '@/components/ui/button';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from '@/components/ui/checkbox';
+import { DialogFooter } from '@/components/ui/dialog';
+import { Trash2 } from 'lucide-react';
+import { s38ChartOfAccounts, capChartOfAccounts } from '@/lib/cap-chart-of-accounts';
+import { ExtractedInvoice } from '@/lib/types';
+import { format, addDays, eachDayOfInterval, endOfMonth, isFriday, getMonth, isLastDayOfMonth, addMonths } from 'date-fns';
+import { cn } from '@/lib/utils';
+
+const lineItemSchema = z.object({
+  description: z.string().min(1, "Description is required"),
+  exclusiveAmount: z.preprocess((val) => Number(val), z.number()),
+  vatAmount: z.preprocess((val) => Number(val), z.number()),
+  accountId: z.string().optional(),
+  paye: z.boolean().optional(),
+});
+
+const formSchema = z.object({
+  supplier: z.string().min(1, "Supplier name is required"),
+  invoiceNumber: z.string().min(1, "Invoice number is required"),
+  commissionNumber: z.string().optional(),
+  date: z.string().min(1, "Date is required"),
+  lineItems: z.array(lineItemSchema),
+  invoiceTotal: z.preprocess((val) => Number(val), z.number()),
+  expenseType: z.enum(['CAP', 'S38']).optional(),
+  paymentBatch: z.string().optional(),
+});
+
+function getUpcomingFridays(): { value: string; label: string }[] {
+    const fridays = [];
+    const today = new Date();
+    const nextMonthEnd = endOfMonth(addMonths(today, 1));
+    
+    const days = eachDayOfInterval({
+        start: today,
+        end: nextMonthEnd,
+    });
+    
+    for (const day of days) {
+        if (isFriday(day)) {
+            const isMonthEndFriday = isLastDayOfMonth(day) || getMonth(addDays(day, 7)) !== getMonth(day);
+            fridays.push({
+                value: format(day, 'yyyy-MM-dd'),
+                label: `${format(day, 'dd MMMM yyyy')}${isMonthEndFriday ? ' (Month End)' : ''}`,
+            });
+        }
+    }
+
+    if (isFriday(today) && !fridays.some(f => f.value === format(today, 'yyyy-MM-dd'))) {
+        const isMonthEndFriday = isLastDayOfMonth(today) || getMonth(addDays(today, 7)) !== getMonth(day);
+         fridays.unshift({
+            value: format(today, 'yyyy-MM-dd'),
+            label: `${format(today, 'dd MMMM yyyy')}${isMonthEndFriday ? ' (Month End)' : ''}`,
+        });
+    }
+
+    return fridays;
+}
+
+
+export default function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvoice | null, onSave: (id: string, data: any) => void, onCancel: () => void }) {
+    const upcomingFridays = getUpcomingFridays();
+    
+    const form = useForm<z.infer<typeof formSchema>>({
+        resolver: zodResolver(formSchema),
+        defaultValues: {
+            supplier: invoice?.supplier || '',
+            invoiceNumber: invoice?.invoiceNumber || '',
+            commissionNumber: invoice?.commissionNumber || '',
+            date: invoice?.date || '',
+            lineItems: invoice?.lineItems.map(item => ({ ...item, paye: item.paye || false })) || [],
+            invoiceTotal: invoice?.invoiceTotal || 0,
+            expenseType: invoice?.expenseType || 'S38',
+            paymentBatch: invoice?.paymentBatch || upcomingFridays[0]?.value,
+        }
+    });
+
+    const { fields, append, remove } = useFieldArray({
+        control: form.control,
+        name: "lineItems",
+    });
+    
+    const watchedLineItems = useWatch({
+        control: form.control,
+        name: "lineItems",
+    });
+
+    const invoiceTotal = useWatch({
+        control: form.control,
+        name: "invoiceTotal"
+    });
+    
+    const expenseType = useWatch({
+        control: form.control,
+        name: 'expenseType',
+    });
+
+    const chartOfAccounts = expenseType === 'S38' ? s38ChartOfAccounts : capChartOfAccounts;
+    
+    const controlTotal = useMemo(() => {
+        return (watchedLineItems || []).reduce((acc, item) => {
+            return acc + (item.exclusiveAmount || 0) + (item.vatAmount || 0);
+        }, 0);
+    }, [watchedLineItems]);
+
+    const difference = useMemo(() => {
+        return controlTotal - (invoiceTotal || 0);
+    }, [controlTotal, invoiceTotal]);
+
+    const onSubmit = (data: z.infer<typeof formSchema>) => {
+        if (invoice) {
+            onSave(invoice.id, data);
+        }
+    };
+
+    return (
+        <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto pr-4">
+                 <div className="grid grid-cols-2 gap-8">
+                    <FormField
+                        control={form.control}
+                        name="expenseType"
+                        render={({ field }) => (
+                            <FormItem className="space-y-3">
+                            <FormLabel>Expense Type</FormLabel>
+                            <FormControl>
+                                <RadioGroup
+                                onValueChange={field.onChange}
+                                defaultValue={field.value}
+                                className="flex items-center space-x-4"
+                                >
+                                <FormItem className="flex items-center space-x-2 space-y-0">
+                                    <FormControl><RadioGroupItem value="CAP" /></FormControl>
+                                    <FormLabel className="font-normal">CAP Expense</FormLabel>
+                                </FormItem>
+                                <FormItem className="flex items-center space-x-2 space-y-0">
+                                    <FormControl><RadioGroupItem value="S38" /></FormControl>
+                                    <FormLabel className="font-normal">S38 Expense</FormLabel>
+                                </FormItem>
+                                </RadioGroup>
+                            </FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+                     <FormField
+                        control={form.control}
+                        name="paymentBatch"
+                        render={({ field }) => (
+                            <FormItem className="space-y-3">
+                            <FormLabel>Payment Batch</FormLabel>
+                            <FormControl>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select a payment date" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {upcomingFridays.map(friday => (
+                                            <SelectItem key={friday.value} value={friday.value}>
+                                                {friday.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <FormField control={form.control} name="supplier" render={({ field }) => ( <FormItem><FormLabel>Supplier</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="invoiceNumber" render={({ field }) => ( <FormItem><FormLabel>Invoice Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                </div>
+                 <FormField control={form.control} name="date" render={({ field }) => ( <FormItem><FormLabel>Date</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                 <FormField control={form.control} name="commissionNumber" render={({ field }) => ( <FormItem><FormLabel>Commission Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                
+                <h4 className="font-medium">Line Items</h4>
+                <div className="space-y-2">
+                    {fields.map((field, index) => (
+                        <div key={field.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end border p-2 rounded-md">
+                            <FormField control={form.control} name={`lineItems.${index}.description`} render={({ field }) => (<FormItem className="md:col-span-12"><FormLabel className={index > 0 ? "hidden": ""}>Description</FormLabel><FormControl><Textarea {...field} rows={1} /></FormControl></FormItem>)} />
+                            <FormField control={form.control} name={`lineItems.${index}.exclusiveAmount`} render={({ field }) => (<FormItem className="md:col-span-3"><FormLabel className={index > 0 ? "hidden": ""}>Exclusive</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
+                            <FormField control={form.control} name={`lineItems.${index}.vatAmount`} render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>VAT</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
+                             <FormField control={form.control} name={`lineItems.${index}.accountId`} render={({ field }) => (<FormItem className="md:col-span-6"><FormLabel className={index > 0 ? "hidden": ""}>Account</FormLabel> <Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl><SelectContent>{chartOfAccounts.map((account) => (<SelectItem key={account.accountNumber} value={account.accountNumber}>{account.accountNumber} - {account.description}</SelectItem>))}</SelectContent></Select> <FormMessage /></FormItem>)} />
+                             <div className="md:col-span-1 flex justify-end"><Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button></div>
+                        </div>
+                    ))}
+                </div>
+                 <Button type="button" variant="outline" size="sm" onClick={() => append({ description: '', exclusiveAmount: 0, vatAmount: 0, paye: false })}>Add Line</Button>
+                
+                <div className="grid grid-cols-3 gap-4 pt-4">
+                    <FormItem>
+                        <FormLabel>Control Total</FormLabel>
+                        <Input type="number" value={controlTotal.toFixed(2)} readOnly className="bg-muted font-semibold" />
+                    </FormItem>
+                    <FormField
+                        control={form.control}
+                        name="invoiceTotal"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Invoice Total</FormLabel>
+                            <FormControl><Input type="number" step="0.01" {...field} readOnly className="bg-muted" /></FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormItem>
+                        <FormLabel>Difference</FormLabel>
+                        <Input 
+                            type="number" 
+                            value={difference.toFixed(2)} 
+                            readOnly 
+                            className={cn("font-bold", difference !== 0 ? 'text-destructive bg-destructive/10' : 'text-green-600 bg-green-50')}
+                        />
+                    </FormItem>
+                </div>
+
+                <DialogFooter>
+                    <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
+                    <Button type="submit">Save Changes</Button>
+                </DialogFooter>
+            </form>
+        </Form>
+    );
+}
+
