@@ -3,9 +3,10 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { getFirestore, collection, getDocs, query, orderBy, where, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query, orderBy, where, doc, updateDoc, deleteDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, MoreHorizontal, Edit, Trash2, CheckCircle2, FileCheck2, XCircle, Eye } from 'lucide-react';
+import { Loader2, MoreHorizontal, Edit, Trash2, CheckCircle2, FileCheck2, XCircle, Eye, Upload, PlusCircle } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -16,9 +17,10 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { s38ChartOfAccounts, capChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 import { ExtractedInvoice } from '@/lib/types';
 import EditInvoiceForm from '@/components/admin/cap-suppliers/EditInvoiceForm';
-
+import ManualInvoiceForm from '@/components/admin/cap-suppliers/ManualInvoiceForm';
 
 const db = getFirestore(firebaseApp);
+const storage = getStorage(firebaseApp);
 
 const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts];
 
@@ -26,6 +28,7 @@ export default function SecondReviewPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
+    const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const { toast } = useToast();
 
     const fetchInvoices = async () => {
@@ -86,6 +89,35 @@ export default function SecondReviewPage() {
             toast({ title: 'Error', description: 'Could not delete the invoice.', variant: 'destructive'});
         }
     }
+    
+    const handleManualUpload = async (values: any, file: File) => {
+        setIsUploadModalOpen(false);
+        toast({ title: 'Uploading Invoice...', description: 'Please wait.' });
+
+        try {
+            const storageRef = ref(storage, `invoices/manual/${Date.now()}-${file.name}`);
+            const uploadResult = await uploadBytes(storageRef, file);
+            const downloadURL = await getDownloadURL(uploadResult.ref);
+
+            const invoiceData = {
+                ...values,
+                fileName: file.name,
+                fileUrl: downloadURL,
+                status: 'approved',
+                uploadedBy: 'manual_upload',
+                createdAt: serverTimestamp(),
+            };
+
+            await addDoc(collection(db, "extractedInvoices"), invoiceData);
+
+            toast({ title: 'Upload Successful', description: 'The invoice has been added to the review list.' });
+            fetchInvoices();
+        } catch (error) {
+            console.error("Manual upload error:", error);
+            toast({ title: 'Upload Failed', description: 'Could not upload the invoice.', variant: 'destructive'});
+        }
+    };
+
 
     const getStatusBadge = (status: ExtractedInvoice['status']) => {
         switch(status) {
@@ -117,7 +149,13 @@ export default function SecondReviewPage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-3xl font-bold tracking-tight">2nd Review</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold tracking-tight">2nd Review</h1>
+        <Button onClick={() => setIsUploadModalOpen(true)}>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Upload Invoice
+        </Button>
+      </div>
       <Card>
         <CardHeader>
           <CardTitle>Approved Invoices</CardTitle>
@@ -226,6 +264,16 @@ export default function SecondReviewPage() {
                 onSave={handleSave} 
                 onCancel={() => setEditingInvoice(null)} 
             />
+        </DialogContent>
+      </Dialog>
+      
+       <Dialog open={isUploadModalOpen} onOpenChange={setIsUploadModalOpen}>
+        <DialogContent className="sm:max-w-3xl">
+            <DialogHeader>
+                <DialogTitle>Manually Upload Invoice</DialogTitle>
+                <DialogDescription>Fill in the details for the invoice and upload the file.</DialogDescription>
+            </DialogHeader>
+            <ManualInvoiceForm onSave={handleManualUpload} onCancel={() => setIsUploadModalOpen(false)} />
         </DialogContent>
       </Dialog>
 
