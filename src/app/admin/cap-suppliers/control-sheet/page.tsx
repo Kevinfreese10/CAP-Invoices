@@ -29,7 +29,7 @@ import { render } from '@react-email/components';
 import InvoiceRejectionEmail from '@/components/emails/InvoiceRejectionEmail';
 import { ExtractedInvoice } from '@/lib/types';
 import { Checkbox } from '@/components/ui/checkbox';
-import { format, nextFriday, addWeeks, addMonths, endOfMonth, isFriday, eachDayOfInterval, isLastDayOfMonth } from 'date-fns';
+import { format, nextFriday, addWeeks, addMonths, endOfMonth, isFriday, eachDayOfInterval, isLastDayOfMonth, getMonth, addDays } from 'date-fns';
 
 
 const db = getFirestore(firebaseApp);
@@ -89,7 +89,7 @@ function getUpcomingFridays(): { value: string; label: string }[] {
     // If today is a Friday, it might be missed by the loop starting "today".
     // Let's ensure it's included if it hasn't been already.
     if (isFriday(today) && !fridays.some(f => f.value === format(today, 'yyyy-MM-dd'))) {
-        const isMonthEndFriday = isLastDayOfMonth(today) || getMonth(addDays(today, 7)) !== getMonth(today);
+        const isMonthEndFriday = isLastDayOfMonth(today) || getMonth(addDays(today, 7)) !== getMonth(day);
          fridays.unshift({
             value: format(today, 'yyyy-MM-dd'),
             label: `${format(today, 'dd MMMM yyyy')}${isMonthEndFriday ? ' (Month End)' : ''}`,
