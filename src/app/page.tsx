@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -108,9 +107,7 @@ export default function Home() {
             <h1 className="text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl">
               South Africa’s leading online <span className="text-gradient">#accounting</span> and <span className="text-gradient">#tax</span> store
             </h1>
-            <p className="text-lg text-white/80 max-w-3xl mx-auto">
-              Your trusted partner for professional financial services in South Africa. We simplify your finances so you can focus on what matters.
-            </p>
+            
             <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
               <Button asChild size="lg">
                 <Link href="#products">Explore Products</Link>
