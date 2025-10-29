@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc, where, addDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, MoreHorizontal, Edit, Trash2, FileCheck2, Hourglass, CheckCircle2, Eye, Download, Sparkles, Brain, AlertTriangle } from 'lucide-react';
+import { Loader2, MoreHorizontal, Edit, Trash2, FileCheck2, Hourglass, CheckCircle2, Eye, Download, Sparkles, Brain, AlertTriangle, AlertCircle } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format, toDate } from 'date-fns';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { findStoryName } from '@/ai/flows/find-story-name';
 import { commissionList as defaultCommissionList } from '@/lib/commission-list';
 import { Checkbox } from '@/components/ui/checkbox';
+import { cn } from '@/lib/utils';
 
 const db = getFirestore(firebaseApp);
 
@@ -140,6 +141,22 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
         name: "lineItems",
     });
 
+    const watchedInvoiceTotal = useWatch({
+        control: form.control,
+        name: "invoiceTotal"
+    });
+
+    const controlTotal = useMemo(() => {
+        return (watchedLineItems || []).reduce((acc, item) => {
+            return acc + (item.exclusiveAmount || 0) + (item.vatAmount || 0);
+        }, 0);
+    }, [watchedLineItems]);
+
+    const difference = useMemo(() => {
+        return controlTotal - (watchedInvoiceTotal || 0);
+    }, [controlTotal, watchedInvoiceTotal]);
+
+
     const onSubmit = (data: z.infer<typeof formSchema>) => {
         if (invoice) {
             onSave(invoice.id, data);
@@ -190,27 +207,44 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
                     
                     <h4 className="font-medium">Line Items</h4>
                     <div className="space-y-2">
-                        {fields.map((field, index) => {
-                            const exclusive = Number(watchedLineItems?.[index]?.exclusiveAmount) || 0;
-                            const vat = Number(watchedLineItems?.[index]?.vatAmount) || 0;
-                            const inclusive = exclusive + vat;
-                            return (
-                            <div key={field.id} className="grid grid-cols-12 gap-2 items-end">
-                                <FormField control={form.control} name={`lineItems.${index}.description`} render={({ field }) => (<FormItem className="col-span-6"><FormLabel className={index > 0 ? "hidden": ""}>Description</FormLabel><FormControl><Textarea {...field} rows={1} /></FormControl></FormItem>)} />
-                                <FormField control={form.control} name={`lineItems.${index}.exclusiveAmount`} render={({ field }) => (<FormItem className="col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>Exclusive</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
-                                <FormField control={form.control} name={`lineItems.${index}.vatAmount`} render={({ field }) => (<FormItem className="col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>VAT</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
-                                <FormItem className="col-span-2">
-                                    <FormLabel className={index > 0 ? "hidden": ""}>Inclusive</FormLabel>
-                                    <Input type="number" value={Number(inclusive).toFixed(2)} readOnly className="bg-muted" />
-                                </FormItem>
-                                <div className="col-span-12 flex justify-end"><Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button></div>
-                            </div>
-                            )
-                        })}
+                        {fields.map((field, index) => (
+                        <div key={field.id} className="grid grid-cols-12 gap-2 items-end">
+                            <FormField control={form.control} name={`lineItems.${index}.description`} render={({ field }) => (<FormItem className="col-span-8"><FormLabel className={index > 0 ? "hidden": ""}>Description</FormLabel><FormControl><Textarea {...field} rows={1} /></FormControl></FormItem>)} />
+                            <FormField control={form.control} name={`lineItems.${index}.exclusiveAmount`} render={({ field }) => (<FormItem className="col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>Exclusive</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
+                            <FormField control={form.control} name={`lineItems.${index}.vatAmount`} render={({ field }) => (<FormItem className="col-span-1"><FormLabel className={index > 0 ? "hidden": ""}>VAT</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
+                            <div className="col-span-1 flex justify-end"><Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button></div>
+                        </div>
+                        ))}
                     </div>
                     <Button type="button" variant="outline" size="sm" onClick={() => append({ description: '', exclusiveAmount: 0, vatAmount: 0 })}>Add Line</Button>
                     
-                    <FormField control={form.control} name="invoiceTotal" render={({ field }) => ( <FormItem><FormLabel>Invoice Total</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    <div className="grid grid-cols-3 gap-4 pt-4">
+                        <FormItem>
+                            <FormLabel>Control Total</FormLabel>
+                            <Input type="number" value={controlTotal.toFixed(2)} readOnly className="bg-muted font-semibold" />
+                        </FormItem>
+                         <FormField
+                            control={form.control}
+                            name="invoiceTotal"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Invoice Total</FormLabel>
+                                <FormControl><Input type="number" step="0.01" {...field} readOnly className="bg-muted" /></FormControl>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                         <FormItem>
+                            <FormLabel>Difference</FormLabel>
+                             <Input 
+                                type="number" 
+                                value={difference.toFixed(2)} 
+                                readOnly 
+                                className={cn("font-bold", difference !== 0 ? 'text-destructive bg-destructive/10' : 'text-green-600 bg-green-50')}
+                            />
+                        </FormItem>
+                    </div>
+
                     
                     <DialogFooter>
                         <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
@@ -460,8 +494,9 @@ export default function ReviewPage() {
                 invoice.lineItems.forEach((item, index) => {
                     dataToExport.push({
                         'Invoice Date': index === 0 ? invoice.date : '',
-                        'Supplier': index === 0 ? invoice.supplier : '',
                         'Invoice Number': index === 0 ? invoice.invoiceNumber : '',
+                        'Supplier': index === 0 ? invoice.supplier : '',
+                        'Commission #': index === 0 ? invoice.commissionNumber : '',
                         'Line Description': item.description,
                         'Exclusive Amount': item.exclusiveAmount,
                         'VAT Amount': item.vatAmount,
@@ -471,8 +506,9 @@ export default function ReviewPage() {
             } else {
                  dataToExport.push({
                     'Invoice Date': invoice.date,
-                    'Supplier': invoice.supplier,
                     'Invoice Number': invoice.invoiceNumber,
+                    'Supplier': invoice.supplier,
+                    'Commission #': invoice.commissionNumber,
                     'Line Description': '',
                     'Exclusive Amount': 0,
                     'VAT Amount': 0,
@@ -681,3 +717,4 @@ export default function ReviewPage() {
     </div>
   );
 }
+
