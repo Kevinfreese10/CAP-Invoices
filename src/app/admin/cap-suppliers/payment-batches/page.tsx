@@ -1,10 +1,9 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { getFirestore, collection, getDocs, query, orderBy, where, doc, deleteDoc } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query, orderBy, where, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, Banknote, ChevronDown, Trash2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -13,7 +12,8 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
+import { Separator } from '@/components/ui/separator';
 
 
 const db = getFirestore(firebaseApp);
@@ -24,7 +24,7 @@ type SupplierGroup = {
     invoices: ExtractedInvoice[];
 };
 
-function PaymentBatchTable({ title, invoices, totalAmount, onDelete }: { title: string, invoices: ExtractedInvoice[], totalAmount: number, onDelete: (id: string) => void }) {
+function PaymentBatchTable({ title, invoices, totalAmount, onDelete }: { title: string, invoices: ExtractedInvoice[], totalAmount: number, onDelete: (id: string, batchKey: string | undefined, expenseType: string | undefined) => void }) {
     const [openSupplier, setOpenSupplier] = useState<string | null>(null);
 
     const formatPrice = (price: number) => {
@@ -117,12 +117,12 @@ function PaymentBatchTable({ title, invoices, totalAmount, onDelete }: { title: 
                                                                                 <AlertDialogHeader>
                                                                                     <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                                                                     <AlertDialogDescription>
-                                                                                        This action cannot be undone. This will permanently delete the invoice for {invoice.supplier} (#{invoice.invoiceNumber}).
+                                                                                        This action will move the invoice for {invoice.supplier} (#{invoice.invoiceNumber}) back to the 'Approved for Payment' stage.
                                                                                     </AlertDialogDescription>
                                                                                 </AlertDialogHeader>
                                                                                 <AlertDialogFooter>
                                                                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                                                    <AlertDialogAction onClick={() => onDelete(invoice.id)}>Delete</AlertDialogAction>
+                                                                                    <AlertDialogAction onClick={() => onDelete(invoice.id, invoice.paymentBatch, invoice.expenseType)}>Remove from Batch</AlertDialogAction>
                                                                                 </AlertDialogFooter>
                                                                             </AlertDialogContent>
                                                                         </AlertDialog>
@@ -155,7 +155,7 @@ export default function PaymentBatchesPage() {
     const fetchInvoices = async () => {
         setIsLoading(true);
         try {
-            const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'batched_for_payment'), orderBy('createdAt', 'desc'));
+            const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'batched_for_payment'), orderBy('paymentBatch', 'asc'));
             const querySnapshot = await getDocs(q);
             const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
             setInvoices(fetchedInvoices);
@@ -171,44 +171,55 @@ export default function PaymentBatchesPage() {
         fetchInvoices();
     }, []);
 
-    const handleDelete = async (id: string) => {
+    const handleRemoveFromBatch = async (id: string, batchKey: string | undefined, expenseType: string | undefined) => {
          try {
-            await deleteDoc(doc(db, 'extractedInvoices', id));
-            toast({ title: 'Invoice Deleted', description: 'The invoice has been removed from the batch.', variant: 'destructive'});
+            const docRef = doc(db, 'extractedInvoices', id);
+            await updateDoc(docRef, { 
+                status: 'approved_for_payment',
+            });
+            toast({ title: 'Invoice Removed', description: 'The invoice has been moved back for approval.', variant: 'destructive'});
             fetchInvoices();
         } catch (error) {
-            toast({ title: 'Error', description: 'Could not delete the invoice.', variant: 'destructive'});
+            toast({ title: 'Error', description: 'Could not remove the invoice from the batch.', variant: 'destructive'});
         }
     }
-
-    const { thisWeekBatch, monthEndBatch, otherBatches } = useMemo(() => {
-        const batches: { [key: string]: ExtractedInvoice[] } = {};
+    
+    const weeklyBatches = useMemo(() => {
+        const batches: { [week: string]: { CAP: ExtractedInvoice[], S38: ExtractedInvoice[] } } = {};
         
         invoices.forEach(inv => {
             const batchKey = inv.paymentBatch || 'Uncategorized';
             if (!batches[batchKey]) {
-                batches[batchKey] = [];
+                batches[batchKey] = { CAP: [], S38: [] };
             }
-            batches[batchKey].push(inv);
+            if (inv.expenseType === 'CAP') {
+                batches[batchKey].CAP.push(inv);
+            } else { // S38 or undefined
+                batches[batchKey].S38.push(inv);
+            }
         });
+        
+        return Object.entries(batches).map(([batchKey, expenseGroups]) => {
+            let title: string;
+            if (batchKey === 'this_week') title = 'This Week';
+            else if (batchKey === 'month_end') title = 'Month End';
+            else if (batchKey === 'Uncategorized') title = 'Uncategorized';
+            else {
+                try {
+                    title = `Payment for ${format(parseISO(batchKey), 'dd MMMM yyyy')}`;
+                } catch(e) {
+                    title = `Batch: ${batchKey}`;
+                }
+            }
 
-        const sortedBatchKeys = Object.keys(batches).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
-
-        return {
-            thisWeekBatch: batches['this_week'] || [],
-            monthEndBatch: batches['month_end'] || [],
-            otherBatches: sortedBatchKeys
-                .filter(key => key !== 'this_week' && key !== 'month_end')
-                .map(key => ({
-                    title: `Payment for ${format(new Date(key), 'dd MMMM yyyy')}`,
-                    invoices: batches[key],
-                    total: batches[key].reduce((sum, inv) => sum + inv.invoiceTotal, 0)
-                }))
-        };
+            return {
+                title,
+                capTotal: expenseGroups.CAP.reduce((sum, inv) => sum + inv.invoiceTotal, 0),
+                s38Total: expenseGroups.S38.reduce((sum, inv) => sum + inv.invoiceTotal, 0),
+                ...expenseGroups,
+            };
+        });
     }, [invoices]);
-    
-    const thisWeekTotal = useMemo(() => thisWeekBatch.reduce((sum, inv) => sum + inv.invoiceTotal, 0), [thisWeekBatch]);
-    const monthEndTotal = useMemo(() => monthEndBatch.reduce((sum, inv) => sum + inv.invoiceTotal, 0), [monthEndBatch]);
 
 
     return (
@@ -225,16 +236,28 @@ export default function PaymentBatchesPage() {
                 <div className="flex justify-center items-center h-64">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
+            ) : weeklyBatches.length === 0 ? (
+                 <p className="text-center text-muted-foreground py-10">No payment batches found.</p>
             ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-                    {otherBatches.map(batch => (
-                         <PaymentBatchTable 
-                            key={batch.title}
-                            title={batch.title}
-                            invoices={batch.invoices}
-                            totalAmount={batch.total}
-                            onDelete={handleDelete}
-                        />
+                <div className="space-y-12">
+                    {weeklyBatches.map((batch, index) => (
+                        <div key={index}>
+                            <h2 className="text-2xl font-bold mb-4">{batch.title}</h2>
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                                <PaymentBatchTable 
+                                    title="CAP Expenses"
+                                    invoices={batch.CAP}
+                                    totalAmount={batch.capTotal}
+                                    onDelete={handleRemoveFromBatch}
+                                />
+                                 <PaymentBatchTable 
+                                    title="S38 Expenses"
+                                    invoices={batch.S38}
+                                    totalAmount={batch.s38Total}
+                                    onDelete={handleRemoveFromBatch}
+                                />
+                            </div>
+                        </div>
                     ))}
                 </div>
             )}
