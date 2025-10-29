@@ -16,6 +16,7 @@ import { Loader2, Upload, Trash2, RefreshCw, Copy, FileText } from 'lucide-react
 import { Progress } from '@/components/ui/progress';
 import { useAuth } from '@/contexts/AuthContext';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Separator } from '@/components/ui/separator';
 
 const storage = getStorage(firebaseApp);
 const db = getFirestore(firebaseApp);
@@ -28,6 +29,70 @@ type MediaItem = {
     source: 'Service' | 'Blog' | 'Uploaded';
     uploadedBy?: string;
 };
+
+function MediaGrid({ title, images, onCopy, onDelete, showDelete }: { title: string, images: MediaItem[], onCopy: (url: string) => void, onDelete: (image: MediaItem) => void, showDelete: boolean }) {
+    if (images.length === 0) return null;
+    
+    return (
+        <section>
+            <h2 className="text-2xl font-bold tracking-tight mb-4">{title}</h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                {images.map((image) => {
+                    const isImage = image.url.includes('.png') || image.url.includes('.jpg') || image.url.includes('.jpeg') || image.url.includes('.gif') || image.url.includes('firebasestorage') || image.url.includes('picsum.photos');
+                    return (
+                        <div key={image.id} className="group space-y-2">
+                            <div className="aspect-square w-full overflow-hidden rounded-lg bg-muted border relative">
+                            {isImage ? (
+                                <Image
+                                    src={image.url}
+                                    alt={image.title}
+                                    fill
+                                    className="object-cover group-hover:opacity-75"
+                                    data-ai-hint={image.hint}
+                                />
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-full p-2 text-center">
+                                    <FileText className="w-8 h-8 text-muted-foreground" />
+                                    <p className="text-xs text-muted-foreground mt-2 truncate">{image.title}</p>
+                                </div>
+                            )}
+                            {showDelete && (
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="destructive" size="icon" className="absolute top-2 right-2 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                            <AlertDialogDescription>This will permanently delete the file <span className="font-semibold">{image.title}</span> from your storage and database.</AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={() => onDelete(image)}>Delete</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            )}
+                            </div>
+                            <div className="text-sm space-y-1">
+                                <h3 className="font-medium truncate">{image.title}</h3>
+                                <p className="text-xs text-muted-foreground">{image.source}</p>
+                                <div className="flex items-center gap-1">
+                                    <Input value={image.url} readOnly className="h-7 text-xs flex-grow truncate" />
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0" onClick={() => onCopy(image.url)}>
+                                        <Copy className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </section>
+    );
+}
 
 export default function MediaPage() {
     const serviceImages: MediaItem[] = services.map(s => ({
@@ -45,12 +110,9 @@ export default function MediaPage() {
         hint: p.imageHint,
         source: 'Blog'
     }));
-
-    const allImages = [...serviceImages, ...blogImages];
     
     const [uploadedImages, setUploadedImages] = useState<MediaItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-
     const [files, setFiles] = useState<File[]>([]);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [isUploading, setIsUploading] = useState(false);
@@ -122,7 +184,6 @@ export default function MediaPage() {
                     },
                     async () => {
                         const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                        // Save metadata to Firestore
                         await addDoc(collection(db, 'media'), {
                             name: file.name,
                             url: downloadURL,
@@ -145,13 +206,9 @@ export default function MediaPage() {
     
     const handleDelete = async (image: MediaItem) => {
         try {
-            // Delete from Firestore
             await deleteDoc(doc(db, 'media', image.id));
-
-            // Delete from Storage
             const imageRef = ref(storage, image.url);
             await deleteObject(imageRef);
-
             toast({ title: 'Image Deleted', description: 'The image has been removed from your library.' });
             fetchUploadedImages();
         } catch(error) {
@@ -159,9 +216,6 @@ export default function MediaPage() {
             toast({ title: 'Delete Failed', description: 'There was an error deleting the image.', variant: 'destructive' });
         }
     }
-
-    const combinedImages = [...allImages, ...uploadedImages];
-    const uniqueImages = Array.from(new Map(combinedImages.map(item => [item.url, item])).values());
     
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text).then(() => {
@@ -172,10 +226,9 @@ export default function MediaPage() {
         });
     }
 
-
   return (
     <div className="space-y-8">
-      <h1 className="text-3xl font-bold tracking-tight">Media Database</h1>
+      <h1 className="text-3xl font-bold tracking-tight">Media Library</h1>
         <Card>
             <CardHeader>
                 <CardTitle>Upload New File(s)</CardTitle>
@@ -192,85 +245,22 @@ export default function MediaPage() {
                 {isUploading && <Progress value={uploadProgress} className="w-full" />}
             </CardContent>
         </Card>
-      <Card>
-        <CardHeader>
-            <div className="flex items-center justify-between">
-                <div>
-                    <CardTitle>File Library</CardTitle>
-                    <CardDescription>
-                        A collection of all images and documents from services, blog posts, and direct uploads.
-                    </CardDescription>
+        
+        <div className="space-y-8">
+            {isLoading ? (
+                <div className="flex justify-center items-center h-40">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
-                 <Button variant="outline" size="sm" onClick={fetchUploadedImages} disabled={isLoading}>
-                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                    Refresh
-                </Button>
-            </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center items-center h-40">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : uniqueImages.length > 0 ? (
-             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                {uniqueImages.map((image) => {
-                    const isImage = image.url.includes('.png') || image.url.includes('.jpg') || image.url.includes('.jpeg') || image.url.includes('.gif') || image.url.includes('firebasestorage');
-                    return (
-                    <div key={image.id} className="group space-y-2">
-                        <div className="aspect-square w-full overflow-hidden rounded-lg bg-muted border relative">
-                        {isImage ? (
-                            <Image
-                                src={image.url}
-                                alt={image.title}
-                                fill
-                                className="object-cover group-hover:opacity-75"
-                                data-ai-hint={image.hint}
-                            />
-                        ) : (
-                            <div className="flex flex-col items-center justify-center h-full p-2 text-center">
-                                <FileText className="w-8 h-8 text-muted-foreground" />
-                                <p className="text-xs text-muted-foreground mt-2 truncate">{image.title}</p>
-                            </div>
-                        )}
-                        {image.source === 'Uploaded' && (
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="destructive" size="icon" className="absolute top-2 right-2 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </AlertDialogTrigger>
-                                 <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                        <AlertDialogDescription>This will permanently delete the file <span className="font-semibold">{image.title}</span> from your storage and database.</AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => handleDelete(image)}>Delete</AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                        )}
-                        </div>
-                         <div className="text-sm space-y-1">
-                            <h3 className="font-medium truncate">{image.title}</h3>
-                             <p className="text-xs text-muted-foreground">{image.source}</p>
-                            <div className="flex items-center gap-1">
-                                <Input value={image.url} readOnly className="h-7 text-xs flex-grow truncate" />
-                                <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0" onClick={() => copyToClipboard(image.url)}>
-                                    <Copy className="h-4 w-4" />
-                                </Button>
-                             </div>
-                        </div>
-                    </div>
-                )})}
-            </div>
-          ) : (
-            <p>No files found.</p>
-          )}
-        </CardContent>
-      </Card>
+            ) : (
+                <>
+                    <MediaGrid title="My Uploads" images={uploadedImages} onCopy={copyToClipboard} onDelete={handleDelete} showDelete={true} />
+                    <Separator />
+                    <MediaGrid title="Service Images" images={serviceImages} onCopy={copyToClipboard} onDelete={() => {}} showDelete={false} />
+                    <Separator />
+                    <MediaGrid title="Blog Images" images={blogImages} onCopy={copyToClipboard} onDelete={() => {}} showDelete={false} />
+                </>
+            )}
+        </div>
     </div>
   );
 }
