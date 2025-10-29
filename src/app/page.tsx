@@ -97,12 +97,11 @@ export default function Home() {
   return (
     <div className="space-y-16 pb-16">
       <section 
-        className="relative bg-cover bg-center bg-no-repeat"
+        className="relative"
       >
-        <div className="absolute inset-0 bg-black/60"></div>
-        <div className="relative container mx-auto grid grid-cols-1 items-center gap-12 px-4 py-16 lg:py-24">
-          <div className="space-y-6 text-center text-white">
-            <h1 className="text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl">
+        <div className="container mx-auto grid grid-cols-1 items-center gap-12 px-4 py-16 lg:py-24">
+          <div className="space-y-6 text-center">
+            <h1 className="text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl text-foreground">
               South Africa’s leading online <span className="text-gradient">#accounting</span> and <span className="text-gradient">#tax</span> store
             </h1>
             
