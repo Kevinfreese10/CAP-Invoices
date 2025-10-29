@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, MoreHorizontal, Edit, Trash2, CheckCircle2, FileCheck2, XCircle } from 'lucide-react';
+import { Loader2, MoreHorizontal, Edit, Trash2, CheckCircle2, FileCheck2, XCircle, Eye } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -89,7 +89,7 @@ function getUpcomingFridays(): { value: string; label: string }[] {
     // If today is a Friday, it might be missed by the loop starting "today".
     // Let's ensure it's included if it hasn't been already.
     if (isFriday(today) && !fridays.some(f => f.value === format(today, 'yyyy-MM-dd'))) {
-        const isMonthEndFriday = isLastDayOfMonth(today) || getMonth(addDays(today, 7)) !== getMonth(day);
+        const isMonthEndFriday = isLastDayOfMonth(today) || getMonth(addDays(today, 7)) !== getMonth(today);
          fridays.unshift({
             value: format(today, 'yyyy-MM-dd'),
             label: `${format(today, 'dd MMMM yyyy')}${isMonthEndFriday ? ' (Month End)' : ''}`,
@@ -420,7 +420,7 @@ export default function SecondReviewPage() {
                             <TableHead>Invoice #</TableHead>
                             <TableHead>Payment Batch</TableHead>
                             <TableHead>Date</TableHead>
-                            <TableHead>File</TableHead>
+                            <TableHead>View Invoice</TableHead>
                             <TableHead className="text-right">Total</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -448,7 +448,13 @@ export default function SecondReviewPage() {
                                         )}
                                     </TableCell>
                                     <TableCell>{invoice.date}</TableCell>
-                                    <TableCell>{invoice.fileName}</TableCell>
+                                    <TableCell>
+                                        <Button asChild variant="ghost" size="icon">
+                                            <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer">
+                                                <Eye className="h-4 w-4" />
+                                            </a>
+                                        </Button>
+                                    </TableCell>
                                     <TableCell className="text-right font-mono">R {invoice.invoiceTotal.toFixed(2)}</TableCell>
                                     <TableCell className="text-right">
                                         <DropdownMenu>
