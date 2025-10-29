@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { getFirestore, collection, getDocs, query, orderBy, where, doc, updateDoc, writeBatch, addDoc, serverTimestamp } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, CheckCircle, MoreHorizontal, Edit, PlusCircle } from 'lucide-react';
+import { Loader2, CheckCircle, MoreHorizontal, Edit, PlusCircle, FileCheck2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ExtractedInvoice } from '@/lib/types';
@@ -18,12 +18,111 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import EditInvoiceForm from '@/components/admin/cap-suppliers/EditInvoiceForm';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import ManualInvoiceForm from '@/components/admin/cap-suppliers/ManualInvoiceForm';
+import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
+
 
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
 
 const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts];
+
+function AIExtractUploadDialog({ onUploadComplete }: { onUploadComplete: () => void }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [file, setFile] = useState<File | null>(null);
+    const [isExtracting, setIsExtracting] = useState(false);
+    const { toast } = useToast();
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const selectedFile = e.target.files?.[0];
+        if (selectedFile) {
+            setFile(selectedFile);
+        }
+    };
+
+    const handleUploadAndExtract = async () => {
+        if (!file) {
+            toast({ title: 'No file selected', variant: 'destructive' });
+            return;
+        }
+
+        setIsExtracting(true);
+        toast({ title: 'Processing Invoice...', description: 'AI is extracting data. Please wait.' });
+
+        try {
+            // 1. Upload file to storage
+            const storageRef = ref(storage, `invoices/manual-ai/${Date.now()}-${file.name}`);
+            const uploadResult = await uploadBytes(storageRef, file);
+            const downloadURL = await getDownloadURL(uploadResult.ref);
+
+            // 2. Convert file to data URL for AI
+            const reader = new FileReader();
+            const dataUrlPromise = new Promise<string>((resolve, reject) => {
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = reject;
+            });
+            reader.readAsDataURL(file);
+            const dataUrl = await dataUrlPromise;
+
+            // 3. Extract data using AI
+            const result = await extractInvoiceData({ invoiceImage: dataUrl });
+
+             if (!result || !result.supplier || !result.invoiceNumber) {
+                throw new Error('AI could not extract required fields from the invoice.');
+            }
+            
+            // 4. Save to Firestore
+            const invoiceData = {
+                ...result,
+                fileName: file.name,
+                fileUrl: downloadURL,
+                status: 'approved_for_payment', // Add directly to this stage
+                uploadedBy: 'manual_ai_upload',
+                createdAt: serverTimestamp(),
+            };
+
+            await addDoc(collection(db, "extractedInvoices"), invoiceData);
+
+            toast({ title: 'Upload Successful', description: 'The invoice has been extracted and added to the sheet.' });
+            onUploadComplete();
+            setFile(null);
+            setIsOpen(false);
+
+        } catch (error) {
+            console.error("AI upload error:", error);
+            toast({ title: 'Upload Failed', description: 'Could not process the invoice.', variant: 'destructive' });
+        } finally {
+            setIsExtracting(false);
+        }
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                 <Button>
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Upload Invoice
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Upload Invoice (AI Extraction)</DialogTitle>
+                    <DialogDescription>Select an invoice PDF or image. The AI will extract the details and add it directly to this sheet.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                    <Input id="invoice-file" type="file" accept="application/pdf,image/*" onChange={handleFileChange} />
+                </div>
+                <DialogFooter>
+                    <Button variant="ghost" onClick={() => setIsOpen(false)}>Cancel</Button>
+                    <Button onClick={handleUploadAndExtract} disabled={!file || isExtracting}>
+                        {isExtracting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Upload and Extract
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 
 export default function PaymentControlSheetPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
@@ -31,7 +130,6 @@ export default function PaymentControlSheetPage() {
     const [supplierFilter, setSupplierFilter] = useState('');
     const { toast } = useToast();
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
-    const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
 
     const fetchInvoices = async () => {
         setIsLoading(true);
@@ -89,35 +187,6 @@ export default function PaymentControlSheetPage() {
         }
     };
 
-    const handleManualUpload = async (values: any, file: File) => {
-        setIsUploadModalOpen(false);
-        toast({ title: 'Uploading Invoice...', description: 'Please wait.' });
-
-        try {
-            const storageRef = ref(storage, `invoices/manual/${Date.now()}-${file.name}`);
-            const uploadResult = await uploadBytes(storageRef, file);
-            const downloadURL = await getDownloadURL(uploadResult.ref);
-
-            const invoiceData = {
-                ...values,
-                fileName: file.name,
-                fileUrl: downloadURL,
-                status: 'approved_for_payment', // Add directly to this stage
-                uploadedBy: 'manual_upload',
-                createdAt: serverTimestamp(),
-            };
-
-            await addDoc(collection(db, "extractedInvoices"), invoiceData);
-
-            toast({ title: 'Upload Successful', description: 'The invoice has been added to the control sheet.' });
-            fetchInvoices();
-        } catch (error) {
-            console.error("Manual upload error:", error);
-            toast({ title: 'Upload Failed', description: 'Could not upload the invoice.', variant: 'destructive'});
-        }
-    };
-
-
     const formatPrice = (price: number) => {
         return new Intl.NumberFormat('en-ZA', {
           style: 'currency',
@@ -141,10 +210,7 @@ export default function PaymentControlSheetPage() {
         <div className="space-y-8">
             <div className="flex items-center justify-between">
                 <h1 className="text-3xl font-bold tracking-tight">Payment Control Sheet</h1>
-                <Button onClick={() => setIsUploadModalOpen(true)}>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Upload Invoice
-                </Button>
+                <AIExtractUploadDialog onUploadComplete={fetchInvoices} />
             </div>
             <Card>
                 <CardHeader>
@@ -236,13 +302,13 @@ export default function PaymentControlSheetPage() {
                                         <AlertDialog>
                                             <AlertDialogTrigger asChild>
                                                 <Button size="sm">
-                                                    <CheckCircle className="mr-2 h-4 w-4"/>
-                                                    Final Approval
+                                                    <FileCheck2 className="mr-2 h-4 w-4"/>
+                                                    Batch for Payment
                                                 </Button>
                                             </AlertDialogTrigger>
                                             <AlertDialogContent>
                                                 <AlertDialogHeader>
-                                                    <AlertDialogTitle>Confirm Final Approval</AlertDialogTitle>
+                                                    <AlertDialogTitle>Confirm Batching</AlertDialogTitle>
                                                     <AlertDialogDescription>
                                                         This will move the invoice for "{invoice.supplier}" to the final payment batches. Are you sure?
                                                     </AlertDialogDescription>
@@ -250,7 +316,7 @@ export default function PaymentControlSheetPage() {
                                                 <AlertDialogFooter>
                                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                                                     <AlertDialogAction onClick={() => handleFinalApproval(invoice.id)}>
-                                                        Yes, Approve
+                                                        Yes, Batch
                                                     </AlertDialogAction>
                                                 </AlertDialogFooter>
                                             </AlertDialogContent>
@@ -273,15 +339,6 @@ export default function PaymentControlSheetPage() {
                         onSave={handleSave} 
                         onCancel={() => setEditingInvoice(null)} 
                     />
-                </DialogContent>
-            </Dialog>
-            <Dialog open={isUploadModalOpen} onOpenChange={setIsUploadModalOpen}>
-                <DialogContent className="sm:max-w-3xl">
-                    <DialogHeader>
-                        <DialogTitle>Manually Upload Invoice</DialogTitle>
-                        <DialogDescription>Fill in the details for the invoice and upload the file.</DialogDescription>
-                    </DialogHeader>
-                    <ManualInvoiceForm onSave={handleManualUpload} onCancel={() => setIsUploadModalOpen(false)} />
                 </DialogContent>
             </Dialog>
         </div>
