@@ -157,20 +157,28 @@ export const OrderConfirmationEmail = ({ order, reseller, isNewUser, generatedPa
                     Thank you for your order with {companyName}. Your order <strong style={{color: '#214392'}}>{order.id}</strong> has been successfully placed and is now pending payment.
                 </Text>
                 <Hr style={hr} />
-                <Text style={paragraph}>
-                    <strong>Order Summary:</strong>
+                <Text style={{ ...paragraph, fontWeight: 'bold' }}>
+                    Order Summary:
                 </Text>
-                {order.items.map((item: any) => (
-                    <Row key={item.id}>
-                        <Column><Text style={paragraph}>{item.title} (x{item.quantity})</Text></Column>
-                        <Column align="right"><Text style={paragraph}>{formatPrice(item.clientPrice || item.price)}</Text></Column>
-                    </Row>
-                ))}
+                <table style={{ width: '100%' }}>
+                    <tbody>
+                    {order.items.map((item: any) => (
+                        <tr key={item.id}>
+                        <td><Text style={paragraph}>{item.title} (x{item.quantity})</Text></td>
+                        <td align="right"><Text style={paragraph}>{formatPrice(item.clientPrice || item.price)}</Text></td>
+                        </tr>
+                    ))}
+                    </tbody>
+                </table>
                 <Hr style={hr} />
-                <Row>
-                    <Column><Text style={{...paragraph, fontWeight: 'bold'}}>Total</Text></Column>
-                    <Column align="right"><Text style={{...paragraph, fontWeight: 'bold'}}>{formatPrice(order.clientTotal || order.total)}</Text></Column>
-                </Row>
+                <table style={{ width: '100%' }}>
+                    <tbody>
+                        <tr>
+                        <td><Text style={{ ...paragraph, fontWeight: 'bold' }}>Total</Text></td>
+                        <td align="right"><Text style={{ ...paragraph, fontWeight: 'bold' }}>{formatPrice(order.clientTotal || order.total)}</Text></td>
+                        </tr>
+                    </tbody>
+                </table>
                 <Hr style={hr} />
                 
                 {isNewUser && generatedPassword && (
