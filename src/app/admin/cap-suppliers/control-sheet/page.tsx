@@ -89,35 +89,6 @@ export default function SecondReviewPage() {
             toast({ title: 'Error', description: 'Could not delete the invoice.', variant: 'destructive'});
         }
     }
-    
-    const handleManualUpload = async (values: any, file: File) => {
-        setIsUploadModalOpen(false);
-        toast({ title: 'Uploading Invoice...', description: 'Please wait.' });
-
-        try {
-            const storageRef = ref(storage, `invoices/manual/${Date.now()}-${file.name}`);
-            const uploadResult = await uploadBytes(storageRef, file);
-            const downloadURL = await getDownloadURL(uploadResult.ref);
-
-            const invoiceData = {
-                ...values,
-                fileName: file.name,
-                fileUrl: downloadURL,
-                status: 'approved',
-                uploadedBy: 'manual_upload',
-                createdAt: serverTimestamp(),
-            };
-
-            await addDoc(collection(db, "extractedInvoices"), invoiceData);
-
-            toast({ title: 'Upload Successful', description: 'The invoice has been added to the review list.' });
-            fetchInvoices();
-        } catch (error) {
-            console.error("Manual upload error:", error);
-            toast({ title: 'Upload Failed', description: 'Could not upload the invoice.', variant: 'destructive'});
-        }
-    };
-
 
     const getStatusBadge = (status: ExtractedInvoice['status']) => {
         switch(status) {
@@ -151,10 +122,6 @@ export default function SecondReviewPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">2nd Review</h1>
-        <Button onClick={() => setIsUploadModalOpen(true)}>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Upload Invoice
-        </Button>
       </div>
       <Card>
         <CardHeader>
@@ -266,17 +233,6 @@ export default function SecondReviewPage() {
             />
         </DialogContent>
       </Dialog>
-      
-       <Dialog open={isUploadModalOpen} onOpenChange={setIsUploadModalOpen}>
-        <DialogContent className="sm:max-w-3xl">
-            <DialogHeader>
-                <DialogTitle>Manually Upload Invoice</DialogTitle>
-                <DialogDescription>Fill in the details for the invoice and upload the file.</DialogDescription>
-            </DialogHeader>
-            <ManualInvoiceForm onSave={handleManualUpload} onCancel={() => setIsUploadModalOpen(false)} />
-        </DialogContent>
-      </Dialog>
-
     </div>
   );
 }

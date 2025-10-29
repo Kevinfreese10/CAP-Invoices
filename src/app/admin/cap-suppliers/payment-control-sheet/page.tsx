@@ -3,9 +3,10 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { getFirestore, collection, getDocs, query, orderBy, where, doc, updateDoc, writeBatch } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query, orderBy, where, doc, updateDoc, writeBatch, addDoc, serverTimestamp } from 'firebase/firestore';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, CheckCircle, MoreHorizontal, Edit } from 'lucide-react';
+import { Loader2, CheckCircle, MoreHorizontal, Edit, PlusCircle } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ExtractedInvoice } from '@/lib/types';
@@ -17,9 +18,10 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import EditInvoiceForm from '@/components/admin/cap-suppliers/EditInvoiceForm';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-
+import ManualInvoiceForm from '@/components/admin/cap-suppliers/ManualInvoiceForm';
 
 const db = getFirestore(firebaseApp);
+const storage = getStorage(firebaseApp);
 
 const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts];
 
@@ -29,6 +31,7 @@ export default function PaymentControlSheetPage() {
     const [supplierFilter, setSupplierFilter] = useState('');
     const { toast } = useToast();
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
+    const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
 
     const fetchInvoices = async () => {
         setIsLoading(true);
@@ -86,6 +89,35 @@ export default function PaymentControlSheetPage() {
         }
     };
 
+    const handleManualUpload = async (values: any, file: File) => {
+        setIsUploadModalOpen(false);
+        toast({ title: 'Uploading Invoice...', description: 'Please wait.' });
+
+        try {
+            const storageRef = ref(storage, `invoices/manual/${Date.now()}-${file.name}`);
+            const uploadResult = await uploadBytes(storageRef, file);
+            const downloadURL = await getDownloadURL(uploadResult.ref);
+
+            const invoiceData = {
+                ...values,
+                fileName: file.name,
+                fileUrl: downloadURL,
+                status: 'approved_for_payment', // Add directly to this stage
+                uploadedBy: 'manual_upload',
+                createdAt: serverTimestamp(),
+            };
+
+            await addDoc(collection(db, "extractedInvoices"), invoiceData);
+
+            toast({ title: 'Upload Successful', description: 'The invoice has been added to the control sheet.' });
+            fetchInvoices();
+        } catch (error) {
+            console.error("Manual upload error:", error);
+            toast({ title: 'Upload Failed', description: 'Could not upload the invoice.', variant: 'destructive'});
+        }
+    };
+
+
     const formatPrice = (price: number) => {
         return new Intl.NumberFormat('en-ZA', {
           style: 'currency',
@@ -107,136 +139,151 @@ export default function PaymentControlSheetPage() {
 
     return (
         <div className="space-y-8">
-        <h1 className="text-3xl font-bold tracking-tight">Payment Control Sheet</h1>
-        <Card>
-            <CardHeader>
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div>
-                        <CardTitle>Invoices Approved for Payment</CardTitle>
-                        <CardDescription>
-                            These line items from approved invoices are ready for payment processing.
-                        </CardDescription>
+            <div className="flex items-center justify-between">
+                <h1 className="text-3xl font-bold tracking-tight">Payment Control Sheet</h1>
+                <Button onClick={() => setIsUploadModalOpen(true)}>
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Upload Invoice
+                </Button>
+            </div>
+            <Card>
+                <CardHeader>
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div>
+                            <CardTitle>Invoices Approved for Payment</CardTitle>
+                            <CardDescription>
+                                These line items from approved invoices are ready for payment processing.
+                            </CardDescription>
+                        </div>
+                        <Input
+                            placeholder="Filter by supplier..."
+                            value={supplierFilter}
+                            onChange={(e) => setSupplierFilter(e.target.value)}
+                            className="max-w-sm"
+                        />
                     </div>
-                    <Input
-                        placeholder="Filter by supplier..."
-                        value={supplierFilter}
-                        onChange={(e) => setSupplierFilter(e.target.value)}
-                        className="max-w-sm"
-                    />
-                </div>
-            </CardHeader>
-            <CardContent>
-                {isLoading ? (
-                    <div className="flex justify-center items-center h-64">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    </div>
-                ) : filteredInvoices.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-10">
-                        {invoices.length > 0 ? 'No invoices match the current filter.' : 'No invoices are currently approved for payment.'}
-                    </p>
-                ) : (
-                    <div className="space-y-6">
-                        {filteredInvoices.map((invoice) => (
-                             <Card key={invoice.id} className="overflow-hidden">
-                                <CardHeader className="bg-muted/50">
-                                    <div className="flex flex-wrap justify-between items-center gap-2">
-                                        <div>
-                                            <CardTitle className="text-lg">{invoice.supplier}</CardTitle>
-                                            <CardDescription>
-                                                Invoice #: {invoice.invoiceNumber} | Date: {invoice.date}
-                                                {invoice.commissionNumber && ` | Commission #: ${invoice.commissionNumber}`}
-                                            </CardDescription>
-                                        </div>
-                                         <div className="flex items-center gap-2">
-                                            <div className="text-right">
-                                                <p className="text-sm text-muted-foreground">Amount Payable</p>
-                                                <p className="font-bold text-lg">{formatPrice(invoice.lineItems.reduce((acc, item) => acc + (item.exclusiveAmount + item.vatAmount - ((item.paye ? (item.exclusiveAmount + item.vatAmount) * 0.25 : 0))), 0))}</p>
+                </CardHeader>
+                <CardContent>
+                    {isLoading ? (
+                        <div className="flex justify-center items-center h-64">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        </div>
+                    ) : filteredInvoices.length === 0 ? (
+                        <p className="text-center text-muted-foreground py-10">
+                            {invoices.length > 0 ? 'No invoices match the current filter.' : 'No invoices are currently approved for payment.'}
+                        </p>
+                    ) : (
+                        <div className="space-y-6">
+                            {filteredInvoices.map((invoice) => (
+                                <Card key={invoice.id} className="overflow-hidden">
+                                    <CardHeader className="bg-muted/50">
+                                        <div className="flex flex-wrap justify-between items-center gap-2">
+                                            <div>
+                                                <CardTitle className="text-lg">{invoice.supplier}</CardTitle>
+                                                <CardDescription>
+                                                    Invoice #: {invoice.invoiceNumber} | Date: {invoice.date}
+                                                    {invoice.commissionNumber && ` | Commission #: ${invoice.commissionNumber}`}
+                                                </CardDescription>
                                             </div>
-                                             <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent>
-                                                    <DropdownMenuItem onSelect={() => setEditingInvoice(invoice)}>
-                                                        <Edit className="mr-2 h-4 w-4" /> Edit
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                         </div>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="p-0">
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Line Item Description</TableHead>
-                                                <TableHead>Allocated Account</TableHead>
-                                                <TableHead>Payment Batch</TableHead>
-                                                <TableHead className="text-right">Amount (Excl. VAT)</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {invoice.lineItems.map((item, index) => {
-                                                const account = getAccountDescription(item.accountId);
-                                                return (
-                                                <TableRow key={index}>
-                                                    <TableCell className="font-semibold">{item.description}</TableCell>
-                                                    <TableCell>
-                                                        <p className="font-semibold">{account.description}</p>
-                                                        <p className="text-xs text-muted-foreground">({account.number} - {invoice.expenseType})</p>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Badge variant="outline">{invoice.paymentBatch ? invoice.paymentBatch.replace(/_/g, ' ') : 'N/A'}</Badge>
-                                                    </TableCell>
-                                                    <TableCell className="text-right font-mono">{formatPrice(item.exclusiveAmount)}</TableCell>
+                                            <div className="flex items-center gap-2">
+                                                <div className="text-right">
+                                                    <p className="text-sm text-muted-foreground">Amount Payable</p>
+                                                    <p className="font-bold text-lg">{formatPrice(invoice.lineItems.reduce((acc, item) => acc + (item.exclusiveAmount + item.vatAmount - ((item.paye ? (item.exclusiveAmount + item.vatAmount) * 0.25 : 0))), 0))}</p>
+                                                </div>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent>
+                                                        <DropdownMenuItem onSelect={() => setEditingInvoice(invoice)}>
+                                                            <Edit className="mr-2 h-4 w-4" /> Edit
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </div>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent className="p-0">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Line Item Description</TableHead>
+                                                    <TableHead>Allocated Account</TableHead>
+                                                    <TableHead>Payment Batch</TableHead>
+                                                    <TableHead className="text-right">Amount (Excl. VAT)</TableHead>
                                                 </TableRow>
-                                            )})}
-                                        </TableBody>
-                                    </Table>
-                                </CardContent>
-                                <CardFooter className="bg-muted/50 p-3 justify-end">
-                                     <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <Button size="sm">
-                                                <CheckCircle className="mr-2 h-4 w-4"/>
-                                                Final Approval
-                                            </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>Confirm Final Approval</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                    This will move the invoice for "{invoice.supplier}" to the final payment batches. Are you sure?
-                                                </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                <AlertDialogAction onClick={() => handleFinalApproval(invoice.id)}>
-                                                    Yes, Approve
-                                                </AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                </CardFooter>
-                            </Card>
-                        ))}
-                    </div>
-                )}
-            </CardContent>
-        </Card>
-        <Dialog open={!!editingInvoice} onOpenChange={(isOpen) => !isOpen && setEditingInvoice(null)}>
-            <DialogContent className="sm:max-w-4xl">
-                <DialogHeader>
-                    <DialogTitle>Edit Invoice: {editingInvoice?.supplier}</DialogTitle>
-                    <DialogDescription>Review and correct the extracted data.</DialogDescription>
-                </DialogHeader>
-                <EditInvoiceForm 
-                    invoice={editingInvoice} 
-                    onSave={handleSave} 
-                    onCancel={() => setEditingInvoice(null)} 
-                />
-            </DialogContent>
-      </Dialog>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {invoice.lineItems.map((item, index) => {
+                                                    const account = getAccountDescription(item.accountId);
+                                                    return (
+                                                    <TableRow key={index}>
+                                                        <TableCell className="font-semibold">{item.description}</TableCell>
+                                                        <TableCell>
+                                                            <p className="font-semibold">{account.description}</p>
+                                                            <p className="text-xs text-muted-foreground">({account.number} - {invoice.expenseType})</p>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Badge variant="outline">{invoice.paymentBatch ? invoice.paymentBatch.replace(/_/g, ' ') : 'N/A'}</Badge>
+                                                        </TableCell>
+                                                        <TableCell className="text-right font-mono">{formatPrice(item.exclusiveAmount)}</TableCell>
+                                                    </TableRow>
+                                                )})}
+                                            </TableBody>
+                                        </Table>
+                                    </CardContent>
+                                    <CardFooter className="bg-muted/50 p-3 justify-end">
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button size="sm">
+                                                    <CheckCircle className="mr-2 h-4 w-4"/>
+                                                    Final Approval
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Confirm Final Approval</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        This will move the invoice for "{invoice.supplier}" to the final payment batches. Are you sure?
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleFinalApproval(invoice.id)}>
+                                                        Yes, Approve
+                                                    </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </CardFooter>
+                                </Card>
+                            ))}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+            <Dialog open={!!editingInvoice} onOpenChange={(isOpen) => !isOpen && setEditingInvoice(null)}>
+                <DialogContent className="sm:max-w-4xl">
+                    <DialogHeader>
+                        <DialogTitle>Edit Invoice: {editingInvoice?.supplier}</DialogTitle>
+                        <DialogDescription>Review and correct the extracted data.</DialogDescription>
+                    </DialogHeader>
+                    <EditInvoiceForm 
+                        invoice={editingInvoice} 
+                        onSave={handleSave} 
+                        onCancel={() => setEditingInvoice(null)} 
+                    />
+                </DialogContent>
+            </Dialog>
+            <Dialog open={isUploadModalOpen} onOpenChange={setIsUploadModalOpen}>
+                <DialogContent className="sm:max-w-3xl">
+                    <DialogHeader>
+                        <DialogTitle>Manually Upload Invoice</DialogTitle>
+                        <DialogDescription>Fill in the details for the invoice and upload the file.</DialogDescription>
+                    </DialogHeader>
+                    <ManualInvoiceForm onSave={handleManualUpload} onCancel={() => setIsUploadModalOpen(false)} />
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
