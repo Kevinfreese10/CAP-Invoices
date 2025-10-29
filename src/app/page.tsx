@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -97,9 +98,6 @@ export default function Home() {
     <div className="space-y-16 pb-16">
       <section 
         className="relative bg-cover bg-center bg-no-repeat"
-        style={{
-          backgroundImage: `url('https://firebasestorage.googleapis.com/v0/b/studio-2604127518-57889.firebasestorage.app/o/uploads%2FLRM285EOq3gwNMKayY6vtzooaC03%2F1761729380209-Untitled%20design%20(5).png?alt=media&token=d8c09db1-a81b-4896-b8e6-b7c48f93f17e')`,
-        }}
       >
         <div className="absolute inset-0 bg-black/60"></div>
         <div className="relative container mx-auto grid grid-cols-1 items-center gap-12 px-4 py-16 lg:py-24">
