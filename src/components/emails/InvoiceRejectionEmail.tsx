@@ -71,7 +71,6 @@ const detailSection = {
     backgroundColor: '#fafafa',
 }
 
-
 export const InvoiceRejectionEmail = ({ invoice, reason, rejectedBy }: InvoiceRejectionEmailProps) => {
     const previewText = `Invoice Rejected: ${invoice.supplier} - #${invoice.invoiceNumber}`;
 
@@ -91,23 +90,23 @@ export const InvoiceRejectionEmail = ({ invoice, reason, rejectedBy }: InvoiceRe
                 </Text>
                 
                 <Section style={detailSection}>
-                    <Row>
+                    <Row style={{ marginBottom: '16px' }}>
                         <Column>
-                            <Text style={{...paragraph, fontWeight: 'bold'}}>Supplier:</Text>
+                            <Text style={{...paragraph, fontWeight: 'bold', margin: '0 0 4px 0' }}>Supplier:</Text>
                             <Text style={paragraph}>{invoice.supplier}</Text>
                         </Column>
                          <Column>
-                            <Text style={{...paragraph, fontWeight: 'bold'}}>Invoice #:</Text>
+                            <Text style={{...paragraph, fontWeight: 'bold', margin: '0 0 4px 0' }}>Invoice #:</Text>
                             <Text style={paragraph}>{invoice.invoiceNumber}</Text>
                         </Column>
                     </Row>
                      <Row>
                         <Column>
-                            <Text style={{...paragraph, fontWeight: 'bold'}}>Date:</Text>
+                            <Text style={{...paragraph, fontWeight: 'bold', margin: '0 0 4px 0' }}>Date:</Text>
                             <Text style={paragraph}>{invoice.date}</Text>
                         </Column>
                          <Column>
-                            <Text style={{...paragraph, fontWeight: 'bold'}}>Total:</Text>
+                            <Text style={{...paragraph, fontWeight: 'bold', margin: '0 0 4px 0' }}>Total:</Text>
                             <Text style={paragraph}>{formatPrice(invoice.invoiceTotal)}</Text>
                         </Column>
                     </Row>
@@ -118,7 +117,7 @@ export const InvoiceRejectionEmail = ({ invoice, reason, rejectedBy }: InvoiceRe
                 
                 <Hr style={hr} />
                 
-                <Text style={paragraph}>
+                <Text style={{...paragraph, fontSize: '12px', color: '#8898aa'}}>
                     This is an automated notification for your records.
                 </Text>
             </Section>
