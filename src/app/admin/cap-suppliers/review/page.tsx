@@ -217,7 +217,7 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
                                     <FormField control={form.control} name={`lineItems.${index}.description`} render={({ field }) => (<FormItem className="col-span-5"><FormLabel className={index > 0 ? "hidden": ""}>Description</FormLabel><FormControl><Textarea {...field} rows={1} /></FormControl></FormItem>)} />
                                     <FormField control={form.control} name={`lineItems.${index}.exclusiveAmount`} render={({ field }) => (<FormItem className="col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>Exclusive</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
                                     <FormField control={form.control} name={`lineItems.${index}.vatAmount`} render={({ field }) => (<FormItem className="col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>VAT</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
-                                    <FormItem className="col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>Line Total</FormLabel><Input type="number" value={inclusive.toFixed(2)} readOnly className="bg-muted font-semibold" /></FormItem>
+                                    <FormItem className="col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>Line Total</FormLabel><Input type="number" value={Number(inclusive).toFixed(2)} readOnly className="bg-muted font-semibold" /></FormItem>
                                     <div className="col-span-1 flex justify-end"><Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button></div>
                                 </div>
                             )
@@ -724,3 +724,4 @@ export default function ReviewPage() {
     </div>
   );
 }
+
