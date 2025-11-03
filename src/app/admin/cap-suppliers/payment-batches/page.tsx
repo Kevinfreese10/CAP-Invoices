@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { getFirestore, collection, getDocs, query, orderBy, where, doc, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download } from 'lucide-react';
+import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download, MoreHorizontal } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ExtractedInvoice } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { format, parseISO } from 'date-fns';
 import { Separator } from '@/components/ui/separator';
 import Papa from 'papaparse';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 
 const db = getFirestore(firebaseApp);
@@ -126,32 +127,36 @@ function PaymentBatchTable({ title, invoices, totalAmount, onDelete, onUploadPop
                                             </Button>
                                         </TableCell>
                                         <TableCell className="text-right font-mono font-semibold">{formatPrice(group.totalAmount)}</TableCell>
-                                        <TableCell className="text-right space-x-1">
-                                            {uploadingPop === group.supplier ? (
-                                                <Button size="sm" variant="outline" disabled><Loader2 className="h-4 w-4 animate-spin"/></Button>
-                                            ) : hasPop && popUrl ? (
-                                                <Button size="sm" variant="outline" asChild>
-                                                    <a href={popUrl} target="_blank" rel="noopener noreferrer">View POP</a>
-                                                </Button>
-                                            ) : (
-                                                <>
-                                                    <input
-                                                        type="file"
-                                                        id={`pop-upload-${group.supplier.replace(/\s/g, '-')}`}
-                                                        className="hidden"
-                                                        accept="application/pdf,image/*"
-                                                        onChange={(e) => handlePopUpload(group.supplier, e)}
-                                                    />
-                                                    <Button size="sm" variant="outline" asChild>
-                                                        <label htmlFor={`pop-upload-${group.supplier.replace(/\s/g, '-')}`} className="cursor-pointer">
-                                                           <Upload className="mr-2 h-4 w-4"/> Upload POP
-                                                        </label>
-                                                    </Button>
-                                                </>
-                                            )}
-                                            <Button size="sm" variant="outline" onClick={() => handleDownloadRemittance(group)}>
-                                                <Download className="mr-2 h-4 w-4"/> Remittance
-                                            </Button>
+                                        <TableCell className="text-right">
+                                             <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent>
+                                                    <DropdownMenuItem onSelect={() => handleDownloadRemittance(group)}>
+                                                        <Download className="mr-2 h-4 w-4" /> Download Remittance
+                                                    </DropdownMenuItem>
+                                                    
+                                                     <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                                        <input
+                                                            type="file"
+                                                            id={`pop-upload-${group.supplier.replace(/\s/g, '-')}`}
+                                                            className="hidden"
+                                                            accept="application/pdf,image/*"
+                                                            onChange={(e) => handlePopUpload(group.supplier, e)}
+                                                        />
+                                                         <label htmlFor={`pop-upload-${group.supplier.replace(/\s/g, '-')}`} className="flex items-center cursor-pointer">
+                                                            <Upload className="mr-2 h-4 w-4" />
+                                                            {hasPop ? 'Re-upload POP' : 'Upload POP'}
+                                                         </label>
+                                                    </DropdownMenuItem>
+                                                     {hasPop && popUrl && (
+                                                        <DropdownMenuItem asChild>
+                                                            <a href={popUrl} target="_blank" rel="noopener noreferrer">View POP</a>
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                </DropdownMenuContent>
+                                             </DropdownMenu>
                                         </TableCell>
                                     </TableRow>
                                     {isOpen && (
