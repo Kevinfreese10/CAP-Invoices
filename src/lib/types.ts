@@ -180,7 +180,7 @@ export type User = {
   id: string; // Document ID
   name: string;
   email: string;
-  role: 'client' | 'admin' | 'staff' | 'reseller' | 'ai_accountant' | 'cap_staff';
+  role: 'client' | 'admin' | 'staff' | 'reseller' | 'ai_accountant' | 'cap_staff' | 'cap_supervisor';
   createdAt?: any;
   password?: string;
   source?: 'AI Accountant' | 'Client Management';
@@ -384,7 +384,7 @@ import { z } from 'zod';
 
 export const FindStoryNameInputSchema = z.object({
   commissionNumber: z.string().describe('The commission number to search for.'),
-  knowledgeBase: z.string().describe('A block of text containing mappings of commission numbers to story names. Each entry is typically on a new line, e.g., "CM-123\\tMy Story Name".'),
+  knowledgeBase: z.string().describe('A block of text containing mappings of commission numbers to story names. Each entry is typically on a new line, e.g., "CM-123\tMy Story Name".'),
 });
 export type FindStoryNameInput = z.infer<typeof FindStoryNameInputSchema>;
 
