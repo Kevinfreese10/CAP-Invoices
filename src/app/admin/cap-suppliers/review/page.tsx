@@ -228,7 +228,7 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
                     <div className="grid grid-cols-3 gap-4 pt-4">
                         <FormItem>
                             <FormLabel>Control Total</FormLabel>
-                            <Input type="number" value={controlTotal.toFixed(2)} readOnly className="bg-muted font-semibold" />
+                            <Input type="number" value={Number(controlTotal).toFixed(2)} readOnly className="bg-muted font-semibold" />
                         </FormItem>
                          <FormField
                             control={form.control}
@@ -724,4 +724,6 @@ export default function ReviewPage() {
     </div>
   );
 }
+
+
 
