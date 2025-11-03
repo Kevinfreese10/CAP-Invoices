@@ -141,7 +141,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const visibleAiAccountantItems = aiAccountantItems.filter(item => item.roles.includes(user.role));
   const visibleCapSupplierItems = capSupplierItems.filter(item => {
     if (user.role === 'cap_staff') {
-      return item.href === '/admin/cap-suppliers/control-sheet';
+      return item.href === '/admin/cap-suppliers/control-sheet' || item.href === '/admin/cap-suppliers/payment-batches';
     }
     if (user.role === 'cap_supervisor') {
       return true; // Supervisor sees all CAP items
