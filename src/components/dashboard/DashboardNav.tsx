@@ -143,6 +143,9 @@ export default function DashboardNav({ user }: { user: UserType }) {
     if (user.role === 'cap_staff') {
       return item.href === '/admin/cap-suppliers/control-sheet';
     }
+    if (user.role === 'cap_supervisor') {
+      return true; // Supervisor sees all CAP items
+    }
     return item.roles.includes(user.role) && (!item.department || item.department === user.department);
   });
   const visibleSettingsNavItems = settingsNavItems.filter(item => item.roles.includes(user.role));
