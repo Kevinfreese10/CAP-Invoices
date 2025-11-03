@@ -3,9 +3,10 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { getFirestore, collection, getDocs, query, orderBy, where, doc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query, orderBy, where, doc, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Banknote, ChevronDown, Trash2 } from 'lucide-react';
+import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ExtractedInvoice } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -14,9 +15,11 @@ import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { format, parseISO } from 'date-fns';
 import { Separator } from '@/components/ui/separator';
+import Papa from 'papaparse';
 
 
 const db = getFirestore(firebaseApp);
+const storage = getStorage(firebaseApp);
 
 type SupplierGroup = {
     supplier: string;
@@ -24,8 +27,9 @@ type SupplierGroup = {
     invoices: ExtractedInvoice[];
 };
 
-function PaymentBatchTable({ title, invoices, totalAmount, onDelete }: { title: string, invoices: ExtractedInvoice[], totalAmount: number, onDelete: (id: string) => void }) {
+function PaymentBatchTable({ title, invoices, totalAmount, onDelete, onUploadPop }: { title: string, invoices: ExtractedInvoice[], totalAmount: number, onDelete: (id: string) => void, onUploadPop: (supplierName: string, file: File) => Promise<void> }) {
     const [openSupplier, setOpenSupplier] = useState<string | null>(null);
+    const [uploadingPop, setUploadingPop] = useState<string | null>(null);
 
     const formatPrice = (price: number) => {
         return new Intl.NumberFormat('en-ZA', {
@@ -50,6 +54,38 @@ function PaymentBatchTable({ title, invoices, totalAmount, onDelete }: { title: 
         return Object.values(groups).sort((a, b) => b.totalAmount - a.totalAmount);
     }, [invoices]);
 
+    const handlePopUpload = async (supplierName: string, event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        setUploadingPop(supplierName);
+        await onUploadPop(supplierName, file);
+        setUploadingPop(null);
+    };
+
+    const handleDownloadRemittance = (supplierGroup: SupplierGroup) => {
+        const data = supplierGroup.invoices.map(inv => ({
+            'Invoice Number': inv.invoiceNumber,
+            'Invoice Date': inv.date,
+            'Amount': inv.invoiceTotal,
+        }));
+        
+        data.push({
+            'Invoice Number': 'TOTAL',
+            'Invoice Date': '',
+            'Amount': supplierGroup.totalAmount,
+        });
+
+        const csv = Papa.unparse(data);
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.setAttribute('download', `Remittance_${supplierGroup.supplier.replace(/\s/g, '_')}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
 
     return (
         <Card>
@@ -71,11 +107,15 @@ function PaymentBatchTable({ title, invoices, totalAmount, onDelete }: { title: 
                         <TableRow>
                             <TableHead>Supplier</TableHead>
                             <TableHead className="text-right">Total Amount Due</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {groupedBySupplier.map((group) => {
                             const isOpen = openSupplier === group.supplier;
+                            const hasPop = group.invoices.every(inv => !!inv.proofOfPaymentUrl);
+                            const popUrl = hasPop ? group.invoices[0].proofOfPaymentUrl : null;
+
                             return (
                                 <React.Fragment key={group.supplier}>
                                     <TableRow>
@@ -86,10 +126,37 @@ function PaymentBatchTable({ title, invoices, totalAmount, onDelete }: { title: 
                                             </Button>
                                         </TableCell>
                                         <TableCell className="text-right font-mono font-semibold">{formatPrice(group.totalAmount)}</TableCell>
+                                        <TableCell className="text-right space-x-1">
+                                            {uploadingPop === group.supplier ? (
+                                                <Button size="sm" variant="outline" disabled><Loader2 className="h-4 w-4 animate-spin"/></Button>
+                                            ) : hasPop && popUrl ? (
+                                                <Button size="sm" variant="outline" asChild>
+                                                    <a href={popUrl} target="_blank" rel="noopener noreferrer">View POP</a>
+                                                </Button>
+                                            ) : (
+                                                <>
+                                                    <input
+                                                        type="file"
+                                                        id={`pop-upload-${group.supplier.replace(/\s/g, '-')}`}
+                                                        className="hidden"
+                                                        accept="application/pdf,image/*"
+                                                        onChange={(e) => handlePopUpload(group.supplier, e)}
+                                                    />
+                                                    <Button size="sm" variant="outline" asChild>
+                                                        <label htmlFor={`pop-upload-${group.supplier.replace(/\s/g, '-')}`} className="cursor-pointer">
+                                                           <Upload className="mr-2 h-4 w-4"/> Upload POP
+                                                        </label>
+                                                    </Button>
+                                                </>
+                                            )}
+                                            <Button size="sm" variant="outline" onClick={() => handleDownloadRemittance(group)}>
+                                                <Download className="mr-2 h-4 w-4"/> Remittance
+                                            </Button>
+                                        </TableCell>
                                     </TableRow>
                                     {isOpen && (
                                         <TableRow>
-                                            <TableCell colSpan={2} className="p-0">
+                                            <TableCell colSpan={3} className="p-0">
                                                 <div className="p-4 bg-muted/50">
                                                     <Table>
                                                         <TableHeader>
@@ -181,6 +248,34 @@ export default function PaymentBatchesPage() {
             toast({ title: 'Error', description: 'Could not delete the invoice.', variant: 'destructive'});
         }
     }
+
+    const handleUploadPop = async (supplierName: string, file: File) => {
+        const invoicesToUpdate = invoices.filter(inv => inv.supplier === supplierName && inv.status === 'batched_for_payment');
+        if (invoicesToUpdate.length === 0) {
+            toast({ title: 'No invoices found for supplier', variant: 'destructive' });
+            return;
+        }
+
+        try {
+            const storageRef = ref(storage, `proof-of-payments/${supplierName}/${Date.now()}-${file.name}`);
+            const uploadResult = await uploadBytes(storageRef, file);
+            const downloadURL = await getDownloadURL(uploadResult.ref);
+
+            const batch = writeBatch(db);
+            invoicesToUpdate.forEach(invoice => {
+                const docRef = doc(db, 'extractedInvoices', invoice.id);
+                batch.update(docRef, { proofOfPaymentUrl: downloadURL });
+            });
+            await batch.commit();
+
+            toast({ title: 'Proof of Payment Uploaded!', description: `POP for ${supplierName} has been saved.`});
+            fetchInvoices();
+
+        } catch (error) {
+            console.error('Error uploading POP:', error);
+            toast({ title: 'Upload Failed', description: 'Could not upload the proof of payment.', variant: 'destructive'});
+        }
+    };
     
     const weeklyBatches = useMemo(() => {
         const batches: { [week: string]: { CAP: ExtractedInvoice[], S38: ExtractedInvoice[] } } = {};
@@ -247,12 +342,14 @@ export default function PaymentBatchesPage() {
                                     invoices={batch.CAP}
                                     totalAmount={batch.capTotal}
                                     onDelete={handleDeleteFromBatch}
+                                    onUploadPop={handleUploadPop}
                                 />
                                  <PaymentBatchTable 
                                     title="S38 Expenses"
                                     invoices={batch.S38}
                                     totalAmount={batch.s38Total}
                                     onDelete={handleDeleteFromBatch}
+                                    onUploadPop={handleUploadPop}
                                 />
                             </div>
                         </div>
