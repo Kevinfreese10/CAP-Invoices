@@ -102,18 +102,18 @@ export default function DashboardNav({ user }: { user: UserType }) {
   ];
 
   const capSupplierItems = [
-    { href: '/admin/cap-suppliers/review', label: 'Review', icon: ClipboardCheck, roles: ['admin', 'staff', 'cap_staff'], isSubItem: true, department: 'Accounting and Tax' },
-    { href: '/admin/cap-suppliers/inbox', label: 'Inbox', icon: Inbox, roles: ['admin', 'staff', 'cap_staff'], isSubItem: true, department: 'Accounting and Tax' },
-    { href: '/admin/cap-suppliers/control-sheet', label: '2nd Review', icon: FileText, roles: ['admin', 'staff', 'cap_staff'], isSubItem: true, department: 'Accounting and Tax' },
-    { href: '/admin/cap-suppliers/payment-control-sheet', label: 'Payment Control Sheet', icon: FileSpreadsheet, roles: ['admin', 'staff', 'cap_staff'], isSubItem: true, department: 'Accounting and Tax' },
-    { href: '/admin/cap-suppliers/payment-batches', label: 'Payment Batches', icon: Banknote, roles: ['admin', 'staff', 'cap_staff'], isSubItem: true, department: 'Accounting and Tax' },
-    { href: '/admin/cap-suppliers/rejected', label: 'Rejected', icon: FileX2, roles: ['admin', 'staff', 'cap_staff'], isSubItem: true, department: 'Accounting and Tax' },
-    { href: '/admin/cap-suppliers/chart-of-accounts', label: 'Chart of Accounts', icon: Book, roles: ['admin', 'staff', 'cap_staff'], isSubItem: true, department: 'Accounting and Tax' },
-    { href: '/admin/cap-suppliers/commission', label: 'Commission', icon: HandCoins, roles: ['admin', 'staff', 'cap_staff'], isSubItem: true, department: 'Accounting and Tax' },
+    { href: '/admin/cap-suppliers/review', label: 'Review', icon: ClipboardCheck, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
+    { href: '/admin/cap-suppliers/inbox', label: 'Inbox', icon: Inbox, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
+    { href: '/admin/cap-suppliers/control-sheet', label: '2nd Review', icon: FileText, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
+    { href: '/admin/cap-suppliers/payment-control-sheet', label: 'Payment Control Sheet', icon: FileSpreadsheet, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
+    { href: '/admin/cap-suppliers/payment-batches', label: 'Payment Batches', icon: Banknote, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
+    { href: '/admin/cap-suppliers/rejected', label: 'Rejected', icon: FileX2, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
+    { href: '/admin/cap-suppliers/chart-of-accounts', label: 'Chart of Accounts', icon: Book, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
+    { href: '/admin/cap-suppliers/commission', label: 'Commission', icon: HandCoins, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
   ]
 
   const settingsNavItems = [
-    { href: '/admin/profile', label: 'My Profile', icon: User, roles: ['admin', 'staff', 'cap_staff']},
+    { href: '/admin/profile', label: 'My Profile', icon: User, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor']},
     { href: '/admin/tasks', label: 'Manage Tasks', icon: ClipboardCheck, roles: ['admin', 'staff'] },
     { href: '/admin/categories', label: 'Manage Categories', icon: Shapes, roles: ['admin'] },
     { href: '/admin/blog', label: 'Manage Blog', icon: BookMarked, roles: ['admin'] },
@@ -231,7 +231,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
             </Collapsible>
         )}
         
-        {(user.role === 'admin' || user.role === 'staff' || user.role === 'cap_staff') && (
+        {(user.role === 'admin' || user.role === 'staff' || user.role === 'cap_staff' || user.role === 'cap_supervisor') && (
             <>
             {visibleCapSupplierItems.length > 0 && (
                 <Collapsible open={isCapSuppliersOpen} onOpenChange={setIsCapSuppliersOpen}>
