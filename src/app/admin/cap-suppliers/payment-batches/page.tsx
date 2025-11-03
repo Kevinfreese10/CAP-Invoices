@@ -24,7 +24,7 @@ type SupplierGroup = {
     invoices: ExtractedInvoice[];
 };
 
-function PaymentBatchTable({ title, invoices, totalAmount, onDelete }: { title: string, invoices: ExtractedInvoice[], totalAmount: number, onDelete: (id: string, batchKey: string | undefined, expenseType: string | undefined) => void }) {
+function PaymentBatchTable({ title, invoices, totalAmount, onDelete }: { title: string, invoices: ExtractedInvoice[], totalAmount: number, onDelete: (id: string) => void }) {
     const [openSupplier, setOpenSupplier] = useState<string | null>(null);
 
     const formatPrice = (price: number) => {
@@ -117,12 +117,12 @@ function PaymentBatchTable({ title, invoices, totalAmount, onDelete }: { title: 
                                                                                 <AlertDialogHeader>
                                                                                     <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                                                                     <AlertDialogDescription>
-                                                                                        This action will move the invoice for {invoice.supplier} (#{invoice.invoiceNumber}) back to the 'Approved for Payment' stage.
+                                                                                        This will permanently delete the invoice for {invoice.supplier} (#{invoice.invoiceNumber}). This action cannot be undone.
                                                                                     </AlertDialogDescription>
                                                                                 </AlertDialogHeader>
                                                                                 <AlertDialogFooter>
                                                                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                                                    <AlertDialogAction onClick={() => onDelete(invoice.id, invoice.paymentBatch, invoice.expenseType)}>Remove from Batch</AlertDialogAction>
+                                                                                    <AlertDialogAction onClick={() => onDelete(invoice.id)}>Delete Invoice</AlertDialogAction>
                                                                                 </AlertDialogFooter>
                                                                             </AlertDialogContent>
                                                                         </AlertDialog>
@@ -171,16 +171,14 @@ export default function PaymentBatchesPage() {
         fetchInvoices();
     }, []);
 
-    const handleRemoveFromBatch = async (id: string, batchKey: string | undefined, expenseType: string | undefined) => {
+    const handleDeleteFromBatch = async (id: string) => {
          try {
             const docRef = doc(db, 'extractedInvoices', id);
-            await updateDoc(docRef, { 
-                status: 'approved_for_payment',
-            });
-            toast({ title: 'Invoice Removed', description: 'The invoice has been moved back for approval.', variant: 'destructive'});
+            await deleteDoc(docRef);
+            toast({ title: 'Invoice Deleted', description: 'The invoice has been permanently deleted.', variant: 'destructive'});
             fetchInvoices();
         } catch (error) {
-            toast({ title: 'Error', description: 'Could not remove the invoice from the batch.', variant: 'destructive'});
+            toast({ title: 'Error', description: 'Could not delete the invoice.', variant: 'destructive'});
         }
     }
     
@@ -248,13 +246,13 @@ export default function PaymentBatchesPage() {
                                     title="CAP Expenses"
                                     invoices={batch.CAP}
                                     totalAmount={batch.capTotal}
-                                    onDelete={handleRemoveFromBatch}
+                                    onDelete={handleDeleteFromBatch}
                                 />
                                  <PaymentBatchTable 
                                     title="S38 Expenses"
                                     invoices={batch.S38}
                                     totalAmount={batch.s38Total}
-                                    onDelete={handleRemoveFromBatch}
+                                    onDelete={handleDeleteFromBatch}
                                 />
                             </div>
                         </div>
