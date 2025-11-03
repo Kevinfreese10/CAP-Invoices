@@ -116,10 +116,10 @@ export default function LoginForm() {
     
     toast({
       title: 'Logged in successfully',
-      description: `Welcome back, ${result?.name}! Redirecting...`,
+      description: `Welcome back, ${result.name}! Redirecting...`,
     });
     
-    if (result.role === 'admin' || result.role === 'staff') {
+    if (result.role === 'admin' || result.role === 'staff' || result.role === 'cap_staff' || result.role === 'cap_supervisor') {
         router.push('/admin/dashboard');
     } else if (result.role === 'reseller') {
         router.push('/reseller/dashboard');
