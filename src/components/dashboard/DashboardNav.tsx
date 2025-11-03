@@ -139,7 +139,12 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const visibleNavItems = navItems.filter(item => item.roles.includes(user.role));
   const visibleAdminNavItems = adminNavItems.filter(item => item.roles.includes(user.role));
   const visibleAiAccountantItems = aiAccountantItems.filter(item => item.roles.includes(user.role));
-  const visibleCapSupplierItems = capSupplierItems.filter(item => item.roles.includes(user.role) && (!item.department || item.department === user.department || user.role === 'cap_staff'));
+  const visibleCapSupplierItems = capSupplierItems.filter(item => {
+    if (user.role === 'cap_staff') {
+      return item.href === '/admin/cap-suppliers/control-sheet';
+    }
+    return item.roles.includes(user.role) && (!item.department || item.department === user.department);
+  });
   const visibleSettingsNavItems = settingsNavItems.filter(item => item.roles.includes(user.role));
   const visibleResellerNavItems = resellerNavItems.filter(item => item.roles.includes(user.role));
 
