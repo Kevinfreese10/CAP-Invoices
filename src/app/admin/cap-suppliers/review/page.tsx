@@ -1,12 +1,11 @@
 
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc, where, addDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, MoreHorizontal, Edit, Trash2, FileCheck2, Hourglass, CheckCircle2, Eye, Download, Sparkles, Brain, AlertTriangle, AlertCircle } from 'lucide-react';
+import { Loader2, MoreHorizontal, Edit, Trash2, FileCheck2, Hourglass, CheckCircle2, Eye, Download, Sparkles, Brain, AlertTriangle, AlertCircle, Mail } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format, toDate } from 'date-fns';
 import { Button } from '@/components/ui/button';
@@ -30,6 +29,10 @@ import { findStoryName } from '@/ai/flows/find-story-name';
 import { commissionList as defaultCommissionList } from '@/lib/commission-list';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { sendEmail } from '@/lib/email';
+import InvoiceRejectionEmail from '@/components/emails/InvoiceRejectionEmail';
+import { render } from '@react-email/components';
 
 const db = getFirestore(firebaseApp);
 
@@ -153,7 +156,7 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
     }, [watchedLineItems]);
 
     const difference = useMemo(() => {
-        return controlTotal - (watchedInvoiceTotal || 0);
+        return Number(controlTotal) - (Number(watchedInvoiceTotal) || 0);
     }, [controlTotal, watchedInvoiceTotal]);
 
 
@@ -341,6 +344,7 @@ export default function ReviewPage() {
     const [isAnalyzeDialogOpen, setIsAnalyzeDialogOpen] = useState(false);
     const { toast } = useToast();
     const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
+    const { user } = useAuth();
 
 
     const fetchInvoicesAndRules = async () => {
@@ -377,32 +381,37 @@ export default function ReviewPage() {
             const supplierRule = globalRules.find(r => r.keywords.includes(supplier.toLowerCase()) && r.accountId === 'supplier_vat_rule');
 
             if (supplierRule) {
-                const batch = writeBatch(db);
-                let updatedCount = 0;
-                
-                invoices.forEach(invoice => {
-                    if (invoice.supplier === supplier && invoice.id !== id && invoice.status === 'pending_review') {
-                        const updatedLineItems = invoice.lineItems.map(item => {
-                            const isCapitalGoods = item.description.toLowerCase().includes('asset') || item.description.toLowerCase().includes('equipment');
-                            let newVatAmount = 0;
-                            
-                            if(supplierRule.vatType === 'standard_rated_purchases') {
-                                 newVatAmount = isCapitalGoods ? 0 : (item.exclusiveAmount * 0.15);
-                            } else if (supplierRule.vatType === 'capital_goods_purchases') {
-                                newVatAmount = isCapitalGoods ? (item.exclusiveAmount * 0.15) : 0;
-                            }
-                            return {...item, vatAmount: newVatAmount };
-                        });
-                        
-                        const invoiceRef = doc(db, 'extractedInvoices', invoice.id);
-                        batch.update(invoiceRef, { lineItems: updatedLineItems });
-                        updatedCount++;
-                    }
-                });
+                const invoicesToUpdate = invoices.filter(invoice => 
+                    invoice.supplier === supplier && invoice.id !== id && invoice.status === 'pending_review'
+                );
 
-                if (updatedCount > 0) {
-                    await batch.commit();
-                    toast({ title: 'Batch Update', description: `${updatedCount} other invoice(s) for ${supplier} were updated with the new rule.`});
+                if(invoicesToUpdate.length > 0) {
+                    const BATCH_SIZE = 400; // Firestore batch limit is 500 operations
+                    for (let i = 0; i < invoicesToUpdate.length; i += BATCH_SIZE) {
+                        const batch = writeBatch(db);
+                        const chunk = invoicesToUpdate.slice(i, i + BATCH_SIZE);
+                        
+                        chunk.forEach(invoice => {
+                             const updatedLineItems = invoice.lineItems.map(item => {
+                                const isCapitalGoods = item.description.toLowerCase().includes('asset') || item.description.toLowerCase().includes('equipment');
+                                let newVatAmount = 0;
+                                
+                                if(supplierRule.vatType === 'standard_rated_purchases') {
+                                    newVatAmount = isCapitalGoods ? 0 : (item.exclusiveAmount * 0.15);
+                                } else if (supplierRule.vatType === 'capital_goods_purchases') {
+                                    newVatAmount = isCapitalGoods ? (item.exclusiveAmount * 0.15) : 0;
+                                }
+                                return {...item, vatAmount: newVatAmount };
+                            });
+                            
+                            const invoiceRef = doc(db, 'extractedInvoices', invoice.id);
+                            batch.update(invoiceRef, { lineItems: updatedLineItems });
+                        });
+
+                        await batch.commit();
+                    }
+                    
+                    toast({ title: 'Batch Update', description: `${invoicesToUpdate.length} other invoice(s) for ${supplier} were updated with the new rule.`});
                 }
             }
 
@@ -417,15 +426,45 @@ export default function ReviewPage() {
     };
     
     const handleApprove = async (id: string) => {
+        if (!user) return;
         try {
             const docRef = doc(db, 'extractedInvoices', id);
-            await updateDoc(docRef, { status: 'approved' });
+            await updateDoc(docRef, { status: 'approved', approvedBy: user.uid });
             toast({ title: 'Invoice Approved', description: 'The invoice has been moved to the control sheet.' });
             fetchInvoicesAndRules();
         } catch (error) {
             toast({ title: 'Error', description: 'Could not approve the invoice.', variant: 'destructive'});
         }
     };
+
+    const handleReject = async (id: string, reason: string) => {
+        if (!user) return;
+        const invoice = invoices.find(inv => inv.id === id);
+        if (!invoice) return;
+
+        try {
+            const docRef = doc(db, 'extractedInvoices', id);
+            await updateDoc(docRef, { status: 'rejected', rejectionReason: reason, rejectedBy: user.uid });
+            
+            const uploader = invoice.uploadedBy ? await getDoc(doc(db, 'users', invoice.uploadedBy)) : null;
+
+            if (uploader?.exists()) {
+                const uploaderData = uploader.data() as User;
+                const emailHtml = render(<InvoiceRejectionEmail invoice={invoice} reason={reason} rejectedBy={user.name} />);
+                await sendEmail({
+                    to: uploaderData.email,
+                    bcc: 'kev@thinkestry.co.za',
+                    subject: `Invoice Rejected: ${invoice.supplier} - #${invoice.invoiceNumber}`,
+                    html: emailHtml,
+                });
+            }
+
+            toast({ title: 'Invoice Rejected', description: 'The invoice has been marked as rejected.' });
+            fetchInvoicesAndRules();
+        } catch (error) {
+            toast({ title: 'Error', description: 'Could not reject the invoice or send notification.', variant: 'destructive'});
+        }
+    }
     
     const handleDelete = async (id: string) => {
          try {
@@ -681,6 +720,28 @@ export default function ReviewPage() {
                                                 <DropdownMenuItem onSelect={() => setEditingInvoice(invoice)}>
                                                     <Edit className="mr-2 h-4 w-4" /> Edit
                                                 </DropdownMenuItem>
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                                             <Mail className="mr-2 h-4 w-4" /> Reject & Notify
+                                                        </DropdownMenuItem>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Reject Invoice?</AlertDialogTitle>
+                                                            <AlertDialogDescription>Please provide a reason for rejection. This will be sent to the user who uploaded the invoice.</AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                         <Textarea placeholder="e.g., Invoice is not legible." id="rejection-reason" />
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => {
+                                                                const reason = (document.getElementById('rejection-reason') as HTMLTextAreaElement).value;
+                                                                if(reason) handleReject(invoice.id, reason);
+                                                                else toast({title: 'Reason Required', description: 'Please provide a reason for rejection.', variant: 'destructive'});
+                                                            }}>Reject</AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
                                                 <AlertDialog>
                                                     <AlertDialogTrigger asChild>
                                                         <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
