@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { getFirestore, collection, getDocs, query, orderBy, where, doc, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download, MoreHorizontal } from 'lucide-react';
+import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download, MoreHorizontal, Edit } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ExtractedInvoice } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,8 @@ import { format, parseISO } from 'date-fns';
 import { Separator } from '@/components/ui/separator';
 import Papa from 'papaparse';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import EditInvoiceForm from '@/components/admin/cap-suppliers/EditInvoiceForm';
 
 
 const db = getFirestore(firebaseApp);
@@ -28,7 +30,7 @@ type SupplierGroup = {
     invoices: ExtractedInvoice[];
 };
 
-function PaymentBatchTable({ title, invoices, totalAmount, onDelete, onUploadPop }: { title: string, invoices: ExtractedInvoice[], totalAmount: number, onDelete: (id: string) => void, onUploadPop: (supplierName: string, file: File) => Promise<void> }) {
+function PaymentBatchTable({ title, invoices, totalAmount, onDelete, onUploadPop, onEdit }: { title: string, invoices: ExtractedInvoice[], totalAmount: number, onDelete: (id: string) => void, onUploadPop: (supplierName: string, file: File) => Promise<void>, onEdit: (invoice: ExtractedInvoice) => void }) {
     const [openSupplier, setOpenSupplier] = useState<string | null>(null);
     const [uploadingPop, setUploadingPop] = useState<string | null>(null);
 
@@ -179,6 +181,9 @@ function PaymentBatchTable({ title, invoices, totalAmount, onDelete, onUploadPop
                                                                     <TableCell className="py-1">{invoice.date}</TableCell>
                                                                     <TableCell className="py-1 text-right font-mono">{formatPrice(invoice.invoiceTotal)}</TableCell>
                                                                     <TableCell className="py-1 text-right">
+                                                                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onEdit(invoice)}>
+                                                                            <Edit className="h-3 w-3" />
+                                                                        </Button>
                                                                         <AlertDialog>
                                                                             <AlertDialogTrigger asChild>
                                                                                 <Button variant="ghost" size="icon" className="h-6 w-6">
@@ -223,6 +228,7 @@ export default function PaymentBatchesPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
+    const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
 
     const fetchInvoices = async () => {
         setIsLoading(true);
@@ -253,6 +259,19 @@ export default function PaymentBatchesPage() {
             toast({ title: 'Error', description: 'Could not delete the invoice.', variant: 'destructive'});
         }
     }
+    
+    const handleSave = async (id: string, data: any) => {
+        try {
+            const docRef = doc(db, 'extractedInvoices', id);
+            await updateDoc(docRef, data);
+            toast({ title: 'Invoice Updated', description: 'Your changes have been saved.' });
+            setEditingInvoice(null);
+            fetchInvoices();
+        } catch (error) {
+            console.error("Error updating invoice:", error);
+            toast({ title: 'Error', description: 'Could not save changes.', variant: 'destructive'});
+        }
+    };
 
     const handleUploadPop = async (supplierName: string, file: File) => {
         const invoicesToUpdate = invoices.filter(inv => inv.supplier === supplierName && inv.status === 'batched_for_payment');
@@ -348,6 +367,7 @@ export default function PaymentBatchesPage() {
                                     totalAmount={batch.capTotal}
                                     onDelete={handleDeleteFromBatch}
                                     onUploadPop={handleUploadPop}
+                                    onEdit={setEditingInvoice}
                                 />
                                  <PaymentBatchTable 
                                     title="S38 Expenses"
@@ -355,12 +375,26 @@ export default function PaymentBatchesPage() {
                                     totalAmount={batch.s38Total}
                                     onDelete={handleDeleteFromBatch}
                                     onUploadPop={handleUploadPop}
+                                    onEdit={setEditingInvoice}
                                 />
                             </div>
                         </div>
                     ))}
                 </div>
             )}
+             <Dialog open={!!editingInvoice} onOpenChange={(isOpen) => !isOpen && setEditingInvoice(null)}>
+                <DialogContent className="sm:max-w-4xl">
+                    <DialogHeader>
+                        <DialogTitle>Edit Invoice: {editingInvoice?.supplier}</DialogTitle>
+                        <DialogDescription>Review and correct the extracted data.</DialogDescription>
+                    </DialogHeader>
+                    <EditInvoiceForm 
+                        invoice={editingInvoice} 
+                        onSave={handleSave} 
+                        onCancel={() => setEditingInvoice(null)} 
+                    />
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
