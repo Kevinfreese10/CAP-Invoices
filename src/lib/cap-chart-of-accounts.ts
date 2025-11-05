@@ -14,6 +14,7 @@ export const s38ChartOfAccounts: CapChartOfAccount[] = [
     { accountNumber: '1036-01', description: 'Journalist & In House Producer' },
     { accountNumber: '1036-02', description: 'Social Media Manager' },
     { accountNumber: '1036-03', description: 'Journalist & In House Producer' },
+    { accountNumber: '1037-01', description: 'Consultants' },
     { accountNumber: '1038-01', description: 'Research & Development Fund' },
     { accountNumber: '1038-02', description: 'Investigative Fund' },
     { accountNumber: '1038-03', description: 'Subscription: Online News Publications' },
