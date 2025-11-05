@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Inbox, RefreshCw, FileWarning, Plug, Paperclip, CheckCircle2, RotateCw, Trash2 } from 'lucide-react';
+import { Loader2, Inbox, RefreshCw, FileWarning, Plug, Paperclip, CheckCircle2, RotateCw, Trash2, FileSymlink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -219,6 +219,16 @@ export default function InboxPage() {
         fetchEmails();
     }, [fetchEmails]);
 
+    const getStatusBadge = (email: Email) => {
+        if (email.isProcessed) {
+            return <Badge variant="success"><CheckCircle2 className="mr-1 h-3 w-3"/>Processed</Badge>;
+        }
+        if (email.attachments.some(a => a.contentType === 'application/pdf')) {
+            return <Badge variant="outline">Unprocessed</Badge>;
+        }
+        return <Badge variant="destructive"><FileSymlink className="mr-1 h-3 w-3"/>No PDF</Badge>;
+    }
+
     return (
         <div className="space-y-8">
             <div className="flex items-center justify-between">
@@ -321,7 +331,7 @@ export default function InboxPage() {
                                             </TableCell>
                                             <TableCell>{format(new Date(email.date), 'dd MMM, HH:mm')}</TableCell>
                                             <TableCell>
-                                                {email.isProcessed ? <Badge variant="success"><CheckCircle2 className="mr-1 h-3 w-3"/>Processed</Badge> : <Badge variant="outline">Unprocessed</Badge>}
+                                                {getStatusBadge(email)}
                                             </TableCell>
                                         </TableRow>
                                     )
