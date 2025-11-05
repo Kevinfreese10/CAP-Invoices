@@ -3,7 +3,7 @@
 
 import { ReactNode, useEffect } from 'react';
 import { ProtectedRoute, useAuth } from '@/contexts/AuthContext';
-import { SidebarProvider, Sidebar, SidebarInset } from '@/components/ui/sidebar';
+import { SidebarProvider, Sidebar, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import DashboardNav from '@/components/dashboard/DashboardNav';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRouter } from 'next/navigation';
@@ -41,6 +41,7 @@ export default function ResellerLayout({ children }: { children: ReactNode }) {
           )}
           <SidebarInset>
               <div className="p-4 sm:p-6 lg:p-8">
+                  <SidebarTrigger className="md:hidden mb-4" />
                   {children}
               </div>
           </SidebarInset>
