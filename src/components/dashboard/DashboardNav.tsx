@@ -141,10 +141,13 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const visibleAiAccountantItems = aiAccountantItems.filter(item => item.roles.includes(user.role));
   const visibleCapSupplierItems = capSupplierItems.filter(item => {
     if (user.role === 'cap_staff') {
-      return item.href === '/admin/cap-suppliers/control-sheet' || item.href === '/admin/cap-suppliers/payment-batches';
+      return item.href === '/admin/cap-suppliers/payment-control-sheet' || item.href === '/admin/cap-suppliers/payment-batches';
     }
     if (user.role === 'cap_supervisor') {
       return true; // Supervisor sees all CAP items
+    }
+     if (user.role === 'staff' && user.department === 'Accounting and Tax') {
+      return true; // Staff in this dept see all CAP items
     }
     return item.roles.includes(user.role) && (!item.department || item.department === user.department);
   });
