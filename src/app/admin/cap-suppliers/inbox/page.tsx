@@ -47,8 +47,13 @@ export default function InboxPage() {
     const { toast } = useToast();
     
     const handleProcessAttachments = useCallback(async (email: Email, reprocess = false) => {
-        const pdfAttachments = email.attachments.filter(att => att.contentType === 'application/pdf');
-        if (pdfAttachments.length === 0) {
+        const processableAttachments = email.attachments.filter(att => 
+            att.contentType === 'application/pdf' ||
+            att.contentType === 'application/msword' ||
+            att.contentType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        );
+
+        if (processableAttachments.length === 0) {
             return;
         }
 
@@ -223,10 +228,17 @@ export default function InboxPage() {
         if (email.isProcessed) {
             return <Badge variant="success"><CheckCircle2 className="mr-1 h-3 w-3"/>Processed</Badge>;
         }
-        if (email.attachments.some(a => a.contentType === 'application/pdf')) {
+        
+        const hasProcessableAttachment = email.attachments.some(a => 
+            a.contentType === 'application/pdf' ||
+            a.contentType === 'application/msword' ||
+            a.contentType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        );
+        
+        if (hasProcessableAttachment) {
             return <Badge variant="outline">Unprocessed</Badge>;
         }
-        return <Badge variant="destructive"><FileSymlink className="mr-1 h-3 w-3"/>No PDF</Badge>;
+        return <Badge variant="destructive"><FileSymlink className="mr-1 h-3 w-3"/>No Invoice File</Badge>;
     }
 
     return (

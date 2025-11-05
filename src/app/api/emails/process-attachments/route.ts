@@ -17,12 +17,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid email data provided.' }, { status: 400 });
     }
 
-    const pdfAttachments = email.attachments.filter(
-      (att: any) => att.contentType === 'application/pdf'
+    const allowedContentTypes = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
+
+    const processableAttachments = email.attachments.filter(
+      (att: any) => att.contentType && allowedContentTypes.includes(att.contentType)
     );
 
-    if (pdfAttachments.length === 0) {
-      return NextResponse.json({ error: 'No PDF attachments found in the email.' }, { status: 400 });
+    if (processableAttachments.length === 0) {
+      return NextResponse.json({ error: 'No processable attachments (PDF, DOC, DOCX) found in the email.' }, { status: 400 });
     }
 
     let processedCount = 0;
@@ -44,7 +50,7 @@ export async function POST(req: Request) {
     }
 
 
-    for (const attachment of pdfAttachments) {
+    for (const attachment of processableAttachments) {
       try {
         
         // 1. Upload the file to Firebase Storage from data URL
@@ -108,7 +114,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ 
         message: 'Attachments processed successfully.',
-        totalPdfs: pdfAttachments.length,
+        totalProcessable: processableAttachments.length,
         processedCount: processedCount,
     });
   } catch (error: any) {
