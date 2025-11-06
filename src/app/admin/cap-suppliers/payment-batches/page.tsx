@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -102,6 +101,15 @@ function PaymentBatchTable({ title, invoices, totalAmount, totalPAYE, onDelete, 
         document.body.removeChild(link);
     };
 
+    const payeSummary = useMemo(() => {
+        return groupedBySupplier
+            .filter(group => group.totalPAYE > 0)
+            .map(group => ({
+                supplier: group.supplier,
+                payeAmount: group.totalPAYE,
+            }));
+    }, [groupedBySupplier]);
+
 
     return (
         <Card>
@@ -111,14 +119,11 @@ function PaymentBatchTable({ title, invoices, totalAmount, totalPAYE, onDelete, 
                     <div className="text-right">
                         <p className="text-sm text-muted-foreground">Batch Total Payable</p>
                         <p className="text-2xl font-bold">{formatPrice(totalAmount)}</p>
-                         {totalPAYE > 0 && (
-                            <p className="text-xs text-destructive">PAYE Deducted: {formatPrice(totalPAYE)}</p>
-                        )}
                     </div>
                 </div>
             </CardHeader>
             <CardContent>
-                 {invoices.length === 0 ? (
+                {invoices.length === 0 ? (
                     <p className="text-center text-muted-foreground py-10">No invoices in this batch.</p>
                 ) : (
                 <Table>
@@ -233,6 +238,24 @@ function PaymentBatchTable({ title, invoices, totalAmount, totalPAYE, onDelete, 
                         })}
                     </TableBody>
                 </Table>
+                )}
+                {payeSummary.length > 0 && (
+                    <div className="mt-4 p-4 border-t">
+                        <h4 className="font-semibold text-destructive mb-2">PAYE Summary for this Batch</h4>
+                        <div className="space-y-1 text-sm">
+                            {payeSummary.map(item => (
+                                <div key={item.supplier} className="flex justify-between">
+                                    <span className="text-muted-foreground">{item.supplier}:</span>
+                                    <span className="font-mono">{formatPrice(item.payeAmount)}</span>
+                                </div>
+                            ))}
+                             <Separator className="my-2"/>
+                             <div className="flex justify-between font-semibold">
+                                <span>Total PAYE Deducted:</span>
+                                <span className="font-mono">{formatPrice(totalPAYE)}</span>
+                            </div>
+                        </div>
+                    </div>
                 )}
             </CardContent>
         </Card>
