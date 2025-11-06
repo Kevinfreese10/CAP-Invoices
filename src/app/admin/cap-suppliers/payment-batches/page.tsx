@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -27,10 +28,11 @@ const storage = getStorage(firebaseApp);
 type SupplierGroup = {
     supplier: string;
     totalAmount: number;
+    totalPAYE: number;
     invoices: ExtractedInvoice[];
 };
 
-function PaymentBatchTable({ title, invoices, totalAmount, onDelete, onUploadPop, onEdit }: { title: string, invoices: ExtractedInvoice[], totalAmount: number, onDelete: (id: string) => void, onUploadPop: (supplierName: string, file: File) => Promise<void>, onEdit: (invoice: ExtractedInvoice) => void }) {
+function PaymentBatchTable({ title, invoices, totalAmount, totalPAYE, onDelete, onUploadPop, onEdit }: { title: string, invoices: ExtractedInvoice[], totalAmount: number, totalPAYE: number, onDelete: (id: string) => void, onUploadPop: (supplierName: string, file: File) => Promise<void>, onEdit: (invoice: ExtractedInvoice) => void }) {
     const [openSupplier, setOpenSupplier] = useState<string | null>(null);
     const [uploadingPop, setUploadingPop] = useState<string | null>(null);
 
@@ -48,10 +50,21 @@ function PaymentBatchTable({ title, invoices, totalAmount, onDelete, onUploadPop
                 groups[invoice.supplier] = {
                     supplier: invoice.supplier,
                     totalAmount: 0,
+                    totalPAYE: 0,
                     invoices: [],
                 };
             }
-            groups[invoice.supplier].totalAmount += invoice.invoiceTotal;
+            
+            const { payableAmount, payeAmount } = invoice.lineItems.reduce((acc, item) => {
+                const lineValue = item.exclusiveAmount + item.vatAmount;
+                const payeDeduction = item.paye ? lineValue * 0.25 : 0;
+                acc.payableAmount += lineValue - payeDeduction;
+                acc.payeAmount += payeDeduction;
+                return acc;
+            }, { payableAmount: 0, payeAmount: 0 });
+
+            groups[invoice.supplier].totalAmount += payableAmount;
+            groups[invoice.supplier].totalPAYE += payeAmount;
             groups[invoice.supplier].invoices.push(invoice);
         });
         return Object.values(groups).sort((a, b) => b.totalAmount - a.totalAmount);
@@ -76,7 +89,7 @@ function PaymentBatchTable({ title, invoices, totalAmount, onDelete, onUploadPop
         data.push({
             'Invoice Number': 'TOTAL',
             'Invoice Date': '',
-            'Amount': supplierGroup.totalAmount,
+            'Amount': supplierGroup.invoices.reduce((sum, inv) => sum + inv.invoiceTotal, 0),
         });
 
         const csv = Papa.unparse(data);
@@ -96,8 +109,11 @@ function PaymentBatchTable({ title, invoices, totalAmount, onDelete, onUploadPop
                 <div className="flex justify-between items-center">
                     <CardTitle>{title}</CardTitle>
                     <div className="text-right">
-                        <p className="text-sm text-muted-foreground">Batch Total</p>
+                        <p className="text-sm text-muted-foreground">Batch Total Payable</p>
                         <p className="text-2xl font-bold">{formatPrice(totalAmount)}</p>
+                         {totalPAYE > 0 && (
+                            <p className="text-xs text-destructive">PAYE Deducted: {formatPrice(totalPAYE)}</p>
+                        )}
                     </div>
                 </div>
             </CardHeader>
@@ -328,11 +344,31 @@ export default function PaymentBatchesPage() {
                     title = `Batch: ${batchKey}`;
                 }
             }
+            
+            const calculateTotals = (invoices: ExtractedInvoice[]) => {
+                return invoices.reduce((acc, inv) => {
+                    const { payableAmount, payeAmount } = inv.lineItems.reduce((lineAcc, item) => {
+                        const lineValue = item.exclusiveAmount + item.vatAmount;
+                        const payeDeduction = item.paye ? lineValue * 0.25 : 0;
+                        lineAcc.payableAmount += lineValue - payeDeduction;
+                        lineAcc.payeAmount += payeDeduction;
+                        return lineAcc;
+                    }, { payableAmount: 0, payeAmount: 0 });
+                    acc.totalPayable += payableAmount;
+                    acc.totalPAYE += payeAmount;
+                    return acc;
+                }, { totalPayable: 0, totalPAYE: 0 });
+            };
+            
+            const capTotals = calculateTotals(expenseGroups.CAP);
+            const s38Totals = calculateTotals(expenseGroups.S38);
 
             return {
                 title,
-                capTotal: expenseGroups.CAP.reduce((sum, inv) => sum + inv.invoiceTotal, 0),
-                s38Total: expenseGroups.S38.reduce((sum, inv) => sum + inv.invoiceTotal, 0),
+                capTotal: capTotals.totalPayable,
+                capPAYE: capTotals.totalPAYE,
+                s38Total: s38Totals.totalPayable,
+                s38PAYE: s38Totals.totalPAYE,
                 ...expenseGroups,
             };
         });
@@ -365,6 +401,7 @@ export default function PaymentBatchesPage() {
                                     title="CAP Expenses"
                                     invoices={batch.CAP}
                                     totalAmount={batch.capTotal}
+                                    totalPAYE={batch.capPAYE}
                                     onDelete={handleDeleteFromBatch}
                                     onUploadPop={handleUploadPop}
                                     onEdit={setEditingInvoice}
@@ -373,6 +410,7 @@ export default function PaymentBatchesPage() {
                                     title="S38 Expenses"
                                     invoices={batch.S38}
                                     totalAmount={batch.s38Total}
+                                    totalPAYE={batch.s38PAYE}
                                     onDelete={handleDeleteFromBatch}
                                     onUploadPop={handleUploadPop}
                                     onEdit={setEditingInvoice}

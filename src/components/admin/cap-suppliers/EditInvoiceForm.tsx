@@ -115,7 +115,9 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice
     
     const controlTotal = useMemo(() => {
         return (watchedLineItems || []).reduce((acc, item) => {
-            return acc + (item.exclusiveAmount || 0) + (item.vatAmount || 0);
+            const lineValue = (item.exclusiveAmount || 0) + (item.vatAmount || 0);
+            const payeDeduction = item.paye ? lineValue * 0.25 : 0;
+            return acc + lineValue - payeDeduction;
         }, 0);
     }, [watchedLineItems]);
 
@@ -196,55 +198,47 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice
                     {fields.map((field, index) => (
                         <div key={field.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end border p-2 rounded-md">
                             <FormField control={form.control} name={`lineItems.${index}.description`} render={({ field }) => (<FormItem className="md:col-span-12"><FormLabel className={index > 0 ? "hidden": ""}>Description</FormLabel><FormControl><Textarea {...field} rows={1} /></FormControl></FormItem>)} />
-                            <FormField control={form.control} name={`lineItems.${index}.exclusiveAmount`} render={({ field }) => (<FormItem className="md:col-span-3"><FormLabel className={index > 0 ? "hidden": ""}>Exclusive</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
+                            <FormField control={form.control} name={`lineItems.${index}.exclusiveAmount`} render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>Exclusive</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
                             <FormField control={form.control} name={`lineItems.${index}.vatAmount`} render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>VAT</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
-                            <FormField
-                                control={form.control}
-                                name={`lineItems.${index}.accountId`}
-                                render={({ field }) => (
-                                    <FormItem className="flex flex-col md:col-span-6">
-                                        <FormLabel className={index > 0 ? "hidden": ""}>Account</FormLabel>
-                                        <Popover open={openPopover === index} onOpenChange={(isOpen) => setOpenPopover(isOpen ? index : null)}>
-                                            <PopoverTrigger asChild>
-                                                <FormControl>
-                                                    <Button
-                                                        variant="outline"
-                                                        role="combobox"
-                                                        className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
-                                                    >
-                                                        {field.value
-                                                            ? chartOfAccounts.find(acc => acc.accountNumber === field.value)?.description
-                                                            : "Select account"}
-                                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                                    </Button>
-                                                </FormControl>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                                                <Command>
-                                                    <CommandInput placeholder="Search account..." />
-                                                    <CommandList>
-                                                        <CommandEmpty>No account found.</CommandEmpty>
-                                                        {chartOfAccounts.map((account) => (
-                                                            <CommandItem
-                                                                value={account.description}
-                                                                key={account.accountNumber}
-                                                                onSelect={() => {
-                                                                    form.setValue(`lineItems.${index}.accountId`, account.accountNumber)
-                                                                    setOpenPopover(null);
-                                                                }}
-                                                            >
-                                                                {account.description}
-                                                            </CommandItem>
-                                                        ))}
-                                                    </CommandList>
-                                                </Command>
-                                            </PopoverContent>
-                                        </Popover>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                             <div className="md:col-span-1 flex justify-end"><Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button></div>
+                            <FormField control={form.control} name={`lineItems.${index}.accountId`} render={({ field }) => (
+                                <FormItem className="flex flex-col md:col-span-4">
+                                    <FormLabel className={index > 0 ? "hidden": ""}>Account</FormLabel>
+                                    <Popover open={openPopover === index} onOpenChange={(isOpen) => setOpenPopover(isOpen ? index : null)}>
+                                        <PopoverTrigger asChild>
+                                            <FormControl>
+                                                <Button variant="outline" role="combobox" className={cn("w-full justify-between", !field.value && "text-muted-foreground")} >
+                                                    {field.value ? chartOfAccounts.find(acc => acc.accountNumber === field.value)?.description : "Select account"}
+                                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                </Button>
+                                            </FormControl>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                            <Command>
+                                                <CommandInput placeholder="Search account..." />
+                                                <CommandList>
+                                                    <CommandEmpty>No account found.</CommandEmpty>
+                                                    {chartOfAccounts.map((account) => (
+                                                        <CommandItem value={account.description} key={account.accountNumber} onSelect={() => { form.setValue(`lineItems.${index}.accountId`, account.accountNumber); setOpenPopover(null);}}>
+                                                            {account.description}
+                                                        </CommandItem>
+                                                    ))}
+                                                </CommandList>
+                                            </Command>
+                                        </PopoverContent>
+                                    </Popover>
+                                    <FormMessage />
+                                </FormItem>
+                            )} />
+                            <FormField control={form.control} name={`lineItems.${index}.paye`} render={({ field }) => (
+                                <FormItem className="md:col-span-2 flex flex-col items-center justify-end h-full pb-2">
+                                    <div className="flex items-center space-x-2">
+                                        <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                                        <FormLabel className="text-xs font-normal">Deduct PAYE?</FormLabel>
+                                    </div>
+                                    <FormMessage />
+                                </FormItem>
+                            )} />
+                            <div className="md:col-span-1 flex justify-end"><Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button></div>
                         </div>
                     ))}
                 </div>

@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -117,6 +118,14 @@ export default function SecondReviewPage() {
                 return <Badge>{status.replace('_', ' ')}</Badge>;
         }
     }
+    
+    const calculatePayableAmount = (invoice: ExtractedInvoice) => {
+        return invoice.lineItems.reduce((acc, item) => {
+            const lineValue = item.exclusiveAmount + item.vatAmount;
+            const payeDeduction = item.paye ? lineValue * 0.25 : 0;
+            return acc + (lineValue - payeDeduction);
+        }, 0);
+    };
 
   return (
     <div className="space-y-8">
@@ -147,7 +156,7 @@ export default function SecondReviewPage() {
                             <TableHead>Payment Batch</TableHead>
                             <TableHead>Date</TableHead>
                             <TableHead>View Invoice</TableHead>
-                            <TableHead className="text-right">Total</TableHead>
+                            <TableHead className="text-right">Amount Payable</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -158,6 +167,8 @@ export default function SecondReviewPage() {
                                 !invoice.expenseType || 
                                 !invoice.lineItems.every(item => !!item.accountId) ||
                                 invoice.status === 'approved_for_payment';
+                            
+                            const amountPayable = calculatePayableAmount(invoice);
 
                             return (
                                 <TableRow key={invoice.id}>
@@ -181,7 +192,7 @@ export default function SecondReviewPage() {
                                             </a>
                                         </Button>
                                     </TableCell>
-                                    <TableCell className="text-right font-mono">R {invoice.invoiceTotal.toFixed(2)}</TableCell>
+                                    <TableCell className="text-right font-mono">R {amountPayable.toFixed(2)}</TableCell>
                                     <TableCell className="text-right">
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
