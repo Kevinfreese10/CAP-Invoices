@@ -1,3 +1,4 @@
+
 // /src/app/api/emails/inbox/route.ts
 import { NextResponse } from 'next/server';
 import imaps from 'imap-simple';
@@ -34,12 +35,12 @@ export async function GET() {
         const all = item.parts.find((part) => part.which === '');
         const id = item.attributes.uid;
         const idHeader = 'Imap-Id: ' + id + '\r\n';
-        const mail = await simpleParser(idHeader + all?.body);
+        const mail = await simpleParser(all?.body || '');
         
         const attachments = mail.attachments.map(att => ({
             filename: att.filename,
             contentType: att.contentType,
-            dataUrl: `data:${att.contentType};base64,${att.content.toString('base64')}`,
+            dataUrl: null, // DO NOT send content to the client
             size: att.size,
         }));
 
