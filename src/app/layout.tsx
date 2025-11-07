@@ -73,7 +73,7 @@ export default function RootLayout({
                     "merchant_id": 5394656984,
                     "order_id": "ORDER_ID",
                     "email": "CUSTOMER_EMAIL",
-                    "delivery_country": "COUNTRY_CODE",
+                    "delivery_country": "ZA",
                     "estimated_delivery_date": "YYYY-MM-DD"
                   });
               });
