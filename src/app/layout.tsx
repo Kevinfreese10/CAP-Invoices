@@ -82,6 +82,18 @@ export default function RootLayout({
             }
           `}
         </Script>
+        <script id='merchantWidgetScript' src="https://www.gstatic.com/shopping/merchant/merchantwidget.js" defer></script>
+        <script>
+          {`
+            document.getElementById('merchantWidgetScript').addEventListener('load', function () {
+              merchantwidget.start({
+                merchant_id: 5394656984,
+                position: "BOTTOM_RIGHT",
+                region: "ZA",
+              });
+            });
+          `}
+        </script>
       </head>
       <body className={cn("antialiased", bodyFont.variable, headlineFont.variable)}>
         <AuthProvider>
