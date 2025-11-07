@@ -65,16 +65,18 @@ export default function RootLayout({
         <Script src="https://apis.google.com/js/platform.js?onload=renderOptIn" async defer></Script>
         <Script id="google-reviews-opt-in">
           {`
-            window.renderOptIn = function() {
+            window.renderOptIn = function(order) {
+              if (!order || !order.order_id || !order.email || !order.estimated_delivery_date) {
+                return;
+              }
               window.gapi.load('surveyoptin', function() {
                 window.gapi.surveyoptin.render(
                   {
-                    // REQUIRED FIELDS
                     "merchant_id": 5394656984,
-                    "order_id": "ORDER_ID",
-                    "email": "CUSTOMER_EMAIL",
+                    "order_id": order.order_id,
+                    "email": order.email,
                     "delivery_country": "ZA",
-                    "estimated_delivery_date": "YYYY-MM-DD"
+                    "estimated_delivery_date": order.estimated_delivery_date
                   });
               });
             }
