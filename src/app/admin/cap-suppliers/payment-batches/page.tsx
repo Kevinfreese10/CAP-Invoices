@@ -19,7 +19,10 @@ import Papa from 'papaparse';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import EditInvoiceForm from '@/components/admin/cap-suppliers/EditInvoiceForm';
+import * as XLSX from 'xlsx';
+import { capChartOfAccounts, s38ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 
+const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts];
 
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
@@ -34,6 +37,7 @@ type SupplierGroup = {
 function PaymentBatchTable({ title, invoices, totalAmount, totalPAYE, onDelete, onUploadPop, onEdit }: { title: string, invoices: ExtractedInvoice[], totalAmount: number, totalPAYE: number, onDelete: (id: string) => void, onUploadPop: (supplierName: string, file: File) => Promise<void>, onEdit: (invoice: ExtractedInvoice) => void }) {
     const [openSupplier, setOpenSupplier] = useState<string | null>(null);
     const [uploadingPop, setUploadingPop] = useState<string | null>(null);
+    const { toast } = useToast();
 
     const formatPrice = (price: number) => {
         return new Intl.NumberFormat('en-ZA', {
@@ -109,6 +113,65 @@ function PaymentBatchTable({ title, invoices, totalAmount, totalPAYE, onDelete, 
                 payeAmount: group.totalPAYE,
             }));
     }, [groupedBySupplier]);
+    
+    const handleDownloadExcel = () => {
+        const dataToExport = [];
+        const header = [
+            "Date", "Invoice Number", "Supplier", "Line Description", "Exclusive Amount", 
+            "VAT", "Line Total", "PAYE Deduction", "Final Payment", 
+            "Account Allocation Number", "Account Allocation Description", "Invoice Link"
+        ];
+        dataToExport.push(header);
+
+        invoices.forEach(invoice => {
+            invoice.lineItems.forEach(item => {
+                const lineTotal = item.exclusiveAmount + item.vatAmount;
+                const payeDeduction = item.paye ? lineTotal * 0.25 : 0;
+                const finalPayment = lineTotal - payeDeduction;
+                const account = allAccounts.find(acc => acc.accountNumber === item.accountId);
+                
+                const row = [
+                    invoice.date,
+                    invoice.invoiceNumber,
+                    invoice.supplier,
+                    item.description,
+                    item.exclusiveAmount,
+                    item.vatAmount,
+                    lineTotal,
+                    payeDeduction,
+                    finalPayment,
+                    item.accountId || 'N/A',
+                    account ? account.description : 'N/A',
+                    invoice.fileUrl
+                ];
+                dataToExport.push(row);
+            });
+        });
+
+        const worksheet = XLSX.utils.aoa_to_sheet(dataToExport);
+        worksheet['!cols'] = [
+            { wch: 12 }, { wch: 15 }, { wch: 30 }, { wch: 40 }, { wch: 15 }, 
+            { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 20 },
+            { wch: 30 }, { wch: 50 }
+        ];
+
+        // Apply number formatting for currency columns
+        const currencyFormat = 'R #,##0.00';
+        for (let i = 2; i <= dataToExport.length; i++) {
+            ['E', 'F', 'G', 'H', 'I'].forEach(col => {
+                const cellRef = `${col}${i}`;
+                if (worksheet[cellRef] && typeof worksheet[cellRef].v === 'number') {
+                    worksheet[cellRef].z = currencyFormat;
+                }
+            });
+        }
+
+
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, title);
+        XLSX.writeFile(workbook, `${title.replace(/\s/g, '_')}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+        toast({ title: 'Download Started', description: `Your Excel file for ${title} is being downloaded.`});
+    };
 
 
     return (
@@ -116,9 +179,14 @@ function PaymentBatchTable({ title, invoices, totalAmount, totalPAYE, onDelete, 
             <CardHeader>
                 <div className="flex justify-between items-center">
                     <CardTitle>{title}</CardTitle>
-                    <div className="text-right">
-                        <p className="text-sm text-muted-foreground">Batch Total Payable</p>
-                        <p className="text-2xl font-bold">{formatPrice(totalAmount)}</p>
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={handleDownloadExcel}>
+                            <Download className="mr-2 h-4 w-4" /> Download Batch
+                        </Button>
+                        <div className="text-right">
+                            <p className="text-sm text-muted-foreground">Batch Total Payable</p>
+                            <p className="text-2xl font-bold">{formatPrice(totalAmount)}</p>
+                        </div>
                     </div>
                 </div>
             </CardHeader>
@@ -459,3 +527,5 @@ export default function PaymentBatchesPage() {
         </div>
     );
 }
+
+    
