@@ -117,7 +117,7 @@ function PaymentBatchTable({ title, invoices, totalAmount, totalPAYE, onDelete, 
     const handleDownloadExcel = () => {
         const dataToExport = [];
         const header = [
-            "Date", "Invoice Number", "Supplier", "Line Description", "Exclusive Amount", 
+            "Date", "Invoice Number", "Commission Number", "Supplier", "Line Description", "Exclusive Amount", 
             "VAT", "Line Total", "PAYE Deduction", "Final Payment", 
             "Account Allocation Number", "Account Allocation Description", "Invoice Link"
         ];
@@ -133,6 +133,7 @@ function PaymentBatchTable({ title, invoices, totalAmount, totalPAYE, onDelete, 
                 const row = [
                     invoice.date,
                     invoice.invoiceNumber,
+                    invoice.commissionNumber || 'N/A',
                     invoice.supplier,
                     item.description,
                     item.exclusiveAmount,
@@ -150,7 +151,7 @@ function PaymentBatchTable({ title, invoices, totalAmount, totalPAYE, onDelete, 
 
         const worksheet = XLSX.utils.aoa_to_sheet(dataToExport);
         worksheet['!cols'] = [
-            { wch: 12 }, { wch: 15 }, { wch: 30 }, { wch: 40 }, { wch: 15 }, 
+            { wch: 12 }, { wch: 15 }, { wch: 20 }, { wch: 30 }, { wch: 40 }, { wch: 15 }, 
             { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 20 },
             { wch: 30 }, { wch: 50 }
         ];
@@ -158,7 +159,7 @@ function PaymentBatchTable({ title, invoices, totalAmount, totalPAYE, onDelete, 
         // Apply number formatting for currency columns
         const currencyFormat = 'R #,##0.00';
         for (let i = 2; i <= dataToExport.length; i++) {
-            ['E', 'F', 'G', 'H', 'I'].forEach(col => {
+            ['F', 'G', 'H', 'I', 'J'].forEach(col => {
                 const cellRef = `${col}${i}`;
                 if (worksheet[cellRef] && typeof worksheet[cellRef].v === 'number') {
                     worksheet[cellRef].z = currencyFormat;
@@ -527,5 +528,3 @@ export default function PaymentBatchesPage() {
         </div>
     );
 }
-
-    
