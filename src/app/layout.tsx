@@ -74,10 +74,7 @@ export default function RootLayout({
                     "order_id": "ORDER_ID",
                     "email": "CUSTOMER_EMAIL",
                     "delivery_country": "COUNTRY_CODE",
-                    "estimated_delivery_date": "YYYY-MM-DD",
-
-                    // OPTIONAL FIELDS
-                    "products": [{"gtin":"GTIN1"}, {"gtin":"GTIN2"}]
+                    "estimated_delivery_date": "YYYY-MM-DD"
                   });
               });
             }
