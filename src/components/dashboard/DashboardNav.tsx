@@ -52,19 +52,15 @@ export default function DashboardNav({ user }: { user: UserType }) {
   };
   
   const capSupplierItems = [
-    { href: '/admin/cap-suppliers/inbox', label: 'Inbox', icon: Inbox, roles: ['admin', 'staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
-    { href: '/admin/cap-suppliers/review', label: 'Review', icon: ClipboardCheck, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
-    { href: '/admin/cap-suppliers/control-sheet', label: '2nd Review', icon: FileText, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
-    { href: '/admin/cap-suppliers/payment-control-sheet', label: 'Payment Control Sheet', icon: FileSpreadsheet, roles: ['admin', 'staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
-    { href: '/admin/cap-suppliers/payment-batches', label: 'Payment Batches', icon: Banknote, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
-    { href: '/admin/cap-suppliers/rejected', label: 'Rejected', icon: FileX2, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
-    { href: '/admin/cap-suppliers/chart-of-accounts', label: 'Chart of Accounts', icon: Book, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
-    { href: '/admin/cap-suppliers/commission', label: 'Commission', icon: HandCoins, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
+    { href: '/admin/cap-suppliers/inbox', label: 'Inbox', icon: Inbox, roles: ['admin', 'staff', 'cap_supervisor'] },
+    { href: '/admin/cap-suppliers/review', label: 'Review', icon: ClipboardCheck, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'] },
+    { href: '/admin/cap-suppliers/control-sheet', label: '2nd Review', icon: FileText, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'] },
+    { href: '/admin/cap-suppliers/payment-control-sheet', label: 'Payment Control Sheet', icon: FileSpreadsheet, roles: ['admin', 'staff', 'cap_supervisor'] },
+    { href: '/admin/cap-suppliers/payment-batches', label: 'Payment Batches', icon: Banknote, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'] },
+    { href: '/admin/cap-suppliers/rejected', label: 'Rejected', icon: FileX2, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'] },
+    { href: '/admin/cap-suppliers/chart-of-accounts', label: 'Chart of Accounts', icon: Book, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'] },
+    { href: '/admin/cap-suppliers/commission', label: 'Commission', icon: HandCoins, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'] },
   ]
-  
-  const visibleCapSupplierItems = capSupplierItems.filter(item => {
-    return item.roles.includes(user.role) && (!item.department || item.department === user.department);
-  });
 
   return (
     <>
@@ -89,7 +85,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
         
         {(user.role === 'admin' || user.role === 'staff' || user.role === 'cap_staff' || user.role === 'cap_supervisor') && (
             <>
-            {visibleCapSupplierItems.length > 0 && (
+            {(user.role === 'admin' || user.role === 'staff' || user.role === 'cap_staff' || user.role === 'cap_supervisor') && (
                 <Collapsible open={isCapSuppliersOpen} onOpenChange={setIsCapSuppliersOpen}>
                 <SidebarMenuItem>
                     <CollapsibleTrigger asChild>
@@ -102,7 +98,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
                 </SidebarMenuItem>
                 <CollapsibleContent asChild>
                     <SidebarMenu className="pl-4">
-                    {visibleCapSupplierItems.map(item => (
+                    {capSupplierItems.filter(item => item.roles.includes(user.role)).map(item => (
                         <SidebarMenuItem key={item.href}>
                         <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label} className="h-8">
                             <Link href={item.href}>
