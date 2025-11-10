@@ -139,20 +139,6 @@ export default function ThirdReviewPage() {
         );
     }, [localInvoiceData, supplierFilter]);
 
-    const flatLineItems = useMemo(() => {
-        return filteredInvoices.flatMap(invoice => 
-            invoice.lineItems.map((item, index) => ({
-                ...item,
-                invoiceId: invoice.id,
-                lineItemIndex: index,
-                supplier: invoice.supplier,
-                commissionNumber: invoice.commissionNumber || 'N/A',
-                isFirstLine: index === 0,
-                isLastLine: index === invoice.lineItems.length - 1,
-            }))
-        );
-    }, [filteredInvoices]);
-
     return (
         <div className="space-y-8">
             <div className="flex items-center justify-between">
@@ -180,84 +166,93 @@ export default function ThirdReviewPage() {
                         <div className="flex justify-center items-center h-64">
                             <Loader2 className="h-8 w-8 animate-spin text-primary" />
                         </div>
-                    ) : flatLineItems.length === 0 ? (
+                    ) : filteredInvoices.length === 0 ? (
                         <p className="text-center text-muted-foreground py-10">
                             {invoices.length > 0 ? 'No invoices match the current filter.' : 'No invoices are currently pending 3rd review.'}
                         </p>
                     ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Supplier</TableHead>
-                                    <TableHead>Line Description</TableHead>
-                                    <TableHead>Ledger Description</TableHead>
-                                    <TableHead>Allocated Account</TableHead>
-                                    <TableHead>Commission #</TableHead>
-                                    <TableHead className="text-right">Exclusive Amount</TableHead>
-                                    <TableHead className="text-right w-[100px]">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {flatLineItems.map((item) => {
-                                    const account = getAccountDescription(item.accountId);
-                                    const invoice = invoices.find(inv => inv.id === item.invoiceId);
-                                    
-                                    return (
-                                        <TableRow key={`${item.invoiceId}-${item.lineItemIndex}`}>
-                                            <TableCell className={item.isFirstLine ? "font-semibold" : ""}>{item.isFirstLine ? item.supplier : ''}</TableCell>
-                                            <TableCell>{item.description}</TableCell>
-                                            <TableCell>
-                                                <Input
-                                                    value={item.ledgerDescription || ''}
-                                                    onChange={(e) => handleLedgerDescriptionChange(item.invoiceId, item.lineItemIndex, e.target.value)}
-                                                    placeholder="Enter ledger description..."
-                                                />
-                                            </TableCell>
-                                            <TableCell>
-                                                <p>{account.description}</p>
-                                                <p className="text-xs text-muted-foreground">{account.number}</p>
-                                            </TableCell>
-                                            <TableCell>{item.commissionNumber}</TableCell>
-                                            <TableCell className="text-right font-mono">{formatPrice(item.exclusiveAmount)}</TableCell>
-                                            <TableCell className="text-right">
-                                                {item.isLastLine && invoice && (
-                                                    <DropdownMenu>
-                                                        <DropdownMenuTrigger asChild>
-                                                            <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
-                                                        </DropdownMenuTrigger>
-                                                        <DropdownMenuContent>
-                                                            <DropdownMenuItem onSelect={() => handleSaveLedgerDescriptions(invoice.id)}>
-                                                                <Save className="mr-2 h-4 w-4" /> Save Descriptions
-                                                            </DropdownMenuItem>
-                                                             <AlertDialog>
-                                                                <AlertDialogTrigger asChild>
-                                                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                                                        <FileCheck2 className="mr-2 h-4 w-4" /> Approve for Payment
-                                                                    </DropdownMenuItem>
-                                                                </AlertDialogTrigger>
-                                                                <AlertDialogContent>
-                                                                    <AlertDialogHeader>
-                                                                        <AlertDialogTitle>Confirm Final Approval</AlertDialogTitle>
-                                                                        <AlertDialogDescription>This will move the invoice for "{invoice.supplier}" to the payment control sheet. Are you sure?</AlertDialogDescription>
-                                                                    </AlertDialogHeader>
-                                                                    <AlertDialogFooter>
-                                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                                        <AlertDialogAction onClick={() => handleFinalApproval(invoice.id)}>Yes, Approve</AlertDialogAction>
-                                                                    </AlertDialogFooter>
-                                                                </AlertDialogContent>
-                                                            </AlertDialog>
-                                                            <DropdownMenuItem onSelect={() => setEditingInvoice(invoice)}>
-                                                                <Edit className="mr-2 h-4 w-4" /> Edit Invoice
-                                                            </DropdownMenuItem>
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
-                                                )}
-                                            </TableCell>
-                                        </TableRow>
-                                    )
-                                })}
-                            </TableBody>
-                        </Table>
+                         <div className="space-y-6">
+                            {filteredInvoices.map((invoice) => (
+                                <Card key={invoice.id} className="overflow-hidden">
+                                    <CardHeader className="bg-muted/50">
+                                        <div className="flex flex-wrap justify-between items-center gap-2">
+                                            <div>
+                                                <CardTitle className="text-lg">{invoice.supplier}</CardTitle>
+                                                <CardDescription>
+                                                    {invoice.commissionNumber && `Commission #: ${invoice.commissionNumber}`}
+                                                </CardDescription>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent>
+                                                        <DropdownMenuItem onSelect={() => handleSaveLedgerDescriptions(invoice.id)}>
+                                                            <Save className="mr-2 h-4 w-4" /> Save Descriptions
+                                                        </DropdownMenuItem>
+                                                         <AlertDialog>
+                                                            <AlertDialogTrigger asChild>
+                                                                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                                                    <FileCheck2 className="mr-2 h-4 w-4" /> Approve for Payment
+                                                                </DropdownMenuItem>
+                                                            </AlertDialogTrigger>
+                                                            <AlertDialogContent>
+                                                                <AlertDialogHeader>
+                                                                    <AlertDialogTitle>Confirm Final Approval</AlertDialogTitle>
+                                                                    <AlertDialogDescription>This will move the invoice for "{invoice.supplier}" to the payment control sheet. Are you sure?</AlertDialogDescription>
+                                                                </AlertDialogHeader>
+                                                                <AlertDialogFooter>
+                                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                    <AlertDialogAction onClick={() => handleFinalApproval(invoice.id)}>Yes, Approve</AlertDialogAction>
+                                                                </AlertDialogFooter>
+                                                            </AlertDialogContent>
+                                                        </AlertDialog>
+                                                        <DropdownMenuItem onSelect={() => setEditingInvoice(invoice)}>
+                                                            <Edit className="mr-2 h-4 w-4" /> Edit Invoice
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </div>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent className="p-0">
+                                       <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Line Description</TableHead>
+                                                    <TableHead>Ledger Description</TableHead>
+                                                    <TableHead>Allocated Account</TableHead>
+                                                    <TableHead className="text-right">Exclusive Amount</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {invoice.lineItems.map((item, index) => {
+                                                    const account = getAccountDescription(item.accountId);
+                                                    return (
+                                                        <TableRow key={`${invoice.id}-${index}`}>
+                                                            <TableCell>{item.description}</TableCell>
+                                                            <TableCell>
+                                                                <Input
+                                                                    value={item.ledgerDescription || ''}
+                                                                    onChange={(e) => handleLedgerDescriptionChange(invoice.id, index, e.target.value)}
+                                                                    placeholder="Enter ledger description..."
+                                                                />
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                <p>{account.description}</p>
+                                                                <p className="text-xs text-muted-foreground">{account.number}</p>
+                                                            </TableCell>
+                                                            <TableCell className="text-right font-mono">{formatPrice(item.exclusiveAmount)}</TableCell>
+                                                        </TableRow>
+                                                    )
+                                                })}
+                                            </TableBody>
+                                        </Table>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
                     )}
                 </CardContent>
             </Card>
