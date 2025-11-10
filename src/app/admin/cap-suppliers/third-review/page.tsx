@@ -190,7 +190,6 @@ export default function ThirdReviewPage() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>Supplier</TableHead>
-                                    <TableHead>Invoice #</TableHead>
                                     <TableHead>Line Description</TableHead>
                                     <TableHead>Ledger Description</TableHead>
                                     <TableHead>Allocated Account</TableHead>
@@ -207,7 +206,6 @@ export default function ThirdReviewPage() {
                                     return (
                                         <TableRow key={`${item.invoiceId}-${item.lineItemIndex}`}>
                                             <TableCell className={item.isFirstLine ? "font-semibold" : ""}>{item.isFirstLine ? item.supplier : ''}</TableCell>
-                                            <TableCell>{item.isFirstLine ? item.invoiceNumber : ''}</TableCell>
                                             <TableCell>{item.description}</TableCell>
                                             <TableCell>
                                                 <Input
