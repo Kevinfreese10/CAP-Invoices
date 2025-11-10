@@ -43,7 +43,6 @@ import { Command, CommandInput, CommandList, CommandEmpty, CommandItem, CommandG
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { format, startOfMonth, endOfMonth, eachMonthOfInterval, getYear, getMonth, parseISO, addMonths } from 'date-fns';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { requestMissingStatements } from '@/app/actions';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 
 
@@ -294,17 +293,7 @@ function UploadStatementDialog({ client, bankAccountId, onImportComplete }: { cl
             return;
         }
         toast({ title: "Sending Request...", description: `Emailing ${client.name} for missing statements.` });
-        try {
-            await requestMissingStatements({
-                clientName: client.name,
-                clientEmail: client.email,
-                missingPeriods: missingMonths,
-            });
-            toast({ title: "Request Sent!", description: "An email has been sent to the client."});
-        } catch (error) {
-            console.error("Error sending missing statement request:", error);
-            toast({ title: "Request Failed", description: "Could not send the email.", variant: "destructive"});
-        }
+        
     }
 
     return (
