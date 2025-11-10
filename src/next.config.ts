@@ -4,7 +4,9 @@ import type {NextConfig} from 'next';
 const nextConfig: NextConfig = {
   output: 'standalone',
   experimental: {
-    serverActions: true,
+    serverActions: {
+      bodySizeLimit: '4.5mb',
+    },
   },
   /* config options here */
   typescript: {
@@ -47,5 +49,3 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
-
-    

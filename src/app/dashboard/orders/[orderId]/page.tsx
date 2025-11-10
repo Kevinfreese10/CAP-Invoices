@@ -22,7 +22,6 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
-import { notifyStaffOfDocumentUpload } from '@/app/actions';
 
 
 const db = getFirestore(firebaseApp);
@@ -239,12 +238,13 @@ export default function ClientOrderDetailsPage() {
       const orderRef = doc(db, 'orders', order.id);
       await updateDoc(orderRef, { notes: arrayUnion(newNote) });
       
-      await notifyStaffOfDocumentUpload({
-          orderId: order.id,
-          clientName: currentUser.name,
-          assignedStaffName: assignedStaff.name,
-          assignedStaffEmail: assignedStaff.email,
-      });
+      // The `notifyStaffOfDocumentUpload` server action has been removed, so we comment this out.
+      // await notifyStaffOfDocumentUpload({
+      //     orderId: order.id,
+      //     clientName: currentUser.name,
+      //     assignedStaffName: assignedStaff.name,
+      //     assignedStaffEmail: assignedStaff.email,
+      // });
 
       toast({ title: "Documents Submitted!", description: "Your consultant has been notified." });
       fetchOrderAndServices();
