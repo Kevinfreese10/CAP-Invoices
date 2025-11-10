@@ -228,7 +228,7 @@ export default function ThirdReviewPage() {
                                                         </Button>
                                                         <AlertDialog>
                                                             <AlertDialogTrigger asChild>
-                                                                <Button size="sm" variant="outline">
+                                                                <Button size="sm" variant="secondary">
                                                                     <FileCheck2 className="mr-2 h-4 w-4"/>
                                                                     Approve
                                                                 </Button>
@@ -278,3 +278,4 @@ export default function ThirdReviewPage() {
         </div>
     );
 }
+
