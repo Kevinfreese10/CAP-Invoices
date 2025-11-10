@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -165,7 +164,7 @@ export default function SecondReviewPage() {
                             const isApprovalDisabled = 
                                 !invoice.paymentBatch || 
                                 !invoice.expenseType || 
-                                !invoice.lineItems.every(item => !!item.accountId) ||
+                                !invoice.lineItems.some(item => !!item.accountId) || // Changed from .every to .some
                                 invoice.status === 'approved_for_payment';
                             
                             const amountPayable = calculatePayableAmount(invoice);
