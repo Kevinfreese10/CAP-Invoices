@@ -146,7 +146,6 @@ export default function ThirdReviewPage() {
                 invoiceId: invoice.id,
                 lineItemIndex: index,
                 supplier: invoice.supplier,
-                invoiceNumber: invoice.invoiceNumber,
                 commissionNumber: invoice.commissionNumber || 'N/A',
                 isFirstLine: index === 0,
                 isLastLine: index === invoice.lineItems.length - 1,
@@ -195,7 +194,7 @@ export default function ThirdReviewPage() {
                                     <TableHead>Allocated Account</TableHead>
                                     <TableHead>Commission #</TableHead>
                                     <TableHead className="text-right">Exclusive Amount</TableHead>
-                                    <TableHead className="text-right w-[200px]">Actions</TableHead>
+                                    <TableHead className="text-right w-[100px]">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -222,36 +221,36 @@ export default function ThirdReviewPage() {
                                             <TableCell className="text-right font-mono">{formatPrice(item.exclusiveAmount)}</TableCell>
                                             <TableCell className="text-right">
                                                 {item.isLastLine && invoice && (
-                                                    <div className="flex justify-end items-center gap-2">
-                                                        <Button size="sm" variant="secondary" onClick={() => handleSaveLedgerDescriptions(invoice.id)}>
-                                                            <Save className="mr-2 h-4 w-4" /> Save
-                                                        </Button>
-                                                        <AlertDialog>
-                                                            <AlertDialogTrigger asChild>
-                                                                <Button size="sm" variant="secondary">
-                                                                    <FileCheck2 className="mr-2 h-4 w-4"/>
-                                                                    Approve
-                                                                </Button>
-                                                            </AlertDialogTrigger>
-                                                            <AlertDialogContent>
-                                                                <AlertDialogHeader>
-                                                                    <AlertDialogTitle>Confirm Final Approval</AlertDialogTitle>
-                                                                    <AlertDialogDescription>
-                                                                        This will move the invoice for "{invoice.supplier}" to the payment control sheet. Are you sure?
-                                                                    </AlertDialogDescription>
-                                                                </AlertDialogHeader>
-                                                                <AlertDialogFooter>
-                                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                                    <AlertDialogAction onClick={() => handleFinalApproval(invoice.id)}>
-                                                                        Yes, Approve for Payment
-                                                                    </AlertDialogAction>
-                                                                </AlertDialogFooter>
-                                                            </AlertDialogContent>
-                                                        </AlertDialog>
-                                                        <Button variant="ghost" size="icon" onClick={() => setEditingInvoice(invoice)}>
-                                                            <Edit className="h-4 w-4" />
-                                                        </Button>
-                                                    </div>
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent>
+                                                            <DropdownMenuItem onSelect={() => handleSaveLedgerDescriptions(invoice.id)}>
+                                                                <Save className="mr-2 h-4 w-4" /> Save Descriptions
+                                                            </DropdownMenuItem>
+                                                             <AlertDialog>
+                                                                <AlertDialogTrigger asChild>
+                                                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                                                        <FileCheck2 className="mr-2 h-4 w-4" /> Approve for Payment
+                                                                    </DropdownMenuItem>
+                                                                </AlertDialogTrigger>
+                                                                <AlertDialogContent>
+                                                                    <AlertDialogHeader>
+                                                                        <AlertDialogTitle>Confirm Final Approval</AlertDialogTitle>
+                                                                        <AlertDialogDescription>This will move the invoice for "{invoice.supplier}" to the payment control sheet. Are you sure?</AlertDialogDescription>
+                                                                    </AlertDialogHeader>
+                                                                    <AlertDialogFooter>
+                                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                        <AlertDialogAction onClick={() => handleFinalApproval(invoice.id)}>Yes, Approve</AlertDialogAction>
+                                                                    </AlertDialogFooter>
+                                                                </AlertDialogContent>
+                                                            </AlertDialog>
+                                                            <DropdownMenuItem onSelect={() => setEditingInvoice(invoice)}>
+                                                                <Edit className="mr-2 h-4 w-4" /> Edit Invoice
+                                                            </DropdownMenuItem>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
                                                 )}
                                             </TableCell>
                                         </TableRow>
@@ -278,4 +277,3 @@ export default function ThirdReviewPage() {
         </div>
     );
 }
-
