@@ -336,7 +336,7 @@ export type ExtractedInvoice = {
     paye?: boolean;
   }[];
   invoiceTotal: number;
-  status: 'pending_review' | 'approved' | 'approved_for_payment' | 'rejected' | 'batched_for_payment' | 'duplicate';
+  status: 'pending_review' | 'approved' | 'approved_for_payment' | 'rejected' | 'batched_for_payment' | 'duplicate' | 'pending_third_review';
   fileName: string;
   fileUrl: string;
   createdAt: any;

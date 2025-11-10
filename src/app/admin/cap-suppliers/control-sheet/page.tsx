@@ -72,8 +72,8 @@ export default function SecondReviewPage() {
     const handleApproveForPayment = async (id: string) => {
         try {
             const docRef = doc(db, 'extractedInvoices', id);
-            await updateDoc(docRef, { status: 'approved_for_payment' });
-            toast({ title: 'Invoice Approved for Payment', description: 'The invoice has been moved to the payment control sheet.' });
+            await updateDoc(docRef, { status: 'pending_third_review' });
+            toast({ title: 'Invoice Approved for 3rd Review', description: 'The invoice has been moved to the next review step.' });
             fetchInvoices();
         } catch (error) {
             toast({ title: 'Error', description: 'Could not approve for payment.', variant: 'destructive'});
@@ -114,7 +114,7 @@ export default function SecondReviewPage() {
                     </Badge>
                 );
             default:
-                return <Badge>{status.replace('_', ' ')}</Badge>;
+                return <Badge>{status.replace(/_/g, ' ')}</Badge>;
         }
     }
     
@@ -199,7 +199,7 @@ export default function SecondReviewPage() {
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent>
                                                 <DropdownMenuItem onSelect={() => handleApproveForPayment(invoice.id)} disabled={isApprovalDisabled}>
-                                                    <FileCheck2 className="mr-2 h-4 w-4" /> Approve for Payment
+                                                    <FileCheck2 className="mr-2 h-4 w-4" /> Approve for 3rd Review
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem onSelect={() => setEditingInvoice(invoice)}>
                                                     <Edit className="mr-2 h-4 w-4" /> Edit
