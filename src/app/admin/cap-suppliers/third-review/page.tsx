@@ -26,6 +26,77 @@ const storage = getStorage(firebaseApp);
 
 const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts];
 
+const ledgerExamples: { [key: string]: string } = {
+    '1038-01': 'R&D - Skid Testing - Volkswagen SA - 21/05/2025 @ R4675 x 1 day',
+    '1038-02': 'Investigative - Initiation Ransom Fee - Busiseka Media - 01/06/2025 @ R1500 x 1',
+    '1038-03': 'Online News24 Subscription - Media24 - 04-2025 @ R104.69',
+    '1038-04': 'Online News24 Subscription - Media24 - 04-2025 @ R104.69',
+    '1038-05': 'Windeed Searches - Lexis Nexis - Trust Search Not Found - @ R10.76 x 3',
+    '1105-05': 'IS6689 - Wanted Dead - Field Presenting - Govan Whittles - 23/03/2025 @ R6000 x 1 day',
+    '1105-06': 'Studio Presenting - Erin Bates - 18/05/2025 @ R6000 x 1 episode',
+    '1161-01': 'Weekly Promos & Teasers - VO - Xola Ntshinga - 03-12-18-26/05/2025 @ R2875 x 4 weeks',
+    '1161-02': 'Weekly Teasers - Afrikaans VO - Lourensa Eckard - 05/05/2025 @ R2875 x 1 week',
+    '1161-03': 'IS6709 - Murder n Prison - Insert VO Guest - Lourensa Eckard - 29/05/2025 @ R2875 x 1 insert',
+    '1161-04': 'IS6786 - TFU K9 - VO - Macfarlane Moleli - 18/09/2025 @ R2875 x insert',
+    '1166-01': 'Presenter Training - Rozanne Mckenzie Media - 18/08-01-04-05/09/2025 @ R1250 x 5 days',
+    '2132-01': 'Studio Assistant Director - Jana Pienaar - 27/04/2025 @ R3700 x 1 episode',
+    '2133-01': 'Studio Floor Manager - Gontse Nkoko - 25/05/2025 @ R3300 x episode',
+    '2138-01': 'Studio Autocue Services - EasiQ - 01-08-15-22-29/06/2025 @ R2275 x 5 episodes',
+    '2161-01': 'IS6611 - Bayanda Walaza - DOP - Craig Maarschalk - 03/04/2025 @ R5000 x 1 day',
+    '2167-02': 'IS6721 - Scamsters - Drone - New Ending Unmanned - 24/05/2025 @ R13 500 x 1 day',
+    '2357-01': 'Set Maintenance - Juan Marcel Consultants CC - 09/09/2025 @ R51 906.50 x 1',
+    '2452-01': 'Monthly Retainer - Resident Stylist - Annamarie Bronkhost - 06/2025 @ R16 400.00 x 1 month',
+    '2452-02': 'Studio Stylist - Annamarie Bronkhorst - 08/06/2025 @ R2600 x 1 episode',
+    '2474-01': 'Wardrobe - Dry Cleaning - Exclusive Dry Cleaners - 04-15/04/2025 @ R3720',
+    '2483-01': 'Studio Make-Up Artist - Annamarie Bronkhorst - 27/04/2025 @ R2600 x 1 episode',
+    '3131-01': 'IS6775 - Alabuga Start - Location Fees - Msebeyelanga Media - 28/09/2025 @ R793.50 x 1 day',
+    '3131-02': 'EDCON - Refreshments - The Catalyst - 25/06/2025 @ R40 x 1 day x 43 pax',
+    '3132-01': 'Studio Rental - Stark Films - 08/2025 @ R343 137.57 x 1 month',
+    '3176-01': 'IS6714 - Initiation - Location Security - Bear Tactics - 21-25/05/2025 @ R2687.50 x 2 days',
+    '3202-01': 'IS6685 - Headache Clinic - Vehicle Rental - Erin Bates - 10-12/03/2025 Bluu - OR Tambo',
+    '3211-02': 'Fuel & Oil: Office Generator - Akeela Holdings - Diesel - @ R20.84 x 60.96L',
+    '3212-01': 'IS6760 - Border Claim - Parking - Nickolaus Bauer - @ R318.70 x 1',
+    '3213-01': 'IS6772 - Under Counter - Toll Fees - Nitro Media - 25-27/08/2025 - Baobab Mainline @ R120',
+    '3215-01': 'EP Shuttle - John Webb - Asendulo - 10/04/2025 - JHBHoliday InnRosebank @ R580 x 1',
+    '3216-01': 'IS6688 - Refugee Roulette - Mileage - 98Mile Media - 14/04/2025 - EdenvJHBMaraba @ R3.50 x 107kms',
+    '3302-01': 'IS6685 - Headache Clinic - Airport Tax - Erin Bates - 10-12/03/2025 Cpt/Jnb/Cpt',
+    '3302-02': 'EDCON - Air Ticket - Tarryn Crossman - 26/06/2025 Jnb/Els',
+    '3302-03': 'Studio Anchor Travel - Air Ticket - Erin Bates - 21/05/2025 Hla/Cpt',
+    '3305-01': 'CB-EP - Air Ticket - John Webb - 19- 21/05/2025 - JHB to GEORGE (Return)',
+    '3306-01': 'Travel Agent Management Fees - Izani Embassy JV - 06/2025 @ R10 000 X 1 month',
+    '3307-01': 'IS6742 - Secured - Excess Baggage - Kobus Zietsman - DATE @ R1000 x 1 day',
+    '3321-01': 'CB-EP - Accommodation - John Webb - Southern Sun Sandton - 01-02/05/2025 @ R1694.14 X 1 days',
+    '3321-02': 'IS6722 - Shadow king - Accommodation - Erin Bates - 09-11/06/2025 - The Kingdom Lodge',
+    '3321-03': 'EDCON - Accommodation - Anna Lubbe - 25-26/06/2025 - The Catalyst',
+    '3331-01': 'Office Craft - Checkers -19/08/25 - T/Spray, T/Paper, Bags, Sugar, Tea, Coffee, Milk, @ R1495.56',
+    '3331-02': 'Studio Catering - Stark Films - 15/06/2025 @ R132.00 x 20 pax',
+    '3341-01': 'CB-EP - Per Diem - John Webb - @ R300 x 2 nights',
+    '3341-02': 'IS6728 - Napier - Per Diem - Catherine/Erin/Greg - 16/06/2025 @ R300 x 1 day x 3 pax',
+    '4022-01': 'IS6702 - Respect Dead - Archive Material - Lion Mountain Media - 08/05/2025 @ R3000 x 1 day',
+    '4022-02': 'IS6707 - Rags to Ruin - Foreign Special - Delivery - Journeyman Pictures - 06/05/025 @ $150.00',
+    '4103-01': 'IS6692 - CMR North - Insert Edit - Ellis & King - 1-3/5/2025 @ R4750 x 3 days',
+    '4104-01': 'Edit Suite: In House Inserts - Bars & Tone - 01-31/05/2025 @ R5000 x 1 month',
+    '4104-02': 'Edit Suite: Media Managing & Weekly Editing - Bars & Tone - 01-30/06/2025 @ R5000 x 1 month',
+    '4105-02': 'Transcripts - Simon Says - 09/08/2025 @ R292.70',
+    '4121-01': 'Weekly Teasers & Promos - VO RX - Audio Post Box - 23-30/06/2025 @ R1250 x 1 week',
+    '4121-02': 'Weekly Teasers & Promos - AFM - Audio Post Box - 07-13/07/2025 @ R1875 x 1 week',
+    '4121-03': 'IS6690 - Last Cast - Insert VO RX - Floris Brand - 09/05/2025 @ R1250 x 1.5 hours',
+    '4121-04': 'IS6741 - Paupers Graves - Insert AFM - BKFK Studio - 20/07/2025 @ R1250 x 6 hours',
+    '4121-05': 'IS6699 - TFU Impossible - AFM - Floris Brand - 11/04/2025 @ R1250 x 1 hour',
+    '5003-01': 'Monthly Office Rent - Tulbach North (Pty) Ltd - 10/2025 - Open Parkings @ R396.27 x 2 parkings',
+    '5003-02': 'Monthly Office Security Levy - Tulbach North Body Corporate - 05/2025 @ R7027.56',
+    '5003-03': 'Office Utilites - Sewer - Tulbach North Body Corporate - Reading period 15/08-09/09/2025',
+    '5003-04': 'Generator Maintenance - Cummins - Fuel Seperator Spinon - EA - x 1 @ R307.23',
+    '5003-05': 'Stationary - TJ Office Supplies - Black pens - @ R21.00 x 5',
+    '5010-01': 'Monthly Printer Copy Charges - iTech - 25/10/25 @ R2413.15',
+    '5012-01': 'VOIP Cloud Backup - iTRINITY - 09/2025 @ R70 x 26 users',
+    '5012-02': 'Mobile Phone Allowances - L Janse Van Rensburg - 06/2025 @ R750.00 x 1 month',
+    '5015-01': 'Data Protection: e-Purifier Enterprise - iTRINITY - @ R120 x 57 users',
+    '5016-01': 'MS Office Exchange Online (Plan 1) - iTRINITY - 06/2025 @ R85 x 29 users',
+    '5016-12': 'IT Support - Remote Monitoring - iTRINITY - 09/2025 @ R80 x 17 users',
+};
+
+
 export default function ThirdReviewPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -227,6 +298,7 @@ export default function ThirdReviewPage() {
                                                 <TableRow>
                                                     <TableHead>Line Description</TableHead>
                                                     <TableHead>Ledger Description</TableHead>
+                                                    <TableHead>Example</TableHead>
                                                     <TableHead>Allocated Account</TableHead>
                                                     <TableHead className="text-right">Exclusive Amount</TableHead>
                                                 </TableRow>
@@ -234,6 +306,7 @@ export default function ThirdReviewPage() {
                                             <TableBody>
                                                 {invoice.lineItems.map((item, index) => {
                                                     const account = getAccountDescription(item.accountId);
+                                                    const example = item.accountId ? ledgerExamples[item.accountId] : '';
                                                     return (
                                                         <TableRow key={`${invoice.id}-${index}`}>
                                                             <TableCell>{item.description}</TableCell>
@@ -243,6 +316,9 @@ export default function ThirdReviewPage() {
                                                                     onChange={(e) => handleLedgerDescriptionChange(invoice.id, index, e.target.value)}
                                                                     placeholder="Enter ledger description..."
                                                                 />
+                                                            </TableCell>
+                                                            <TableCell className="text-xs text-muted-foreground italic">
+                                                                {example || ''}
                                                             </TableCell>
                                                             <TableCell>
                                                                 <p>{account.description}</p>
