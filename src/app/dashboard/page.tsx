@@ -16,6 +16,7 @@ import ServicePreview from '@/components/admin/ServicePreview';
 import { useToast } from '@/hooks/use-toast';
 import { getNextOrderId } from '@/lib/sequence';
 import { Input } from '@/components/ui/input';
+import { useRouter } from 'next/navigation';
 
 
 const db = getFirestore(firebaseApp);
@@ -212,7 +213,7 @@ export default function DashboardPage() {
                                     </CardContent>
                                     <CardFooter>
                                         <Button className="w-full" asChild>
-                                            <Link href="/contact">Contact Us</Link>
+                                            <Link href="/contact"></Link>
                                         </Button>
                                     </CardFooter>
                                 </Card>

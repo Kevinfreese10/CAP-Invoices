@@ -296,14 +296,6 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
                                             <Clock className="h-4 w-4" />
                                             <span>{selectedService.turnaroundTime}</span>
                                         </div>
-                                        {selectedService.clientRequirements.length > 0 && (
-                                            <div className="space-y-1">
-                                                <p className="font-medium">Prerequisites:</p>
-                                                <ul className="list-disc pl-5">
-                                                    {selectedService.clientRequirements.map((req, i) => <li key={i}>{req}</li>)}
-                                                </ul>
-                                            </div>
-                                        )}
                                     </div>
                                 )}
                             </div>
@@ -398,3 +390,5 @@ export default function CreateResellerOrderForm({ onOrderCreated }: { onOrderCre
     </Form>
   );
 }
+
+    
