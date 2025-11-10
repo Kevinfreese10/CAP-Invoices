@@ -5,6 +5,9 @@ export type CapChartOfAccount = {
 };
 
 export const s38ChartOfAccounts: CapChartOfAccount[] = [
+    { accountNumber: 'TBA-RB', description: 'To be allocated by RB' },
+    { accountNumber: 'TBA-NN', description: 'To be allocated by NN' },
+    { accountNumber: 'TBA-MH', description: 'To be allocated by MH' },
     { accountNumber: '1003-01', description: 'Executive Producer' },
     { accountNumber: '1005-01', description: 'Producer' },
     { accountNumber: '1006-01', description: 'Content Producer' },
@@ -126,6 +129,9 @@ export const s38ChartOfAccounts: CapChartOfAccount[] = [
 ];
 
 export const capChartOfAccounts: CapChartOfAccount[] = [
+    { accountNumber: 'TBA/001', description: 'To be allocated by RB' },
+    { accountNumber: 'TBA/002', description: 'To be allocated by NN' },
+    { accountNumber: 'TBA/003', description: 'To be allocated by MH' },
     { accountNumber: '1000/000', description: 'Sales' },
     { accountNumber: '2000/000', description: 'Purchases' },
     { accountNumber: '2100/000', description: 'Inventory Adjustment' },
