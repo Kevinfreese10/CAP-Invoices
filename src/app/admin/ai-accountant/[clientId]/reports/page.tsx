@@ -1,7 +1,0 @@
-
-import { redirect } from 'next/navigation';
-
-export default function ReportsRedirectPage({ params }: { params: { clientId: string }}) {
-  redirect(`/admin/ai-accountant/${params.clientId}/reports/trial-balance`);
-  return null;
-}
