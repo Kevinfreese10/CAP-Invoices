@@ -3,8 +3,6 @@
 
 import { useAuth } from '@/contexts/AuthContext';
 import { usePathname } from 'next/navigation';
-import Header from '@/components/layout/Header';
-import Footer from '@/components/layout/Footer';
 import { ReactNode } from 'react';
 
 export default function AppShell({ children }: { children: ReactNode }) {
@@ -16,17 +14,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
     pathname.startsWith('/dashboard') ||
     pathname.startsWith('/reseller');
 
-  const shouldShowHeaderFooter = !(isDashboardPage);
+  const shouldShowHeaderFooter = !isDashboardPage;
 
   return (
     <div className="flex min-h-screen flex-col">
-      {shouldShowHeaderFooter && (
-        <>
-          <Header />
-        </>
-      )}
       <main className="flex-grow bg-background">{children}</main>
-      {shouldShowHeaderFooter && <Footer />}
     </div>
   );
 }
