@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { getFirestore, collection, getDocs, query, orderBy, where, doc, updateDoc, writeBatch, addDoc, serverTimestamp } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, CheckCircle, MoreHorizontal, Edit, PlusCircle, FileCheck2 } from 'lucide-react';
+import { Loader2, CheckCircle, MoreHorizontal, Edit, PlusCircle, FileCheck2, Save } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ExtractedInvoice } from '@/lib/types';
@@ -32,6 +32,7 @@ export default function ThirdReviewPage() {
     const [supplierFilter, setSupplierFilter] = useState('');
     const { toast } = useToast();
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
+    const [localInvoiceData, setLocalInvoiceData] = useState<ExtractedInvoice[]>([]);
 
     const fetchInvoices = async () => {
         setIsLoading(true);
@@ -40,6 +41,7 @@ export default function ThirdReviewPage() {
             const querySnapshot = await getDocs(q);
             const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
             setInvoices(fetchedInvoices);
+            setLocalInvoiceData(fetchedInvoices); // Initialize local state
         } catch (error) {
             console.error("Error fetching invoices for 3rd review:", error);
         } finally {
@@ -88,6 +90,35 @@ export default function ThirdReviewPage() {
             toast({ title: 'Error', description: 'Could not save changes.', variant: 'destructive'});
         }
     };
+    
+    const handleLedgerDescriptionChange = (invoiceId: string, lineItemIndex: number, value: string) => {
+        setLocalInvoiceData(prevData =>
+            prevData.map(invoice => {
+                if (invoice.id === invoiceId) {
+                    const updatedLineItems = [...invoice.lineItems];
+                    updatedLineItems[lineItemIndex] = { ...updatedLineItems[lineItemIndex], ledgerDescription: value };
+                    return { ...invoice, lineItems: updatedLineItems };
+                }
+                return invoice;
+            })
+        );
+    };
+
+    const handleSaveLedgerDescriptions = async (invoiceId: string) => {
+        const invoiceToSave = localInvoiceData.find(inv => inv.id === invoiceId);
+        if (!invoiceToSave) return;
+
+        toast({ title: 'Saving...', description: 'Saving ledger descriptions.'});
+        try {
+            const docRef = doc(db, 'extractedInvoices', invoiceId);
+            await updateDoc(docRef, { lineItems: invoiceToSave.lineItems });
+            toast({ title: 'Saved!', description: 'Ledger descriptions have been updated.'});
+            fetchInvoices(); // Refresh from DB to ensure consistency
+        } catch (error) {
+            toast({ title: 'Error', description: 'Could not save ledger descriptions.', variant: 'destructive'});
+            console.error(error);
+        }
+    };
 
     const formatPrice = (price: number) => {
         return new Intl.NumberFormat('en-ZA', {
@@ -103,21 +134,22 @@ export default function ThirdReviewPage() {
     }
 
     const filteredInvoices = useMemo(() => {
-        return invoices.filter(invoice =>
+        return localInvoiceData.filter(invoice =>
             invoice.supplier.toLowerCase().includes(supplierFilter.toLowerCase())
         );
-    }, [invoices, supplierFilter]);
+    }, [localInvoiceData, supplierFilter]);
 
     const flatLineItems = useMemo(() => {
         return filteredInvoices.flatMap(invoice => 
             invoice.lineItems.map((item, index) => ({
                 ...item,
                 invoiceId: invoice.id,
+                lineItemIndex: index,
                 supplier: invoice.supplier,
                 invoiceNumber: invoice.invoiceNumber,
                 commissionNumber: invoice.commissionNumber || 'N/A',
                 isFirstLine: index === 0,
-                totalLines: invoice.lineItems.length,
+                isLastLine: index === invoice.lineItems.length - 1,
             }))
         );
     }, [filteredInvoices]);
@@ -160,22 +192,30 @@ export default function ThirdReviewPage() {
                                     <TableHead>Supplier</TableHead>
                                     <TableHead>Invoice #</TableHead>
                                     <TableHead>Line Description</TableHead>
+                                    <TableHead>Ledger Description</TableHead>
                                     <TableHead>Allocated Account</TableHead>
                                     <TableHead>Commission #</TableHead>
                                     <TableHead className="text-right">Exclusive Amount</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
+                                    <TableHead className="text-right w-[200px]">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {flatLineItems.map((item, index) => {
+                                {flatLineItems.map((item) => {
                                     const account = getAccountDescription(item.accountId);
                                     const invoice = invoices.find(inv => inv.id === item.invoiceId);
                                     
                                     return (
-                                        <TableRow key={`${item.invoiceId}-${index}`}>
+                                        <TableRow key={`${item.invoiceId}-${item.lineItemIndex}`}>
                                             <TableCell className={item.isFirstLine ? "font-semibold" : ""}>{item.isFirstLine ? item.supplier : ''}</TableCell>
                                             <TableCell>{item.isFirstLine ? item.invoiceNumber : ''}</TableCell>
                                             <TableCell>{item.description}</TableCell>
+                                            <TableCell>
+                                                <Input
+                                                    value={item.ledgerDescription || ''}
+                                                    onChange={(e) => handleLedgerDescriptionChange(item.invoiceId, item.lineItemIndex, e.target.value)}
+                                                    placeholder="Enter ledger description..."
+                                                />
+                                            </TableCell>
                                             <TableCell>
                                                 <p>{account.description}</p>
                                                 <p className="text-xs text-muted-foreground">{account.number}</p>
@@ -183,8 +223,11 @@ export default function ThirdReviewPage() {
                                             <TableCell>{item.commissionNumber}</TableCell>
                                             <TableCell className="text-right font-mono">{formatPrice(item.exclusiveAmount)}</TableCell>
                                             <TableCell className="text-right">
-                                                {item.isFirstLine && invoice && (
+                                                {item.isLastLine && invoice && (
                                                     <div className="flex justify-end items-center gap-2">
+                                                        <Button size="sm" variant="secondary" onClick={() => handleSaveLedgerDescriptions(invoice.id)}>
+                                                            <Save className="mr-2 h-4 w-4" /> Save
+                                                        </Button>
                                                         <AlertDialog>
                                                             <AlertDialogTrigger asChild>
                                                                 <Button size="sm" variant="outline">

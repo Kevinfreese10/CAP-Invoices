@@ -334,6 +334,7 @@ export type ExtractedInvoice = {
     vatAmount: number; 
     accountId?: string;
     paye?: boolean;
+    ledgerDescription?: string;
   }[];
   invoiceTotal: number;
   status: 'pending_review' | 'approved' | 'approved_for_payment' | 'rejected' | 'batched_for_payment' | 'duplicate' | 'pending_third_review';
