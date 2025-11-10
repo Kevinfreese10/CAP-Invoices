@@ -119,8 +119,10 @@ export default function LoginForm() {
       description: `Welcome back, ${result.name}! Redirecting...`,
     });
     
-    if (result.role === 'admin' || result.role === 'staff' || result.role === 'cap_staff' || result.role === 'cap_supervisor') {
+    if (result.role === 'admin' || result.role === 'staff' || result.role === 'cap_supervisor') {
         router.push('/admin/dashboard');
+    } else if (result.role === 'cap_staff') {
+        router.push('/admin/cap-suppliers/control-sheet');
     } else if (result.role === 'reseller') {
         router.push('/reseller/dashboard');
     } else if (result.role === 'ai_accountant') {

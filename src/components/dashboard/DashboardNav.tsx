@@ -52,10 +52,10 @@ export default function DashboardNav({ user }: { user: UserType }) {
   };
   
   const capSupplierItems = [
-    { href: '/admin/cap-suppliers/inbox', label: 'Inbox', icon: Inbox, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
+    { href: '/admin/cap-suppliers/inbox', label: 'Inbox', icon: Inbox, roles: ['admin', 'staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
     { href: '/admin/cap-suppliers/review', label: 'Review', icon: ClipboardCheck, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
     { href: '/admin/cap-suppliers/control-sheet', label: '2nd Review', icon: FileText, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
-    { href: '/admin/cap-suppliers/payment-control-sheet', label: 'Payment Control Sheet', icon: FileSpreadsheet, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
+    { href: '/admin/cap-suppliers/payment-control-sheet', label: 'Payment Control Sheet', icon: FileSpreadsheet, roles: ['admin', 'staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
     { href: '/admin/cap-suppliers/payment-batches', label: 'Payment Batches', icon: Banknote, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
     { href: '/admin/cap-suppliers/rejected', label: 'Rejected', icon: FileX2, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
     { href: '/admin/cap-suppliers/chart-of-accounts', label: 'Chart of Accounts', icon: Book, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'], isSubItem: true, department: 'Accounting and Tax' },
@@ -63,15 +63,6 @@ export default function DashboardNav({ user }: { user: UserType }) {
   ]
   
   const visibleCapSupplierItems = capSupplierItems.filter(item => {
-    if (user.role === 'cap_staff') {
-      return item.href === '/admin/cap-suppliers/payment-control-sheet' || item.href === '/admin/cap-suppliers/control-sheet' || item.href === '/admin/cap-suppliers/payment-batches';
-    }
-    if (user.role === 'cap_supervisor') {
-      return true; // Supervisor sees all CAP items
-    }
-     if (user.role === 'staff' && user.department === 'Accounting and Tax') {
-      return true; // Staff in this dept see all CAP items
-    }
     return item.roles.includes(user.role) && (!item.department || item.department === user.department);
   });
 
