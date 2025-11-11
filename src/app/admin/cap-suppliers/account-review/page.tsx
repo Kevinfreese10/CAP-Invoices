@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { ExtractedInvoice } from '@/lib/types';
 import { capChartOfAccounts, s38ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
-import { Checkbox } from '@/components/ui/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -24,7 +23,6 @@ const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts];
 export default function AccountReviewPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
     const { toast } = useToast();
 
@@ -46,25 +44,15 @@ export default function AccountReviewPage() {
     useEffect(() => {
         fetchInvoices();
     }, []);
-
-    const handleApproveSelected = async () => {
-        if (selectedInvoices.length === 0) {
-            toast({ title: 'No Invoices Selected', description: 'Please select invoices to approve.', variant: 'destructive' });
-            return;
-        }
-
+    
+    const handleApprove = async (invoiceId: string) => {
         try {
-            const batch = writeBatch(db);
-            selectedInvoices.forEach(id => {
-                const docRef = doc(db, 'extractedInvoices', id);
-                batch.update(docRef, { status: 'pending_third_review' });
-            });
-            await batch.commit();
-            toast({ title: 'Invoices Approved', description: `${selectedInvoices.length} invoice(s) have been moved to 3rd Review.` });
-            setSelectedInvoices([]);
+            const docRef = doc(db, 'extractedInvoices', invoiceId);
+            await updateDoc(docRef, { status: 'pending_third_review' });
+            toast({ title: 'Invoice Approved', description: 'The invoice has been moved to 3rd Review.' });
             fetchInvoices();
         } catch (error) {
-            toast({ title: 'Error', description: 'Could not approve invoices.', variant: 'destructive'});
+            toast({ title: 'Error', description: 'Could not approve the invoice.', variant: 'destructive'});
         }
     };
     
@@ -81,22 +69,6 @@ export default function AccountReviewPage() {
         }
     };
 
-    const handleSelectAll = (checked: boolean) => {
-        if (checked) {
-            setSelectedInvoices(invoices.map(inv => inv.id));
-        } else {
-            setSelectedInvoices([]);
-        }
-    }
-    
-    const handleToggleSelectOne = (invoiceId: string) => {
-        setSelectedInvoices(prev =>
-            prev.includes(invoiceId)
-                ? prev.filter(id => id !== invoiceId)
-                : [...prev, invoiceId]
-        );
-    };
-
     const getAccountDescription = (accountId?: string) => {
         if (!accountId) return 'N/A';
         const account = allAccounts.find(acc => acc.accountNumber === accountId);
@@ -111,28 +83,6 @@ export default function AccountReviewPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Account Review</h1>
-         <AlertDialog>
-            <AlertDialogTrigger asChild>
-                <Button disabled={selectedInvoices.length === 0}>
-                    <FileCheck2 className="mr-2 h-4 w-4"/>
-                    Approve ({selectedInvoices.length}) for 3rd Review
-                </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        This will approve {selectedInvoices.length} invoice(s) and move them to the 3rd Review step.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleApproveSelected}>
-                        Yes, Approve
-                    </AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
       </div>
       
        {isLoading ? (
@@ -147,25 +97,11 @@ export default function AccountReviewPage() {
             </Card>
         ) : (
             <div className="space-y-4">
-                 <div className="flex items-center gap-2 p-2 border rounded-md">
-                    <Checkbox
-                        id="select-all"
-                        onCheckedChange={handleSelectAll}
-                        checked={selectedInvoices.length > 0 && selectedInvoices.length === invoices.length}
-                    />
-                    <label htmlFor="select-all" className="text-sm font-medium">
-                        Select All Invoices
-                    </label>
-                 </div>
                  {invoices.map(invoice => (
                     <Card key={invoice.id}>
                         <CardHeader className="bg-muted/50">
                             <div className="flex justify-between items-center">
                                 <div className="flex items-center gap-4">
-                                     <Checkbox
-                                        checked={selectedInvoices.includes(invoice.id)}
-                                        onCheckedChange={() => handleToggleSelectOne(invoice.id)}
-                                    />
                                     <div>
                                         <CardTitle>{invoice.supplier}</CardTitle>
                                         <CardDescription>Invoice #: {invoice.invoiceNumber}</CardDescription>
@@ -182,6 +118,9 @@ export default function AccountReviewPage() {
                                             <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent>
+                                             <DropdownMenuItem onSelect={() => handleApprove(invoice.id)}>
+                                                <FileCheck2 className="mr-2 h-4 w-4" /> Approve for 3rd Review
+                                            </DropdownMenuItem>
                                             <DropdownMenuItem onSelect={() => setEditingInvoice(invoice)}>
                                                 <Edit className="mr-2 h-4 w-4" /> Edit Invoice
                                             </DropdownMenuItem>
@@ -231,5 +170,4 @@ export default function AccountReviewPage() {
 
     </div>
   );
-
     
