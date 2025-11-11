@@ -9,7 +9,7 @@ import { Loader2, FileCheck2, Eye, Edit, MoreHorizontal } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { ExtractedInvoice } from '@/lib/types';
+import { ExtractedInvoice, User } from '@/lib/types';
 import { capChartOfAccounts, s38ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -22,6 +22,7 @@ const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts];
 
 export default function AccountReviewPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
+    const [users, setUsers] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
     const { toast } = useToast();
@@ -29,6 +30,11 @@ export default function AccountReviewPage() {
     const fetchInvoices = async () => {
         setIsLoading(true);
         try {
+            const usersQuery = query(collection(db, "users"));
+            const usersSnapshot = await getDocs(usersQuery);
+            const fetchedUsers = usersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+            setUsers(fetchedUsers);
+
             const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'pending_account_review'), orderBy('createdAt', 'desc'));
             const querySnapshot = await getDocs(q);
             const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
@@ -74,6 +80,12 @@ export default function AccountReviewPage() {
         const account = allAccounts.find(acc => acc.accountNumber === accountId);
         return account ? account.description : 'Unknown Account';
     }
+
+    const getApproverName = (userId?: string) => {
+        if (!userId) return 'N/A';
+        const user = users.find(u => u.uid === userId);
+        return user ? user.name : 'Unknown User';
+    }
     
     const formatPrice = (price: number) => {
         return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(price);
@@ -104,7 +116,9 @@ export default function AccountReviewPage() {
                                 <div className="flex items-center gap-4">
                                     <div>
                                         <CardTitle>{invoice.supplier}</CardTitle>
-                                        <CardDescription>Invoice #: {invoice.invoiceNumber}</CardDescription>
+                                        <CardDescription>
+                                            Invoice #: {invoice.invoiceNumber} | Allocated by: <span className="font-semibold">{getApproverName(invoice.approvedBy)}</span>
+                                        </CardDescription>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -171,3 +185,4 @@ export default function AccountReviewPage() {
     </div>
   );
     
+

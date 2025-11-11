@@ -341,6 +341,8 @@ export type ExtractedInvoice = {
   fileUrl: string;
   createdAt: any;
   uploadedBy: string;
+  approvedBy?: string;
+  rejectedBy?: string;
   expenseType?: 'CAP' | 'S38';
   commissionNumber?: string;
   storyName?: string;
