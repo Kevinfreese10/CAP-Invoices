@@ -28,6 +28,7 @@ const lineItemSchema = z.object({
   vatAmount: z.preprocess((val) => Number(val), z.number()),
   accountId: z.string().optional(),
   paye: z.boolean().optional(),
+  ledgerDescription: z.string().optional(),
 });
 
 const formSchema = z.object({
@@ -84,7 +85,11 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice
             invoiceNumber: invoice?.invoiceNumber || '',
             commissionNumber: invoice?.commissionNumber || '',
             date: invoice?.date || '',
-            lineItems: invoice?.lineItems.map(item => ({ ...item, paye: item.paye || false })) || [],
+            lineItems: invoice?.lineItems.map(item => ({ 
+                ...item, 
+                description: item.ledgerDescription || item.description, // Prioritize ledgerDescription
+                paye: item.paye || false 
+            })) || [],
             invoiceTotal: invoice?.invoiceTotal || 0,
             expenseType: invoice?.expenseType || 'S38',
             paymentBatch: invoice?.paymentBatch || upcomingFridays[0]?.value,
@@ -127,7 +132,15 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice
 
     const onSubmit = (data: z.infer<typeof formSchema>) => {
         if (invoice) {
-            onSave(invoice.id, data);
+            // Ensure ledgerDescription is persisted
+            const dataToSave = {
+                ...data,
+                lineItems: data.lineItems.map(item => ({
+                    ...item,
+                    ledgerDescription: item.description,
+                })),
+            };
+            onSave(invoice.id, dataToSave);
         }
     };
 
@@ -279,3 +292,5 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice
         </Form>
     );
 }
+
+    
