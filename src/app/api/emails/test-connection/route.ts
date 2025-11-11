@@ -4,12 +4,12 @@ import imaps from 'imap-simple';
 export async function POST() {
   const config = {
     imap: {
-      user: 'invoices2@myacc.co.za',
-      password: 'Thinkestry10$',
-      host: 'mail.myacc.co.za',
-      port: 993,
+      user: process.env.IMAP_USER || '',
+      password: process.env.IMAP_PASSWORD || '',
+      host: process.env.IMAP_HOST || '',
+      port: Number(process.env.IMAP_PORT) || 993,
       tls: true,
-      authTimeout: 5000, // Slightly longer timeout for testing
+      authTimeout: 10000,
       tlsOptions: { rejectUnauthorized: false } 
     },
   };
@@ -23,5 +23,3 @@ export async function POST() {
     return NextResponse.json({ success: false, error: `Failed to connect to mail server: ${error.message}` }, { status: 500 });
   }
 }
-
-    

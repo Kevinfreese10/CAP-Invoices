@@ -15,12 +15,12 @@ const storage = getStorage(firebaseApp);
 async function fetchFullEmail(uid: number) {
     const config = {
       imap: {
-        user: 'invoices2@myacc.co.za',
-        password: 'Thinkestry10$',
-        host: 'mail.myacc.co.za',
-        port: 993,
+        user: process.env.IMAP_USER || '',
+        password: process.env.IMAP_PASSWORD || '',
+        host: process.env.IMAP_HOST || '',
+        port: Number(process.env.IMAP_PORT) || 993,
         tls: true,
-        authTimeout: 3000,
+        authTimeout: 10000,
         tlsOptions: { rejectUnauthorized: false }
       },
     };
