@@ -117,7 +117,7 @@ export default function AccountReviewPage() {
                                     <div>
                                         <CardTitle>{invoice.supplier}</CardTitle>
                                         <CardDescription>
-                                            Invoice #: {invoice.invoiceNumber} | Allocated by: <span className="font-semibold">{getApproverName(invoice.approvedBy)}</span>
+                                            Invoice #: {invoice.invoiceNumber} | Commission #: {invoice.commissionNumber || 'N/A'} | Allocated by: <span className="font-semibold">{getApproverName(invoice.approvedBy)}</span>
                                         </CardDescription>
                                     </div>
                                 </div>
@@ -184,5 +184,4 @@ export default function AccountReviewPage() {
 
     </div>
   );
-    
-
+}
