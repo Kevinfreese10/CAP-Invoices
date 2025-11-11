@@ -273,7 +273,7 @@ export default function PaymentControlSheetPage() {
                                         <Table>
                                             <TableHeader>
                                                 <TableRow>
-                                                    <TableHead>Line Item Description</TableHead>
+                                                    <TableHead>Ledger Description</TableHead>
                                                     <TableHead>Allocated Account</TableHead>
                                                     <TableHead>Payment Batch</TableHead>
                                                     <TableHead className="text-right">Amount (Excl. VAT)</TableHead>
@@ -284,7 +284,7 @@ export default function PaymentControlSheetPage() {
                                                     const account = getAccountDescription(item.accountId);
                                                     return (
                                                     <TableRow key={index}>
-                                                        <TableCell className="font-semibold">{item.description}</TableCell>
+                                                        <TableCell className="font-semibold">{item.ledgerDescription || item.description}</TableCell>
                                                         <TableCell>
                                                             <p className="font-semibold">{account.description}</p>
                                                             <p className="text-xs text-muted-foreground">({account.number} - {invoice.expenseType})</p>
