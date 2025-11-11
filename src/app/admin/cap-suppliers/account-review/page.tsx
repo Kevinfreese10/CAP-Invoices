@@ -112,14 +112,12 @@ export default function AccountReviewPage() {
                  {invoices.map(invoice => (
                     <Card key={invoice.id}>
                         <CardHeader className="bg-muted/50">
-                            <div className="flex justify-between items-center">
-                                <div className="flex items-center gap-4">
-                                    <div>
-                                        <CardTitle>{invoice.supplier}</CardTitle>
-                                        <CardDescription>
-                                            Invoice #: {invoice.invoiceNumber} | Commission #: {invoice.commissionNumber || 'N/A'} | Allocated by: <span className="font-semibold">{getApproverName(invoice.approvedBy)}</span>
-                                        </CardDescription>
-                                    </div>
+                            <div className="flex flex-wrap justify-between items-start gap-2">
+                                <div>
+                                    <CardTitle>{invoice.supplier}</CardTitle>
+                                    <CardDescription>
+                                        Invoice #: {invoice.invoiceNumber} | Commission #: {invoice.commissionNumber || 'N/A'} | Allocated by: <span className="font-semibold">{getApproverName(invoice.approvedBy)}</span>
+                                    </CardDescription>
                                 </div>
                                 <div className="flex items-center gap-2">
                                      <Button asChild variant="outline" size="icon">
