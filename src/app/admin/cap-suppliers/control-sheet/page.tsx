@@ -69,14 +69,14 @@ export default function SecondReviewPage() {
         }
     };
     
-    const handleApproveForPayment = async (id: string) => {
+    const handleApproveForNextStep = async (id: string) => {
         try {
             const docRef = doc(db, 'extractedInvoices', id);
-            await updateDoc(docRef, { status: 'pending_third_review' });
-            toast({ title: 'Invoice Approved for 3rd Review', description: 'The invoice has been moved to the next review step.' });
+            await updateDoc(docRef, { status: 'pending_account_review' });
+            toast({ title: 'Invoice Approved for Account Review', description: 'The invoice has been moved to the next review step.' });
             fetchInvoices();
         } catch (error) {
-            toast({ title: 'Error', description: 'Could not approve for payment.', variant: 'destructive'});
+            toast({ title: 'Error', description: 'Could not approve for account review.', variant: 'destructive'});
         }
     };
 
@@ -198,8 +198,8 @@ export default function SecondReviewPage() {
                                                 <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent>
-                                                <DropdownMenuItem onSelect={() => handleApproveForPayment(invoice.id)} disabled={isApprovalDisabled}>
-                                                    <FileCheck2 className="mr-2 h-4 w-4" /> Approve for 3rd Review
+                                                <DropdownMenuItem onSelect={() => handleApproveForNextStep(invoice.id)} disabled={isApprovalDisabled}>
+                                                    <FileCheck2 className="mr-2 h-4 w-4" /> Approve for Account Review
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem onSelect={() => setEditingInvoice(invoice)}>
                                                     <Edit className="mr-2 h-4 w-4" /> Edit

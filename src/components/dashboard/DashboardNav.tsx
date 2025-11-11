@@ -19,6 +19,7 @@ import {
   ChevronDown,
   HandCoins,
   FileCheck,
+  BookUser,
 } from 'lucide-react';
 
 import {
@@ -56,6 +57,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/cap-suppliers/inbox', label: 'Inbox', icon: Inbox, roles: ['admin', 'staff', 'cap_supervisor'] },
     { href: '/admin/cap-suppliers/review', label: 'Review', icon: ClipboardCheck, roles: ['admin', 'staff', 'cap_supervisor'] },
     { href: '/admin/cap-suppliers/control-sheet', label: '2nd Review', icon: FileText, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'] },
+    { href: '/admin/cap-suppliers/account-review', label: 'Account Review', icon: BookUser, roles: ['admin', 'staff', 'cap_supervisor'] },
     { href: '/admin/cap-suppliers/third-review', label: '3rd Review', icon: FileCheck, roles: ['admin', 'staff', 'cap_supervisor'] },
     { href: '/admin/cap-suppliers/payment-control-sheet', label: 'Payment Control Sheet', icon: FileSpreadsheet, roles: ['admin', 'staff', 'cap_supervisor'] },
     { href: '/admin/cap-suppliers/payment-batches', label: 'Payment Batches', icon: Banknote, roles: ['admin', 'staff', 'cap_supervisor', 'cap_staff'] },
