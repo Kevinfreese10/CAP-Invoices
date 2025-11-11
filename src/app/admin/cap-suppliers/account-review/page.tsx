@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, orderBy, where, doc, updateDoc, writeBatch } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, FileCheck2 } from 'lucide-react';
+import { Loader2, FileCheck2, Eye, Edit, MoreHorizontal } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -13,6 +13,9 @@ import { ExtractedInvoice } from '@/lib/types';
 import { capChartOfAccounts, s38ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import EditInvoiceForm from '@/components/admin/cap-suppliers/EditInvoiceForm';
 
 
 const db = getFirestore(firebaseApp);
@@ -22,6 +25,7 @@ export default function AccountReviewPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
+    const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
     const { toast } = useToast();
 
     const fetchInvoices = async () => {
@@ -63,6 +67,19 @@ export default function AccountReviewPage() {
             toast({ title: 'Error', description: 'Could not approve invoices.', variant: 'destructive'});
         }
     };
+    
+     const handleSave = async (id: string, data: any) => {
+        try {
+            const docRef = doc(db, 'extractedInvoices', id);
+            await updateDoc(docRef, data);
+            toast({ title: 'Invoice Updated', description: 'Your changes have been saved.' });
+            setEditingInvoice(null);
+            fetchInvoices();
+        } catch (error) {
+            console.error("Error updating invoice:", error);
+            toast({ title: 'Error', description: 'Could not save changes.', variant: 'destructive'});
+        }
+    };
 
     const handleSelectAll = (checked: boolean) => {
         if (checked) {
@@ -71,18 +88,15 @@ export default function AccountReviewPage() {
             setSelectedInvoices([]);
         }
     }
-
-    const flatLineItems = useMemo(() => {
-        return invoices.flatMap(invoice => 
-            invoice.lineItems.map(item => ({
-                ...item,
-                invoiceId: invoice.id,
-                supplier: invoice.supplier,
-                invoiceNumber: invoice.invoiceNumber,
-            }))
-        );
-    }, [invoices]);
     
+    const handleToggleSelectOne = (invoiceId: string) => {
+        setSelectedInvoices(prev =>
+            prev.includes(invoiceId)
+                ? prev.filter(id => id !== invoiceId)
+                : [...prev, invoiceId]
+        );
+    };
+
     const getAccountDescription = (accountId?: string) => {
         if (!accountId) return 'N/A';
         const account = allAccounts.find(acc => acc.accountNumber === accountId);
@@ -120,57 +134,102 @@ export default function AccountReviewPage() {
             </AlertDialogContent>
         </AlertDialog>
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Invoices Pending Account Review</CardTitle>
-          <CardDescription>
-            These invoices have passed the 2nd review. Please verify the account allocations before sending for final approval.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-            {isLoading ? (
-                <div className="flex justify-center items-center h-64">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
-            ) : flatLineItems.length === 0 ? (
-                <p className="text-center text-muted-foreground py-10">No invoices are pending account review.</p>
-            ) : (
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead className="w-12"><Checkbox onCheckedChange={handleSelectAll} checked={selectedInvoices.length > 0 && selectedInvoices.length === invoices.length}/></TableHead>
-                            <TableHead>Supplier</TableHead>
-                            <TableHead>Invoice #</TableHead>
-                            <TableHead>Line Description</TableHead>
-                            <TableHead>Allocated Account</TableHead>
-                            <TableHead className="text-right">Exclusive Amount</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {flatLineItems.map((item, index) => (
-                            <TableRow key={`${item.invoiceId}-${index}`}>
-                                <TableCell>
-                                    <Checkbox
-                                        checked={selectedInvoices.includes(item.invoiceId)}
-                                        onCheckedChange={(checked) => {
-                                            setSelectedInvoices(prev => 
-                                                checked ? [...prev, item.invoiceId] : prev.filter(id => id !== item.invoiceId)
-                                            );
-                                        }}
+      
+       {isLoading ? (
+            <div className="flex justify-center items-center h-64">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        ) : invoices.length === 0 ? (
+             <Card>
+                <CardContent className="py-10">
+                    <p className="text-center text-muted-foreground">No invoices are pending account review.</p>
+                </CardContent>
+            </Card>
+        ) : (
+            <div className="space-y-4">
+                 <div className="flex items-center gap-2 p-2 border rounded-md">
+                    <Checkbox
+                        id="select-all"
+                        onCheckedChange={handleSelectAll}
+                        checked={selectedInvoices.length > 0 && selectedInvoices.length === invoices.length}
+                    />
+                    <label htmlFor="select-all" className="text-sm font-medium">
+                        Select All Invoices
+                    </label>
+                 </div>
+                 {invoices.map(invoice => (
+                    <Card key={invoice.id}>
+                        <CardHeader className="bg-muted/50">
+                            <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-4">
+                                     <Checkbox
+                                        checked={selectedInvoices.includes(invoice.id)}
+                                        onCheckedChange={() => handleToggleSelectOne(invoice.id)}
                                     />
-                                </TableCell>
-                                <TableCell>{item.supplier}</TableCell>
-                                <TableCell>{item.invoiceNumber}</TableCell>
-                                <TableCell>{item.description}</TableCell>
-                                <TableCell>{getAccountDescription(item.accountId)}</TableCell>
-                                <TableCell className="text-right font-mono">{formatPrice(item.exclusiveAmount)}</TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            )}
-        </CardContent>
-      </Card>
+                                    <div>
+                                        <CardTitle>{invoice.supplier}</CardTitle>
+                                        <CardDescription>Invoice #: {invoice.invoiceNumber}</CardDescription>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                     <Button asChild variant="outline" size="icon">
+                                        <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer">
+                                            <Eye className="h-4 w-4" />
+                                        </a>
+                                    </Button>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent>
+                                            <DropdownMenuItem onSelect={() => setEditingInvoice(invoice)}>
+                                                <Edit className="mr-2 h-4 w-4" /> Edit Invoice
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Line Description</TableHead>
+                                        <TableHead>Allocated Account</TableHead>
+                                        <TableHead className="text-right">Exclusive Amount</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {invoice.lineItems.map((item, index) => (
+                                        <TableRow key={`${invoice.id}-${index}`}>
+                                            <TableCell>{item.description}</TableCell>
+                                            <TableCell>{getAccountDescription(item.accountId)}</TableCell>
+                                            <TableCell className="text-right font-mono">{formatPrice(item.exclusiveAmount)}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                 ))}
+            </div>
+        )}
+      
+       <Dialog open={!!editingInvoice} onOpenChange={(isOpen) => !isOpen && setEditingInvoice(null)}>
+        <DialogContent className="sm:max-w-4xl">
+            <DialogHeader>
+                <DialogTitle>Edit Invoice: {editingInvoice?.supplier}</DialogTitle>
+                <DialogDescription>Review and correct the extracted data.</DialogDescription>
+            </DialogHeader>
+            <EditInvoiceForm 
+                invoice={editingInvoice} 
+                onSave={handleSave} 
+                onCancel={() => setEditingInvoice(null)} 
+            />
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
-}
+
+    
