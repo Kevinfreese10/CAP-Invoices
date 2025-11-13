@@ -55,9 +55,17 @@ function getUpcomingFridays(): { value: string; label: string }[] {
         start: today,
         end: endOfJanuaryNextYear,
     });
+
+    const blackoutStart = new Date(currentYear, 11, 19); // Dec 19
+    const blackoutEnd = new Date(targetYear, 0, 16); // Jan 16
     
     for (const day of days) {
         if (isFriday(day)) {
+            // Exclude dates within the blackout period
+            if (day >= blackoutStart && day <= blackoutEnd) {
+                continue;
+            }
+
             const isMonthEndFriday = isLastDayOfMonth(day) || getMonth(addDays(day, 7)) !== getMonth(day);
             fridays.push({
                 value: format(day, 'yyyy-MM-dd'),
@@ -68,11 +76,13 @@ function getUpcomingFridays(): { value: string; label: string }[] {
 
     // Ensure today is included if it's a Friday but was missed by the interval start
     if (isFriday(today) && !fridays.some(f => f.value === format(today, 'yyyy-MM-dd'))) {
-        const isMonthEndFriday = isLastDayOfMonth(today) || getMonth(addDays(today, 7)) !== getMonth(today);
-         fridays.unshift({
-            value: format(today, 'yyyy-MM-dd'),
-            label: `${format(day, 'dd MMMM yyyy')}${isMonthEndFriday ? ' (Month End)' : ''}`,
-        });
+        if (!(today >= blackoutStart && today <= blackoutEnd)) {
+            const isMonthEndFriday = isLastDayOfMonth(today) || getMonth(addDays(today, 7)) !== getMonth(today);
+            fridays.unshift({
+                value: format(today, 'yyyy-MM-dd'),
+                label: `${format(today, 'dd MMMM yyyy')}${isMonthEndFriday ? ' (Month End)' : ''}`,
+            });
+        }
     }
 
     return fridays;
