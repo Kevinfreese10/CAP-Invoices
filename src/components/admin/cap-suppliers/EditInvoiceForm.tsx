@@ -16,7 +16,7 @@ import { DialogFooter } from '@/components/ui/dialog';
 import { Trash2, ChevronsUpDown } from 'lucide-react';
 import { s38ChartOfAccounts, capChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 import { ExtractedInvoice } from '@/lib/types';
-import { format, addDays, eachDayOfInterval, endOfMonth, isFriday, getMonth, isLastDayOfMonth, addMonths } from 'date-fns';
+import { format, addDays, eachDayOfInterval, endOfMonth, isFriday, getMonth, isLastDayOfMonth, addMonths, endOfYear, startOfYear, getYear } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -45,11 +45,15 @@ const formSchema = z.object({
 function getUpcomingFridays(): { value: string; label: string }[] {
     const fridays = [];
     const today = new Date();
-    const nextMonthEnd = endOfMonth(addMonths(today, 1));
+    const currentYear = getYear(today);
     
+    // Determine the target year for January. If we are already past January, it's next year.
+    const targetYear = getMonth(today) > 0 ? currentYear + 1 : currentYear;
+    const endOfJanuaryNextYear = endOfMonth(new Date(targetYear, 0)); // January is month 0
+
     const days = eachDayOfInterval({
         start: today,
-        end: nextMonthEnd,
+        end: endOfJanuaryNextYear,
     });
     
     for (const day of days) {
@@ -62,11 +66,12 @@ function getUpcomingFridays(): { value: string; label: string }[] {
         }
     }
 
+    // Ensure today is included if it's a Friday but was missed by the interval start
     if (isFriday(today) && !fridays.some(f => f.value === format(today, 'yyyy-MM-dd'))) {
         const isMonthEndFriday = isLastDayOfMonth(today) || getMonth(addDays(today, 7)) !== getMonth(today);
          fridays.unshift({
             value: format(today, 'yyyy-MM-dd'),
-            label: `${format(today, 'dd MMMM yyyy')}${isMonthEndFriday ? ' (Month End)' : ''}`,
+            label: `${format(day, 'dd MMMM yyyy')}${isMonthEndFriday ? ' (Month End)' : ''}`,
         });
     }
 
@@ -292,5 +297,7 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice
         </Form>
     );
 }
+
+    
 
     
