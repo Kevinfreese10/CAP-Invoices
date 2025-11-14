@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isPast, endOfDay } from 'date-fns';
 import { Separator } from '@/components/ui/separator';
 import Papa from 'papaparse';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -21,11 +21,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import EditInvoiceForm from '@/components/admin/cap-suppliers/EditInvoiceForm';
 import * as XLSX from 'xlsx';
 import { capChartOfAccounts, s38ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts];
-
-const db = getFirestore(firebaseApp);
-const storage = getStorage(firebaseApp);
 
 type SupplierGroup = {
     supplier: string;
@@ -426,12 +424,23 @@ export default function PaymentBatchesPage() {
         
         return Object.entries(batches).map(([batchKey, expenseGroups]) => {
             let title: string;
-            if (batchKey === 'this_week') title = 'This Week';
-            else if (batchKey === 'month_end') title = 'Month End';
-            else if (batchKey === 'Uncategorized') title = 'Uncategorized';
+            let batchDate: Date | null = null;
+            if (batchKey === 'this_week') {
+                title = 'This Week';
+                batchDate = new Date();
+            }
+            else if (batchKey === 'month_end') {
+                title = 'Month End';
+                batchDate = endOfDay(new Date()); // Represents a future payment
+            }
+            else if (batchKey === 'Uncategorized') {
+                title = 'Uncategorized';
+                batchDate = new Date(); // Treat as current for visibility
+            }
             else {
                 try {
-                    title = `Payment for ${format(parseISO(batchKey), 'dd MMMM yyyy')}`;
+                    batchDate = parseISO(batchKey);
+                    title = `Payment for ${format(batchDate, 'dd MMMM yyyy')}`;
                 } catch(e) {
                     title = `Batch: ${batchKey}`;
                 }
@@ -457,6 +466,7 @@ export default function PaymentBatchesPage() {
 
             return {
                 title,
+                batchDate,
                 capTotal: capTotals.totalPayable,
                 capPAYE: capTotals.totalPAYE,
                 s38Total: s38Totals.totalPayable,
@@ -484,32 +494,41 @@ export default function PaymentBatchesPage() {
             ) : weeklyBatches.length === 0 ? (
                  <p className="text-center text-muted-foreground py-10">No payment batches found.</p>
             ) : (
-                <div className="space-y-12">
-                    {weeklyBatches.map((batch, index) => (
-                        <div key={index}>
-                            <h2 className="text-2xl font-bold mb-4">{batch.title}</h2>
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-                                <PaymentBatchTable 
-                                    title="CAP Expenses"
-                                    invoices={batch.CAP}
-                                    totalAmount={batch.capTotal}
-                                    totalPAYE={batch.capPAYE}
-                                    onDelete={handleDeleteFromBatch}
-                                    onUploadPop={handleUploadPop}
-                                    onEdit={setEditingInvoice}
-                                />
-                                 <PaymentBatchTable 
-                                    title="S38 Expenses"
-                                    invoices={batch.S38}
-                                    totalAmount={batch.s38Total}
-                                    totalPAYE={batch.s38PAYE}
-                                    onDelete={handleDeleteFromBatch}
-                                    onUploadPop={handleUploadPop}
-                                    onEdit={setEditingInvoice}
-                                />
-                            </div>
-                        </div>
-                    ))}
+                <div className="space-y-6">
+                    {weeklyBatches.map((batch, index) => {
+                        const isBatchInPast = batch.batchDate ? isPast(endOfDay(batch.batchDate)) : false;
+                        return(
+                        <Collapsible key={index} defaultOpen={!isBatchInPast}>
+                             <CollapsibleTrigger className="w-full">
+                                <div className="flex items-center gap-2 p-3 bg-muted rounded-t-lg border">
+                                    <ChevronDown className="h-5 w-5 transition-transform duration-200 group-data-[state=open]:-rotate-180" />
+                                    <h2 className="text-xl font-bold">{batch.title}</h2>
+                                </div>
+                             </CollapsibleTrigger>
+                             <CollapsibleContent className="space-y-8 p-4 border-x border-b rounded-b-lg">
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                                    <PaymentBatchTable 
+                                        title="CAP Expenses"
+                                        invoices={batch.CAP}
+                                        totalAmount={batch.capTotal}
+                                        totalPAYE={batch.capPAYE}
+                                        onDelete={handleDeleteFromBatch}
+                                        onUploadPop={handleUploadPop}
+                                        onEdit={setEditingInvoice}
+                                    />
+                                    <PaymentBatchTable 
+                                        title="S38 Expenses"
+                                        invoices={batch.S38}
+                                        totalAmount={batch.s38Total}
+                                        totalPAYE={batch.s38PAYE}
+                                        onDelete={handleDeleteFromBatch}
+                                        onUploadPop={handleUploadPop}
+                                        onEdit={setEditingInvoice}
+                                    />
+                                </div>
+                            </CollapsibleContent>
+                        </Collapsible>
+                    )})}
                 </div>
             )}
              <Dialog open={!!editingInvoice} onOpenChange={(isOpen) => !isOpen && setEditingInvoice(null)}>
