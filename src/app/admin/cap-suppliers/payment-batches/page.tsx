@@ -23,6 +23,9 @@ import * as XLSX from 'xlsx';
 import { capChartOfAccounts, s38ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
+const db = getFirestore(firebaseApp);
+const storage = getStorage(firebaseApp);
+
 const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts];
 
 type SupplierGroup = {
