@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Inbox, RefreshCw, FileWarning, Plug, Paperclip, CheckCircle2, RotateCw, Trash2, FileSymlink, Eye } from 'lucide-react';
+import { Loader2, Inbox, RefreshCw, FileWarning, Plug, Paperclip, CheckCircle2, RotateCw, Trash2, FileSymlink, Eye, CheckCircle, Hourglass, AlertTriangle, FileCheck2, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -99,7 +99,8 @@ export default function InboxPage() {
             const invoicesQuery = query(
                 collection(db, 'extractedInvoices'), 
                 where('sourceEmailUid', '!=', null), 
-                orderBy('sourceEmailUid', 'desc')
+                orderBy('sourceEmailUid', 'desc'),
+                orderBy('createdAt', 'desc'),
             );
             const invoicesSnapshot = await getDocs(invoicesQuery);
             const fetchedInvoices = invoicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
@@ -256,6 +257,21 @@ export default function InboxPage() {
         }
         return <Badge variant="destructive"><FileSymlink className="mr-1 h-3 w-3"/>No Invoice File</Badge>;
     }
+
+     const getInvoiceStatusBadge = (status: ExtractedInvoice['status']) => {
+        switch(status) {
+            case 'approved': return <Badge variant={'success'}><CheckCircle className="mr-1 h-3 w-3" />Approved</Badge>;
+            case 'approved_for_payment': return <Badge variant={'payment'}><FileCheck2 className="mr-1 h-3 w-3" />Approved for Payment</Badge>;
+            case 'batched_for_payment': return <Badge variant={'payment'}><FileCheck2 className="mr-1 h-3 w-3" />Batched</Badge>;
+            case 'paid': return <Badge variant={'success'}><CheckCircle className="mr-1 h-3 w-3" />Paid</Badge>;
+            case 'rejected': return <Badge variant={'destructive'}><XCircle className="mr-1 h-3 w-3" />Rejected</Badge>;
+            case 'duplicate': return <Badge variant={'destructive'}><AlertTriangle className="mr-1 h-3 w-3" />Duplicate</Badge>;
+            case 'pending_review': return <Badge variant={'warning'}><Hourglass className="mr-1 h-3 w-3" />Pending Review</Badge>;
+            case 'pending_account_review': return <Badge variant={'warning'}><Hourglass className="mr-1 h-3 w-3" />Pending Account Review</Badge>;
+            case 'pending_third_review': return <Badge variant={'third_review'}><Hourglass className="mr-1 h-3 w-3" />Pending 3rd Review</Badge>;
+            default: return <Badge>{status.replace(/_/g, ' ')}</Badge>;
+        }
+    }
     
     const formatPrice = (price: number) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(price);
     
@@ -407,8 +423,8 @@ export default function InboxPage() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>Supplier</TableHead>
-                                    <TableHead>Invoice #</TableHead>
-                                    <TableHead>Date</TableHead>
+                                    <TableHead>Processed At</TableHead>
+                                    <TableHead>Status</TableHead>
                                     <TableHead className="text-right">Total</TableHead>
                                     <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
@@ -417,8 +433,12 @@ export default function InboxPage() {
                                 {filteredProcessedInvoices.map((invoice) => (
                                     <TableRow key={invoice.id}>
                                         <TableCell className="font-medium">{invoice.supplier}</TableCell>
-                                        <TableCell>{invoice.invoiceNumber}</TableCell>
-                                        <TableCell>{invoice.date}</TableCell>
+                                        <TableCell>
+                                            {invoice.createdAt?.toDate ? format(invoice.createdAt.toDate(), 'dd/MM/yyyy HH:mm') : 'N/A'}
+                                        </TableCell>
+                                        <TableCell>
+                                            {getInvoiceStatusBadge(invoice.status)}
+                                        </TableCell>
                                         <TableCell className="text-right font-mono">{formatPrice(invoice.invoiceTotal)}</TableCell>
                                         <TableCell className="text-right">
                                             <Button asChild variant="ghost" size="icon">
