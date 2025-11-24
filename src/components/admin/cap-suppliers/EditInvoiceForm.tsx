@@ -55,15 +55,19 @@ function getUpcomingFridays(): { value: string; label: string }[] {
         start: today,
         end: endOfJanuaryNextYear,
     });
-
-    const blackoutStart = new Date(currentYear, 11, 19); // Dec 19
-    const blackoutEnd = new Date(targetYear, 0, 16); // Jan 16
     
     for (const day of days) {
+        const dayYear = getYear(day);
+        const blackoutStart = new Date(dayYear, 11, 19); // Dec 19 of the day's year
+        const blackoutEnd = new Date(dayYear + 1, 0, 16);   // Jan 16 of the next year
+
         if (isFriday(day)) {
-            // Exclude dates within the blackout period
-            if (day >= blackoutStart && day <= blackoutEnd) {
-                continue;
+             // Exclude dates within the blackout period
+            if (day >= new Date(day.getFullYear(), 11, 19) && day <= new Date(day.getFullYear(), 11, 31)) {
+                continue; // In December blackout
+            }
+             if (day >= new Date(day.getFullYear(), 0, 1) && day <= new Date(day.getFullYear(), 0, 16)) {
+                continue; // In January blackout
             }
 
             const isMonthEndFriday = isLastDayOfMonth(day) || getMonth(addDays(day, 7)) !== getMonth(day);
@@ -76,7 +80,8 @@ function getUpcomingFridays(): { value: string; label: string }[] {
 
     // Ensure today is included if it's a Friday but was missed by the interval start
     if (isFriday(today) && !fridays.some(f => f.value === format(today, 'yyyy-MM-dd'))) {
-        if (!(today >= blackoutStart && today <= blackoutEnd)) {
+        const isBlackout = (today >= new Date(today.getFullYear(), 11, 19)) || (today <= new Date(today.getFullYear(), 0, 16));
+        if (!isBlackout) {
             const isMonthEndFriday = isLastDayOfMonth(today) || getMonth(addDays(today, 7)) !== getMonth(today);
             fridays.unshift({
                 value: format(today, 'yyyy-MM-dd'),
@@ -307,7 +312,3 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice
         </Form>
     );
 }
-
-    
-
-    
