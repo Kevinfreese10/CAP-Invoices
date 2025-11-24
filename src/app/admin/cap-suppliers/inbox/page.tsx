@@ -41,13 +41,11 @@ interface Email {
 
 export default function InboxPage() {
     const [emails, setEmails] = useState<Email[]>([]);
-    const [processedInvoices, setProcessedInvoices] = useState<ExtractedInvoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isTesting, setIsTesting] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [selectedUids, setSelectedUids] = useState<Set<number>>(new Set());
-    const [supplierFilter, setSupplierFilter] = useState('');
     const { toast } = useToast();
     
     const handleProcessAttachments = useCallback(async (email: Email, reprocess = false) => {
@@ -101,17 +99,6 @@ export default function InboxPage() {
                 isProcessed: processedUids.has(email.uid),
             }));
             setEmails(emailsWithStatus);
-
-            // Fetch Processed Invoices
-            const invoicesQuery = query(
-                collection(db, 'extractedInvoices'), 
-                where('sourceEmailUid', '!=', null), 
-                orderBy('sourceEmailUid', 'desc'),
-                orderBy('createdAt', 'desc'),
-            );
-            const invoicesSnapshot = await getDocs(invoicesQuery);
-            const fetchedInvoices = invoicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
-            setProcessedInvoices(fetchedInvoices);
 
         } catch (err: any) {
             console.error("Error fetching data:", err);
@@ -265,31 +252,6 @@ export default function InboxPage() {
         return <Badge variant="destructive"><FileSymlink className="mr-1 h-3 w-3"/>No Invoice File</Badge>;
     }
 
-     const getInvoiceStatusBadge = (status: ExtractedInvoice['status']) => {
-        switch(status) {
-            case 'approved': return <Badge variant={'success'}><CheckCircle className="mr-1 h-3 w-3" />Approved</Badge>;
-            case 'approved_for_payment': return <Badge variant={'payment'}><FileCheck2 className="mr-1 h-3 w-3" />Approved for Payment</Badge>;
-            case 'batched_for_payment': return <Badge variant={'payment'}><FileCheck2 className="mr-1 h-3 w-3" />Batched</Badge>;
-            case 'paid': return <Badge variant={'success'}><CheckCircle className="mr-1 h-3 w-3" />Paid</Badge>;
-            case 'rejected': return <Badge variant={'destructive'}><XCircle className="mr-1 h-3 w-3" />Rejected</Badge>;
-            case 'duplicate': return <Badge variant={'destructive'}><AlertTriangle className="mr-1 h-3 w-3" />Duplicate</Badge>;
-            case 'pending_review': return <Badge variant={'warning'}><Hourglass className="mr-1 h-3 w-3" />Pending Review</Badge>;
-            case 'pending_account_review': return <Badge variant={'warning'}><Hourglass className="mr-1 h-3 w-3" />Pending Account Review</Badge>;
-            case 'pending_third_review': return <Badge variant={'third_review'}><Hourglass className="mr-1 h-3 w-3" />Pending 3rd Review</Badge>;
-            default: return <Badge>{status.replace(/_/g, ' ')}</Badge>;
-        }
-    }
-    
-    const formatPrice = (price: number) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(price);
-    
-    const filteredProcessedInvoices = useMemo(() => {
-        if (!supplierFilter) return processedInvoices;
-        return processedInvoices.filter(invoice => 
-            invoice.supplier.toLowerCase().includes(supplierFilter.toLowerCase())
-        );
-    }, [processedInvoices, supplierFilter]);
-
-
     return (
         <div className="space-y-8">
             <div className="flex items-center justify-between">
@@ -397,65 +359,6 @@ export default function InboxPage() {
                                         </TableRow>
                                     )
                                 })}
-                            </TableBody>
-                        </Table>
-                    )}
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader>
-                     <div className="flex justify-between items-center">
-                        <div>
-                            <CardTitle>Processed Invoices</CardTitle>
-                            <CardDescription>A list of all invoices extracted from the inbox.</CardDescription>
-                        </div>
-                         <Input 
-                            placeholder="Filter by supplier..."
-                            value={supplierFilter}
-                            onChange={(e) => setSupplierFilter(e.target.value)}
-                            className="max-w-sm"
-                        />
-                    </div>
-                </CardHeader>
-                <CardContent>
-                     {isLoading ? (
-                        <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div>
-                    ) : filteredProcessedInvoices.length === 0 ? (
-                        <div className="p-4 text-center text-muted-foreground"><p>
-                            {processedInvoices.length > 0 ? 'No invoices match the current filter.' : 'No invoices have been processed from the inbox yet.'}
-                        </p></div>
-                    ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Supplier</TableHead>
-                                    <TableHead>Processed At</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead className="text-right">Total</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                             <TableBody>
-                                {filteredProcessedInvoices.map((invoice) => (
-                                    <TableRow key={invoice.id}>
-                                        <TableCell className="font-medium">{invoice.supplier}</TableCell>
-                                        <TableCell>
-                                            {invoice.createdAt?.toDate ? format(invoice.createdAt.toDate(), 'dd/MM/yyyy HH:mm') : 'N/A'}
-                                        </TableCell>
-                                        <TableCell>
-                                            {getInvoiceStatusBadge(invoice.status)}
-                                        </TableCell>
-                                        <TableCell className="text-right font-mono">{formatPrice(invoice.invoiceTotal)}</TableCell>
-                                        <TableCell className="text-right">
-                                            <Button asChild variant="ghost" size="icon">
-                                                <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer">
-                                                    <Eye className="h-4 w-4" />
-                                                </a>
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
                             </TableBody>
                         </Table>
                     )}

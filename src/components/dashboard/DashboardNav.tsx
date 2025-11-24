@@ -22,6 +22,7 @@ import {
   BookUser,
   Archive,
   Trash2,
+  Database,
 } from 'lucide-react';
 
 import {
@@ -57,6 +58,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   
   const capSupplierItems = [
     { href: '/admin/cap-suppliers/inbox', label: 'Inbox', icon: Inbox, roles: ['admin', 'staff', 'cap_supervisor'] },
+    { href: '/admin/cap-suppliers/processed', label: 'Processed', icon: Database, roles: ['admin', 'staff', 'cap_supervisor'] },
     { href: '/admin/cap-suppliers/review', label: 'Review', icon: ClipboardCheck, roles: ['admin', 'staff', 'cap_supervisor'] },
     { href: '/admin/cap-suppliers/control-sheet', label: '2nd Review', icon: FileText, roles: ['admin', 'staff', 'cap_staff', 'cap_supervisor'] },
     { href: '/admin/cap-suppliers/account-review', label: 'Account Review', icon: BookUser, roles: ['admin', 'staff', 'cap_supervisor'] },
