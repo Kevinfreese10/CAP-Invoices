@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc, where, addDoc, writeBatch, getDoc } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc, where, addDoc, writeBatch, getDoc, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, MoreHorizontal, Edit, Trash2, FileCheck2, Hourglass, CheckCircle2, Eye, Download, Sparkles, Brain, AlertTriangle, AlertCircle, Mail, Archive } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -467,30 +467,31 @@ export default function ReviewPage() {
     }
     
     const handleArchive = async (id: string) => {
+        if (!user) return;
          try {
             const docRef = doc(db, 'extractedInvoices', id);
-            await updateDoc(docRef, { status: 'archived' });
-            toast({ title: 'Invoice Archived', description: 'The invoice has been moved to the archive.'});
+            await updateDoc(docRef, { status: 'archived', deletedBy: user.uid, deletedAt: serverTimestamp() });
+            toast({ title: 'Invoice Deleted', description: 'The invoice has been moved to the deleted list.'});
             fetchInvoicesAndRules();
         } catch (error) {
-            toast({ title: 'Error', description: 'Could not archive the invoice.', variant: 'destructive'});
+            toast({ title: 'Error', description: 'Could not delete the invoice.', variant: 'destructive'});
         }
     }
 
     const handleArchiveSelected = async () => {
-        if (selectedInvoices.length === 0) return;
+        if (selectedInvoices.length === 0 || !user) return;
         try {
             const batch = writeBatch(db);
             selectedInvoices.forEach(id => {
                 const docRef = doc(db, 'extractedInvoices', id);
-                batch.update(docRef, { status: 'archived' });
+                batch.update(docRef, { status: 'archived', deletedBy: user.uid, deletedAt: serverTimestamp() });
             });
             await batch.commit();
-            toast({ title: 'Invoices Archived', description: `${selectedInvoices.length} invoices have been moved to the archive.`, variant: 'default'});
+            toast({ title: 'Invoices Deleted', description: `${selectedInvoices.length} invoices have been moved to the deleted list.`, variant: 'default'});
             setSelectedInvoices([]);
             fetchInvoicesAndRules();
         } catch (error) {
-            toast({ title: 'Error', description: 'Could not archive selected invoices.', variant: 'destructive'});
+            toast({ title: 'Error', description: 'Could not delete selected invoices.', variant: 'destructive'});
         }
     };
 
@@ -612,21 +613,21 @@ export default function ReviewPage() {
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
                             <Button variant="destructive" disabled={selectedInvoices.length === 0}>
-                                <Archive className="mr-2 h-4 w-4"/>
-                                Archive ({selectedInvoices.length})
+                                <Trash2 className="mr-2 h-4 w-4"/>
+                                Delete ({selectedInvoices.length})
                             </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
                                 <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                    This will archive {selectedInvoices.length} invoice(s). They can be viewed later in the Archive page.
+                                    This will delete {selectedInvoices.length} invoice(s). You can view them later in the Deleted page.
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                                 <AlertDialogAction onClick={handleArchiveSelected}>
-                                    Yes, Archive
+                                    Yes, Delete
                                 </AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>
@@ -746,14 +747,14 @@ export default function ReviewPage() {
                                                 <AlertDialog>
                                                     <AlertDialogTrigger asChild>
                                                         <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
-                                                            <Archive className="mr-2 h-4 w-4" /> Archive
+                                                            <Trash2 className="mr-2 h-4 w-4" /> Delete
                                                         </DropdownMenuItem>
                                                     </AlertDialogTrigger>
                                                     <AlertDialogContent>
-                                                        <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This action will archive the invoice for {invoice.supplier}. You can view it later in the Archive.</AlertDialogDescription></AlertDialogHeader>
+                                                        <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This action will delete the invoice for {invoice.supplier}. You can view it later in the Deleted page.</AlertDialogDescription></AlertDialogHeader>
                                                         <AlertDialogFooter>
                                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                            <AlertDialogAction onClick={() => handleArchive(invoice.id)}>Archive</AlertDialogAction>
+                                                            <AlertDialogAction onClick={() => handleArchive(invoice.id)}>Delete</AlertDialogAction>
                                                         </AlertDialogFooter>
                                                     </AlertDialogContent>
                                                 </AlertDialog>

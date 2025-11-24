@@ -352,6 +352,8 @@ export type ExtractedInvoice = {
   sourceEmailUid?: number;
   proofOfPaymentUrl?: string;
   note?: string;
+  deletedBy?: string;
+  deletedAt?: any;
 };
 
 export type CommunityQuestion = {
