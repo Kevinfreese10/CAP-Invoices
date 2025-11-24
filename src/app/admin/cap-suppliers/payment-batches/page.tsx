@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { getFirestore, collection, getDocs, query, orderBy, where, doc, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download, MoreHorizontal, Edit } from 'lucide-react';
+import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download, MoreHorizontal, Edit, AlertTriangle } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ExtractedInvoice } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,7 @@ import EditInvoiceForm from '@/components/admin/cap-suppliers/EditInvoiceForm';
 import * as XLSX from 'xlsx';
 import { capChartOfAccounts, s38ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Badge } from '@/components/ui/badge';
 
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
@@ -33,9 +34,10 @@ type SupplierGroup = {
     totalAmount: number;
     totalPAYE: number;
     invoices: ExtractedInvoice[];
+    hasDuplicates: boolean;
 };
 
-function PaymentBatchTable({ title, invoices, totalAmount, totalPAYE, onDelete, onUploadPop, onEdit }: { title: string, invoices: ExtractedInvoice[], totalAmount: number, totalPAYE: number, onDelete: (id: string) => void, onUploadPop: (supplierName: string, file: File) => Promise<void>, onEdit: (invoice: ExtractedInvoice) => void }) {
+function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalAmount, totalPAYE, onDelete, onUploadPop, onEdit }: { title: string, invoices: ExtractedInvoice[], allInvoices: ExtractedInvoice[], totalAmount: number, totalPAYE: number, onDelete: (id: string) => void, onUploadPop: (supplierName: string, file: File) => Promise<void>, onEdit: (invoice: ExtractedInvoice) => void }) {
     const [openSupplier, setOpenSupplier] = useState<string | null>(null);
     const [uploadingPop, setUploadingPop] = useState<string | null>(null);
     const { toast } = useToast();
@@ -48,8 +50,8 @@ function PaymentBatchTable({ title, invoices, totalAmount, totalPAYE, onDelete, 
     };
     
     const groupedBySupplier = useMemo(() => {
-        const groups: { [key: string]: SupplierGroup } = {};
-        invoices.forEach(invoice => {
+        const groups: { [key: string]: Omit<SupplierGroup, 'hasDuplicates'> & { hasDuplicates?: boolean } } = {};
+        batchInvoices.forEach(invoice => {
             if (!groups[invoice.supplier]) {
                 groups[invoice.supplier] = {
                     supplier: invoice.supplier,
@@ -71,8 +73,15 @@ function PaymentBatchTable({ title, invoices, totalAmount, totalPAYE, onDelete, 
             groups[invoice.supplier].totalPAYE += payeAmount;
             groups[invoice.supplier].invoices.push(invoice);
         });
+
+        // Check for duplicates
+        Object.values(groups).forEach(group => {
+            const invoiceNumbers = group.invoices.map(inv => inv.invoiceNumber);
+            group.hasDuplicates = new Set(invoiceNumbers).size !== invoiceNumbers.length;
+        });
+
         return Object.values(groups).sort((a, b) => b.totalAmount - a.totalAmount);
-    }, [invoices]);
+    }, [batchInvoices]);
 
     const handlePopUpload = async (supplierName: string, event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -124,7 +133,7 @@ function PaymentBatchTable({ title, invoices, totalAmount, totalPAYE, onDelete, 
         ];
         dataToExport.push(header);
 
-        invoices.forEach(invoice => {
+        batchInvoices.forEach(invoice => {
             invoice.lineItems.forEach(item => {
                 const lineTotal = item.exclusiveAmount + item.vatAmount;
                 const payeDeduction = item.paye ? lineTotal * 0.25 : 0;
@@ -157,7 +166,6 @@ function PaymentBatchTable({ title, invoices, totalAmount, totalPAYE, onDelete, 
             { wch: 30 }, { wch: 50 }
         ];
 
-        // Apply number formatting for currency columns
         const currencyFormat = 'R #,##0.00';
         for (let i = 2; i <= dataToExport.length; i++) {
             ['F', 'G', 'H', 'I', 'J'].forEach(col => {
@@ -175,6 +183,16 @@ function PaymentBatchTable({ title, invoices, totalAmount, totalPAYE, onDelete, 
         toast({ title: 'Download Started', description: `Your Excel file for ${title} is being downloaded.`});
     };
 
+    const isAlreadyPaid = (invoice: ExtractedInvoice) => {
+        // Check for the same invoice in ALL invoices that have a 'paid' status
+        return allInvoices.some(
+            (paidInv) =>
+                paidInv.status === 'paid' &&
+                paidInv.supplier === invoice.supplier &&
+                paidInv.invoiceNumber === invoice.invoiceNumber &&
+                paidInv.id !== invoice.id // Exclude self
+        );
+    };
 
     return (
         <Card>
@@ -193,7 +211,7 @@ function PaymentBatchTable({ title, invoices, totalAmount, totalPAYE, onDelete, 
                 </div>
             </CardHeader>
             <CardContent>
-                {invoices.length === 0 ? (
+                {batchInvoices.length === 0 ? (
                     <p className="text-center text-muted-foreground py-10">No invoices in this batch.</p>
                 ) : (
                 <Table>
@@ -217,6 +235,7 @@ function PaymentBatchTable({ title, invoices, totalAmount, totalPAYE, onDelete, 
                                             <Button variant="ghost" className="p-0 hover:bg-transparent -ml-2" onClick={() => setOpenSupplier(isOpen ? null : group.supplier)}>
                                                 <ChevronDown className={cn("h-4 w-4 mr-2 transition-transform duration-200", isOpen && "-rotate-90")} />
                                                 {group.supplier}
+                                                {group.hasDuplicates && <AlertTriangle className="h-4 w-4 ml-2 text-destructive" />}
                                             </Button>
                                         </TableCell>
                                         <TableCell className="text-right font-mono font-semibold">{formatPrice(group.totalAmount)}</TableCell>
@@ -268,10 +287,18 @@ function PaymentBatchTable({ title, invoices, totalAmount, totalPAYE, onDelete, 
                                                         <TableBody>
                                                             {group.invoices.map(invoice => (
                                                                 <TableRow key={invoice.id} className="text-xs">
-                                                                    <TableCell className="py-1">{invoice.invoiceNumber}</TableCell>
+                                                                    <TableCell className="py-1 flex items-center">
+                                                                        {invoice.invoiceNumber}
+                                                                        {isAlreadyPaid(invoice) && (
+                                                                            <Badge variant="success" className="ml-2">Paid</Badge>
+                                                                        )}
+                                                                    </TableCell>
                                                                     <TableCell className="py-1">{invoice.date}</TableCell>
                                                                     <TableCell className="py-1 text-right font-mono">{formatPrice(invoice.invoiceTotal)}</TableCell>
                                                                     <TableCell className="py-1 text-right">
+                                                                        <Button variant="ghost" size="icon" className="h-6 w-6" asChild>
+                                                                            <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer"><Download className="h-3 w-3" /></a>
+                                                                        </Button>
                                                                         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onEdit(invoice)}>
                                                                             <Edit className="h-3 w-3" />
                                                                         </Button>
@@ -342,7 +369,10 @@ export default function PaymentBatchesPage() {
     const fetchInvoices = async () => {
         setIsLoading(true);
         try {
-            const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'batched_for_payment'), orderBy('paymentBatch', 'asc'));
+            const q = query(
+                collection(db, 'extractedInvoices'), 
+                where('status', 'in', ['batched_for_payment', 'paid'])
+            );
             const querySnapshot = await getDocs(q);
             const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
             setInvoices(fetchedInvoices);
@@ -397,11 +427,11 @@ export default function PaymentBatchesPage() {
             const batch = writeBatch(db);
             invoicesToUpdate.forEach(invoice => {
                 const docRef = doc(db, 'extractedInvoices', invoice.id);
-                batch.update(docRef, { proofOfPaymentUrl: downloadURL });
+                batch.update(docRef, { proofOfPaymentUrl: downloadURL, status: 'paid' });
             });
             await batch.commit();
 
-            toast({ title: 'Proof of Payment Uploaded!', description: `POP for ${supplierName} has been saved.`});
+            toast({ title: 'Proof of Payment Uploaded!', description: `POP for ${supplierName} has been saved and invoices marked as paid.`});
             fetchInvoices();
 
         } catch (error) {
@@ -413,7 +443,9 @@ export default function PaymentBatchesPage() {
     const weeklyBatches = useMemo(() => {
         const batches: { [week: string]: { CAP: ExtractedInvoice[], S38: ExtractedInvoice[] } } = {};
         
-        invoices.forEach(inv => {
+        const currentBatches = invoices.filter(inv => inv.status === 'batched_for_payment');
+
+        currentBatches.forEach(inv => {
             const batchKey = inv.paymentBatch || 'Uncategorized';
             if (!batches[batchKey]) {
                 batches[batchKey] = { CAP: [], S38: [] };
@@ -425,7 +457,7 @@ export default function PaymentBatchesPage() {
             }
         });
         
-        return Object.entries(batches).map(([batchKey, expenseGroups]) => {
+        const mappedBatches = Object.entries(batches).map(([batchKey, expenseGroups]) => {
             let title: string;
             let batchDate: Date | null = null;
             if (batchKey === 'this_week') {
@@ -446,6 +478,7 @@ export default function PaymentBatchesPage() {
                     title = `Payment for ${format(batchDate, 'dd MMMM yyyy')}`;
                 } catch(e) {
                     title = `Batch: ${batchKey}`;
+                    batchDate = new Date(9999, 11, 31); // Put invalid dates at the end
                 }
             }
             
@@ -477,6 +510,14 @@ export default function PaymentBatchesPage() {
                 ...expenseGroups,
             };
         });
+
+        // Sort the final array of batch objects by date
+        return mappedBatches.sort((a, b) => {
+            if (!a.batchDate) return 1;
+            if (!b.batchDate) return -1;
+            return a.batchDate.getTime() - b.batchDate.getTime();
+        });
+
     }, [invoices]);
 
 
@@ -513,6 +554,7 @@ export default function PaymentBatchesPage() {
                                     <PaymentBatchTable 
                                         title="CAP Expenses"
                                         invoices={batch.CAP}
+                                        allInvoices={invoices}
                                         totalAmount={batch.capTotal}
                                         totalPAYE={batch.capPAYE}
                                         onDelete={handleDeleteFromBatch}
@@ -522,6 +564,7 @@ export default function PaymentBatchesPage() {
                                     <PaymentBatchTable 
                                         title="S38 Expenses"
                                         invoices={batch.S38}
+                                        allInvoices={invoices}
                                         totalAmount={batch.s38Total}
                                         totalPAYE={batch.s38PAYE}
                                         onDelete={handleDeleteFromBatch}

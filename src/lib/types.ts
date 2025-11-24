@@ -336,7 +336,7 @@ export type ExtractedInvoice = {
     ledgerDescription?: string;
   }[];
   invoiceTotal: number;
-  status: 'pending_review' | 'approved' | 'rejected' | 'batched_for_payment' | 'duplicate' | 'pending_account_review' | 'pending_third_review' | 'approved_for_payment';
+  status: 'pending_review' | 'approved' | 'rejected' | 'batched_for_payment' | 'duplicate' | 'pending_account_review' | 'pending_third_review' | 'approved_for_payment' | 'paid';
   fileName: string;
   fileUrl: string;
   createdAt: any;
@@ -347,7 +347,7 @@ export type ExtractedInvoice = {
   commissionNumber?: string;
   storyName?: string;
   rejectionReason?: string;
-  paymentBatch?: 'this_week' | 'month_end';
+  paymentBatch?: string;
   sourceEmailUid?: number;
   proofOfPaymentUrl?: string;
 };
