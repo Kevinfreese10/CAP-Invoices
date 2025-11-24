@@ -1,4 +1,5 @@
 
+
 export type VatType =
   // Output Tax
   | 'standard_rated_sales'
@@ -350,6 +351,7 @@ export type ExtractedInvoice = {
   paymentBatch?: string;
   sourceEmailUid?: number;
   proofOfPaymentUrl?: string;
+  note?: string;
 };
 
 export type CommunityQuestion = {

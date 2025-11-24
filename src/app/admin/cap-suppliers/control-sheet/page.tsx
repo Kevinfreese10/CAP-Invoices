@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -58,6 +59,7 @@ export default function SecondReviewPage() {
                 commissionNumber: data.commissionNumber || null,
                 paymentBatch: data.paymentBatch || null,
                 expenseType: data.expenseType || null,
+                note: data.note || null,
             };
             await updateDoc(docRef, dataToSave);
             toast({ title: 'Invoice Updated', description: 'Your changes have been saved.' });
@@ -174,7 +176,10 @@ export default function SecondReviewPage() {
                                     <TableCell>
                                         {getStatusBadge(invoice.status)}
                                     </TableCell>
-                                    <TableCell className="font-medium">{invoice.supplier}</TableCell>
+                                    <TableCell className="font-medium">
+                                        <p>{invoice.supplier}</p>
+                                        {invoice.note && <p className="text-xs text-muted-foreground italic mt-1">Note: {invoice.note}</p>}
+                                    </TableCell>
                                     <TableCell>{invoice.invoiceNumber}</TableCell>
                                     <TableCell>
                                         {invoice.paymentBatch ? (

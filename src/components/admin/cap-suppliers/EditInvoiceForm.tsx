@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -40,6 +41,7 @@ const formSchema = z.object({
   invoiceTotal: z.preprocess((val) => Number(val), z.number()),
   expenseType: z.enum(['CAP', 'S38']).optional(),
   paymentBatch: z.string().optional(),
+  note: z.string().optional(),
 });
 
 function getUpcomingFridays(): { value: string; label: string }[] {
@@ -113,6 +115,7 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice
             invoiceTotal: invoice?.invoiceTotal || 0,
             expenseType: invoice?.expenseType || 'S38',
             paymentBatch: invoice?.paymentBatch || upcomingFridays[0]?.value,
+            note: invoice?.note || '',
         }
     });
 
@@ -225,7 +228,21 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice
                 </div>
                  <FormField control={form.control} name="date" render={({ field }) => ( <FormItem><FormLabel>Date</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                  <FormField control={form.control} name="commissionNumber" render={({ field }) => ( <FormItem><FormLabel>Commission Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                
+                 
+                 <FormField
+                    control={form.control}
+                    name="note"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Note</FormLabel>
+                            <FormControl>
+                                <Textarea placeholder="Add an internal note for this invoice..." {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+
                 <h4 className="font-medium">Line Items</h4>
                 <div className="space-y-2">
                     {fields.map((field, index) => (
