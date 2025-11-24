@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, Inbox, RefreshCw, FileWarning, Plug, Paperclip, CheckCircle2, RotateCw, Trash2, FileSymlink, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { ExtractedInvoice } from '@/lib/types';
+import { Input } from '@/components/ui/input';
 
 
 const db = getFirestore(firebaseApp);
@@ -46,6 +47,7 @@ export default function InboxPage() {
     const [isProcessing, setIsProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [selectedUids, setSelectedUids] = useState<Set<number>>(new Set());
+    const [supplierFilter, setSupplierFilter] = useState('');
     const { toast } = useToast();
     
     const handleProcessAttachments = useCallback(async (email: Email, reprocess = false) => {
@@ -256,6 +258,13 @@ export default function InboxPage() {
     }
     
     const formatPrice = (price: number) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(price);
+    
+    const filteredProcessedInvoices = useMemo(() => {
+        if (!supplierFilter) return processedInvoices;
+        return processedInvoices.filter(invoice => 
+            invoice.supplier.toLowerCase().includes(supplierFilter.toLowerCase())
+        );
+    }, [processedInvoices, supplierFilter]);
 
 
     return (
@@ -373,14 +382,26 @@ export default function InboxPage() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Processed Invoices</CardTitle>
-                    <CardDescription>A list of all invoices extracted from the inbox.</CardDescription>
+                     <div className="flex justify-between items-center">
+                        <div>
+                            <CardTitle>Processed Invoices</CardTitle>
+                            <CardDescription>A list of all invoices extracted from the inbox.</CardDescription>
+                        </div>
+                         <Input 
+                            placeholder="Filter by supplier..."
+                            value={supplierFilter}
+                            onChange={(e) => setSupplierFilter(e.target.value)}
+                            className="max-w-sm"
+                        />
+                    </div>
                 </CardHeader>
                 <CardContent>
                      {isLoading ? (
                         <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div>
-                    ) : processedInvoices.length === 0 ? (
-                        <div className="p-4 text-center text-muted-foreground"><p>No invoices have been processed from the inbox yet.</p></div>
+                    ) : filteredProcessedInvoices.length === 0 ? (
+                        <div className="p-4 text-center text-muted-foreground"><p>
+                            {processedInvoices.length > 0 ? 'No invoices match the current filter.' : 'No invoices have been processed from the inbox yet.'}
+                        </p></div>
                     ) : (
                         <Table>
                             <TableHeader>
@@ -393,7 +414,7 @@ export default function InboxPage() {
                                 </TableRow>
                             </TableHeader>
                              <TableBody>
-                                {processedInvoices.map((invoice) => (
+                                {filteredProcessedInvoices.map((invoice) => (
                                     <TableRow key={invoice.id}>
                                         <TableCell className="font-medium">{invoice.supplier}</TableCell>
                                         <TableCell>{invoice.invoiceNumber}</TableCell>
