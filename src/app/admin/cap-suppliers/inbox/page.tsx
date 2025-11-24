@@ -3,19 +3,20 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Inbox, RefreshCw, FileWarning, Plug, Paperclip, CheckCircle2, RotateCw, Trash2, FileSymlink } from 'lucide-react';
+import { Loader2, Inbox, RefreshCw, FileWarning, Plug, Paperclip, CheckCircle2, RotateCw, Trash2, FileSymlink, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { getFirestore, collection, getDocs, deleteDoc, doc, writeBatch } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, deleteDoc, doc, writeBatch, query, where, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { sendEmail } from '@/lib/email';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { ExtractedInvoice } from '@/lib/types';
 
 
 const db = getFirestore(firebaseApp);
@@ -39,6 +40,7 @@ interface Email {
 
 export default function InboxPage() {
     const [emails, setEmails] = useState<Email[]>([]);
+    const [processedInvoices, setProcessedInvoices] = useState<ExtractedInvoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isTesting, setIsTesting] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -72,10 +74,11 @@ export default function InboxPage() {
         }
     }, [toast]);
     
-    const fetchEmails = useCallback(async () => {
+    const fetchEmailsAndInvoices = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
+            // Fetch Emails
             const processedSnapshot = await getDocs(collection(db, 'processedEmails'));
             const processedUids = new Set(processedSnapshot.docs.map(doc => doc.data().uid));
             const response = await fetch('/api/emails/inbox');
@@ -89,8 +92,19 @@ export default function InboxPage() {
                 isProcessed: processedUids.has(email.uid),
             }));
             setEmails(emailsWithStatus);
+
+            // Fetch Processed Invoices
+            const invoicesQuery = query(
+                collection(db, 'extractedInvoices'), 
+                where('sourceEmailUid', '!=', null), 
+                orderBy('sourceEmailUid', 'desc')
+            );
+            const invoicesSnapshot = await getDocs(invoicesQuery);
+            const fetchedInvoices = invoicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
+            setProcessedInvoices(fetchedInvoices);
+
         } catch (err: any) {
-            console.error("Error fetching emails:", err);
+            console.error("Error fetching data:", err);
             setError(err.message);
         } finally {
             setIsLoading(false);
@@ -142,7 +156,7 @@ export default function InboxPage() {
            });
         }
         
-        fetchEmails();
+        fetchEmailsAndInvoices();
         setSelectedUids(new Set()); 
     };
 
@@ -163,7 +177,7 @@ export default function InboxPage() {
             }
             
             toast({ title: 'Emails Deleted', description: `${selectedUids.size} email(s) have been deleted.` });
-            fetchEmails();
+            fetchEmailsAndInvoices();
             setSelectedUids(new Set());
         } catch (error: any) {
             toast({ title: 'Error', description: error.message, variant: 'destructive'});
@@ -221,8 +235,8 @@ export default function InboxPage() {
     }
 
     useEffect(() => {
-        fetchEmails();
-    }, [fetchEmails]);
+        fetchEmailsAndInvoices();
+    }, [fetchEmailsAndInvoices]);
 
     const getStatusBadge = (email: Email) => {
         if (email.isProcessed) {
@@ -240,6 +254,9 @@ export default function InboxPage() {
         }
         return <Badge variant="destructive"><FileSymlink className="mr-1 h-3 w-3"/>No Invoice File</Badge>;
     }
+    
+    const formatPrice = (price: number) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(price);
+
 
     return (
         <div className="space-y-8">
@@ -277,7 +294,7 @@ export default function InboxPage() {
                         <Plug className={`mr-2 h-4 w-4 ${isTesting ? 'animate-pulse' : ''}`} />
                         Test Connection
                     </Button>
-                    <Button onClick={fetchEmails} variant="outline" disabled={isLoading || isProcessing}>
+                    <Button onClick={fetchEmailsAndInvoices} variant="outline" disabled={isLoading || isProcessing}>
                         <RefreshCw className={`mr-2 h-4 w-4 ${isLoading || isProcessing ? 'animate-spin' : ''}`} />
                         Refresh
                     </Button>
@@ -348,6 +365,49 @@ export default function InboxPage() {
                                         </TableRow>
                                     )
                                 })}
+                            </TableBody>
+                        </Table>
+                    )}
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Processed Invoices</CardTitle>
+                    <CardDescription>A list of all invoices extracted from the inbox.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                     {isLoading ? (
+                        <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div>
+                    ) : processedInvoices.length === 0 ? (
+                        <div className="p-4 text-center text-muted-foreground"><p>No invoices have been processed from the inbox yet.</p></div>
+                    ) : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Supplier</TableHead>
+                                    <TableHead>Invoice #</TableHead>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead className="text-right">Total</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                             <TableBody>
+                                {processedInvoices.map((invoice) => (
+                                    <TableRow key={invoice.id}>
+                                        <TableCell className="font-medium">{invoice.supplier}</TableCell>
+                                        <TableCell>{invoice.invoiceNumber}</TableCell>
+                                        <TableCell>{invoice.date}</TableCell>
+                                        <TableCell className="text-right font-mono">{formatPrice(invoice.invoiceTotal)}</TableCell>
+                                        <TableCell className="text-right">
+                                            <Button asChild variant="ghost" size="icon">
+                                                <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer">
+                                                    <Eye className="h-4 w-4" />
+                                                </a>
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
                             </TableBody>
                         </Table>
                     )}
