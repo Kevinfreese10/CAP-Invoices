@@ -19,6 +19,7 @@ import EditInvoiceForm from '@/components/admin/cap-suppliers/EditInvoiceForm';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
+import { Checkbox } from '@/components/ui/checkbox';
 
 
 const db = getFirestore(firebaseApp);
@@ -130,6 +131,7 @@ export default function PaymentControlSheetPage() {
     const [supplierFilter, setSupplierFilter] = useState('');
     const { toast } = useToast();
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
+    const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
 
     const fetchInvoices = async () => {
         setIsLoading(true);
@@ -149,20 +151,31 @@ export default function PaymentControlSheetPage() {
         fetchInvoices();
     }, []);
 
-    const handleFinalApproval = async (invoiceId: string) => {
+    const handleBatchApproval = async () => {
+        if (selectedInvoices.length === 0) {
+            toast({ title: "No invoices selected", variant: "destructive" });
+            return;
+        }
+
         try {
-            const docRef = doc(db, 'extractedInvoices', invoiceId);
-            await updateDoc(docRef, { status: 'batched_for_payment' });
-            toast({
-                title: 'Invoice Batched',
-                description: 'The invoice has been moved to the payment batches.',
+            const batch = writeBatch(db);
+            selectedInvoices.forEach(id => {
+                const docRef = doc(db, 'extractedInvoices', id);
+                batch.update(docRef, { status: 'batched_for_payment' });
             });
-            fetchInvoices(); // Re-fetch to update the list
+            await batch.commit();
+
+            toast({
+                title: `${selectedInvoices.length} Invoice(s) Batched`,
+                description: 'The selected invoices have been moved to the payment batches.',
+            });
+            setSelectedInvoices([]);
+            fetchInvoices();
         } catch (error) {
-            console.error("Error batching invoice:", error);
+            console.error("Error batching invoices:", error);
             toast({
                 title: 'Error',
-                description: 'Could not move the invoice to payment batches.',
+                description: 'Could not move the invoices to payment batches.',
                 variant: 'destructive',
             });
         }
@@ -206,11 +219,41 @@ export default function PaymentControlSheetPage() {
         );
     }, [invoices, supplierFilter]);
 
+    const handleToggleSelect = (id: string, checked: boolean | 'indeterminate') => {
+        setSelectedInvoices(prev => 
+            checked ? [...prev, id] : prev.filter(i => i !== id)
+        );
+    }
+
     return (
         <div className="space-y-8">
             <div className="flex items-center justify-between">
                 <h1 className="text-3xl font-bold tracking-tight">Payment Control Sheet</h1>
-                <AIExtractUploadDialog onUploadComplete={fetchInvoices} />
+                <div className="flex items-center gap-2">
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                             <Button disabled={selectedInvoices.length === 0}>
+                                <FileCheck2 className="mr-2 h-4 w-4"/>
+                                Batch Selected ({selectedInvoices.length})
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Confirm Batching</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This will move {selectedInvoices.length} invoice(s) to the final payment batches. Are you sure?
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleBatchApproval}>
+                                    Yes, Batch
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                    <AIExtractUploadDialog onUploadComplete={fetchInvoices} />
+                </div>
             </div>
             <Card>
                 <CardHeader>
@@ -244,12 +287,19 @@ export default function PaymentControlSheetPage() {
                                 <Card key={invoice.id} className="overflow-hidden">
                                     <CardHeader className="bg-muted/50">
                                         <div className="flex flex-wrap justify-between items-center gap-2">
-                                            <div>
-                                                <CardTitle className="text-lg">{invoice.supplier}</CardTitle>
-                                                <CardDescription>
-                                                    Invoice #: {invoice.invoiceNumber} | Date: {invoice.date}
-                                                    {invoice.commissionNumber && ` | Commission #: ${invoice.commissionNumber}`}
-                                                </CardDescription>
+                                            <div className="flex items-center gap-4">
+                                                <Checkbox
+                                                    id={`select-${invoice.id}`}
+                                                    checked={selectedInvoices.includes(invoice.id)}
+                                                    onCheckedChange={(checked) => handleToggleSelect(invoice.id, checked)}
+                                                />
+                                                <div>
+                                                    <CardTitle className="text-lg">{invoice.supplier}</CardTitle>
+                                                    <CardDescription>
+                                                        Invoice #: {invoice.invoiceNumber} | Date: {invoice.date}
+                                                        {invoice.commissionNumber && ` | Commission #: ${invoice.commissionNumber}`}
+                                                    </CardDescription>
+                                                </div>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <div className="text-right">
@@ -303,30 +353,6 @@ export default function PaymentControlSheetPage() {
                                             </TableBody>
                                         </Table>
                                     </CardContent>
-                                    <CardFooter className="bg-muted/50 p-3 justify-end">
-                                        <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                                <Button size="sm">
-                                                    <FileCheck2 className="mr-2 h-4 w-4"/>
-                                                    Batch for Payment
-                                                </Button>
-                                            </AlertDialogTrigger>
-                                            <AlertDialogContent>
-                                                <AlertDialogHeader>
-                                                    <AlertDialogTitle>Confirm Batching</AlertDialogTitle>
-                                                    <AlertDialogDescription>
-                                                        This will move the invoice for "{invoice.supplier}" to the final payment batches. Are you sure?
-                                                    </AlertDialogDescription>
-                                                </AlertDialogHeader>
-                                                <AlertDialogFooter>
-                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                    <AlertDialogAction onClick={() => handleFinalApproval(invoice.id)}>
-                                                        Yes, Batch
-                                                    </AlertDialogAction>
-                                                </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                        </AlertDialog>
-                                    </CardFooter>
                                 </Card>
                             ))}
                         </div>
@@ -349,3 +375,4 @@ export default function PaymentControlSheetPage() {
         </div>
     );
 }
+
