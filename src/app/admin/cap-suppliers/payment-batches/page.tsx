@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { getFirestore, collection, getDocs, query, orderBy, where, doc, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download, MoreHorizontal, Edit, AlertTriangle } from 'lucide-react';
+import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download, MoreHorizontal, Edit, AlertTriangle, Eye } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ExtractedInvoice } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -145,7 +145,7 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
                     invoice.invoiceNumber,
                     invoice.commissionNumber || 'N/A',
                     invoice.supplier,
-                    item.description,
+                    item.ledgerDescription || item.description,
                     item.exclusiveAmount,
                     item.vatAmount,
                     lineTotal,
@@ -297,7 +297,7 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
                                                                     <TableCell className="py-1 text-right font-mono">{formatPrice(invoice.invoiceTotal)}</TableCell>
                                                                     <TableCell className="py-1 text-right">
                                                                         <Button variant="ghost" size="icon" className="h-6 w-6" asChild>
-                                                                            <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer"><Download className="h-3 w-3" /></a>
+                                                                            <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer"><Eye className="h-3 w-3" /></a>
                                                                         </Button>
                                                                         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onEdit(invoice)}>
                                                                             <Edit className="h-3 w-3" />
@@ -443,7 +443,7 @@ export default function PaymentBatchesPage() {
     const weeklyBatches = useMemo(() => {
         const batches: { [week: string]: { CAP: ExtractedInvoice[], S38: ExtractedInvoice[] } } = {};
         
-        const currentBatches = invoices.filter(inv => inv.status === 'batched_for_payment');
+        const currentBatches = invoices.filter(inv => inv.status === 'batched_for_payment' || inv.status === 'paid');
 
         currentBatches.forEach(inv => {
             const batchKey = inv.paymentBatch || 'Uncategorized';
@@ -511,11 +511,10 @@ export default function PaymentBatchesPage() {
             };
         });
 
-        // Sort the final array of batch objects by date
         return mappedBatches.sort((a, b) => {
             if (!a.batchDate) return 1;
             if (!b.batchDate) return -1;
-            return a.batchDate.getTime() - b.batchDate.getTime();
+            return b.batchDate.getTime() - a.batchDate.getTime();
         });
 
     }, [invoices]);
