@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { getFirestore, collection, getDocs, query, orderBy, where, doc, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download, MoreHorizontal, Edit, AlertTriangle, Eye } from 'lucide-react';
+import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download, MoreHorizontal, Edit, AlertTriangle, Eye, Archive } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ExtractedInvoice } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -37,7 +37,7 @@ type SupplierGroup = {
     hasDuplicates: boolean;
 };
 
-function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalAmount, totalPAYE, onDelete, onUploadPop, onEdit }: { title: string, invoices: ExtractedInvoice[], allInvoices: ExtractedInvoice[], totalAmount: number, totalPAYE: number, onDelete: (id: string) => void, onUploadPop: (supplierName: string, file: File) => Promise<void>, onEdit: (invoice: ExtractedInvoice) => void }) {
+function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalAmount, totalPAYE, onDelete, onUploadPop, onEdit }: { title: string, invoices: ExtractedInvoice[], allInvoices: ExtractedInvoice[], totalAmount: number, totalPAYE: number, onDelete: (id: string, isArchive: boolean) => void, onUploadPop: (supplierName: string, file: File) => Promise<void>, onEdit: (invoice: ExtractedInvoice) => void }) {
     const [openSupplier, setOpenSupplier] = useState<string | null>(null);
     const [uploadingPop, setUploadingPop] = useState<string | null>(null);
     const { toast } = useToast();
@@ -305,19 +305,19 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
                                                                         <AlertDialog>
                                                                             <AlertDialogTrigger asChild>
                                                                                 <Button variant="ghost" size="icon" className="h-6 w-6">
-                                                                                    <Trash2 className="h-3 w-3 text-destructive" />
+                                                                                    <Archive className="h-3 w-3 text-destructive" />
                                                                                 </Button>
                                                                             </AlertDialogTrigger>
                                                                             <AlertDialogContent>
                                                                                 <AlertDialogHeader>
                                                                                     <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                                                                     <AlertDialogDescription>
-                                                                                        This will permanently delete the invoice for {invoice.supplier} (#{invoice.invoiceNumber}). This action cannot be undone.
+                                                                                        This will archive the invoice for {invoice.supplier} (#{invoice.invoiceNumber}). This can be viewed on the Archive page.
                                                                                     </AlertDialogDescription>
                                                                                 </AlertDialogHeader>
                                                                                 <AlertDialogFooter>
                                                                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                                                    <AlertDialogAction onClick={() => onDelete(invoice.id)}>Delete Invoice</AlertDialogAction>
+                                                                                    <AlertDialogAction onClick={() => onDelete(invoice.id, true)}>Archive Invoice</AlertDialogAction>
                                                                                 </AlertDialogFooter>
                                                                             </AlertDialogContent>
                                                                         </AlertDialog>
@@ -388,14 +388,19 @@ export default function PaymentBatchesPage() {
         fetchInvoices();
     }, []);
 
-    const handleDeleteFromBatch = async (id: string) => {
+    const handleRemoveFromBatch = async (id: string, isArchive: boolean) => {
          try {
             const docRef = doc(db, 'extractedInvoices', id);
-            await deleteDoc(docRef);
-            toast({ title: 'Invoice Deleted', description: 'The invoice has been permanently deleted.', variant: 'destructive'});
+            if (isArchive) {
+                await updateDoc(docRef, { status: 'archived' });
+                toast({ title: 'Invoice Archived', description: 'The invoice has been moved from the batch to the archive.'});
+            } else {
+                await updateDoc(docRef, { status: 'approved_for_payment' });
+                toast({ title: 'Invoice Returned', description: 'The invoice has been returned to the Payment Control Sheet.', variant: 'default'});
+            }
             fetchInvoices();
         } catch (error) {
-            toast({ title: 'Error', description: 'Could not delete the invoice.', variant: 'destructive'});
+            toast({ title: 'Error', description: 'Could not remove the invoice from the batch.', variant: 'destructive'});
         }
     }
     
@@ -556,7 +561,7 @@ export default function PaymentBatchesPage() {
                                         allInvoices={invoices}
                                         totalAmount={batch.capTotal}
                                         totalPAYE={batch.capPAYE}
-                                        onDelete={handleDeleteFromBatch}
+                                        onDelete={handleRemoveFromBatch}
                                         onUploadPop={handleUploadPop}
                                         onEdit={setEditingInvoice}
                                     />
@@ -566,7 +571,7 @@ export default function PaymentBatchesPage() {
                                         allInvoices={invoices}
                                         totalAmount={batch.s38Total}
                                         totalPAYE={batch.s38PAYE}
-                                        onDelete={handleDeleteFromBatch}
+                                        onDelete={handleRemoveFromBatch}
                                         onUploadPop={handleUploadPop}
                                         onEdit={setEditingInvoice}
                                     />
