@@ -357,8 +357,7 @@ export default function ThirdReviewPage() {
                                        <Table>
                                             <TableHeader>
                                                 <TableRow>
-                                                    <TableHead className="w-1/3">Description</TableHead>
-                                                    <TableHead>Example</TableHead>
+                                                    <TableHead className="w-1/2">Description</TableHead>
                                                     <TableHead>Allocated Account</TableHead>
                                                     <TableHead className="text-right">Exclusive Amount</TableHead>
                                                 </TableRow>
@@ -377,9 +376,6 @@ export default function ThirdReviewPage() {
                                                                     placeholder="Enter ledger description..."
                                                                     className="mt-1"
                                                                 />
-                                                            </TableCell>
-                                                            <TableCell className="text-xs text-muted-foreground italic">
-                                                                {example || ''}
                                                             </TableCell>
                                                             <TableCell>
                                                                 <p>{account.description}</p>
@@ -414,3 +410,5 @@ export default function ThirdReviewPage() {
         </div>
     );
 }
+
+    
