@@ -103,7 +103,7 @@ export default function ThirdReviewPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [supplierFilter, setSupplierFilter] = useState('');
-    const [accountFilter, setAccountFilter] = useState('');
+    const [accountFilter, setAccountFilter] = useState('all');
     const { toast } = useToast();
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
     const [localInvoiceData, setLocalInvoiceData] = useState<ExtractedInvoice[]>([]);
@@ -249,7 +249,7 @@ export default function ThirdReviewPage() {
     const filteredInvoices = useMemo(() => {
         return localInvoiceData.filter(invoice => {
             const supplierMatch = invoice.supplier.toLowerCase().includes(supplierFilter.toLowerCase());
-            const accountMatch = accountFilter === '' || invoice.lineItems.some(item => item.accountId === accountFilter);
+            const accountMatch = accountFilter === 'all' || invoice.lineItems.some(item => item.accountId === accountFilter);
             return supplierMatch && accountMatch;
         });
     }, [localInvoiceData, supplierFilter, accountFilter]);
@@ -306,7 +306,7 @@ export default function ThirdReviewPage() {
                                     <SelectValue placeholder="Filter by Allocated Account" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="">All Accounts</SelectItem>
+                                    <SelectItem value="all">All Accounts</SelectItem>
                                     {uniqueAccounts.map(acc => (
                                         <SelectItem key={acc.number} value={acc.number}>
                                             {acc.description} ({acc.number})
@@ -388,7 +388,7 @@ export default function ThirdReviewPage() {
                                        <Table>
                                             <TableHeader>
                                                 <TableRow>
-                                                    <TableHead className="w-[65%]">Description</TableHead>
+                                                    <TableHead className="w-[60%]">Description</TableHead>
                                                     <TableHead className="text-right">Allocated Account</TableHead>
                                                     <TableHead className="text-right">Exclusive Amount</TableHead>
                                                 </TableRow>
@@ -447,3 +447,5 @@ export default function ThirdReviewPage() {
     );
 }
 
+
+    
