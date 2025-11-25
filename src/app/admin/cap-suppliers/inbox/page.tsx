@@ -84,14 +84,7 @@ export default function InboxPage() {
             const response = await fetch('/api/emails/inbox');
             if (!response.ok) {
                 const errorText = await response.text();
-                let errorMessage = errorText;
-                try {
-                    const errorJson = JSON.parse(errorText);
-                    errorMessage = errorJson.error || errorMessage;
-                } catch (e) {
-                    // Not a JSON error, use the raw text
-                }
-                throw new Error(errorMessage || 'Failed to fetch emails');
+                throw new Error(errorText || 'Failed to fetch emails');
             }
             const data: Email[] = await response.json();
             const emailsWithStatus = data.map(email => ({
@@ -102,7 +95,16 @@ export default function InboxPage() {
 
         } catch (err: any) {
             console.error("Error fetching data:", err);
-            setError(err.message);
+            let errorMessage = 'Failed to fetch emails.';
+            if (err instanceof Error) {
+                try {
+                    const errorJson = JSON.parse(err.message);
+                    errorMessage = errorJson.error || err.message;
+                } catch (e) {
+                     errorMessage = err.message;
+                }
+            }
+            setError(errorMessage);
         } finally {
             setIsLoading(false);
         }
@@ -298,7 +300,7 @@ export default function InboxPage() {
                 <CardHeader>
                     <div className="flex justify-between items-center">
                         <div>
-                            <CardTitle>invoices2@myacc.co.za</CardTitle>
+                            <CardTitle>{process.env.IMAP_USER || 'invoices2@myacc.co.za'}</CardTitle>
                             <CardDescription>
                                 {isLoading ? 'Loading messages...' : `Showing ${emails.length} messages.`}
                             </CardDescription>

@@ -37,10 +37,8 @@ export async function POST(req: Request) {
     // Now, delete the records from Firestore
     const batch = writeBatch(db);
     uids.forEach(uid => {
-      const docRef = doc(db, 'inboxEmails', String(uid));
-      const processedDocRef = doc(db, 'processedEmails', String(uid));
+      const docRef = doc(db, 'processedEmails', String(uid));
       batch.delete(docRef);
-      batch.delete(processedDocRef);
     });
     await batch.commit();
     
