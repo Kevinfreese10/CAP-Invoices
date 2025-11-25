@@ -357,8 +357,7 @@ export default function ThirdReviewPage() {
                                        <Table>
                                             <TableHeader>
                                                 <TableRow>
-                                                    <TableHead>Line Description</TableHead>
-                                                    <TableHead>Ledger Description</TableHead>
+                                                    <TableHead className="w-1/3">Description</TableHead>
                                                     <TableHead>Example</TableHead>
                                                     <TableHead>Allocated Account</TableHead>
                                                     <TableHead className="text-right">Exclusive Amount</TableHead>
@@ -370,12 +369,13 @@ export default function ThirdReviewPage() {
                                                     const example = item.accountId ? ledgerExamples[item.accountId] : '';
                                                     return (
                                                         <TableRow key={`${invoice.id}-${index}`}>
-                                                            <TableCell>{item.description}</TableCell>
                                                             <TableCell>
+                                                                <p className="font-semibold">{item.description}</p>
                                                                 <Input
                                                                     value={item.ledgerDescription || ''}
                                                                     onChange={(e) => handleLedgerDescriptionChange(invoice.id, index, e.target.value)}
                                                                     placeholder="Enter ledger description..."
+                                                                    className="mt-1"
                                                                 />
                                                             </TableCell>
                                                             <TableCell className="text-xs text-muted-foreground italic">
