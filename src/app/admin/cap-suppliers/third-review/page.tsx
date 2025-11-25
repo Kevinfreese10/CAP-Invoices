@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { getFirestore, collection, getDocs, query, orderBy, where, doc, updateDoc, writeBatch, addDoc, serverTimestamp } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, CheckCircle, MoreHorizontal, Edit, PlusCircle, FileCheck2, Save, Eye } from 'lucide-react';
+import { Loader2, CheckCircle, MoreHorizontal, Edit, PlusCircle, FileCheck2, Save, Eye, Trash2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ExtractedInvoice } from '@/lib/types';
@@ -21,6 +21,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useAuth } from '@/contexts/AuthContext';
 
 
 const db = getFirestore(firebaseApp);
@@ -108,6 +109,8 @@ export default function ThirdReviewPage() {
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
     const [localInvoiceData, setLocalInvoiceData] = useState<ExtractedInvoice[]>([]);
     const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
+    const { user } = useAuth();
+
 
     const fetchInvoices = async () => {
         setIsLoading(true);
@@ -221,6 +224,19 @@ export default function ThirdReviewPage() {
         }
     };
 
+    const handleDelete = async (id: string) => {
+        if (!user) return;
+         try {
+            const docRef = doc(db, 'extractedInvoices', id);
+            await updateDoc(docRef, { status: 'archived', deletedBy: user.uid, deletedAt: serverTimestamp() });
+            toast({ title: 'Invoice Deleted', description: 'The invoice has been moved to the deleted list.'});
+            fetchInvoices();
+        } catch (error) {
+            toast({ title: 'Error', description: 'Could not delete the invoice.', variant: 'destructive'});
+        }
+    }
+
+
     const formatPrice = (price: number) => {
         return new Intl.NumberFormat('en-ZA', {
           style: 'currency',
@@ -308,6 +324,7 @@ export default function ThirdReviewPage() {
                                 <SelectContent>
                                     <SelectItem value="all">All Accounts</SelectItem>
                                     {uniqueAccounts.map(acc => (
+                                        acc.number &&
                                         <SelectItem key={acc.number} value={acc.number}>
                                             {acc.description} ({acc.number})
                                         </SelectItem>
@@ -379,6 +396,20 @@ export default function ThirdReviewPage() {
                                                         <DropdownMenuItem onSelect={() => setEditingInvoice(invoice)}>
                                                             <Edit className="mr-2 h-4 w-4" /> Edit Invoice
                                                         </DropdownMenuItem>
+                                                        <AlertDialog>
+                                                            <AlertDialogTrigger asChild>
+                                                                <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                                                    <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                                                </DropdownMenuItem>
+                                                            </AlertDialogTrigger>
+                                                            <AlertDialogContent>
+                                                                <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This action will move the invoice for {invoice.supplier} to the deleted folder.</AlertDialogDescription></AlertDialogHeader>
+                                                                <AlertDialogFooter>
+                                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                    <AlertDialogAction onClick={() => handleDelete(invoice.id)}>Delete</AlertDialogAction>
+                                                                </AlertDialogFooter>
+                                                            </AlertDialogContent>
+                                                        </AlertDialog>
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
                                             </div>
@@ -399,7 +430,7 @@ export default function ThirdReviewPage() {
                                                     const example = item.accountId ? ledgerExamples[item.accountId] : '';
                                                     return (
                                                         <TableRow key={`${invoice.id}-${index}`}>
-                                                            <TableCell className="whitespace-normal align-top">
+                                                            <TableCell className="align-top">
                                                                 <p className="font-semibold whitespace-normal">{item.description}</p>
                                                                 <Input
                                                                     value={item.ledgerDescription || ''}
@@ -446,6 +477,3 @@ export default function ThirdReviewPage() {
         </div>
     );
 }
-
-
-    
