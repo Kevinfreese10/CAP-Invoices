@@ -19,6 +19,7 @@ import EditInvoiceForm from '@/components/admin/cap-suppliers/EditInvoiceForm';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
+import { Checkbox } from '@/components/ui/checkbox';
 
 
 const db = getFirestore(firebaseApp);
@@ -83,8 +84,8 @@ const ledgerExamples: { [key: string]: string } = {
     '4121-03': 'IS6690 - Last Cast - Insert VO RX - Floris Brand - 09/05/2025 @ R1250 x 1.5 hours',
     '4121-04': 'IS6741 - Paupers Graves - Insert AFM - BKFK Studio - 20/07/2025 @ R1250 x 6 hours',
     '4121-05': 'IS6699 - TFU Impossible - AFM - Floris Brand - 11/04/2025 @ R1250 x 1 hour',
-    '5003-01': 'Monthly Office Rent - Tulbach North (Pty) Ltd - 10/2025 - Open Parkings @ R396.27 x 2 parkings',
-    '5003-02': 'Monthly Office Security Levy - Tulbach North Body Corporate - 05/2025 @ R7027.56',
+    '5003-01': 'Office Rental & Parking Bays - Tulbach North (Pty) Ltd - 10/2025 - Open Parkings @ R396.27 x 2 parkings',
+    '5003-02': 'Office Security - Tulbach North Body Corporate - 05/2025 @ R7027.56',
     '5003-03': 'Office Utilites - Sewer - Tulbach North Body Corporate - Reading period 15/08-09/09/2025',
     '5003-04': 'Generator Maintenance - Cummins - Fuel Seperator Spinon - EA - x 1 @ R307.23',
     '5003-05': 'Stationary - TJ Office Supplies - Black pens - @ R21.00 x 5',
@@ -104,6 +105,7 @@ export default function ThirdReviewPage() {
     const { toast } = useToast();
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
     const [localInvoiceData, setLocalInvoiceData] = useState<ExtractedInvoice[]>([]);
+    const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
 
     const fetchInvoices = async () => {
         setIsLoading(true);
@@ -143,6 +145,32 @@ export default function ThirdReviewPage() {
         }
     };
     
+    const handleBatchApproval = async () => {
+        if (selectedInvoices.length === 0) {
+            toast({ title: 'No Invoices Selected', variant: 'destructive' });
+            return;
+        }
+
+        try {
+            const batch = writeBatch(db);
+            selectedInvoices.forEach(id => {
+                const docRef = doc(db, 'extractedInvoices', id);
+                batch.update(docRef, { status: 'approved_for_payment' });
+            });
+            await batch.commit();
+
+            toast({
+                title: `${selectedInvoices.length} Invoice(s) Approved`,
+                description: 'The selected invoices have been moved to the payment control sheet.',
+            });
+            setSelectedInvoices([]);
+            fetchInvoices();
+        } catch (error) {
+            console.error("Error batch approving invoices:", error);
+            toast({ title: 'Batch Approval Failed', variant: 'destructive' });
+        }
+    };
+
     const handleSave = async (id: string, data: any) => {
         try {
             const docRef = doc(db, 'extractedInvoices', id);
@@ -209,11 +237,37 @@ export default function ThirdReviewPage() {
             invoice.supplier.toLowerCase().includes(supplierFilter.toLowerCase())
         );
     }, [localInvoiceData, supplierFilter]);
+    
+    const handleToggleSelect = (id: string) => {
+        setSelectedInvoices(prev => 
+            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        );
+    }
 
     return (
         <div className="space-y-8">
             <div className="flex items-center justify-between">
                 <h1 className="text-3xl font-bold tracking-tight">3rd Review</h1>
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button disabled={selectedInvoices.length === 0}>
+                            <FileCheck2 className="mr-2 h-4 w-4" />
+                            Approve Selected ({selectedInvoices.length})
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Confirm Batch Approval</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                This will approve {selectedInvoices.length} invoice(s) and move them to the payment control sheet. Are you sure?
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleBatchApproval}>Yes, Approve</AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </div>
             <Card>
                 <CardHeader>
@@ -247,11 +301,18 @@ export default function ThirdReviewPage() {
                                 <Card key={invoice.id} className="overflow-hidden">
                                     <CardHeader className="bg-muted/50">
                                         <div className="flex flex-wrap justify-between items-center gap-2">
-                                            <div>
-                                                <CardTitle className="text-lg">{invoice.supplier}</CardTitle>
-                                                <CardDescription>
-                                                    {invoice.commissionNumber && `Commission #: ${invoice.commissionNumber}`}
-                                                </CardDescription>
+                                            <div className="flex items-center gap-4">
+                                                <Checkbox
+                                                    checked={selectedInvoices.includes(invoice.id)}
+                                                    onCheckedChange={() => handleToggleSelect(invoice.id)}
+                                                    aria-label={`Select invoice ${invoice.id}`}
+                                                />
+                                                <div>
+                                                    <CardTitle className="text-lg">{invoice.supplier}</CardTitle>
+                                                    <CardDescription>
+                                                        {invoice.commissionNumber && `Commission #: ${invoice.commissionNumber}`}
+                                                    </CardDescription>
+                                                </div>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <Button asChild variant="outline" size="icon">
