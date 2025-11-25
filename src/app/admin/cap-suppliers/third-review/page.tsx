@@ -20,6 +20,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 
 const db = getFirestore(firebaseApp);
@@ -102,6 +103,7 @@ export default function ThirdReviewPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [supplierFilter, setSupplierFilter] = useState('');
+    const [accountFilter, setAccountFilter] = useState('');
     const { toast } = useToast();
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
     const [localInvoiceData, setLocalInvoiceData] = useState<ExtractedInvoice[]>([]);
@@ -231,12 +233,26 @@ export default function ThirdReviewPage() {
         const account = allAccounts.find(acc => acc.accountNumber === accountId);
         return account ? { description: account.description, number: account.accountNumber } : { description: accountId, number: accountId };
     }
+    
+    const uniqueAccounts = useMemo(() => {
+        const accountSet = new Set<string>();
+        invoices.forEach(invoice => {
+            invoice.lineItems.forEach(item => {
+                if (item.accountId) {
+                    accountSet.add(item.accountId);
+                }
+            });
+        });
+        return Array.from(accountSet).map(id => getAccountDescription(id)).sort((a,b) => a.number.localeCompare(b.number));
+    }, [invoices]);
 
     const filteredInvoices = useMemo(() => {
-        return localInvoiceData.filter(invoice =>
-            invoice.supplier.toLowerCase().includes(supplierFilter.toLowerCase())
-        );
-    }, [localInvoiceData, supplierFilter]);
+        return localInvoiceData.filter(invoice => {
+            const supplierMatch = invoice.supplier.toLowerCase().includes(supplierFilter.toLowerCase());
+            const accountMatch = accountFilter === '' || invoice.lineItems.some(item => item.accountId === accountFilter);
+            return supplierMatch && accountMatch;
+        });
+    }, [localInvoiceData, supplierFilter, accountFilter]);
     
     const handleToggleSelect = (id: string) => {
         setSelectedInvoices(prev => 
@@ -278,12 +294,27 @@ export default function ThirdReviewPage() {
                                 These invoices have passed the second review and are ready for final approval before payment.
                             </CardDescription>
                         </div>
-                        <Input
-                            placeholder="Filter by supplier..."
-                            value={supplierFilter}
-                            onChange={(e) => setSupplierFilter(e.target.value)}
-                            className="max-w-sm"
-                        />
+                        <div className="flex gap-2">
+                             <Input
+                                placeholder="Filter by supplier..."
+                                value={supplierFilter}
+                                onChange={(e) => setSupplierFilter(e.target.value)}
+                                className="max-w-sm"
+                            />
+                            <Select value={accountFilter} onValueChange={setAccountFilter}>
+                                <SelectTrigger className="w-[280px]">
+                                    <SelectValue placeholder="Filter by Allocated Account" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="">All Accounts</SelectItem>
+                                    {uniqueAccounts.map(acc => (
+                                        <SelectItem key={acc.number} value={acc.number}>
+                                            {acc.description} ({acc.number})
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -369,7 +400,7 @@ export default function ThirdReviewPage() {
                                                     return (
                                                         <TableRow key={`${invoice.id}-${index}`}>
                                                             <TableCell className="whitespace-normal align-top">
-                                                                <p className="font-semibold">{item.description}</p>
+                                                                <p className="font-semibold whitespace-normal">{item.description}</p>
                                                                 <Input
                                                                     value={item.ledgerDescription || ''}
                                                                     onChange={(e) => handleLedgerDescriptionChange(invoice.id, index, e.target.value)}
