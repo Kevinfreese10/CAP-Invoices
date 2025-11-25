@@ -376,6 +376,11 @@ export default function ThirdReviewPage() {
                                                                     placeholder="Enter ledger description..."
                                                                     className="mt-1"
                                                                 />
+                                                                {example && (
+                                                                    <p className="text-xs text-muted-foreground mt-1 italic">
+                                                                        e.g., {example}
+                                                                    </p>
+                                                                )}
                                                             </TableCell>
                                                             <TableCell>
                                                                 <p>{account.description}</p>
@@ -410,5 +415,7 @@ export default function ThirdReviewPage() {
         </div>
     );
 }
+
+    
 
     
