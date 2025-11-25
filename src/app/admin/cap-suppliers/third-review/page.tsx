@@ -368,7 +368,7 @@ export default function ThirdReviewPage() {
                                                     const example = item.accountId ? ledgerExamples[item.accountId] : '';
                                                     return (
                                                         <TableRow key={`${invoice.id}-${index}`}>
-                                                            <TableCell>
+                                                            <TableCell className="whitespace-normal">
                                                                 <p className="font-semibold">{item.description}</p>
                                                                 <Input
                                                                     value={item.ledgerDescription || ''}
