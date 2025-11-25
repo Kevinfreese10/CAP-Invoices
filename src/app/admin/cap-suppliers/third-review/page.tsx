@@ -357,8 +357,8 @@ export default function ThirdReviewPage() {
                                        <Table>
                                             <TableHeader>
                                                 <TableRow>
-                                                    <TableHead className="w-[60%]">Description</TableHead>
-                                                    <TableHead>Allocated Account</TableHead>
+                                                    <TableHead className="w-[65%]">Description</TableHead>
+                                                    <TableHead className="text-right">Allocated Account</TableHead>
                                                     <TableHead className="text-right">Exclusive Amount</TableHead>
                                                 </TableRow>
                                             </TableHeader>
@@ -368,7 +368,7 @@ export default function ThirdReviewPage() {
                                                     const example = item.accountId ? ledgerExamples[item.accountId] : '';
                                                     return (
                                                         <TableRow key={`${invoice.id}-${index}`}>
-                                                            <TableCell className="whitespace-normal">
+                                                            <TableCell className="whitespace-normal align-top">
                                                                 <p className="font-semibold">{item.description}</p>
                                                                 <Input
                                                                     value={item.ledgerDescription || ''}
@@ -382,11 +382,11 @@ export default function ThirdReviewPage() {
                                                                     </p>
                                                                 )}
                                                             </TableCell>
-                                                            <TableCell>
+                                                            <TableCell className="align-top text-right">
                                                                 <p>{account.description}</p>
                                                                 <p className="text-xs text-muted-foreground">{account.number}</p>
                                                             </TableCell>
-                                                            <TableCell className="text-right font-mono">{formatPrice(item.exclusiveAmount)}</TableCell>
+                                                            <TableCell className="text-right font-mono align-top">{formatPrice(item.exclusiveAmount)}</TableCell>
                                                         </TableRow>
                                                     )
                                                 })}
@@ -416,8 +416,3 @@ export default function ThirdReviewPage() {
     );
 }
 
-    
-
-    
-
-    
