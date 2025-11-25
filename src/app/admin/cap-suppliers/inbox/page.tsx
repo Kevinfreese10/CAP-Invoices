@@ -83,15 +83,15 @@ export default function InboxPage() {
             const processedUids = new Set(processedSnapshot.docs.map(doc => doc.data().uid));
             const response = await fetch('/api/emails/inbox');
             if (!response.ok) {
-                let errorText = response.statusText;
+                const errorText = await response.text();
+                let errorMessage = errorText;
                 try {
-                    const errorJson = await response.json();
-                    errorText = errorJson.error || errorText;
+                    const errorJson = JSON.parse(errorText);
+                    errorMessage = errorJson.error || errorMessage;
                 } catch (e) {
-                    // response is not json, use the text
-                    errorText = await response.text();
+                    // Not a JSON error, use the raw text
                 }
-                throw new Error(errorText || 'Failed to fetch emails');
+                throw new Error(errorMessage || 'Failed to fetch emails');
             }
             const data: Email[] = await response.json();
             const emailsWithStatus = data.map(email => ({
