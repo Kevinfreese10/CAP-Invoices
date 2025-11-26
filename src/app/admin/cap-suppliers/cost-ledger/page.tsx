@@ -89,6 +89,15 @@ export default function CostLedgerPage() {
             groups[item.accountId].total += item.exclusiveAmount;
         });
 
+        // Sort items within each group by date
+        for (const accountId in groups) {
+            groups[accountId].items.sort((a, b) => {
+                const dateA = new Date(a.invoiceDate.split('/').reverse().join('-'));
+                const dateB = new Date(b.invoiceDate.split('/').reverse().join('-'));
+                return dateA.getTime() - dateB.getTime();
+            });
+        }
+
         return Object.values(groups).sort((a, b) => a.account.accountNumber.localeCompare(b.account.accountNumber));
     }, [lineItems]);
 
@@ -207,4 +216,3 @@ export default function CostLedgerPage() {
         </div>
     );
 }
-
