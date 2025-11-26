@@ -100,7 +100,7 @@ export default function CostLedgerPage() {
                 'Invoice Date': item.invoiceDate,
                 'Supplier': item.supplier,
                 'Invoice Number': item.invoiceNumber,
-                'Line Description': item.description,
+                'Line Description': item.ledgerDescription || item.description,
                 'Commission Number': item.commissionNumber || 'N/A',
                 'Payment Batch': item.paymentBatch ? format(new Date(item.paymentBatch), 'dd MMM yyyy') : 'N/A',
                 'Amount (Excl. VAT)': item.exclusiveAmount,
@@ -185,7 +185,7 @@ export default function CostLedgerPage() {
                                                     <TableRow key={`${item.invoiceId}-${index}`}>
                                                         <TableCell>{item.invoiceDate}</TableCell>
                                                         <TableCell>{item.supplier}</TableCell>
-                                                        <TableCell>{item.description}</TableCell>
+                                                        <TableCell>{item.ledgerDescription || item.description}</TableCell>
                                                         <TableCell>{item.commissionNumber || 'N/A'}</TableCell>
                                                         <TableCell>
                                                             {item.paymentBatch ? (
