@@ -80,7 +80,7 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
             group.hasDuplicates = new Set(invoiceNumbers).size !== invoiceNumbers.length;
         });
 
-        return Object.values(groups).sort((a, b) => b.totalAmount - a.totalAmount);
+        return Object.values(groups).sort((a, b) => a.supplier.localeCompare(b.supplier));
     }, [batchInvoices]);
 
     const handlePopUpload = async (supplierName: string, event: React.ChangeEvent<HTMLInputElement>) => {
@@ -232,11 +232,14 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
                                 <React.Fragment key={group.supplier}>
                                     <TableRow>
                                         <TableCell className="font-medium">
-                                            <Button variant="ghost" className="p-0 hover:bg-transparent -ml-2" onClick={() => setOpenSupplier(isOpen ? null : group.supplier)}>
-                                                <ChevronDown className={cn("h-4 w-4 mr-2 transition-transform duration-200", isOpen && "-rotate-90")} />
-                                                {group.supplier}
+                                            <div className="flex items-center">
+                                                <Button variant="ghost" className="p-0 hover:bg-transparent -ml-2" onClick={() => setOpenSupplier(isOpen ? null : group.supplier)}>
+                                                    <ChevronDown className={cn("h-4 w-4 mr-2 transition-transform duration-200", isOpen && "-rotate-90")} />
+                                                    {group.supplier}
+                                                </Button>
                                                 {group.hasDuplicates && <AlertTriangle className="h-4 w-4 ml-2 text-destructive" />}
-                                            </Button>
+                                                {group.totalPAYE > 0 && <Badge variant="destructive" className="ml-2">PAYE</Badge>}
+                                            </div>
                                         </TableCell>
                                         <TableCell className="text-right font-mono font-semibold">{formatPrice(group.totalAmount)}</TableCell>
                                         <TableCell className="text-right">
