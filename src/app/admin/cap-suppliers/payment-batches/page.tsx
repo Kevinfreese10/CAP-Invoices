@@ -544,12 +544,14 @@ export default function PaymentBatchesPage() {
                 <div className="space-y-6">
                     {weeklyBatches.map((batch, index) => {
                         const isBatchInPast = batch.batchDate ? isPast(endOfDay(batch.batchDate)) : false;
+                        const hasPAYE = batch.capPAYE > 0 || batch.s38PAYE > 0;
                         return(
                         <Collapsible key={index} defaultOpen={!isBatchInPast}>
                              <CollapsibleTrigger className="w-full">
                                 <div className="flex items-center gap-2 p-3 bg-muted rounded-t-lg border">
                                     <ChevronDown className="h-5 w-5 transition-transform duration-200 group-data-[state=open]:-rotate-180" />
                                     <h2 className="text-xl font-bold">{batch.title}</h2>
+                                    {hasPAYE && <Badge variant="destructive">PAYE</Badge>}
                                 </div>
                              </CollapsibleTrigger>
                              <CollapsibleContent className="space-y-8 p-4 border-x border-b rounded-b-lg">
@@ -596,5 +598,3 @@ export default function PaymentBatchesPage() {
         </div>
     );
 }
-
-    
