@@ -288,12 +288,17 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
                                                             </TableRow>
                                                         </TableHeader>
                                                         <TableBody>
-                                                            {group.invoices.map(invoice => (
+                                                            {group.invoices.map(invoice => {
+                                                                const invoiceHasPaye = invoice.lineItems.some(item => item.paye);
+                                                                return (
                                                                 <TableRow key={invoice.id} className="text-xs">
                                                                     <TableCell className="py-1 flex items-center">
                                                                         {invoice.invoiceNumber}
                                                                         {isAlreadyPaid(invoice) && (
                                                                             <Badge variant="success" className="ml-2">Paid</Badge>
+                                                                        )}
+                                                                        {invoiceHasPaye && (
+                                                                            <Badge variant="destructive" className="ml-2">PAYE</Badge>
                                                                         )}
                                                                     </TableCell>
                                                                     <TableCell className="py-1">{invoice.date}</TableCell>
@@ -326,7 +331,7 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
                                                                         </AlertDialog>
                                                                     </TableCell>
                                                                 </TableRow>
-                                                            ))}
+                                                            )})}
                                                         </TableBody>
                                                     </Table>
                                                 </div>
