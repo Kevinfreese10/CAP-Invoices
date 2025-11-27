@@ -185,13 +185,12 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
     };
 
     const isAlreadyPaid = (invoice: ExtractedInvoice) => {
-        // Check for the same invoice in ALL invoices that have a 'paid' status
         return allInvoices.some(
             (paidInv) =>
                 paidInv.status === 'paid' &&
                 paidInv.supplier === invoice.supplier &&
                 paidInv.invoiceNumber === invoice.invoiceNumber &&
-                paidInv.id !== invoice.id // Exclude self
+                paidInv.id !== invoice.id
         );
     };
 
@@ -372,7 +371,6 @@ export default function PaymentBatchesPage() {
         try {
             const q = query(
                 collection(db, 'extractedInvoices'), 
-                where('status', 'in', ['batched_for_payment', 'paid'])
             );
             const querySnapshot = await getDocs(q);
             const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
