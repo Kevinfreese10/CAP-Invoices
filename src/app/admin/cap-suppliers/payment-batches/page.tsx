@@ -118,6 +118,7 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
     const payeSummary = useMemo(() => {
         return groupedBySupplier
             .filter(group => group.totalPAYE > 0)
+            .sort((a, b) => a.supplier.localeCompare(b.supplier))
             .map(group => ({
                 supplier: group.supplier,
                 payeAmount: group.totalPAYE,
@@ -597,3 +598,5 @@ export default function PaymentBatchesPage() {
         </div>
     );
 }
+
+    
