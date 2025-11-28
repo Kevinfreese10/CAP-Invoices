@@ -18,6 +18,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { ExtractedInvoice } from '@/lib/types';
 import { Input } from '@/components/ui/input';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { cn } from '@/lib/utils';
 
 
 const db = getFirestore(firebaseApp);
@@ -39,13 +41,31 @@ interface Email {
     isProcessed?: boolean;
 }
 
+const getInvoiceStatusBadge = (status: ExtractedInvoice['status']) => {
+    switch(status) {
+        case 'approved': return <Badge variant={'success'}><CheckCircle className="mr-1 h-3 w-3" />Approved</Badge>;
+        case 'approved_for_payment': return <Badge variant={'payment'}><FileCheck2 className="mr-1 h-3 w-3" />Approved for Payment</Badge>;
+        case 'batched_for_payment': return <Badge variant={'payment'}><FileCheck2 className="mr-1 h-3 w-3" />Batched</Badge>;
+        case 'paid': return <Badge variant={'success'}><CheckCircle className="mr-1 h-3 w-3" />Paid</Badge>;
+        case 'rejected': return <Badge variant={'destructive'}><XCircle className="mr-1 h-3 w-3" />Rejected</Badge>;
+        case 'duplicate': return <Badge variant={'destructive'}><AlertTriangle className="mr-1 h-3 w-3" />Duplicate</Badge>;
+        case 'pending_review': return <Badge variant={'warning'}><Hourglass className="mr-1 h-3 w-3" />Pending Review</Badge>;
+        case 'pending_account_review': return <Badge variant={'warning'}><Hourglass className="mr-1 h-3 w-3" />Pending Account Review</Badge>;
+        case 'pending_third_review': return <Badge variant={'third_review'}><Hourglass className="mr-1 h-3 w-3" />Pending 3rd Review</Badge>;
+        default: return <Badge>{status.replace(/_/g, ' ')}</Badge>;
+    }
+}
+
+
 export default function InboxPage() {
     const [emails, setEmails] = useState<Email[]>([]);
+    const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isTesting, setIsTesting] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [selectedUids, setSelectedUids] = useState<Set<number>>(new Set());
+    const [openEmail, setOpenEmail] = useState<number | null>(null);
     const { toast } = useToast();
     
     const handleProcessAttachments = useCallback(async (email: Email, reprocess = false) => {
@@ -92,6 +112,11 @@ export default function InboxPage() {
                 isProcessed: processedUids.has(email.uid),
             }));
             setEmails(emailsWithStatus);
+
+            // Fetch all related invoices
+            const invoiceQuery = query(collection(db, 'extractedInvoices'), orderBy('createdAt', 'desc'));
+            const invoiceSnapshot = await getDocs(invoiceQuery);
+            setInvoices(invoiceSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as ExtractedInvoice)));
 
         } catch (err: any) {
             console.error("Error fetching data:", err);
@@ -253,6 +278,18 @@ export default function InboxPage() {
         }
         return <Badge variant="destructive"><FileSymlink className="mr-1 h-3 w-3"/>No Invoice File</Badge>;
     }
+    
+    const invoicesByEmail = useMemo(() => {
+        return invoices.reduce((acc, invoice) => {
+            if (invoice.sourceEmailUid) {
+                if (!acc[invoice.sourceEmailUid]) {
+                    acc[invoice.sourceEmailUid] = [];
+                }
+                acc[invoice.sourceEmailUid].push(invoice);
+            }
+            return acc;
+        }, {} as { [key: number]: ExtractedInvoice[] });
+    }, [invoices]);
 
     return (
         <div className="space-y-8">
@@ -335,30 +372,87 @@ export default function InboxPage() {
                              <TableBody>
                                 {emails.map((email) => {
                                     const hasPdf = email.attachments.some(a => a.contentType === 'application/pdf');
+                                    const relatedInvoices = invoicesByEmail[email.uid] || [];
+                                    const attachmentsWithStatus = email.attachments.map(att => {
+                                        const foundInvoice = invoices.find(inv => inv.fileName === att.filename && inv.sourceEmailUid === email.uid);
+                                        return {
+                                            ...att,
+                                            status: foundInvoice?.status,
+                                            fileUrl: foundInvoice?.fileUrl,
+                                        }
+                                    });
+
                                     return (
-                                        <TableRow key={email.uid}>
-                                            <TableCell>
-                                                <Checkbox 
-                                                    id={`select-${email.uid}`} 
-                                                    onCheckedChange={(checked) => handleSelectOne(email.uid, !!checked)}
-                                                    checked={selectedUids.has(email.uid)}
-                                                />
-                                            </TableCell>
-                                            <TableCell className="font-medium">{email.from}</TableCell>
-                                            <TableCell>{email.subject}</TableCell>
-                                            <TableCell>
-                                                {email.attachments.length > 0 ? (
-                                                    <div className="flex items-center gap-1 text-primary">
-                                                        <Paperclip className="h-4 w-4"/>
-                                                        <span>{email.attachments.length}</span>
-                                                    </div>
-                                                ) : "None"}
-                                            </TableCell>
-                                            <TableCell>{format(new Date(email.date), 'dd MMM, HH:mm')}</TableCell>
-                                            <TableCell>
-                                                {getStatusBadge(email)}
-                                            </TableCell>
-                                        </TableRow>
+                                        <Collapsible asChild key={email.uid}>
+                                            <>
+                                            <CollapsibleTrigger asChild>
+                                                <TableRow className="cursor-pointer hover:bg-muted/50">
+                                                    <TableCell onClick={(e) => e.stopPropagation()}>
+                                                        <Checkbox 
+                                                            id={`select-${email.uid}`} 
+                                                            onCheckedChange={(checked) => handleSelectOne(email.uid, !!checked)}
+                                                            checked={selectedUids.has(email.uid)}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell className="font-medium">{email.from}</TableCell>
+                                                    <TableCell>{email.subject}</TableCell>
+                                                    <TableCell>
+                                                        {email.attachments.length > 0 ? (
+                                                            <div className="flex items-center gap-1 text-primary">
+                                                                <Paperclip className="h-4 w-4"/>
+                                                                <span>{email.attachments.length}</span>
+                                                            </div>
+                                                        ) : "None"}
+                                                    </TableCell>
+                                                    <TableCell>{format(new Date(email.date), 'dd MMM, HH:mm')}</TableCell>
+                                                    <TableCell>
+                                                        {getStatusBadge(email)}
+                                                    </TableCell>
+                                                </TableRow>
+                                            </CollapsibleTrigger>
+                                            <CollapsibleContent asChild>
+                                                <TableRow>
+                                                    <TableCell colSpan={6}>
+                                                        <div className="p-4 bg-muted/20">
+                                                            <h4 className="font-semibold mb-2">Attachment Status</h4>
+                                                            {attachmentsWithStatus.length > 0 ? (
+                                                            <Table>
+                                                                <TableHeader>
+                                                                    <TableRow>
+                                                                        <TableHead>Filename</TableHead>
+                                                                        <TableHead>Status</TableHead>
+                                                                        <TableHead className="text-right">Actions</TableHead>
+                                                                    </TableRow>
+                                                                </TableHeader>
+                                                                <TableBody>
+                                                                    {attachmentsWithStatus.map((att, idx) => (
+                                                                        <TableRow key={idx}>
+                                                                            <TableCell>{att.filename}</TableCell>
+                                                                            <TableCell>
+                                                                                {att.status ? getInvoiceStatusBadge(att.status) : <Badge variant="secondary">Not Processed</Badge>}
+                                                                            </TableCell>
+                                                                             <TableCell className="text-right">
+                                                                                {att.fileUrl && (
+                                                                                    <Button asChild variant="ghost" size="icon">
+                                                                                        <a href={att.fileUrl} target="_blank" rel="noopener noreferrer">
+                                                                                            <Eye className="h-4 w-4" />
+                                                                                        </a>
+                                                                                    </Button>
+                                                                                )}
+                                                                            </TableCell>
+                                                                        </TableRow>
+                                                                    ))}
+                                                                </TableBody>
+                                                            </Table>
+                                                            ) : (
+                                                                <p className="text-sm text-muted-foreground text-center py-4">This email has no attachments.</p>
+                                                            )}
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            </CollapsibleContent>
+                                            </>
+                                        </Collapsible>
                                     )
                                 })}
                             </TableBody>
