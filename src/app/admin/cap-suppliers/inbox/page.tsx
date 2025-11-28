@@ -385,31 +385,33 @@ export default function InboxPage() {
                                     return (
                                         <Collapsible asChild key={email.uid}>
                                             <>
-                                            <CollapsibleTrigger asChild>
-                                                <TableRow className="cursor-pointer hover:bg-muted/50">
-                                                    <TableCell onClick={(e) => e.stopPropagation()}>
-                                                        <Checkbox 
-                                                            id={`select-${email.uid}`} 
-                                                            onCheckedChange={(checked) => handleSelectOne(email.uid, !!checked)}
-                                                            checked={selectedUids.has(email.uid)}
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell className="font-medium">{email.from}</TableCell>
-                                                    <TableCell>{email.subject}</TableCell>
-                                                    <TableCell>
-                                                        {email.attachments.length > 0 ? (
-                                                            <div className="flex items-center gap-1 text-primary">
-                                                                <Paperclip className="h-4 w-4"/>
-                                                                <span>{email.attachments.length}</span>
-                                                            </div>
-                                                        ) : "None"}
-                                                    </TableCell>
-                                                    <TableCell>{format(new Date(email.date), 'dd MMM, HH:mm')}</TableCell>
-                                                    <TableCell>
-                                                        {getStatusBadge(email)}
-                                                    </TableCell>
-                                                </TableRow>
-                                            </CollapsibleTrigger>
+                                            <TableRow>
+                                                <CollapsibleTrigger asChild>
+                                                    <td colSpan={6} className="p-0">
+                                                         <div className="grid grid-cols-[50px_1fr_1fr_1fr_1fr_1fr] items-center w-full cursor-pointer hover:bg-muted/50">
+                                                              <div className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
+                                                                  <Checkbox 
+                                                                      id={`select-${email.uid}`} 
+                                                                      onCheckedChange={(checked) => handleSelectOne(email.uid, !!checked)}
+                                                                      checked={selectedUids.has(email.uid)}
+                                                                  />
+                                                              </div>
+                                                              <div className="px-4 py-2 font-medium">{email.from}</div>
+                                                              <div className="px-4 py-2">{email.subject}</div>
+                                                              <div className="px-4 py-2">
+                                                                {email.attachments.length > 0 ? (
+                                                                      <div className="flex items-center gap-1 text-primary">
+                                                                          <Paperclip className="h-4 w-4"/>
+                                                                          <span>{email.attachments.length}</span>
+                                                                      </div>
+                                                                  ) : "None"}
+                                                              </div>
+                                                              <div className="px-4 py-2">{format(new Date(email.date), 'dd MMM, HH:mm')}</div>
+                                                              <div className="px-4 py-2">{getStatusBadge(email)}</div>
+                                                          </div>
+                                                    </td>
+                                                </CollapsibleTrigger>
+                                            </TableRow>
                                             <CollapsibleContent asChild>
                                                 <TableRow>
                                                     <TableCell colSpan={6}>
