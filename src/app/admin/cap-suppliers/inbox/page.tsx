@@ -352,113 +352,98 @@ export default function InboxPage() {
                     ) : emails.length === 0 ? (
                         <div className="p-4 text-center text-muted-foreground"><Inbox className="mx-auto h-12 w-12" /><p className="mt-4">The inbox is empty.</p></div>
                     ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="w-[50px]">
-                                         <Checkbox 
-                                            id="select-all" 
-                                            onCheckedChange={(checked) => handleSelectAll(!!checked)}
-                                            checked={emails.length > 0 && selectedUids.size === emails.length}
-                                            />
-                                    </TableHead>
-                                    <TableHead>From</TableHead>
-                                    <TableHead>Subject</TableHead>
-                                    <TableHead>Attachments</TableHead>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead>Status</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                             <TableBody>
-                                {emails.map((email) => {
-                                    const hasPdf = email.attachments.some(a => a.contentType === 'application/pdf');
-                                    const relatedInvoices = invoicesByEmail[email.uid] || [];
-                                    const attachmentsWithStatus = email.attachments.map(att => {
-                                        const foundInvoice = invoices.find(inv => inv.fileName === att.filename && inv.sourceEmailUid === email.uid);
-                                        return {
-                                            ...att,
-                                            status: foundInvoice?.status,
-                                            fileUrl: foundInvoice?.fileUrl,
-                                        }
-                                    });
-
-                                    return (
-                                        <Collapsible asChild key={email.uid}>
-                                            <>
-                                            <TableRow>
-                                                <CollapsibleTrigger asChild>
-                                                    <td colSpan={6} className="p-0">
-                                                         <div className="grid grid-cols-[50px_1fr_1fr_1fr_1fr_1fr] items-center w-full cursor-pointer hover:bg-muted/50">
-                                                              <div className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
-                                                                  <Checkbox 
-                                                                      id={`select-${email.uid}`} 
-                                                                      onCheckedChange={(checked) => handleSelectOne(email.uid, !!checked)}
-                                                                      checked={selectedUids.has(email.uid)}
-                                                                  />
-                                                              </div>
-                                                              <div className="px-4 py-2 font-medium">{email.from}</div>
-                                                              <div className="px-4 py-2">{email.subject}</div>
-                                                              <div className="px-4 py-2">
-                                                                {email.attachments.length > 0 ? (
-                                                                      <div className="flex items-center gap-1 text-primary">
-                                                                          <Paperclip className="h-4 w-4"/>
-                                                                          <span>{email.attachments.length}</span>
-                                                                      </div>
-                                                                  ) : "None"}
-                                                              </div>
-                                                              <div className="px-4 py-2">{format(new Date(email.date), 'dd MMM, HH:mm')}</div>
-                                                              <div className="px-4 py-2">{getStatusBadge(email)}</div>
-                                                          </div>
-                                                    </td>
-                                                </CollapsibleTrigger>
-                                            </TableRow>
-                                            <CollapsibleContent asChild>
-                                                <TableRow>
-                                                    <TableCell colSpan={6}>
-                                                        <div className="p-4 bg-muted/20">
-                                                            <h4 className="font-semibold mb-2">Attachment Status</h4>
-                                                            {attachmentsWithStatus.length > 0 ? (
-                                                            <Table>
-                                                                <TableHeader>
-                                                                    <TableRow>
-                                                                        <TableHead>Filename</TableHead>
-                                                                        <TableHead>Status</TableHead>
-                                                                        <TableHead className="text-right">Actions</TableHead>
-                                                                    </TableRow>
-                                                                </TableHeader>
-                                                                <TableBody>
-                                                                    {attachmentsWithStatus.map((att, idx) => (
-                                                                        <TableRow key={idx}>
-                                                                            <TableCell>{att.filename}</TableCell>
-                                                                            <TableCell>
-                                                                                {att.status ? getInvoiceStatusBadge(att.status) : <Badge variant="secondary">Not Processed</Badge>}
-                                                                            </TableCell>
-                                                                             <TableCell className="text-right">
-                                                                                {att.fileUrl && (
-                                                                                    <Button asChild variant="ghost" size="icon">
-                                                                                        <a href={att.fileUrl} target="_blank" rel="noopener noreferrer">
-                                                                                            <Eye className="h-4 w-4" />
-                                                                                        </a>
-                                                                                    </Button>
-                                                                                )}
-                                                                            </TableCell>
-                                                                        </TableRow>
-                                                                    ))}
-                                                                </TableBody>
-                                                            </Table>
-                                                            ) : (
-                                                                <p className="text-sm text-muted-foreground text-center py-4">This email has no attachments.</p>
-                                                            )}
-                                                        </div>
-                                                    </TableCell>
-                                                </TableRow>
-                                            </CollapsibleContent>
-                                            </>
-                                        </Collapsible>
-                                    )
-                                })}
-                            </TableBody>
-                        </Table>
+                        <div className="border rounded-lg">
+                            <div className="grid grid-cols-[auto_2fr_3fr_1fr_1fr_1fr] items-center font-medium text-muted-foreground text-sm border-b">
+                                <div className="px-4 py-3">
+                                    <Checkbox 
+                                        id="select-all" 
+                                        onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                                        checked={emails.length > 0 && selectedUids.size === emails.length}
+                                    />
+                                </div>
+                                <div className="px-4 py-3">From</div>
+                                <div className="px-4 py-3">Subject</div>
+                                <div className="px-4 py-3">Attachments</div>
+                                <div className="px-4 py-3">Date</div>
+                                <div className="px-4 py-3">Status</div>
+                            </div>
+                            <div className="divide-y">
+                            {emails.map((email) => {
+                                const attachmentsWithStatus = email.attachments.map(att => {
+                                    const foundInvoice = invoices.find(inv => inv.fileName === att.filename && inv.sourceEmailUid === email.uid);
+                                    return {
+                                        ...att,
+                                        status: foundInvoice?.status,
+                                        fileUrl: foundInvoice?.fileUrl,
+                                    }
+                                });
+                                return (
+                                <Collapsible key={email.uid}>
+                                    <CollapsibleTrigger asChild>
+                                        <div className="grid grid-cols-[auto_2fr_3fr_1fr_1fr_1fr] items-center cursor-pointer hover:bg-muted/50 text-sm">
+                                            <div className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                                <Checkbox
+                                                    id={`select-${email.uid}`} 
+                                                    onCheckedChange={(checked) => handleSelectOne(email.uid, !!checked)}
+                                                    checked={selectedUids.has(email.uid)}
+                                                />
+                                            </div>
+                                            <div className="px-4 py-3 font-medium truncate" title={email.from}>{email.from}</div>
+                                            <div className="px-4 py-3 truncate" title={email.subject}>{email.subject}</div>
+                                            <div className="px-4 py-3">
+                                                {email.attachments.length > 0 ? (
+                                                    <div className="flex items-center gap-1 text-primary">
+                                                        <Paperclip className="h-4 w-4"/>
+                                                        <span>{email.attachments.length}</span>
+                                                    </div>
+                                                ) : "None"}
+                                            </div>
+                                            <div className="px-4 py-3 whitespace-nowrap">{format(new Date(email.date), 'dd MMM, HH:mm')}</div>
+                                            <div className="px-4 py-3">{getStatusBadge(email)}</div>
+                                        </div>
+                                    </CollapsibleTrigger>
+                                     <CollapsibleContent>
+                                        <div className="p-4 bg-muted/20 border-t">
+                                            <h4 className="font-semibold mb-2">Attachment Status</h4>
+                                            {attachmentsWithStatus.length > 0 ? (
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow>
+                                                        <TableHead>Filename</TableHead>
+                                                        <TableHead>Status</TableHead>
+                                                        <TableHead className="text-right">Actions</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {attachmentsWithStatus.map((att, idx) => (
+                                                        <TableRow key={idx}>
+                                                            <TableCell className="truncate" title={att.filename || 'No filename'}>{att.filename}</TableCell>
+                                                            <TableCell>
+                                                                {att.status ? getInvoiceStatusBadge(att.status) : <Badge variant="secondary">Not Processed</Badge>}
+                                                            </TableCell>
+                                                             <TableCell className="text-right">
+                                                                {att.fileUrl && (
+                                                                    <Button asChild variant="ghost" size="icon">
+                                                                        <a href={att.fileUrl} target="_blank" rel="noopener noreferrer">
+                                                                            <Eye className="h-4 w-4" />
+                                                                        </a>
+                                                                    </Button>
+                                                                )}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                            ) : (
+                                                <p className="text-sm text-muted-foreground text-center py-4">This email has no attachments.</p>
+                                            )}
+                                        </div>
+                                     </CollapsibleContent>
+                                </Collapsible>
+                                )
+                            })}
+                            </div>
+                        </div>
                     )}
                 </CardContent>
             </Card>
