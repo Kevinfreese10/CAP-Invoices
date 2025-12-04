@@ -187,6 +187,7 @@ export const capChartOfAccounts: CapChartOfAccount[] = [
     { accountNumber: '4800/008', description: 'Income Tax Expense' },
     { accountNumber: '4900/001', description: 'Fuel' },
     { accountNumber: '4900/002', description: 'Commission' },
+    { accountNumber: '4900/500', description: 'CBMADT Expenses' },
     { accountNumber: '5200/000', description: 'Retained earnings' },
     { accountNumber: '5500/000', description: 'Long Term Liabilities' },
     { accountNumber: '5600/000', description: 'Installment Sale Creditors' },
