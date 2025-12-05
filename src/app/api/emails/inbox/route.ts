@@ -33,12 +33,13 @@ export async function GET() {
 
     const emails = await Promise.all(
       messages.map(async (item) => {
-        const headerPart = item.parts.find(part => part.which === 'HEADER');
-        const bodyPart = item.parts.find(part => part.which === '' && part.size < 1048576);
+        const headerPart = item.parts.find((part: any) => part.which === 'HEADER');
+        const bodyPart = item.parts.find((part: any) => part.which === '' && part.size < 1048576);
 
-        const fullBody = (headerPart ? headerPart.body : '') + (bodyPart ? bodyPart.body : '');
+        // Reconstruct the raw email source by combining header and body
+        const rawEmail = (headerPart ? headerPart.body : '') + (bodyPart ? bodyPart.body : '');
         
-        const mail = await simpleParser(fullBody);
+        const mail = await simpleParser(rawEmail);
         
         const attachments = mail.attachments.map(att => ({
             filename: att.filename,
