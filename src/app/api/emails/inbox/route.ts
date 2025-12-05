@@ -23,9 +23,9 @@ export async function GET() {
 
     const searchCriteria = ['ALL']; // Fetch all emails for now
     const fetchOptions = {
-      bodies: [''],
-      markSeen: false, // Set to false to not mark emails as read
-      struct: true, // Fetch structure to get size
+      bodies: ['HEADER', ''], // Fetch both header and body
+      markSeen: false,
+      struct: true,
     };
 
     const messages = await connection.search(searchCriteria, fetchOptions);
@@ -33,14 +33,12 @@ export async function GET() {
 
     const emails = await Promise.all(
       messages.map(async (item) => {
-        // Limit body size to 1MB to prevent JSON errors
-        const all = item.parts.find((part) => part.which === '' && part.size < 1048576 );
-        const id = item.attributes.uid;
-        const idHeader = 'Imap-Id: ' + id + '\r\n';
+        const headerPart = item.parts.find(part => part.which === 'HEADER');
+        const bodyPart = item.parts.find(part => part.which === '' && part.size < 1048576);
+
+        const fullBody = (headerPart ? headerPart.body : '') + (bodyPart ? bodyPart.body : '');
         
-        // If the body is too large or doesn't exist, we'll parse with an empty body
-        // but still get headers and attachment info.
-        const mail = await simpleParser(all ? all.body : '');
+        const mail = await simpleParser(fullBody);
         
         const attachments = mail.attachments.map(att => ({
             filename: att.filename,
@@ -50,11 +48,11 @@ export async function GET() {
         }));
 
         return {
-          uid: id,
+          uid: item.attributes.uid,
           from: mail.from?.text || 'No Sender',
           subject: mail.subject || 'No Subject',
           date: mail.date?.toISOString() || new Date().toISOString(),
-          body: all ? (mail.html || mail.textAsHtml || 'No content') : '[Email body too large to display]',
+          body: bodyPart ? (mail.html || mail.textAsHtml || 'No content') : '[Email body too large to display]',
           attachments: attachments,
         };
       })
