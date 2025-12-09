@@ -34,7 +34,21 @@ export async function GET() {
     const emails = await Promise.all(
       messages.map(async (item) => {
         const headerPart = item.parts.find((part: any) => part.which === 'HEADER');
-        const bodyPart = item.parts.find((part: any) => part.which === '' && part.size < 1048576);
+        const bodyPart = item.parts.find((part: any) => part.which === '');
+
+        if (!bodyPart) {
+          // This can happen if the email body is too large or has a complex structure not fetched.
+          // We'll parse just the header to get essential info.
+          const mail = await simpleParser(headerPart ? headerPart.body : '');
+          return {
+            uid: item.attributes.uid,
+            from: mail.from?.text || 'No Sender',
+            subject: mail.subject || 'No Subject',
+            date: mail.date?.toISOString() || new Date().toISOString(),
+            body: '[Email body too large or unreadable]',
+            attachments: [],
+          };
+        }
 
         // Reconstruct the raw email source by combining header and body
         const rawEmail = (headerPart ? headerPart.body : '') + (bodyPart ? bodyPart.body : '');
@@ -53,7 +67,7 @@ export async function GET() {
           from: mail.from?.text || 'No Sender',
           subject: mail.subject || 'No Subject',
           date: mail.date?.toISOString() || new Date().toISOString(),
-          body: bodyPart ? (mail.html || mail.textAsHtml || 'No content') : '[Email body too large to display]',
+          body: mail.html || mail.textAsHtml || 'No content',
           attachments: attachments,
         };
       })
