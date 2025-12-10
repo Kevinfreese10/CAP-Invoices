@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { getFirestore, collection, getDocs, query, where } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query, where, doc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, Check, ChevronsUpDown } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -19,6 +19,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { ChevronDown } from 'lucide-react';
 import { capChartOfAccounts, s38ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 import { Checkbox } from '@/components/ui/checkbox';
+import EditInvoiceForm from '@/components/admin/cap-suppliers/EditInvoiceForm';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
 
 
 const db = getFirestore(firebaseApp);
@@ -26,13 +29,6 @@ const allAccounts = [...s38ChartOfAccounts, ...capChartOfAccounts];
 
 function MultiSelectFilter({ title, options, selectedValues, setSelectedValues }: { title: string, options: string[], selectedValues: string[], setSelectedValues: (values: string[]) => void }) {
     const [open, setOpen] = useState(false);
-
-    const handleSelect = (value: string) => {
-        const newSelected = selectedValues.includes(value)
-            ? selectedValues.filter(v => v !== value)
-            : [...selectedValues, value];
-        setSelectedValues(newSelected);
-    };
 
     return (
         <div className="space-y-2">
@@ -104,21 +100,23 @@ export default function CostReportPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [selectedCommissions, setSelectedCommissions] = useState<string[]>([]);
     const [selectedBatches, setSelectedBatches] = useState<string[]>([]);
+    const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
+    const { toast } = useToast();
 
+    const fetchInvoices = async () => {
+        setIsLoading(true);
+        try {
+            const q = query(collection(db, 'extractedInvoices'));
+            const querySnapshot = await getDocs(q);
+            const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
+            setInvoices(fetchedInvoices);
+        } catch (error) {
+            console.error("Error fetching invoices for cost report:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
     useEffect(() => {
-        const fetchInvoices = async () => {
-            setIsLoading(true);
-            try {
-                const q = query(collection(db, 'extractedInvoices'));
-                const querySnapshot = await getDocs(q);
-                const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
-                setInvoices(fetchedInvoices);
-            } catch (error) {
-                console.error("Error fetching invoices for cost report:", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
         fetchInvoices();
     }, []);
 
@@ -136,8 +134,6 @@ export default function CostReportPage() {
             const commissionMatch = selectedCommissions.length === 0 || (inv.commissionNumber && selectedCommissions.includes(inv.commissionNumber));
             const batchMatch = selectedBatches.length === 0 || (inv.paymentBatch && selectedBatches.some(selectedBatch => {
                 try {
-                    // Stored batch date is 'yyyy-MM-dd' from payment batch selection
-                    // Selected batch is 'dd MMMM yyyy' from the filter UI
                     const formattedSelectedBatch = format(parse(selectedBatch, 'dd MMMM yyyy', new Date()), 'yyyy-MM-dd');
                     return inv.paymentBatch === formattedSelectedBatch;
                 } catch (e) {
@@ -161,6 +157,7 @@ export default function CostReportPage() {
                 groups[inv.commissionNumber].total += item.exclusiveAmount;
                 groups[inv.commissionNumber].items.push({
                     ...item,
+                    invoiceId: inv.id, // Important for editing
                     supplier: inv.supplier,
                     invoiceDate: inv.date,
                     invoiceNumber: inv.invoiceNumber,
@@ -169,7 +166,6 @@ export default function CostReportPage() {
             });
         });
         
-        // Sort items within each group
         Object.values(groups).forEach(group => {
             group.items.sort((a, b) => new Date(a.invoiceDate.split('/').reverse().join('-')).getTime() - new Date(b.invoiceDate.split('/').reverse().join('-')).getTime());
         });
@@ -183,6 +179,27 @@ export default function CostReportPage() {
     const formatPrice = (price: number) => {
         return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(price);
     };
+
+    const handleEditClick = (invoiceId: string) => {
+        const invoiceToEdit = invoices.find(inv => inv.id === invoiceId);
+        if (invoiceToEdit) {
+            setEditingInvoice(invoiceToEdit);
+        }
+    };
+    
+    const handleSave = async (id: string, data: any) => {
+        try {
+            const docRef = doc(db, 'extractedInvoices', id);
+            await updateDoc(docRef, data);
+            toast({ title: 'Invoice Updated', description: 'Your changes have been saved.' });
+            setEditingInvoice(null);
+            fetchInvoices();
+        } catch (error) {
+            console.error("Error updating invoice:", error);
+            toast({ title: 'Error', description: 'Could not save changes.', variant: 'destructive'});
+        }
+    };
+
 
     const handleExport = () => {
         if (!groupedByCommission.length) return;
@@ -225,12 +242,12 @@ export default function CostReportPage() {
                     <CardDescription>
                         Select multiple commission numbers and payment batches to generate a detailed cost report.
                     </CardDescription>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 items-end">
                         <MultiSelectFilter title="Commission Numbers" options={commissionNumbers} selectedValues={selectedCommissions} setSelectedValues={setSelectedCommissions} />
                         <MultiSelectFilter title="Payment Batches" options={paymentBatches.map(b => format(new Date(b), 'dd MMMM yyyy'))} selectedValues={selectedBatches} setSelectedValues={(values) => setSelectedBatches(values)} />
                         
                         <div className="flex flex-col justify-end">
-                            <Button onClick={handleExport} disabled={groupedByCommission.length === 0} className="w-full">
+                             <Button onClick={handleExport} disabled={groupedByCommission.length === 0} className="w-full">
                                 Export to Excel
                             </Button>
                         </div>
@@ -280,7 +297,7 @@ export default function CostReportPage() {
                                                     </TableHeader>
                                                     <TableBody>
                                                         {group.items.map((item, index) => (
-                                                            <TableRow key={index}>
+                                                            <TableRow key={index} className="cursor-pointer" onClick={() => handleEditClick(item.invoiceId)}>
                                                                 <TableCell className="font-medium">{item.supplier}</TableCell>
                                                                 <TableCell>{item.invoiceDate}</TableCell>
                                                                 <TableCell>{item.ledgerDescription || item.description}</TableCell>
@@ -298,6 +315,21 @@ export default function CostReportPage() {
                     )}
                 </CardContent>
             </Card>
+
+             <Dialog open={!!editingInvoice} onOpenChange={(isOpen) => !isOpen && setEditingInvoice(null)}>
+                <DialogContent className="sm:max-w-4xl">
+                    <DialogHeader>
+                        <DialogTitle>Edit Invoice: {editingInvoice?.supplier}</DialogTitle>
+                        <DialogDescription>Review and correct the extracted data.</DialogDescription>
+                    </DialogHeader>
+                    <EditInvoiceForm 
+                        invoice={editingInvoice} 
+                        onSave={handleSave} 
+                        onCancel={() => setEditingInvoice(null)} 
+                    />
+                </DialogContent>
+            </Dialog>
+
         </div>
     );
 }
