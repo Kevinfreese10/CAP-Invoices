@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ExtractedInvoice } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import * as XLSX from 'xlsx';
-import { format } from 'date-fns';
+import { format, parse } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
@@ -97,7 +97,6 @@ export default function CostReportPage() {
         const fetchInvoices = async () => {
             setIsLoading(true);
             try {
-                // Fetch all invoices that have a commission number
                 const q = query(collection(db, 'extractedInvoices'));
                 const querySnapshot = await getDocs(q);
                 const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
@@ -123,7 +122,15 @@ export default function CostReportPage() {
      const filteredInvoices = useMemo(() => {
         return invoices.filter(inv => {
             const commissionMatch = selectedCommissions.length === 0 || (inv.commissionNumber && selectedCommissions.includes(inv.commissionNumber));
-            const batchMatch = selectedBatches.length === 0 || (inv.paymentBatch && selectedBatches.includes(inv.paymentBatch));
+            const batchMatch = selectedBatches.length === 0 || (inv.paymentBatch && selectedBatches.some(selectedBatch => {
+                try {
+                    const formattedBatchDate = format(parse(selectedBatch, 'dd MMMM yyyy', new Date()), 'yyyy-MM-dd');
+                    return inv.paymentBatch === formattedBatchDate;
+                } catch (e) {
+                    // Handle cases where date parsing might fail for some reason
+                    return false;
+                }
+            }));
             return commissionMatch && batchMatch;
         });
     }, [invoices, selectedCommissions, selectedBatches]);
