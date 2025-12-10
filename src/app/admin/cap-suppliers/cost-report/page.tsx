@@ -17,9 +17,11 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown } from 'lucide-react';
+import { capChartOfAccounts, s38ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 
 
 const db = getFirestore(firebaseApp);
+const allAccounts = [...s38ChartOfAccounts, ...capChartOfAccounts];
 
 function MultiSelectFilter({ title, options, selectedValues, setSelectedValues }: { title: string, options: string[], selectedValues: string[], setSelectedValues: (values: string[]) => void }) {
     const [open, setOpen] = useState(false);
@@ -124,10 +126,11 @@ export default function CostReportPage() {
             const commissionMatch = selectedCommissions.length === 0 || (inv.commissionNumber && selectedCommissions.includes(inv.commissionNumber));
             const batchMatch = selectedBatches.length === 0 || (inv.paymentBatch && selectedBatches.some(selectedBatch => {
                 try {
-                    const formattedBatchDate = format(parse(selectedBatch, 'dd MMMM yyyy', new Date()), 'yyyy-MM-dd');
-                    return inv.paymentBatch === formattedBatchDate;
+                    // Stored batch date is 'yyyy-MM-dd' from payment batch selection
+                    // Selected batch is 'dd MMMM yyyy' from the filter UI
+                    const formattedSelectedBatch = format(parse(selectedBatch, 'dd MMMM yyyy', new Date()), 'yyyy-MM-dd');
+                    return inv.paymentBatch === formattedSelectedBatch;
                 } catch (e) {
-                    // Handle cases where date parsing might fail for some reason
                     return false;
                 }
             }));
@@ -175,20 +178,26 @@ export default function CostReportPage() {
         if (!groupedByCommission.length) return;
 
         const dataToExport = groupedByCommission.flatMap(group => 
-             group.items.map(item => ({
-                'Commission Number': group.commission,
-                'Supplier': item.supplier,
-                'Invoice Date': item.invoiceDate,
-                'Invoice Number': item.invoiceNumber,
-                'Ledger Description': item.ledgerDescription || item.description,
-                'Payment Batch': item.paymentBatch ? format(new Date(item.paymentBatch), 'dd MMM yyyy') : 'N/A',
-                'Exclusive Amount': item.exclusiveAmount,
-            }))
+            group.items.map(item => {
+                const account = allAccounts.find(acc => acc.accountNumber === item.accountId);
+                return {
+                    'Commission Number': group.commission,
+                    'Supplier': item.supplier,
+                    'Invoice Date': item.invoiceDate,
+                    'Invoice Number': item.invoiceNumber,
+                    'Ledger Description': item.ledgerDescription || item.description,
+                    'Account Code': item.accountId || 'N/A',
+                    'Account Name': account ? account.description : 'N/A',
+                    'Payment Batch': item.paymentBatch ? format(new Date(item.paymentBatch), 'dd MMM yyyy') : 'N/A',
+                    'Exclusive Amount': item.exclusiveAmount,
+                };
+            })
         );
         
         const worksheet = XLSX.utils.json_to_sheet(dataToExport);
         worksheet['!cols'] = [
-            { wch: 20 }, { wch: 30 }, { wch: 15 }, { wch: 20 }, { wch: 50 }, { wch: 20 }, { wch: 20 }
+            { wch: 20 }, { wch: 30 }, { wch: 15 }, { wch: 20 }, { wch: 50 },
+            { wch: 20 }, { wch: 40 }, { wch: 20 }, { wch: 20 }
         ];
 
         const workbook = XLSX.utils.book_new();
