@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown } from 'lucide-react';
 import { capChartOfAccounts, s38ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
+import { Checkbox } from '@/components/ui/checkbox';
 
 
 const db = getFirestore(firebaseApp);
@@ -63,13 +64,22 @@ function MultiSelectFilter({ title, options, selectedValues, setSelectedValues }
                                 <CommandItem
                                     key={option}
                                     value={option}
-                                    onSelect={() => handleSelect(option)}
+                                    onSelect={(currentValue) => {
+                                        const newSelected = selectedValues.includes(currentValue)
+                                            ? selectedValues.filter((v) => v !== currentValue)
+                                            : [...selectedValues, currentValue];
+                                        setSelectedValues(newSelected);
+                                    }}
                                 >
-                                    <Check
-                                        className={cn(
-                                            "mr-2 h-4 w-4",
-                                            selectedValues.includes(option) ? "opacity-100" : "opacity-0"
-                                        )}
+                                     <Checkbox
+                                        className="mr-2"
+                                        checked={selectedValues.includes(option)}
+                                        onCheckedChange={(checked) => {
+                                             const newSelected = checked
+                                                ? [...selectedValues, option]
+                                                : selectedValues.filter((v) => v !== option);
+                                            setSelectedValues(newSelected);
+                                        }}
                                     />
                                     {option}
                                 </CommandItem>
@@ -215,15 +225,13 @@ export default function CostReportPage() {
                     <CardDescription>
                         Select multiple commission numbers and payment batches to generate a detailed cost report.
                     </CardDescription>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 items-end">
                         <MultiSelectFilter title="Commission Numbers" options={commissionNumbers} selectedValues={selectedCommissions} setSelectedValues={setSelectedCommissions} />
                         <MultiSelectFilter title="Payment Batches" options={paymentBatches.map(b => format(new Date(b), 'dd MMMM yyyy'))} selectedValues={selectedBatches} setSelectedValues={(values) => setSelectedBatches(values)} />
-
-                        <div className="md:col-span-2 lg:col-span-1 flex items-end">
-                             <Button onClick={handleExport} disabled={groupedByCommission.length === 0} className="w-full">
-                                Export to Excel
-                            </Button>
-                        </div>
+                        
+                         <Button onClick={handleExport} disabled={groupedByCommission.length === 0} className="w-full">
+                            Export to Excel
+                        </Button>
                     </div>
                 </CardHeader>
                 <CardContent>
