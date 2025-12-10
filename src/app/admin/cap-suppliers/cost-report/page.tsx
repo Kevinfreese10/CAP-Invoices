@@ -225,13 +225,15 @@ export default function CostReportPage() {
                     <CardDescription>
                         Select multiple commission numbers and payment batches to generate a detailed cost report.
                     </CardDescription>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 items-end">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
                         <MultiSelectFilter title="Commission Numbers" options={commissionNumbers} selectedValues={selectedCommissions} setSelectedValues={setSelectedCommissions} />
                         <MultiSelectFilter title="Payment Batches" options={paymentBatches.map(b => format(new Date(b), 'dd MMMM yyyy'))} selectedValues={selectedBatches} setSelectedValues={(values) => setSelectedBatches(values)} />
                         
-                         <Button onClick={handleExport} disabled={groupedByCommission.length === 0} className="w-full">
-                            Export to Excel
-                        </Button>
+                        <div className="flex flex-col justify-end">
+                            <Button onClick={handleExport} disabled={groupedByCommission.length === 0} className="w-full">
+                                Export to Excel
+                            </Button>
+                        </div>
                     </div>
                 </CardHeader>
                 <CardContent>
