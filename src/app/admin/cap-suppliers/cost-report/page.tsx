@@ -201,7 +201,7 @@ export default function CostReportPage() {
                     </CardDescription>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4">
                         <MultiSelectFilter title="Commission Numbers" options={commissionNumbers} selectedValues={selectedCommissions} setSelectedValues={setSelectedCommissions} />
-                        <MultiSelectFilter title="Payment Batches" options={paymentBatches.map(b => format(new Date(b), 'dd MMMM yyyy'))} selectedValues={selectedBatches.map(b => format(new Date(b), 'dd MMMM yyyy'))} setSelectedValues={(values) => setSelectedBatches(values.map(v => paymentBatches.find(b => format(new Date(b), 'dd MMMM yyyy') === v)!))} />
+                        <MultiSelectFilter title="Payment Batches" options={paymentBatches.map(b => format(new Date(b), 'dd MMMM yyyy'))} selectedValues={selectedBatches} setSelectedValues={(values) => setSelectedBatches(values)} />
 
                         <div className="md:col-span-2 lg:col-span-1 flex items-end">
                              <Button onClick={handleExport} disabled={groupedByCommission.length === 0} className="w-full">
@@ -275,5 +275,3 @@ export default function CostReportPage() {
         </div>
     );
 }
-
-    
