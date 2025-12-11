@@ -152,6 +152,7 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice
         return controlTotal - (invoiceTotal || 0);
     }, [controlTotal, invoiceTotal]);
 
+
     const onSubmit = (data: z.infer<typeof formSchema>) => {
         if (invoice) {
             // Ensure ledgerDescription is persisted
@@ -301,7 +302,7 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice
                 <div className="grid grid-cols-3 gap-4 pt-4">
                     <FormItem>
                         <FormLabel>Control Total</FormLabel>
-                        <Input type="number" value={controlTotal.toFixed(2)} readOnly className="bg-muted font-semibold" />
+                        <Input type="number" value={Number(controlTotal).toFixed(2)} readOnly className="bg-muted font-semibold" />
                     </FormItem>
                     <FormField
                         control={form.control}
