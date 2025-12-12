@@ -96,36 +96,12 @@ export async function POST(req: Request) {
     }
 
     let processedCount = 0;
-    
-    // If reprocessing, delete existing invoices first
-    if (reprocess) {
-        const q = query(
-          collection(db, "extractedInvoices"),
-          where("sourceEmailUid", "==", emailStub.uid)
-        );
-        const existingInvoicesSnapshot = await getDocs(q);
-        if (!existingInvoicesSnapshot.empty) {
-            const deleteBatch = writeBatch(db);
-            existingInvoicesSnapshot.forEach(doc => {
-                deleteBatch.delete(doc.ref);
-            });
-            await deleteBatch.commit();
-        }
-    }
-
 
     for (const attachment of processableAttachments) {
       try {
         if(!attachment.dataUrl) continue;
         
-        // 1. Upload the file to Firebase Storage from data URL
-        const storageRef = ref(storage, `invoices/email-${emailStub.uid}/${Date.now()}-${attachment.filename}`);
-        // Data URL format: 'data:<mime_type>;base64,<encoded_data>'
-        const base64Data = attachment.dataUrl.split(',')[1];
-        const uploadResult = await uploadString(storageRef, base64Data, 'base64', { contentType: attachment.contentType || undefined });
-        const downloadURL = await getDownloadURL(uploadResult.ref);
-
-        // 2. Extract data using AI
+        // 1. Extract data using AI first to check for duplicates before uploading
         const result = await extractInvoiceData({ invoiceImage: attachment.dataUrl });
 
         if (!result || !result.supplier || !result.invoiceNumber) {
@@ -134,24 +110,52 @@ export async function POST(req: Request) {
         }
         
         // --- Duplicate Prevention Check ---
-        let status: 'pending_review' | 'duplicate' = 'pending_review';
         const invoiceQuery = query(
             collection(db, "extractedInvoices"),
             where("supplier", "==", result.supplier),
             where("invoiceNumber", "==", result.invoiceNumber)
         );
         const existingInvoices = await getDocs(invoiceQuery);
+        
+        // If reprocessing, we don't create a new one. If not reprocessing, we mark as duplicate.
         if (!existingInvoices.empty) {
-            status = 'duplicate';
+            if (reprocess) {
+                 console.log(`Reprocess: Invoice for ${result.supplier} #${result.invoiceNumber} already exists. Skipping.`);
+                 continue;
+            }
+             // Not reprocessing, so create it but mark as duplicate
+            const storageRef = ref(storage, `invoices/email-${emailStub.uid}/${Date.now()}-${attachment.filename}`);
+            const base64Data = attachment.dataUrl.split(',')[1];
+            const uploadResult = await uploadString(storageRef, base64Data, 'base64', { contentType: attachment.contentType || undefined });
+            const downloadURL = await getDownloadURL(uploadResult.ref);
+
+            const invoiceData = {
+              ...result,
+              fileName: attachment.filename || 'N/A',
+              fileUrl: downloadURL,
+              status: 'duplicate' as const,
+              uploadedBy: 'email_inbox',
+              createdAt: serverTimestamp(),
+              sourceEmailUid: emailStub.uid,
+            };
+            await addDoc(collection(db, "extractedInvoices"), invoiceData);
+            processedCount++;
+            continue; // Move to next attachment
         }
         // --- End of Duplicate Prevention Check ---
 
+        // 2. If not a duplicate, proceed with upload and save
+        const storageRef = ref(storage, `invoices/email-${emailStub.uid}/${Date.now()}-${attachment.filename}`);
+        const base64Data = attachment.dataUrl.split(',')[1];
+        const uploadResult = await uploadString(storageRef, base64Data, 'base64', { contentType: attachment.contentType || undefined });
+        const downloadURL = await getDownloadURL(uploadResult.ref);
+        
         // 3. Save to Firestore with the download URL
         const invoiceData = {
           ...result,
           fileName: attachment.filename || 'N/A',
           fileUrl: downloadURL,
-          status: status,
+          status: 'pending_review' as const,
           uploadedBy: 'email_inbox', // Mark as system upload
           createdAt: serverTimestamp(),
           sourceEmailUid: emailStub.uid,
