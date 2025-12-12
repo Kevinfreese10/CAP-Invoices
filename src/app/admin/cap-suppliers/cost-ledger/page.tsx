@@ -179,30 +179,58 @@ export default function CostLedgerPage() {
     }, [filteredLineItems]);
 
     const handleExportAll = () => {
-        const dataToExport = groupedByAccount.flatMap(group => 
-            group.items.map(item => ({
-                'Account Number': group.account.accountNumber,
-                'Account Description': group.account.description,
-                'Invoice Date': item.invoiceDate,
-                'Supplier': item.supplier,
-                'Invoice Number': item.invoiceNumber,
-                'Line Description': item.ledgerDescription || item.description,
-                'Commission Number': item.commissionNumber || 'N/A',
-                'Payment Batch': item.paymentBatch ? format(new Date(item.paymentBatch), 'dd MMM yyyy') : 'N/A',
-                'Amount (Excl. VAT)': item.exclusiveAmount,
-                'VAT Amount': item.vatAmount,
-                'Line Total': item.exclusiveAmount + item.vatAmount,
-                'File URL': item.fileUrl,
-            }))
-        );
-
-        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-        worksheet['!cols'] = [
-            { wch: 15 }, { wch: 40 }, { wch: 12 }, { wch: 30 }, { wch: 20 },
-            { wch: 50 }, { wch: 20 }, { wch: 15 }, { wch: 18 }, { wch: 15 },
-            { wch: 15 }, { wch: 60 }
+        const dataToExport: any[] = [];
+        
+        const header = [
+            'Invoice Date',
+            'Supplier',
+            'Invoice Number',
+            'Line Description',
+            'Commission Number',
+            'Payment Batch',
+            'Amount (Excl. VAT)',
+            'VAT Amount',
+            'Line Total',
+            'File URL',
         ];
 
+        groupedByAccount.forEach(group => {
+            // Add account header
+            dataToExport.push([`${group.account.accountNumber} - ${group.account.description}`]);
+            // Add transaction headers
+            dataToExport.push(header);
+            
+            // Add transaction rows
+            group.items.forEach(item => {
+                dataToExport.push([
+                    item.invoiceDate,
+                    item.supplier,
+                    item.invoiceNumber,
+                    item.ledgerDescription || item.description,
+                    item.commissionNumber || 'N/A',
+                    item.paymentBatch ? format(new Date(item.paymentBatch), 'dd MMM yyyy') : 'N/A',
+                    item.exclusiveAmount,
+                    item.vatAmount,
+                    item.exclusiveAmount + item.vatAmount,
+                    item.fileUrl,
+                ]);
+            });
+
+            // Add account total row
+            dataToExport.push([
+                '', '', '', '', '', 'Total for Account:', group.total
+            ]);
+            
+            // Add a spacer row
+            dataToExport.push([]); 
+        });
+
+        const worksheet = XLSX.utils.aoa_to_sheet(dataToExport);
+        
+        // Auto-fit columns
+        const colWidths = header.map((_, i) => ({ wch: 20 })); // default width
+        worksheet['!cols'] = colWidths;
+        
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Cost Ledger');
         XLSX.writeFile(workbook, `Cost_Ledger_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
