@@ -1,4 +1,3 @@
-
 // /src/app/api/emails/process-attachments/route.ts
 import { NextResponse } from 'next/server';
 import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
@@ -96,6 +95,7 @@ export async function POST(req: Request) {
     }
 
     let processedCount = 0;
+    let failedCount = 0;
 
     for (const attachment of processableAttachments) {
       try {
@@ -106,21 +106,22 @@ export async function POST(req: Request) {
 
         if (!result || !result.supplier || !result.invoiceNumber) {
           console.warn(`AI could not extract valid data for ${attachment.filename}. Skipping.`);
+          failedCount++;
           continue; // Skip this attachment if AI fails
         }
         
         // --- Duplicate Prevention Check ---
         const invoiceQuery = query(
             collection(db, "extractedInvoices"),
-            where("supplier", "==", result.supplier),
-            where("invoiceNumber", "==", result.invoiceNumber)
+            where("sourceEmailUid", "==", emailStub.uid),
+            where("fileName", "==", attachment.filename)
         );
         const existingInvoices = await getDocs(invoiceQuery);
         
         // If reprocessing, we don't create a new one. If not reprocessing, we mark as duplicate.
         if (!existingInvoices.empty) {
             if (reprocess) {
-                 console.log(`Reprocess: Invoice for ${result.supplier} #${result.invoiceNumber} already exists. Skipping.`);
+                 console.log(`Reprocess: Invoice for ${result.supplier} from file ${attachment.filename} already exists. Skipping.`);
                  continue;
             }
              // Not reprocessing, so create it but mark as duplicate
@@ -165,6 +166,7 @@ export async function POST(req: Request) {
         processedCount++;
 
       } catch (error) {
+        failedCount++;
         console.error(`Failed to process attachment ${attachment.filename}:`, error);
         // Continue to the next attachment even if one fails
       }
@@ -173,17 +175,19 @@ export async function POST(req: Request) {
     // 4. Mark the email as processed in Firestore to avoid re-processing in future sessions
     // This happens even if some attachments failed, to prevent reprocessing successful ones.
     const processedEmailRef = doc(db, 'processedEmails', String(emailStub.uid));
+    const finalStatus = processedCount > 0 ? 'processed' : (failedCount > 0 ? 'failed' : 'no_attachments');
+    
     await setDoc(processedEmailRef, {
         uid: emailStub.uid,
         processedAt: serverTimestamp(),
         subject: emailStub.subject,
         from: emailStub.from,
-        status: processedCount > 0 ? 'processed' : 'failed'
+        status: finalStatus
     });
     
 
     return NextResponse.json({ 
-        message: 'Attachments processed successfully.',
+        message: 'Attachments processed.',
         totalProcessable: processableAttachments.length,
         processedCount: processedCount,
     });
