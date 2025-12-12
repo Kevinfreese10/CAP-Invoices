@@ -149,7 +149,7 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice
     }, [watchedLineItems]);
 
     const difference = useMemo(() => {
-        return controlTotal - (invoiceTotal || 0);
+        return Number(controlTotal) - (Number(invoiceTotal) || 0);
     }, [controlTotal, invoiceTotal]);
 
 
