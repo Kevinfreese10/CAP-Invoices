@@ -184,13 +184,8 @@ export default function CostLedgerPage() {
         const header = [
             'Invoice Date',
             'Supplier',
-            'Invoice Number',
             'Line Description',
-            'Commission Number',
-            'Payment Batch',
             'Amount (Excl. VAT)',
-            'VAT Amount',
-            'Line Total',
             'File URL',
         ];
 
@@ -205,20 +200,15 @@ export default function CostLedgerPage() {
                 dataToExport.push([
                     item.invoiceDate,
                     item.supplier,
-                    item.invoiceNumber,
                     item.ledgerDescription || item.description,
-                    item.commissionNumber || 'N/A',
-                    item.paymentBatch ? format(new Date(item.paymentBatch), 'dd MMM yyyy') : 'N/A',
                     item.exclusiveAmount,
-                    item.vatAmount,
-                    item.exclusiveAmount + item.vatAmount,
                     item.fileUrl,
                 ]);
             });
 
             // Add account total row
             dataToExport.push([
-                '', '', '', '', '', 'Total for Account:', group.total
+                '', '', 'Total for Account:', group.total
             ]);
             
             // Add a spacer row
