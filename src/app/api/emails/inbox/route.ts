@@ -1,3 +1,4 @@
+
 // /src/app/api/emails/inbox/route.ts
 import { NextResponse } from 'next/server';
 import imaps from 'imap-simple';
@@ -19,10 +20,10 @@ export async function GET() {
   let connection;
   try {
     connection = await imaps.connect(config);
-    await connection.openBox('INBOX');
+    const box = await connection.openBox('INBOX');
 
     // Fetch only the last 100 messages to avoid timeouts
-    const messageCount = await connection.getBoxInfo().then(info => info.messages.total);
+    const messageCount = box.messages.total;
     const start = Math.max(1, messageCount - 99);
     const searchCriteria = [`${start}:*`];
 
@@ -41,11 +42,22 @@ export async function GET() {
         
         const mail = await simpleParser(rawEmail);
         
-        const attachments = mail.attachments.map(att => ({
-            filename: att.filename,
-            contentType: att.contentType,
-            dataUrl: null, // DO NOT send content to the client
-            size: att.size,
+        const attachments = await Promise.all(mail.attachments.map(async (att) => {
+            if (att.content) {
+                const dataUrl = `data:${att.contentType};base64,${att.content.toString('base64')}`;
+                return {
+                    filename: att.filename || null,
+                    contentType: att.contentType || null,
+                    dataUrl: dataUrl,
+                    size: att.size || null,
+                };
+            }
+            return {
+                filename: att.filename || null,
+                contentType: att.contentType || null,
+                dataUrl: null,
+                size: att.size || null,
+            };
         }));
 
         return {
