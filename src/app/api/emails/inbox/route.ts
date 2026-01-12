@@ -4,6 +4,10 @@ import { NextResponse } from 'next/server';
 import imaps from 'imap-simple';
 import { simpleParser } from 'mailparser';
 
+// This regex matches any character that is not a standard printable ASCII character,
+// newline, carriage return, or tab. This is a safe way to remove control characters.
+const controlCharRegex = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g;
+
 export async function GET() {
   const config = {
     imap: {
@@ -59,13 +63,15 @@ export async function GET() {
                 size: att.size || null,
             };
         }));
+        
+        const rawBody = mail.html || mail.textAsHtml || 'No content';
 
         return {
           uid: item.attributes.uid,
           from: mail.from?.text || 'No Sender',
           subject: mail.subject || 'No Subject',
           date: mail.date?.toISOString() || new Date().toISOString(),
-          body: mail.html || mail.textAsHtml || 'No content',
+          body: rawBody.replace(controlCharRegex, ''), // Sanitize the body
           attachments: attachments,
         };
       })
