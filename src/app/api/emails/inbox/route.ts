@@ -1,3 +1,4 @@
+
 // /src/app/api/emails/inbox/route.ts
 import { NextResponse } from 'next/server';
 import imaps from 'imap-simple';
@@ -23,10 +24,8 @@ export async function GET() {
   let connection;
   try {
     connection = await imaps.connect(config);
-    await connection.openBox('INBOX');
+    const box = await connection.openBox('INBOX');
     
-    // Correctly get box info to find the total number of messages
-    const box = await connection.getBoxInfo('INBOX');
     const messageCount = box.messages.total;
     const start = Math.max(1, messageCount - 99);
     const searchCriteria = [`${start}:*`];
