@@ -369,8 +369,8 @@ export default function InboxPage() {
                             </div>
                             <div className="divide-y">
                             {emails.map((email) => {
-                                const nonPngAttachments = email.attachments.filter(att => att.contentType !== 'image/png');
-                                const attachmentsWithStatus = nonPngAttachments.map(att => {
+                                const displayableAttachments = email.attachments.filter(att => att.contentType !== 'image/png' && att.contentType !== 'image/jpeg');
+                                const attachmentsWithStatus = displayableAttachments.map(att => {
                                     const foundInvoice = invoices.find(inv => inv.fileName === att.filename && inv.sourceEmailUid === email.uid);
                                     return {
                                         ...att,
@@ -392,10 +392,10 @@ export default function InboxPage() {
                                             <div className="px-4 py-3 font-medium truncate" title={email.from}>{email.from}</div>
                                             <div className="px-4 py-3 truncate" title={email.subject}>{email.subject}</div>
                                             <div className="px-4 py-3">
-                                                {nonPngAttachments.length > 0 ? (
+                                                {displayableAttachments.length > 0 ? (
                                                     <div className="flex items-center gap-1 text-primary">
                                                         <Paperclip className="h-4 w-4"/>
-                                                        <span>{nonPngAttachments.length}</span>
+                                                        <span>{displayableAttachments.length}</span>
                                                     </div>
                                                 ) : "None"}
                                             </div>
