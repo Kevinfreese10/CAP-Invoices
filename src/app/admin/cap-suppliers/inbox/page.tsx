@@ -369,7 +369,8 @@ export default function InboxPage() {
                             </div>
                             <div className="divide-y">
                             {emails.map((email) => {
-                                const attachmentsWithStatus = email.attachments.map(att => {
+                                const nonPngAttachments = email.attachments.filter(att => att.contentType !== 'image/png');
+                                const attachmentsWithStatus = nonPngAttachments.map(att => {
                                     const foundInvoice = invoices.find(inv => inv.fileName === att.filename && inv.sourceEmailUid === email.uid);
                                     return {
                                         ...att,
@@ -391,10 +392,10 @@ export default function InboxPage() {
                                             <div className="px-4 py-3 font-medium truncate" title={email.from}>{email.from}</div>
                                             <div className="px-4 py-3 truncate" title={email.subject}>{email.subject}</div>
                                             <div className="px-4 py-3">
-                                                {email.attachments.length > 0 ? (
+                                                {nonPngAttachments.length > 0 ? (
                                                     <div className="flex items-center gap-1 text-primary">
                                                         <Paperclip className="h-4 w-4"/>
-                                                        <span>{email.attachments.length}</span>
+                                                        <span>{nonPngAttachments.length}</span>
                                                     </div>
                                                 ) : "None"}
                                             </div>
@@ -435,7 +436,7 @@ export default function InboxPage() {
                                                 </TableBody>
                                             </Table>
                                             ) : (
-                                                <p className="text-sm text-muted-foreground text-center py-4">This email has no attachments.</p>
+                                                <p className="text-sm text-muted-foreground text-center py-4">This email has no processable attachments.</p>
                                             )}
                                         </div>
                                      </CollapsibleContent>
