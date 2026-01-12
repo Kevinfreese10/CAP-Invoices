@@ -162,10 +162,10 @@ export default function InboxPage() {
 
         try {
             await sendEmail({
-               to: 'kev@thinkestry.co.za',
+               to: 'zizipho@combinedartists.co.za',
                subject: 'New Invoices Ready for Review',
                html: `
-                   <p>Hi Kevin,</p>
+                   <p>Hi Zizipho,</p>
                    <p>${emailsToProcess.length} new email(s) have been processed, and the invoices are now ready for your review.</p>
                    <p><a href="${window.location.origin}/admin/cap-suppliers/review">Click here to review them</a>.</p>
                    <p>Thanks,<br/>The My Accountant Automated System</p>
