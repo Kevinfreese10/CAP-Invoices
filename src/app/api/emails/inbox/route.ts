@@ -24,11 +24,11 @@ export async function GET() {
   let connection;
   try {
     connection = await imaps.connect(config);
-    const box = await connection.openBox('INBOX');
+    await connection.openBox('INBOX');
     
-    const messageCount = box.messages.total;
-    const start = Math.max(1, messageCount - 99);
-    const searchCriteria = [`${start}:*`];
+    // Instead of getting the total count first, which can be unreliable,
+    // we'll fetch all message UIDs and then slice the last 100.
+    const searchCriteria = ['ALL']; 
 
     const fetchOptions = {
       bodies: ['HEADER.FIELDS (FROM SUBJECT DATE)', ''], // Fetch specific headers and body
@@ -36,7 +36,9 @@ export async function GET() {
       struct: true,
     };
 
-    const messages = await connection.search(searchCriteria, fetchOptions);
+    const allMessages = await connection.search(searchCriteria, fetchOptions);
+    // Get only the last 100 messages to avoid timeouts and performance issues.
+    const messages = allMessages.slice(-100);
     
     const emails = await Promise.all(
       messages.map(async (item) => {
