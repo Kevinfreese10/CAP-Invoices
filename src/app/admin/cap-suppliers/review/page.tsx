@@ -71,7 +71,7 @@ function CreateRuleDialog({ open, onOpenChange, supplierName, onRuleCreated }: {
     const handleSaveRule = async (values: z.infer<typeof ruleFormSchema>) => {
         setIsSaving(true);
         const newRule: Partial<AllocationRule> = {
-            description: 'Default VAT type for supplier: ' + values.supplierName,
+            description: `Default VAT type for supplier: ${values.supplierName}`,
             keywords: [values.supplierName.toLowerCase()],
             accountId: 'supplier_vat_rule', 
             vatType: values.defaultVatType,
@@ -600,9 +600,8 @@ export default function ReviewPage() {
         );
     }
     
-    const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement> | React.MouseEvent<HTMLButtonElement>) => {
-        const target = e.target as HTMLInputElement;
-        if(target.checked) {
+    const handleSelectAll = (checked: boolean) => {
+        if(checked) {
             setSelectedInvoices(invoices.map(i => i.id));
         } else {
             setSelectedInvoices([]);
@@ -680,8 +679,8 @@ export default function ReviewPage() {
                         <TableRow>
                             <TableHead className="w-10">
                                 <Checkbox
-                                    onChange={(e) => handleSelectAll(e as unknown as React.ChangeEvent<HTMLInputElement>)}
-                                    checked={selectedInvoices.length === invoices.length && invoices.length > 0} 
+                                    onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                                    checked={invoices.length > 0 && selectedInvoices.length === invoices.length}
                                     aria-label="Select all"
                                 />
                             </TableHead>
