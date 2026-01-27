@@ -3,10 +3,10 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { getFirestore, collection, getDocs, query, orderBy, where, doc, updateDoc, writeBatch, addDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query, orderBy, where, doc, updateDoc, writeBatch, addDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, CheckCircle, MoreHorizontal, Edit, PlusCircle, FileCheck2, Save, Eye, Trash2 } from 'lucide-react';
+import { Loader2, CheckCircle, MoreHorizontal, Edit, PlusCircle, FileCheck2, Save, Eye, Trash2, Brain } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ExtractedInvoice } from '@/lib/types';
@@ -22,6 +22,9 @@ import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
+import { findStoryName } from '@/ai/flows/find-story-name';
+import { commissionList as defaultCommissionList } from '@/lib/commission-list';
+import { Textarea } from '@/components/ui/textarea';
 
 
 const db = getFirestore(firebaseApp);
@@ -88,7 +91,7 @@ const ledgerExamples: { [key: string]: string } = {
     '4121-05': 'IS6699 - TFU Impossible - AFM - Floris Brand - 11/04/2025 @ R1250 x 1 hour',
     '5003-01': 'Office Rental & Parking Bays - Tulbach North (Pty) Ltd - 10/2025 - Open Parkings @ R396.27 x 2 parkings',
     '5003-02': 'Office Security - Tulbach North Body Corporate - 05/2025 @ R7027.56',
-    '5003-03': 'Office Utilites - Sewer - Tulbach North Body Corporate - Reading period 15/08-09/09/2025',
+    '5003-03': 'Office Utilities - Sewer - Tulbach North Body Corporate - Reading period 15/08-09/09/2025',
     '5003-04': 'Generator Maintenance - Cummins - Fuel Seperator Spinon - EA - x 1 @ R307.23',
     '5003-05': 'Stationary - TJ Office Supplies - Black pens - @ R21.00 x 5',
     '5010-01': 'Monthly Printer Copy Charges - iTech - 25/10/25 @ R2413.15',
@@ -100,6 +103,95 @@ const ledgerExamples: { [key: string]: string } = {
 };
 
 
+function AnalyzeStoryDialog({ open, onOpenChange, invoices, onAnalyzeComplete }: { open: boolean; onOpenChange: (open: boolean) => void; invoices: ExtractedInvoice[]; onAnalyzeComplete: () => void; }) {
+    const { toast } = useToast();
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [knowledgeBase, setKnowledgeBase] = useState('');
+    const [isKbLoading, setIsKbLoading] = useState(true);
+
+    useEffect(() => {
+        if (open) {
+            const fetchCommissionData = async () => {
+                setIsKbLoading(true);
+                const docRef = doc(db, 'commissionData', 'list');
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    setKnowledgeBase(docSnap.data().content);
+                } else {
+                    // Fallback to static data if not in Firestore
+                    setKnowledgeBase(defaultCommissionList);
+                }
+                setIsKbLoading(false);
+            };
+            fetchCommissionData();
+        }
+    }, [open]);
+
+    const handleAnalyze = async () => {
+        setIsAnalyzing(true);
+        toast({ title: 'Analyzing ' + invoices.length + ' invoice(s)...' });
+
+        try {
+            const batch = writeBatch(db);
+            let updatedCount = 0;
+
+            for (const invoice of invoices) {
+                if (invoice.commissionNumber) {
+                    const result = await findStoryName({
+                        commissionNumber: invoice.commissionNumber,
+                        knowledgeBase: knowledgeBase,
+                    });
+                    if (result.storyName) {
+                        const invoiceRef = doc(db, 'extractedInvoices', invoice.id);
+                        batch.update(invoiceRef, { storyName: result.storyName });
+                        updatedCount++;
+                    }
+                }
+            }
+            if (updatedCount > 0) {
+                await batch.commit();
+                toast({ title: 'Analysis Complete', description: updatedCount + ' invoice(s) were updated with a story name.' });
+                onAnalyzeComplete();
+            } else {
+                 toast({ title: 'No Matches Found', description: 'No story names could be found for the selected invoices.', variant: 'default' });
+            }
+            onOpenChange(false);
+        } catch (error) {
+            console.error("Error analyzing story names:", error);
+            toast({ title: 'Error', description: 'An error occurred during analysis.', variant: 'destructive' });
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
+    
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-xl">
+                <DialogHeader>
+                    <DialogTitle>Analyze Story Names</DialogTitle>
+                    <DialogDescription>Paste your commission list from Google Sheets below. The AI will match commission numbers to find the story name.</DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                     <Textarea
+                        value={knowledgeBase}
+                        onChange={(e) => setKnowledgeBase(e.target.value)}
+                        rows={15}
+                        placeholder="Paste your two-column data here (e.g., CM-123\tMy Story Name)"
+                        disabled={isKbLoading}
+                    />
+                </div>
+                <DialogFooter>
+                    <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+                    <Button onClick={handleAnalyze} disabled={isAnalyzing || isKbLoading}>
+                         {isAnalyzing || isKbLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Brain className="mr-2 h-4 w-4" />}
+                        Analyze and Update
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 export default function ThirdReviewPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -110,6 +202,7 @@ export default function ThirdReviewPage() {
     const [localInvoiceData, setLocalInvoiceData] = useState<ExtractedInvoice[]>([]);
     const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
     const { user } = useAuth();
+    const [isAnalyzeDialogOpen, setIsAnalyzeDialogOpen] = useState(false);
 
 
     const fetchInvoices = async () => {
@@ -165,7 +258,7 @@ export default function ThirdReviewPage() {
             await batch.commit();
 
             toast({
-                title: `${selectedInvoices.length} Invoice(s) Approved`,
+                title: selectedInvoices.length + ' Invoice(s) Approved',
                 description: 'The selected invoices have been moved to the payment control sheet.',
             });
             setSelectedInvoices([]);
@@ -236,6 +329,23 @@ export default function ThirdReviewPage() {
         }
     }
 
+    const handleDeleteSelected = async () => {
+        if (selectedInvoices.length === 0 || !user) return;
+        try {
+            const batch = writeBatch(db);
+            selectedInvoices.forEach(id => {
+                const docRef = doc(db, 'extractedInvoices', id);
+                batch.update(docRef, { status: 'archived', deletedBy: user.uid, deletedAt: serverTimestamp() });
+            });
+            await batch.commit();
+            toast({ title: 'Invoices Deleted', description: selectedInvoices.length + ' invoices have been moved to the deleted list.', variant: 'default'});
+            setSelectedInvoices([]);
+            fetchInvoices();
+        } catch (error) {
+            toast({ title: 'Error', description: 'Could not delete selected invoices.', variant: 'destructive'});
+        }
+    };
+
 
     const formatPrice = (price: number) => {
         return new Intl.NumberFormat('en-ZA', {
@@ -278,28 +388,14 @@ export default function ThirdReviewPage() {
 
     return (
         <div className="space-y-8">
+             <AnalyzeStoryDialog
+                open={isAnalyzeDialogOpen}
+                onOpenChange={setIsAnalyzeDialogOpen}
+                invoices={invoices.filter(i => selectedInvoices.includes(i.id))}
+                onAnalyzeComplete={fetchInvoices}
+            />
             <div className="flex items-center justify-between">
                 <h1 className="text-3xl font-bold tracking-tight">3rd Review</h1>
-                <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                        <Button disabled={selectedInvoices.length === 0}>
-                            <FileCheck2 className="mr-2 h-4 w-4" />
-                            Approve Selected ({selectedInvoices.length})
-                        </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>Confirm Batch Approval</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                This will approve {selectedInvoices.length} invoice(s) and move them to the payment control sheet. Are you sure?
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleBatchApproval}>Yes, Approve</AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
             </div>
             <Card>
                 <CardHeader>
@@ -310,7 +406,7 @@ export default function ThirdReviewPage() {
                                 These invoices have passed the second review and are ready for final approval before payment.
                             </CardDescription>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex items-center gap-2">
                              <Input
                                 placeholder="Filter by supplier..."
                                 value={supplierFilter}
@@ -332,6 +428,54 @@ export default function ThirdReviewPage() {
                                 </SelectContent>
                             </Select>
                         </div>
+                    </div>
+                     <div className="flex justify-end items-center gap-2 pt-4 border-t mt-4">
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="destructive" disabled={selectedInvoices.length === 0}>
+                                    <Trash2 className="mr-2 h-4 w-4"/>
+                                    Delete ({selectedInvoices.length})
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This will delete {selectedInvoices.length} invoice(s). You can view them later in the Deleted page.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleDeleteSelected}>
+                                        Yes, Delete
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                         <Button onClick={() => setIsAnalyzeDialogOpen(true)} variant="outline" disabled={selectedInvoices.length === 0}>
+                            <Brain className="mr-2 h-4 w-4"/>
+                            Analyze ({selectedInvoices.length})
+                        </Button>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button disabled={selectedInvoices.length === 0}>
+                                    <FileCheck2 className="mr-2 h-4 w-4" />
+                                    Approve Selected ({selectedInvoices.length})
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Confirm Batch Approval</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This will approve {selectedInvoices.length} invoice(s) and move them to the payment control sheet. Are you sure?
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleBatchApproval}>Yes, Approve</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -430,7 +574,7 @@ export default function ThirdReviewPage() {
                                                     const account = getAccountDescription(item.accountId);
                                                     const example = item.accountId ? ledgerExamples[item.accountId] : '';
                                                     return (
-                                                        <TableRow key={`${invoice.id}-${index}`}>
+                                                        <TableRow key={'' + invoice.id + '-' + index}>
                                                             <TableCell className="align-top">
                                                                 <p className="font-semibold whitespace-normal">{item.description}</p>
                                                                 <Input
@@ -479,4 +623,3 @@ export default function ThirdReviewPage() {
     );
 }
 
-    
