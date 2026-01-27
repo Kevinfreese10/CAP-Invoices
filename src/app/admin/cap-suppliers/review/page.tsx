@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -71,7 +70,7 @@ function CreateRuleDialog({ open, onOpenChange, supplierName, onRuleCreated }: {
     const handleSaveRule = async (values: z.infer<typeof ruleFormSchema>) => {
         setIsSaving(true);
         const newRule: Partial<AllocationRule> = {
-            description: `Default VAT type for supplier: ${values.supplierName}`,
+            description: 'Default VAT type for supplier: ' + values.supplierName,
             keywords: [values.supplierName.toLowerCase()],
             accountId: 'supplier_vat_rule', 
             vatType: values.defaultVatType,
@@ -81,7 +80,7 @@ function CreateRuleDialog({ open, onOpenChange, supplierName, onRuleCreated }: {
 
         try {
             await addDoc(collection(db, 'allocationRules'), newRule);
-            toast({ title: "Rule Created", description: `Default VAT type for ${values.supplierName} has been set.` });
+            toast({ title: "Rule Created", description: 'Default VAT type for ' + values.supplierName + ' has been set.' });
             onRuleCreated(values.defaultVatType);
             onOpenChange(false);
         } catch (error) {
@@ -667,8 +666,8 @@ export default function ReviewPage() {
                             </TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead>Supplier</TableHead>
+                            <TableHead>Invoice #</TableHead>
                             <TableHead>Commission #</TableHead>
-                            <TableHead>Story Name</TableHead>
                             <TableHead>File</TableHead>
                             <TableHead className="text-right">VAT Amount</TableHead>
                             <TableHead className="text-right">Total</TableHead>
@@ -701,8 +700,8 @@ export default function ReviewPage() {
                                         )}
                                     </TableCell>
                                     <TableCell className="font-medium">{invoice.supplier}</TableCell>
+                                    <TableCell>{invoice.invoiceNumber}</TableCell>
                                     <TableCell>{invoice.commissionNumber || 'N/A'}</TableCell>
-                                    <TableCell>{invoice.storyName || 'N/A'}</TableCell>
                                     <TableCell>
                                         <Button asChild variant="link" className="p-0 h-auto">
                                             <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer">View Invoice</a>
