@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -268,7 +269,26 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
 function AnalyzeStoryDialog({ open, onOpenChange, invoices, onAnalyzeComplete }: { open: boolean; onOpenChange: (open: boolean) => void; invoices: ExtractedInvoice[]; onAnalyzeComplete: () => void; }) {
     const { toast } = useToast();
     const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [knowledgeBase, setKnowledgeBase] = useState(defaultCommissionList);
+    const [knowledgeBase, setKnowledgeBase] = useState('');
+    const [isKbLoading, setIsKbLoading] = useState(true);
+
+    useEffect(() => {
+        if (open) {
+            const fetchCommissionData = async () => {
+                setIsKbLoading(true);
+                const docRef = doc(db, 'commissionData', 'list');
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    setKnowledgeBase(docSnap.data().content);
+                } else {
+                    // Fallback to static data if not in Firestore
+                    setKnowledgeBase(defaultCommissionList);
+                }
+                setIsKbLoading(false);
+            };
+            fetchCommissionData();
+        }
+    }, [open]);
 
     const handleAnalyze = async () => {
         setIsAnalyzing(true);
@@ -320,12 +340,13 @@ function AnalyzeStoryDialog({ open, onOpenChange, invoices, onAnalyzeComplete }:
                         onChange={(e) => setKnowledgeBase(e.target.value)}
                         rows={15}
                         placeholder="Paste your two-column data here (e.g., CM-123\tMy Story Name)"
+                        disabled={isKbLoading}
                     />
                 </div>
                 <DialogFooter>
                     <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-                    <Button onClick={handleAnalyze} disabled={isAnalyzing}>
-                         {isAnalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Brain className="mr-2 h-4 w-4" />}
+                    <Button onClick={handleAnalyze} disabled={isAnalyzing || isKbLoading}>
+                         {isAnalyzing || isKbLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Brain className="mr-2 h-4 w-4" />}
                         Analyze and Update
                     </Button>
                 </DialogFooter>
