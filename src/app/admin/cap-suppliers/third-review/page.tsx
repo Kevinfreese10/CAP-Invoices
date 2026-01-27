@@ -358,7 +358,8 @@ export default function ThirdReviewPage() {
                                                 <div>
                                                     <CardTitle className="text-lg">{invoice.supplier}</CardTitle>
                                                     <CardDescription>
-                                                        {invoice.commissionNumber && `Commission #: ${invoice.commissionNumber}`}
+                                                        {invoice.commissionNumber && <span>Commission #: {invoice.commissionNumber}</span>}
+                                                        {invoice.storyName && <span className="text-xs italic text-muted-foreground block mt-1">Story: {invoice.storyName}</span>}
                                                     </CardDescription>
                                                 </div>
                                             </div>
