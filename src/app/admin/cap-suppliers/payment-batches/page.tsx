@@ -43,7 +43,7 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
     const { toast } = useToast();
 
     const formatPrice = (price: number) => {
-        return new Intl.NumberFormat('en-ZA', {
+        return new Intl.NumberFormat('en-GB', {
           style: 'currency',
           currency: 'ZAR',
         }).format(price);
