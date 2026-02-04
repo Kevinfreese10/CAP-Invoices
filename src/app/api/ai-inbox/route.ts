@@ -63,7 +63,7 @@ export async function GET(req: Request) {
             const newMessages = await connection.search(searchCriteria, { bodies: [''], markSeen: false });
             
             if (newMessages.length > 0) {
-                const BATCH_SIZE = 50; // Process in batches to avoid timeouts
+                const BATCH_SIZE = 10; // Process in smaller batches to avoid timeouts
                 const messagesToProcess = newMessages.slice(0, BATCH_SIZE);
                 const batch = writeBatch(db);
 
