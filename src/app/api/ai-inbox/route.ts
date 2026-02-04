@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import imaps from 'imap-simple';
 import { simpleParser } from 'mailparser';
@@ -31,7 +32,7 @@ async function connectToImap() {
         host: process.env.IMAP_HOST || '',
         port: Number(process.env.IMAP_PORT) || 993,
         tls: true,
-        authTimeout: 20000,
+        authTimeout: 30000, // Increased timeout
         tlsOptions: { rejectUnauthorized: false } 
       },
     };
@@ -62,9 +63,11 @@ export async function GET(req: Request) {
             const newMessages = await connection.search(searchCriteria, { bodies: [''], markSeen: false });
             
             if (newMessages.length > 0) {
+                const BATCH_SIZE = 50; // Process in batches to avoid timeouts
+                const messagesToProcess = newMessages.slice(0, BATCH_SIZE);
                 const batch = writeBatch(db);
 
-                for (const item of newMessages) {
+                for (const item of messagesToProcess) {
                     if (item.attributes.uid <= lastUid) continue; // Defensive check
                     
                     const all = item.parts.find((part) => part.which === '');
