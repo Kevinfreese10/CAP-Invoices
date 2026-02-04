@@ -4,8 +4,21 @@ import imaps from 'imap-simple';
 import { simpleParser } from 'mailparser';
 
 // This regex matches any character that is not a standard printable ASCII character,
-// newline, carriage return, or tab. This is a safe way to remove control characters.
+// newline, carriage return, or tab. This helps remove control characters that break JSON parsing.
 const controlCharRegex = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g;
+
+/**
+ * Sanitizes a string by removing non-printable control characters.
+ * @param str The string to sanitize.
+ * @returns A sanitized string, or an empty string if input is null/undefined.
+ */
+function sanitizeString(str: string | null | undefined): string {
+    if (!str) {
+        return '';
+    }
+    return str.replace(controlCharRegex, '');
+}
+
 
 export async function GET() {
   const config = {
@@ -44,18 +57,21 @@ export async function GET() {
         const mail = await simpleParser(rawEmail);
         
         const attachments = await Promise.all(mail.attachments.map(async (att) => {
+            const sanitizedFilename = sanitizeString(att.filename);
+            const sanitizedContentType = sanitizeString(att.contentType);
+
             if (att.content) {
-                const dataUrl = `data:${att.contentType};base64,${att.content.toString('base64')}`;
+                const dataUrl = `data:${sanitizedContentType};base64,${att.content.toString('base64')}`;
                 return {
-                    filename: att.filename || null,
-                    contentType: att.contentType || null,
+                    filename: sanitizedFilename,
+                    contentType: sanitizedContentType,
                     dataUrl: dataUrl,
                     size: att.size || null,
                 };
             }
             return {
-                filename: att.filename || null,
-                contentType: att.contentType || null,
+                filename: sanitizedFilename,
+                contentType: sanitizedContentType,
                 dataUrl: null,
                 size: att.size || null,
             };
@@ -65,10 +81,10 @@ export async function GET() {
 
         return {
           uid: item.attributes.uid,
-          from: mail.from?.text || 'No Sender',
-          subject: mail.subject || 'No Subject',
+          from: sanitizeString(mail.from?.text),
+          subject: sanitizeString(mail.subject),
           date: mail.date?.toISOString() || new Date().toISOString(),
-          body: rawBody.replace(controlCharRegex, ''), // Sanitize the body
+          body: sanitizeString(rawBody),
           attachments: attachments,
         };
       })
