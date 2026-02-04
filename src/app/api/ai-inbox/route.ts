@@ -58,7 +58,7 @@ export async function GET(req: Request) {
             await connection.openBox('INBOX');
             
             // Search for messages with a UID greater than the last one we have stored.
-            const searchCriteria = ['UID', `${lastUid + 1}:*`];
+            const searchCriteria = [['UID', `${lastUid + 1}:*`]];
             const newMessages = await connection.search(searchCriteria, { bodies: [''], markSeen: false });
             
             if (newMessages.length > 0) {
