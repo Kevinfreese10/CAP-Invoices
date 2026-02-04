@@ -1,4 +1,3 @@
-
 // /src/app/api/emails/inbox/route.ts
 import { NextResponse } from 'next/server';
 import imaps from 'imap-simple';
@@ -16,7 +15,7 @@ export async function GET() {
       host: process.env.IMAP_HOST || '',
       port: Number(process.env.IMAP_PORT) || 993,
       tls: true,
-      authTimeout: 10000,
+      authTimeout: 30000, // Increased timeout
       tlsOptions: { rejectUnauthorized: false } 
     },
   };
@@ -26,9 +25,8 @@ export async function GET() {
     connection = await imaps.connect(config);
     await connection.openBox('INBOX');
     
-    // Instead of getting the total count first, which can be unreliable,
-    // we'll fetch all message UIDs and then slice the last 100.
-    const searchCriteria = ['ALL']; 
+    // Fetch only emails since the specified date to prevent timeouts
+    const searchCriteria = ['SINCE', '25-Jan-2026']; 
 
     const fetchOptions = {
       bodies: ['HEADER.FIELDS (FROM SUBJECT DATE)', ''], // Fetch specific headers and body
@@ -36,9 +34,7 @@ export async function GET() {
       struct: true,
     };
 
-    const allMessages = await connection.search(searchCriteria, fetchOptions);
-    // Get only the last 100 messages to avoid timeouts and performance issues.
-    const messages = allMessages.slice(-100);
+    const messages = await connection.search(searchCriteria, fetchOptions);
     
     const emails = await Promise.all(
       messages.map(async (item) => {
