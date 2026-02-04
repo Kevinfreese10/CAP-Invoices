@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -98,18 +97,25 @@ export default function InboxPage() {
         setIsLoading(true);
         setError(null);
         try {
-            // Fetch Emails
-            const processedSnapshot = await getDocs(collection(db, 'processedEmails'));
-            const processedUids = new Set(processedSnapshot.docs.map(doc => doc.data().uid));
-            const response = await fetch('/api/emails/inbox');
+            // Fetch Emails by syncing with Firestore
+            const response = await fetch('/api/ai-inbox?sync=true');
             if (!response.ok) {
                 const errorText = await response.text();
-                throw new Error(errorText || 'Failed to fetch emails');
+                 try {
+                    const errorJson = JSON.parse(errorText);
+                    throw new Error(errorJson.error || 'Failed to fetch emails');
+                } catch (e) {
+                     throw new Error(errorText || 'Failed to fetch emails');
+                }
             }
             const data: Email[] = await response.json();
-            const emailsWithStatus = data.map(email => ({
+            
+            // isProcessed is now part of the data from Firestore, but we can keep this logic if needed.
+            const processedSnapshot = await getDocs(collection(db, 'processedEmails'));
+            const processedUids = new Set(processedSnapshot.docs.map(doc => doc.data().uid));
+             const emailsWithStatus = data.map(email => ({
                 ...email,
-                isProcessed: processedUids.has(email.uid),
+                isProcessed: processedUids.has(email.uid) || email.isProcessed,
             }));
             setEmails(emailsWithStatus);
 
@@ -120,16 +126,7 @@ export default function InboxPage() {
 
         } catch (err: any) {
             console.error("Error fetching data:", err);
-            let errorMessage = 'Failed to fetch emails.';
-            if (err instanceof Error) {
-                try {
-                    const errorJson = JSON.parse(err.message);
-                    errorMessage = errorJson.error || err.message;
-                } catch (e) {
-                     errorMessage = err.message;
-                }
-            }
-            setError(errorMessage);
+            setError(err.message || 'An unknown error occurred.');
         } finally {
             setIsLoading(false);
         }
@@ -189,10 +186,10 @@ export default function InboxPage() {
         
         setIsProcessing(true);
         try {
-            const response = await fetch('/api/emails/delete', {
+            const response = await fetch('/api/ai-inbox', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ uids: Array.from(selectedUids) }),
+                body: JSON.stringify({ uids: Array.from(selectedUids), action: 'delete' }),
             });
 
             if (!response.ok) {
