@@ -26,7 +26,7 @@ export async function GET() {
     await connection.openBox('INBOX');
     
     // Fetch only emails since the specified date to prevent timeouts
-    const searchCriteria = ['SINCE', '25-Jan-2026']; 
+    const searchCriteria = [['SINCE', '25-Jan-2026']]; 
 
     const fetchOptions = {
       bodies: ['HEADER.FIELDS (FROM SUBJECT DATE)', ''], // Fetch specific headers and body
