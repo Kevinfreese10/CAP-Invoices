@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import imaps from 'imap-simple';
 import { simpleParser } from 'mailparser';
-import { getFirestore, collection, getDocs, doc, setDoc, serverTimestamp, query, where, writeBatch, deleteDoc, orderBy } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, doc, setDoc, serverTimestamp, query, where, writeBatch, deleteDoc, orderBy, limit } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 
 const db = getFirestore(firebaseApp);
@@ -31,7 +31,7 @@ async function connectToImap() {
         host: process.env.IMAP_HOST || '',
         port: Number(process.env.IMAP_PORT) || 993,
         tls: true,
-        authTimeout: 10000,
+        authTimeout: 20000,
         tlsOptions: { rejectUnauthorized: false } 
       },
     };
@@ -46,22 +46,27 @@ export async function GET(req: Request) {
     let connection;
     try {
         if (shouldSync) {
-            const inboxEmailsSnapshot = await getDocs(query(collection(db, 'inboxEmails'), orderBy('uid', 'desc')));
-            const existingUids = new Set(inboxEmailsSnapshot.docs.map(doc => doc.data().uid));
+            // Get the most recent UID from Firestore to only fetch newer emails.
+            const latestEmailQuery = query(collection(db, 'inboxEmails'), orderBy('uid', 'desc'), limit(1));
+            const latestEmailSnapshot = await getDocs(latestEmailQuery);
+            let lastUid = 0;
+            if (!latestEmailSnapshot.empty) {
+                lastUid = latestEmailSnapshot.docs[0].data().uid;
+            }
 
             connection = await connectToImap();
             await connection.openBox('INBOX');
             
-            const serverMessages = await connection.search(['ALL'], { bodies: [], headers: ['message-id'] });
-            const serverUids = new Set(serverMessages.map(msg => msg.attributes.uid));
+            // Search for messages with a UID greater than the last one we have stored.
+            const searchCriteria = ['UID', `${lastUid + 1}:*`];
+            const newMessages = await connection.search(searchCriteria, { bodies: [''], markSeen: false });
             
-            const newUids = Array.from(serverUids).filter(uid => !existingUids.has(uid));
-            
-            if (newUids.length > 0) {
-                const newMessages = await connection.search([['UID', newUids.join(',')]], { bodies: [''], markSeen: false });
+            if (newMessages.length > 0) {
                 const batch = writeBatch(db);
 
                 for (const item of newMessages) {
+                    if (item.attributes.uid <= lastUid) continue; // Defensive check
+                    
                     const all = item.parts.find((part) => part.which === '');
                     const mail = await simpleParser(all?.body || '');
                     
