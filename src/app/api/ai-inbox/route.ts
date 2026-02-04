@@ -66,6 +66,9 @@ export async function GET(req: Request) {
                 const BATCH_SIZE = 10; // Process in smaller batches to avoid timeouts
                 const messagesToProcess = newMessages.slice(0, BATCH_SIZE);
                 const batch = writeBatch(db);
+                
+                // ~750KB limit for raw attachment content to avoid 1MB document limit in Firestore
+                const ATTACHMENT_SIZE_LIMIT = 750 * 1024; 
 
                 for (const item of messagesToProcess) {
                     if (item.attributes.uid <= lastUid) continue; // Defensive check
@@ -75,6 +78,15 @@ export async function GET(req: Request) {
                     
                     const attachments = await Promise.all(mail.attachments.map(async (att) => {
                       if (att.content) {
+                          if (att.content.length > ATTACHMENT_SIZE_LIMIT) {
+                            return {
+                                filename: sanitizeString(att.filename),
+                                contentType: sanitizeString(att.contentType),
+                                dataUrl: null, // Don't store large attachments
+                                size: att.size || null,
+                                error: 'File too large for preview cache.',
+                            };
+                          }
                           const dataUrl = `data:${sanitizeString(att.contentType)};base64,${att.content.toString('base64')}`;
                           return {
                             filename: sanitizeString(att.filename),
