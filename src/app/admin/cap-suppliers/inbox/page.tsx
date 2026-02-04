@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -366,7 +367,7 @@ export default function InboxPage() {
                             </div>
                             <div className="divide-y">
                             {emails.map((email) => {
-                                const displayableAttachments = email.attachments.filter(att => att.contentType !== 'image/png' && att.contentType !== 'image/jpeg');
+                                const displayableAttachments = email.attachments.filter(att => att.contentType === 'application/pdf');
                                 const attachmentsWithStatus = displayableAttachments.map(att => {
                                     const foundInvoice = invoices.find(inv => inv.fileName === att.filename && inv.sourceEmailUid === email.uid);
                                     return {
