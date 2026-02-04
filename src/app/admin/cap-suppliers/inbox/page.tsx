@@ -70,9 +70,7 @@ export default function InboxPage() {
     
     const handleProcessAttachments = useCallback(async (email: Email, reprocess = false) => {
         const processableAttachments = email.attachments.filter(att => 
-            att.contentType === 'application/pdf' ||
-            att.contentType === 'application/msword' ||
-            att.contentType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            att.contentType === 'application/pdf'
         );
 
         if (processableAttachments.length === 0) {
@@ -266,9 +264,7 @@ export default function InboxPage() {
         }
         
         const hasProcessableAttachment = email.attachments.some(a => 
-            a.contentType === 'application/pdf' ||
-            a.contentType === 'application/msword' ||
-            a.contentType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            a.contentType === 'application/pdf'
         );
         
         if (hasProcessableAttachment) {

@@ -1,3 +1,4 @@
+
 // /src/app/api/emails/process-attachments/route.ts
 import { NextResponse } from 'next/server';
 import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
@@ -72,9 +73,7 @@ export async function POST(req: Request) {
     const attachments = fullEmail.attachments.filter(att => att.dataUrl);
 
     const allowedContentTypes = [
-        'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        'application/pdf'
     ];
 
     const processableAttachments = attachments.filter(
