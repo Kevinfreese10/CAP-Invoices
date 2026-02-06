@@ -20,6 +20,7 @@ import EditInvoiceForm from '@/components/admin/cap-suppliers/EditInvoiceForm';
 import ManualInvoiceForm from '@/components/admin/cap-suppliers/ManualInvoiceForm';
 import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
 import { Input } from '@/components/ui/input';
+import { format, isPast, parseISO, endOfDay } from 'date-fns';
 
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
@@ -263,10 +264,26 @@ export default function SecondReviewPage() {
                     </TableHeader>
                     <TableBody>
                         {invoices.map((invoice) => {
+                            let isBatchDatePast = false;
+                            let batchDateLabel: string | undefined = undefined;
+
+                            if (invoice.paymentBatch) {
+                                try {
+                                    const parsedDate = parseISO(invoice.paymentBatch);
+                                    if (!isNaN(parsedDate.valueOf())) { // Check if date is valid
+                                        isBatchDatePast = isPast(endOfDay(parsedDate));
+                                        batchDateLabel = format(parsedDate, 'dd MMM yyyy');
+                                    }
+                                } catch (e) {
+                                    // Not a valid date string
+                                }
+                            }
+
                             const isApprovalDisabled = 
                                 !invoice.paymentBatch || 
+                                isBatchDatePast ||
                                 !invoice.expenseType || 
-                                !invoice.lineItems.some(item => !!item.accountId) || // Changed from .every to .some
+                                !invoice.lineItems.some(item => !!item.accountId) ||
                                 invoice.status === 'approved_for_payment';
                             
                             const amountPayable = calculatePayableAmount(invoice);
@@ -283,7 +300,9 @@ export default function SecondReviewPage() {
                                     <TableCell>{invoice.invoiceNumber}</TableCell>
                                     <TableCell>
                                         {invoice.paymentBatch ? (
-                                            <Badge variant="outline">{invoice.paymentBatch.replace(/_/g, ' ')}</Badge>
+                                            <Badge variant={isBatchDatePast ? 'destructive' : 'outline'}>
+                                                {batchDateLabel || invoice.paymentBatch.replace(/_/g, ' ')}
+                                            </Badge>
                                         ) : (
                                             <span className="text-muted-foreground text-xs">Not set</span>
                                         )}
@@ -351,5 +370,3 @@ export default function SecondReviewPage() {
     </div>
   );
 }
-
-    
