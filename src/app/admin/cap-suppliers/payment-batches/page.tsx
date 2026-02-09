@@ -37,7 +37,7 @@ type SupplierGroup = {
     hasDuplicates: boolean;
 };
 
-function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalAmount, totalPAYE, onDelete, onUploadPop, onEdit }: { title: string, invoices: ExtractedInvoice[], allInvoices: ExtractedInvoice[], totalAmount: number, totalPAYE: number, onDelete: (id: string, isArchive: boolean) => void, onUploadPop: (supplierName: string, file: File) => Promise<void>, onEdit: (invoice: ExtractedInvoice) => void }) {
+function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalAmount, totalPAYE, onDelete, onUploadPop, onEdit, batchKey }: { title: string, invoices: ExtractedInvoice[], allInvoices: ExtractedInvoice[], totalAmount: number, totalPAYE: number, onDelete: (id: string, isArchive: boolean) => void, onUploadPop: (supplierName: string, file: File, batchKey: string) => Promise<void>, onEdit: (invoice: ExtractedInvoice) => void, batchKey: string }) {
     const [openSupplier, setOpenSupplier] = useState<string | null>(null);
     const [uploadingPop, setUploadingPop] = useState<string | null>(null);
     const { toast } = useToast();
@@ -88,7 +88,7 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
         if (!file) return;
 
         setUploadingPop(supplierName);
-        await onUploadPop(supplierName, file);
+        await onUploadPop(supplierName, file, batchKey);
         setUploadingPop(null);
     };
 
@@ -225,7 +225,7 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
                     <TableBody>
                         {groupedBySupplier.map((group) => {
                             const isOpen = openSupplier === group.supplier;
-                            const hasPop = group.invoices.every(inv => !!inv.proofOfPaymentUrl);
+                            const hasPop = group.invoices.every(inv => inv.status === 'paid' && !!inv.proofOfPaymentUrl);
                             const popUrl = hasPop ? group.invoices[0].proofOfPaymentUrl : null;
 
                             return (
@@ -252,22 +252,25 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
                                                         <Download className="mr-2 h-4 w-4" /> Download Remittance
                                                     </DropdownMenuItem>
                                                     
-                                                     <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                                        <input
-                                                            type="file"
-                                                            id={`pop-upload-${group.supplier.replace(/\s/g, '-')}`}
-                                                            className="hidden"
-                                                            accept="application/pdf,image/*"
-                                                            onChange={(e) => handlePopUpload(group.supplier, e)}
-                                                        />
-                                                         <label htmlFor={`pop-upload-${group.supplier.replace(/\s/g, '-')}`} className="flex items-center cursor-pointer">
-                                                            <Upload className="mr-2 h-4 w-4" />
-                                                            {hasPop ? 'Re-upload POP' : 'Upload POP'}
-                                                         </label>
-                                                    </DropdownMenuItem>
-                                                     {hasPop && popUrl && (
+                                                     {hasPop && popUrl ? (
                                                         <DropdownMenuItem asChild>
-                                                            <a href={popUrl} target="_blank" rel="noopener noreferrer">View POP</a>
+                                                            <a href={popUrl} target="_blank" rel="noopener noreferrer" className="flex items-center cursor-pointer w-full">
+                                                                <Eye className="mr-2 h-4 w-4"/> View POP
+                                                            </a>
+                                                        </DropdownMenuItem>
+                                                    ) : (
+                                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                                            <input
+                                                                type="file"
+                                                                id={`pop-upload-${batchKey}-${group.supplier.replace(/\s/g, '-')}`}
+                                                                className="hidden"
+                                                                accept="application/pdf,image/*"
+                                                                onChange={(e) => handlePopUpload(group.supplier, e)}
+                                                            />
+                                                            <label htmlFor={`pop-upload-${batchKey}-${group.supplier.replace(/\s/g, '-')}`} className="flex items-center cursor-pointer w-full">
+                                                                <Upload className="mr-2 h-4 w-4" />
+                                                                Upload POP
+                                                            </label>
                                                         </DropdownMenuItem>
                                                     )}
                                                 </DropdownMenuContent>
@@ -424,10 +427,15 @@ export default function PaymentBatchesPage() {
         }
     };
 
-    const handleUploadPop = async (supplierName: string, file: File) => {
-        const invoicesToUpdate = invoices.filter(inv => inv.supplier === supplierName && inv.status === 'batched_for_payment');
+    const handleUploadPop = async (supplierName: string, file: File, batchKey: string) => {
+        const invoicesToUpdate = invoices.filter(inv => 
+            inv.supplier === supplierName && 
+            inv.paymentBatch === batchKey &&
+            inv.status === 'batched_for_payment'
+        );
+
         if (invoicesToUpdate.length === 0) {
-            toast({ title: 'No invoices found for supplier', variant: 'destructive' });
+            toast({ title: 'No invoices found for supplier in this batch', variant: 'destructive' });
             return;
         }
 
@@ -515,6 +523,7 @@ export default function PaymentBatchesPage() {
             return {
                 title,
                 batchDate,
+                batchKey,
                 capTotal: capTotals.totalPayable,
                 capPAYE: capTotals.totalPAYE,
                 s38Total: s38Totals.totalPayable,
@@ -566,6 +575,7 @@ export default function PaymentBatchesPage() {
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
                                     <PaymentBatchTable 
                                         title="CAP Expenses"
+                                        batchKey={batch.batchKey}
                                         invoices={batch.CAP}
                                         allInvoices={invoices}
                                         totalAmount={batch.capTotal}
@@ -576,6 +586,7 @@ export default function PaymentBatchesPage() {
                                     />
                                     <PaymentBatchTable 
                                         title="S38 Expenses"
+                                        batchKey={batch.batchKey}
                                         invoices={batch.S38}
                                         allInvoices={invoices}
                                         totalAmount={batch.s38Total}
