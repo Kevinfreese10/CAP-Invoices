@@ -37,7 +37,7 @@ type SupplierGroup = {
     hasDuplicates: boolean;
 };
 
-function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalAmount, totalPAYE, onDelete, onUploadPop, onEdit, batchKey }: { title: string, invoices: ExtractedInvoice[], allInvoices: ExtractedInvoice[], totalAmount: number, totalPAYE: number, onDelete: (id: string, isArchive: boolean) => void, onUploadPop: (supplierName: string, file: File, batchKey: string) => Promise<void>, onEdit: (invoice: ExtractedInvoice) => void, batchKey: string }) {
+function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalAmount, totalPAYE, onDelete, onUploadPop, onEdit, batchKey, onRemovePop }: { title: string, invoices: ExtractedInvoice[], allInvoices: ExtractedInvoice[], totalAmount: number, totalPAYE: number, onDelete: (id: string, isArchive: boolean) => void, onUploadPop: (supplierName: string, file: File, batchKey: string) => Promise<void>, onEdit: (invoice: ExtractedInvoice) => void, batchKey: string, onRemovePop: (supplierName: string, batchKey: string) => Promise<void> }) {
     const [openSupplier, setOpenSupplier] = useState<string | null>(null);
     const [uploadingPop, setUploadingPop] = useState<string | null>(null);
     const { toast } = useToast();
@@ -253,11 +253,34 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
                                                     </DropdownMenuItem>
                                                     
                                                      {hasPop && popUrl ? (
-                                                        <DropdownMenuItem asChild>
-                                                            <a href={popUrl} target="_blank" rel="noopener noreferrer" className="flex items-center cursor-pointer w-full">
-                                                                <Eye className="mr-2 h-4 w-4"/> View POP
-                                                            </a>
-                                                        </DropdownMenuItem>
+                                                        <>
+                                                            <DropdownMenuItem asChild>
+                                                                <a href={popUrl} target="_blank" rel="noopener noreferrer" className="flex items-center cursor-pointer w-full">
+                                                                    <Eye className="mr-2 h-4 w-4"/> View POP
+                                                                </a>
+                                                            </DropdownMenuItem>
+                                                            <AlertDialog>
+                                                                <AlertDialogTrigger asChild>
+                                                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                                                        <Trash2 className="mr-2 h-4 w-4" /> Remove POP
+                                                                    </DropdownMenuItem>
+                                                                </AlertDialogTrigger>
+                                                                <AlertDialogContent>
+                                                                    <AlertDialogHeader>
+                                                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                                        <AlertDialogDescription>
+                                                                            This will remove the proof of payment for {group.supplier} for this batch. The invoices will be marked as "Batched for Payment" again.
+                                                                        </AlertDialogDescription>
+                                                                    </AlertDialogHeader>
+                                                                    <AlertDialogFooter>
+                                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                        <AlertDialogAction onClick={() => onRemovePop(group.supplier, batchKey)}>
+                                                                            Yes, Remove POP
+                                                                        </AlertDialogAction>
+                                                                    </AlertDialogFooter>
+                                                                </AlertDialogContent>
+                                                            </AlertDialog>
+                                                        </>
                                                     ) : (
                                                         <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                                                             <input
@@ -459,6 +482,35 @@ export default function PaymentBatchesPage() {
             toast({ title: 'Upload Failed', description: 'Could not upload the proof of payment.', variant: 'destructive'});
         }
     };
+
+    const handleRemovePop = async (supplierName: string, batchKey: string) => {
+        const invoicesToUpdate = invoices.filter(inv =>
+            inv.supplier === supplierName &&
+            inv.paymentBatch === batchKey &&
+            inv.status === 'paid'
+        );
+
+        if (invoicesToUpdate.length === 0) {
+            toast({ title: 'No paid invoices found for this supplier in this batch', variant: 'destructive' });
+            return;
+        }
+
+        try {
+            const batch = writeBatch(db);
+            invoicesToUpdate.forEach(invoice => {
+                const docRef = doc(db, 'extractedInvoices', invoice.id);
+                batch.update(docRef, { proofOfPaymentUrl: null, status: 'batched_for_payment' });
+            });
+            await batch.commit();
+
+            toast({ title: 'Proof of Payment Removed', description: `POP for ${supplierName} has been removed and invoices are now ready for payment again.`});
+            fetchInvoices();
+
+        } catch (error) {
+            console.error('Error removing POP:', error);
+            toast({ title: 'Removal Failed', description: 'Could not remove the proof of payment.', variant: 'destructive'});
+        }
+    };
     
     const weeklyBatches = useMemo(() => {
         const batches: { [week: string]: { CAP: ExtractedInvoice[], S38: ExtractedInvoice[] } } = {};
@@ -583,6 +635,7 @@ export default function PaymentBatchesPage() {
                                         onDelete={handleRemoveFromBatch}
                                         onUploadPop={handleUploadPop}
                                         onEdit={setEditingInvoice}
+                                        onRemovePop={handleRemovePop}
                                     />
                                     <PaymentBatchTable 
                                         title="S38 Expenses"
@@ -594,6 +647,7 @@ export default function PaymentBatchesPage() {
                                         onDelete={handleRemoveFromBatch}
                                         onUploadPop={handleUploadPop}
                                         onEdit={setEditingInvoice}
+                                        onRemovePop={handleRemovePop}
                                     />
                                 </div>
                             </CollapsibleContent>
