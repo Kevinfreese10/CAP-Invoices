@@ -36,7 +36,7 @@ interface Email {
     from: string;
     subject: string;
     date: string;
-    body: string;
+    body: string | null;
     attachments: Attachment[];
     isProcessed?: boolean;
 }

@@ -89,7 +89,7 @@ export async function GET(req: Request) {
                       from: sanitizeString(mail.from?.text),
                       subject: sanitizeString(mail.subject),
                       date: mail.date?.toISOString() || new Date().toISOString(),
-                      body: sanitizeString(mail.html || mail.textAsHtml),
+                      body: null, // Do not store the body to prevent size limit issues
                       attachments: attachments,
                       createdAt: serverTimestamp(),
                       processedAction: null,
