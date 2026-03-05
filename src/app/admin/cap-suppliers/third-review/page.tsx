@@ -10,7 +10,7 @@ import { Loader2, CheckCircle, MoreHorizontal, Edit, PlusCircle, FileCheck2, Sav
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ExtractedInvoice } from '@/lib/types';
-import { capChartOfAccounts, s38ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
+import { capChartOfAccounts, s38ChartOfAccounts, s39ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -30,7 +30,7 @@ import { Textarea } from '@/components/ui/textarea';
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
 
-const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts];
+const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts, ...s39ChartOfAccounts];
 
 const ledgerExamples: { [key: string]: string } = {
     '1038-01': 'R&D - Skid Testing - Volkswagen SA - 21/05/2025 @ R4675 x 1 day',
@@ -622,4 +622,3 @@ export default function ThirdReviewPage() {
         </div>
     );
 }
-

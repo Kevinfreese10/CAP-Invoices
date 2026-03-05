@@ -11,7 +11,7 @@ import { ExtractedInvoice } from '@/lib/types';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { capChartOfAccounts, s38ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
+import { capChartOfAccounts, s38ChartOfAccounts, s39ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 import { format, parse } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import * as XLSX from 'xlsx';
@@ -21,7 +21,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 
 
 const db = getFirestore(firebaseApp);
-const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts];
+const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts, ...s39ChartOfAccounts];
 
 type GroupedLineItem = ExtractedInvoice['lineItems'][0] & {
     invoiceId: string;

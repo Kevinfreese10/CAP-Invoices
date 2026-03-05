@@ -15,7 +15,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from '@/components/ui/checkbox';
 import { DialogFooter } from '@/components/ui/dialog';
 import { Trash2, ChevronsUpDown } from 'lucide-react';
-import { s38ChartOfAccounts, capChartOfAccounts } from '@/lib/cap-chart-of-accounts';
+import { s38ChartOfAccounts, capChartOfAccounts, s39ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 import { ExtractedInvoice } from '@/lib/types';
 import { format, addDays, eachDayOfInterval, endOfMonth, isFriday, getMonth, isLastDayOfMonth, addMonths, endOfYear, startOfYear, getYear } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -39,7 +39,7 @@ const formSchema = z.object({
   date: z.string().min(1, "Date is required"),
   lineItems: z.array(lineItemSchema),
   invoiceTotal: z.preprocess((val) => Number(val), z.number()),
-  expenseType: z.enum(['CAP', 'S38']).optional(),
+  expenseType: z.enum(['CAP', 'S38', 'S39']).optional(),
   paymentBatch: z.string().optional(),
   note: z.string().optional(),
 });
@@ -139,7 +139,11 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice
         name: 'expenseType',
     });
 
-    const chartOfAccounts = expenseType === 'S38' ? s38ChartOfAccounts : capChartOfAccounts;
+    const chartOfAccounts = expenseType === 'S38' 
+        ? s38ChartOfAccounts 
+        : expenseType === 'S39' 
+        ? s39ChartOfAccounts 
+        : capChartOfAccounts;
     
     const controlTotal = useMemo(() => {
         return (watchedLineItems || []).reduce((acc, item) => {
@@ -185,11 +189,15 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice
                                 >
                                 <FormItem className="flex items-center space-x-2 space-y-0">
                                     <FormControl><RadioGroupItem value="CAP" /></FormControl>
-                                    <FormLabel className="font-normal">CAP Expense</FormLabel>
+                                    <FormLabel className="font-normal">CAP</FormLabel>
                                 </FormItem>
                                 <FormItem className="flex items-center space-x-2 space-y-0">
                                     <FormControl><RadioGroupItem value="S38" /></FormControl>
-                                    <FormLabel className="font-normal">S38 Expense</FormLabel>
+                                    <FormLabel className="font-normal">S38</FormLabel>
+                                </FormItem>
+                                <FormItem className="flex items-center space-x-2 space-y-0">
+                                    <FormControl><RadioGroupItem value="S39" /></FormControl>
+                                    <FormLabel className="font-normal">S39</FormLabel>
                                 </FormItem>
                                 </RadioGroup>
                             </FormControl>

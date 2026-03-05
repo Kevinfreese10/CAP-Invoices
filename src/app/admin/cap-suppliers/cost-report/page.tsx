@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown } from 'lucide-react';
-import { capChartOfAccounts, s38ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
+import { capChartOfAccounts, s38ChartOfAccounts, s39ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 import { Checkbox } from '@/components/ui/checkbox';
 import EditInvoiceForm from '@/components/admin/cap-suppliers/EditInvoiceForm';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -25,7 +25,7 @@ import { useToast } from '@/hooks/use-toast';
 
 
 const db = getFirestore(firebaseApp);
-const allAccounts = [...s38ChartOfAccounts, ...capChartOfAccounts];
+const allAccounts = [...s38ChartOfAccounts, ...capChartOfAccounts, ...s39ChartOfAccounts];
 
 function MultiSelectFilter({ title, options, selectedValues, setSelectedValues }: { title: string, options: string[], selectedValues: string[], setSelectedValues: (values: string[]) => void }) {
     const [open, setOpen] = useState(false);

@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { ExtractedInvoice, User } from '@/lib/types';
-import { capChartOfAccounts, s38ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
+import { capChartOfAccounts, s38ChartOfAccounts, s39ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -18,7 +18,7 @@ import EditInvoiceForm from '@/components/admin/cap-suppliers/EditInvoiceForm';
 
 
 const db = getFirestore(firebaseApp);
-const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts];
+const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts, ...s39ChartOfAccounts];
 
 export default function AccountReviewPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
