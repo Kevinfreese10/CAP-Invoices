@@ -20,14 +20,14 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import EditInvoiceForm from '@/components/admin/cap-suppliers/EditInvoiceForm';
 import * as XLSX from 'xlsx';
-import { capChartOfAccounts, s38ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
+import { capChartOfAccounts, s38ChartOfAccounts, s39ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Badge } from '@/components/ui/badge';
 
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
 
-const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts];
+const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts, ...s39ChartOfAccounts];
 
 type SupplierGroup = {
     supplier: string;
@@ -513,18 +513,21 @@ export default function PaymentBatchesPage() {
     };
     
     const weeklyBatches = useMemo(() => {
-        const batches: { [week: string]: { CAP: ExtractedInvoice[], S38: ExtractedInvoice[] } } = {};
+        const batches: { [week: string]: { CAP: ExtractedInvoice[], S38: ExtractedInvoice[], S39: ExtractedInvoice[] } } = {};
         
         const currentBatches = invoices.filter(inv => inv.status === 'batched_for_payment' || inv.status === 'paid');
 
         currentBatches.forEach(inv => {
             const batchKey = inv.paymentBatch || 'Uncategorized';
             if (!batches[batchKey]) {
-                batches[batchKey] = { CAP: [], S38: [] };
+                batches[batchKey] = { CAP: [], S38: [], S39: [] };
             }
             if (inv.expenseType === 'CAP') {
                 batches[batchKey].CAP.push(inv);
-            } else { // S38 or undefined
+            } else if (inv.expenseType === 'S39') {
+                batches[batchKey].S39.push(inv);
+            }
+            else { // S38 or undefined
                 batches[batchKey].S38.push(inv);
             }
         });
@@ -571,6 +574,7 @@ export default function PaymentBatchesPage() {
             
             const capTotals = calculateTotals(expenseGroups.CAP);
             const s38Totals = calculateTotals(expenseGroups.S38);
+            const s39Totals = calculateTotals(expenseGroups.S39);
 
             return {
                 title,
@@ -580,6 +584,8 @@ export default function PaymentBatchesPage() {
                 capPAYE: capTotals.totalPAYE,
                 s38Total: s38Totals.totalPayable,
                 s38PAYE: s38Totals.totalPAYE,
+                s39Total: s39Totals.totalPayable,
+                s39PAYE: s39Totals.totalPAYE,
                 ...expenseGroups,
             };
         });
@@ -613,7 +619,7 @@ export default function PaymentBatchesPage() {
                 <div className="space-y-6">
                     {weeklyBatches.map((batch, index) => {
                         const isBatchInPast = batch.batchDate ? isPast(endOfDay(batch.batchDate)) : false;
-                        const hasPAYE = batch.capPAYE > 0 || batch.s38PAYE > 0;
+                        const hasPAYE = batch.capPAYE > 0 || batch.s38PAYE > 0 || batch.s39PAYE > 0;
                         return(
                         <Collapsible key={index} defaultOpen={!isBatchInPast}>
                              <CollapsibleTrigger className="w-full">
@@ -624,7 +630,7 @@ export default function PaymentBatchesPage() {
                                 </div>
                              </CollapsibleTrigger>
                              <CollapsibleContent className="space-y-8 p-4 border-x border-b rounded-b-lg">
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                                <div className="grid grid-cols-1 xl:grid-cols-3 lg:grid-cols-2 gap-8 items-start">
                                     <PaymentBatchTable 
                                         title="CAP Expenses"
                                         batchKey={batch.batchKey}
@@ -644,6 +650,18 @@ export default function PaymentBatchesPage() {
                                         allInvoices={invoices}
                                         totalAmount={batch.s38Total}
                                         totalPAYE={batch.s38PAYE}
+                                        onDelete={handleRemoveFromBatch}
+                                        onUploadPop={handleUploadPop}
+                                        onEdit={setEditingInvoice}
+                                        onRemovePop={handleRemovePop}
+                                    />
+                                     <PaymentBatchTable 
+                                        title="S39 Expenses"
+                                        batchKey={batch.batchKey}
+                                        invoices={batch.S39}
+                                        allInvoices={invoices}
+                                        totalAmount={batch.s39Total}
+                                        totalPAYE={batch.s39PAYE}
                                         onDelete={handleRemoveFromBatch}
                                         onUploadPop={handleUploadPop}
                                         onEdit={setEditingInvoice}
