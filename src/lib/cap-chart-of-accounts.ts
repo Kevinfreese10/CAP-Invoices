@@ -35,6 +35,7 @@ export const s38ChartOfAccounts: CapChartOfAccount[] = [
     { accountNumber: '1161-03', description: 'Voice Overs - Inserts' },
     { accountNumber: '1161-04', description: 'Voice Overs - Throwforwards & Updates' },
     { accountNumber: '1166-01', description: 'On Camera training' },
+    { accountNumber: '1206-01', description: 'Music Producer' },
     { accountNumber: '2023-01', description: 'Production Manager - Broadcast & Finance' },
     { accountNumber: '2023-02', description: 'Production Manager - Shoots, Travel & Crew' },
     { accountNumber: '2024-01', description: 'Production Co-Ordinator - Broadcast & Production' },
