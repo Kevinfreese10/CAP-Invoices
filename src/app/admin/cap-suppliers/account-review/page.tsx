@@ -15,6 +15,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import EditInvoiceForm from '@/components/admin/cap-suppliers/EditInvoiceForm';
+import { format } from 'date-fns';
 
 
 const db = getFirestore(firebaseApp);
@@ -117,6 +118,7 @@ export default function AccountReviewPage() {
                                     <CardTitle>{invoice.supplier}</CardTitle>
                                     <CardDescription>
                                         Invoice #: {invoice.invoiceNumber} | Commission #: {invoice.commissionNumber || 'N/A'} | Allocated by: <span className="font-semibold">{getApproverName(invoice.approvedBy)}</span>
+                                        {invoice.paymentBatch && ` | Payment Batch: ${format(new Date(invoice.paymentBatch), 'dd MMMM yyyy')}`}
                                     </CardDescription>
                                 </div>
                                 <div className="flex items-center gap-2">
