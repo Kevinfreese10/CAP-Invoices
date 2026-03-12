@@ -277,6 +277,7 @@ export default function ThirdReviewPage() {
                 commissionNumber: data.commissionNumber || null,
                 paymentBatch: data.paymentBatch || null,
                 expenseType: data.expenseType || null,
+                note: data.note || null,
             };
             await updateDoc(docRef, dataToSave);
             toast({ title: 'Invoice Updated', description: 'Your changes have been saved.' });

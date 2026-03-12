@@ -66,7 +66,14 @@ export default function AccountReviewPage() {
      const handleSave = async (id: string, data: any) => {
         try {
             const docRef = doc(db, 'extractedInvoices', id);
-            await updateDoc(docRef, data);
+             const dataToSave = {
+                ...data,
+                commissionNumber: data.commissionNumber || null,
+                paymentBatch: data.paymentBatch || null,
+                expenseType: data.expenseType || null,
+                note: data.note || null,
+            };
+            await updateDoc(docRef, dataToSave);
             toast({ title: 'Invoice Updated', description: 'Your changes have been saved.' });
             setEditingInvoice(null);
             fetchInvoices();

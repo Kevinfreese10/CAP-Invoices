@@ -395,7 +395,14 @@ export default function ReviewPage() {
     const handleSave = async (id: string, data: any) => {
         try {
             const docRef = doc(db, 'extractedInvoices', id);
-            await updateDoc(docRef, data);
+             const dataToSave = {
+                ...data,
+                commissionNumber: data.commissionNumber || null,
+                paymentBatch: data.paymentBatch || null,
+                expenseType: data.expenseType || null,
+                note: data.note || null,
+            };
+            await updateDoc(docRef, dataToSave);
 
             const supplier = data.supplier;
             const supplierRule = globalRules.find(r => r.keywords.includes(supplier.toLowerCase()) && r.accountId === 'supplier_vat_rule');
