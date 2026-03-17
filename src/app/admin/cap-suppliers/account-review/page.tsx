@@ -66,7 +66,14 @@ function AIExtractUploadDialog({ onUploadComplete }: { onUploadComplete: () => v
             const result = await extractInvoiceData({ invoiceImage: dataUrl });
 
              if (!result || !result.supplier || !result.invoiceNumber) {
-                throw new Error('AI could not extract required fields from the invoice.');
+                toast({
+                    title: 'Extraction Failed',
+                    description: 'The AI could not read the required details from the invoice. Please try a clearer image or use the manual upload.',
+                    variant: 'destructive',
+                    duration: 9000,
+                });
+                setIsExtracting(false);
+                return;
             }
             
             // 4. Save to Firestore with a status of 'approved' to appear on this page.
