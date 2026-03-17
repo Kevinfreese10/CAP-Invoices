@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { getFirestore, collection, getDocs, query, orderBy, where, doc, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download, MoreHorizontal, Edit, AlertTriangle, Eye, Archive, UserShield } from 'lucide-react';
+import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download, MoreHorizontal, Edit, AlertTriangle, Eye, Archive, Shield } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ExtractedInvoice, User } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -652,7 +652,7 @@ export default function PaymentBatchesPage() {
                          <Collapsible defaultOpen>
                             <CollapsibleTrigger className="w-full">
                                 <div className="flex items-center gap-2 p-3 bg-destructive/10 rounded-t-lg border border-destructive/20 text-destructive">
-                                    <UserShield className="h-5 w-5" />
+                                    <Shield className="h-5 w-5" />
                                     <h2 className="text-xl font-bold">Private & Confidential</h2>
                                 </div>
                              </CollapsibleTrigger>
