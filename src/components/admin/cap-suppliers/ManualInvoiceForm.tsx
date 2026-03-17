@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -26,7 +25,6 @@ const formSchema = z.object({
   lineItems: z.array(lineItemSchema),
   invoiceTotal: z.preprocess((val) => Number(val), z.number()),
   file: z.any().refine((files) => files?.length === 1, 'File is required.'),
-  isPrivate: z.boolean().default(false),
 });
 
 export default function ManualInvoiceForm({ onSave, onCancel }: { onSave: (data: any, file: File) => void, onCancel: () => void }) {
@@ -38,7 +36,6 @@ export default function ManualInvoiceForm({ onSave, onCancel }: { onSave: (data:
         date: '',
         lineItems: [{ description: '', exclusiveAmount: 0, vatAmount: 0 }],
         invoiceTotal: 0,
-        isPrivate: false,
     }
   });
 
@@ -60,8 +57,7 @@ export default function ManualInvoiceForm({ onSave, onCancel }: { onSave: (data:
             <FormField control={form.control} name="invoiceNumber" render={({ field }) => ( <FormItem><FormLabel>Invoice Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
         </div>
         <FormField control={form.control} name="date" render={({ field }) => ( <FormItem><FormLabel>Date (YYYY-MM-DD)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-        <FormField control={form.control} name="isPrivate" render={({ field }) => ( <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><div className="space-y-1 leading-none"><FormLabel>Private Invoice</FormLabel><FormMessage /><p className="text-xs text-muted-foreground">If checked, this invoice will only be visible in the private batch.</p></div></FormItem> )} />
-
+        
         <h4 className="font-medium">Line Items</h4>
         <div className="space-y-2">
           {fields.map((field, index) => (

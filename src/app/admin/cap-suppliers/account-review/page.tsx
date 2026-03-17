@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -146,20 +145,15 @@ function ManualUploadDialog({ onUploadComplete }: { onUploadComplete: () => void
                 fileUrl: downloadURL,
                 uploadedBy: 'manual_upload',
                 createdAt: serverTimestamp(),
+                status: 'batched_for_payment',
+                paymentBatch: 'private',
+                note: 'Manually added as a private invoice.',
+                isPrivate: true,
             };
-            
-            if(data.isPrivate) {
-                invoiceData.status = 'batched_for_payment';
-                invoiceData.paymentBatch = 'private';
-                invoiceData.note = 'Manually added as a private invoice.';
-            } else {
-                invoiceData.status = 'approved';
-                invoiceData.note = 'Manually added to control sheet.';
-            }
 
             await addDoc(collection(db, "extractedInvoices"), invoiceData);
 
-            toast({ title: 'Upload Successful', description: 'The invoice has been added.' });
+            toast({ title: 'Upload Successful', description: 'The invoice has been added to the private batch.' });
             onUploadComplete();
             setIsOpen(false);
         } catch (error) {
@@ -179,7 +173,7 @@ function ManualUploadDialog({ onUploadComplete }: { onUploadComplete: () => void
             <DialogContent className="sm:max-w-4xl">
                 <DialogHeader>
                     <DialogTitle>Manual Invoice Upload</DialogTitle>
-                    <DialogDescription>Enter the invoice details manually. This is useful for invoices the AI cannot read.</DialogDescription>
+                    <DialogDescription>Enter the invoice details manually. This will add it directly to the private & confidential payment batch.</DialogDescription>
                 </DialogHeader>
                 <ManualInvoiceForm onSave={handleSave} onCancel={() => setIsOpen(false)} />
             </DialogContent>

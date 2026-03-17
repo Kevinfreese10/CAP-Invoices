@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -456,8 +455,8 @@ export default function ReviewPage() {
         if (!user) return;
         try {
             const docRef = doc(db, 'extractedInvoices', id);
-            await updateDoc(docRef, { status: 'approved', approvedBy: user.uid });
-            toast({ title: 'Invoice Approved', description: 'The invoice has been moved to the control sheet.' });
+            await updateDoc(docRef, { status: 'pending_account_review', approvedBy: user.uid });
+            toast({ title: 'Invoice Approved', description: 'The invoice has been moved to Account Review.' });
             fetchInvoicesAndRules();
         } catch (error) {
             toast({ title: 'Error', description: 'Could not approve the invoice.', variant: 'destructive'});
