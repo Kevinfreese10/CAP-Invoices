@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -6,9 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { getFirestore, collection, getDocs, query, orderBy, where, doc, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download, MoreHorizontal, Edit, AlertTriangle, Eye, Archive } from 'lucide-react';
+import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download, MoreHorizontal, Edit, AlertTriangle, Eye, Archive, UserShield } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ExtractedInvoice } from '@/lib/types';
+import { ExtractedInvoice, User } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -23,6 +24,8 @@ import * as XLSX from 'xlsx';
 import { capChartOfAccounts, s38ChartOfAccounts, s39ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/contexts/AuthContext';
+
 
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
@@ -399,6 +402,7 @@ export default function PaymentBatchesPage() {
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
+    const { user } = useAuth();
 
     const fetchInvoices = async () => {
         setIsLoading(true);
@@ -522,7 +526,7 @@ export default function PaymentBatchesPage() {
     const weeklyBatches = useMemo(() => {
         const batches: { [week: string]: { CAP: ExtractedInvoice[], S38: ExtractedInvoice[], S39: ExtractedInvoice[] } } = {};
         
-        const currentBatches = invoices.filter(inv => inv.status === 'batched_for_payment' || inv.status === 'paid');
+        const currentBatches = invoices.filter(inv => (inv.status === 'batched_for_payment' || inv.status === 'paid') && inv.isPrivate !== true);
 
         currentBatches.forEach(inv => {
             const batchKey = inv.paymentBatch || 'Uncategorized';
@@ -604,6 +608,28 @@ export default function PaymentBatchesPage() {
         });
 
     }, [invoices]);
+    
+     const privateBatch = useMemo(() => {
+        const privateInvoices = invoices.filter(inv => inv.isPrivate === true);
+        const { totalPayable, totalPAYE } = privateInvoices.reduce((acc, inv) => {
+            const { payableAmount, payeAmount } = inv.lineItems.reduce((lineAcc, item) => {
+                const lineValue = item.exclusiveAmount + item.vatAmount;
+                const payeDeduction = item.paye ? lineValue * 0.25 : 0;
+                lineAcc.payableAmount += lineValue - payeDeduction;
+                lineAcc.payeAmount += payeDeduction;
+                return lineAcc;
+            }, { payableAmount: 0, payeAmount: 0 });
+            acc.totalPayable += payableAmount;
+            acc.totalPAYE += payeAmount;
+            return acc;
+        }, { totalPayable: 0, totalPAYE: 0 });
+        
+        return {
+            invoices: privateInvoices,
+            total: totalPayable,
+            paye: totalPAYE,
+        };
+    }, [invoices]);
 
 
     return (
@@ -620,11 +646,35 @@ export default function PaymentBatchesPage() {
                 <div className="flex justify-center items-center h-64">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
-            ) : weeklyBatches.length === 0 ? (
-                 <p className="text-center text-muted-foreground py-10">No payment batches found.</p>
             ) : (
                 <div className="space-y-6">
-                    {weeklyBatches.map((batch, index) => {
+                    {(user?.role === 'admin' || user?.role === 'cap_supervisor') && privateBatch.invoices.length > 0 && (
+                         <Collapsible defaultOpen>
+                            <CollapsibleTrigger className="w-full">
+                                <div className="flex items-center gap-2 p-3 bg-destructive/10 rounded-t-lg border border-destructive/20 text-destructive">
+                                    <UserShield className="h-5 w-5" />
+                                    <h2 className="text-xl font-bold">Private & Confidential</h2>
+                                </div>
+                             </CollapsibleTrigger>
+                             <CollapsibleContent className="space-y-8 p-4 border-x border-b border-destructive/20 rounded-b-lg">
+                                <PaymentBatchTable 
+                                    title="Private & Confidential"
+                                    batchKey="private"
+                                    invoices={privateBatch.invoices}
+                                    allInvoices={invoices}
+                                    totalAmount={privateBatch.total}
+                                    totalPAYE={privateBatch.paye}
+                                    onDelete={handleRemoveFromBatch}
+                                    onUploadPop={handleUploadPop}
+                                    onEdit={setEditingInvoice}
+                                    onRemovePop={handleRemovePop}
+                                />
+                             </CollapsibleContent>
+                        </Collapsible>
+                    )}
+                    {weeklyBatches.length === 0 ? (
+                         <p className="text-center text-muted-foreground py-10">No payment batches found.</p>
+                    ) : weeklyBatches.map((batch, index) => {
                         const isBatchInPast = batch.batchDate ? isPast(endOfDay(batch.batchDate)) : false;
                         const hasPAYE = batch.capPAYE > 0 || batch.s38PAYE > 0 || batch.s39PAYE > 0;
                         return(

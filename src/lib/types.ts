@@ -345,7 +345,7 @@ export type ExtractedInvoice = {
   uploadedBy: string;
   approvedBy?: string;
   rejectedBy?: string;
-  expenseType?: 'CAP' | 'S38';
+  expenseType?: 'CAP' | 'S38' | 'S39';
   commissionNumber?: string;
   storyName?: string;
   rejectionReason?: string;
@@ -355,6 +355,7 @@ export type ExtractedInvoice = {
   note?: string;
   deletedBy?: string;
   deletedAt?: any;
+  isPrivate?: boolean;
 };
 
 export type CommunityQuestion = {

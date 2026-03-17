@@ -14,7 +14,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { s38ChartOfAccounts, capChartOfAccounts } from '@/lib/cap-chart-of-accounts';
+import { s38ChartOfAccounts, capChartOfAccounts, s39ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 import { ExtractedInvoice } from '@/lib/types';
 import EditInvoiceForm from '@/components/admin/cap-suppliers/EditInvoiceForm';
 import ManualInvoiceForm from '@/components/admin/cap-suppliers/ManualInvoiceForm';
@@ -25,7 +25,7 @@ import { format, isPast, parseISO, endOfDay } from 'date-fns';
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
 
-const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts];
+const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts, ...s39ChartOfAccounts];
 
 
 function AIExtractUploadDialog({ onUploadComplete }: { onUploadComplete: () => void }) {
@@ -77,14 +77,14 @@ function AIExtractUploadDialog({ onUploadComplete }: { onUploadComplete: () => v
                 ...result,
                 fileName: file.name,
                 fileUrl: downloadURL,
-                status: 'approved',
+                status: 'pending_review', // Go to review first
                 uploadedBy: 'manual_ai_upload',
                 createdAt: serverTimestamp(),
             };
 
             await addDoc(collection(db, "extractedInvoices"), invoiceData);
 
-            toast({ title: 'Upload Successful', description: 'The invoice has been extracted and added to this sheet.' });
+            toast({ title: 'Upload Successful', description: 'The invoice has been extracted and sent for review.' });
             onUploadComplete();
             setFile(null);
             setIsOpen(false);
@@ -100,15 +100,15 @@ function AIExtractUploadDialog({ onUploadComplete }: { onUploadComplete: () => v
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                 <Button>
+                 <Button variant="outline">
                     <PlusCircle className="mr-2 h-4 w-4" />
-                    Upload Invoice
+                    Upload with AI
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle>Upload Invoice (AI Extraction)</DialogTitle>
-                    <DialogDescription>Select an invoice PDF or image. The AI will extract the details and add it directly to this sheet.</DialogDescription>
+                    <DialogDescription>Select an invoice PDF or image. The AI will extract the details and send it for review.</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                     <Input id="invoice-file" type="file" accept="application/pdf,image/*" onChange={handleFileChange} />
@@ -123,6 +123,64 @@ function AIExtractUploadDialog({ onUploadComplete }: { onUploadComplete: () => v
             </DialogContent>
         </Dialog>
     );
+}
+
+function ManualUploadDialog({ onUploadComplete }: { onUploadComplete: () => void }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const { toast } = useToast();
+
+    const handleSave = async (data: any, file: File) => {
+        toast({ title: 'Uploading Invoice...', description: 'Please wait.' });
+        try {
+            const storageRef = ref(storage, `invoices/manual/${Date.now()}-${file.name}`);
+            const uploadResult = await uploadBytes(storageRef, file);
+            const downloadURL = await getDownloadURL(uploadResult.ref);
+
+            const invoiceData = {
+                ...data,
+                fileName: file.name,
+                fileUrl: downloadURL,
+                uploadedBy: 'manual_upload',
+                createdAt: serverTimestamp(),
+            };
+            
+            if(data.isPrivate) {
+                invoiceData.status = 'batched_for_payment';
+                invoiceData.paymentBatch = 'private';
+                invoiceData.note = 'Manually added as a private invoice.';
+            } else {
+                invoiceData.status = 'approved';
+                invoiceData.note = 'Manually added to control sheet.';
+            }
+
+            await addDoc(collection(db, "extractedInvoices"), invoiceData);
+
+            toast({ title: 'Upload Successful', description: 'The invoice has been added.' });
+            onUploadComplete();
+            setIsOpen(false);
+        } catch (error) {
+            console.error("Manual upload error:", error);
+            toast({ title: 'Upload Failed', description: 'Could not save the invoice.', variant: 'destructive' });
+        }
+    };
+    
+    return (
+         <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                 <Button>
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Manual Upload
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-4xl">
+                <DialogHeader>
+                    <DialogTitle>Manual Invoice Upload</DialogTitle>
+                    <DialogDescription>Enter the invoice details manually. This is useful for invoices the AI cannot read.</DialogDescription>
+                </DialogHeader>
+                <ManualInvoiceForm onSave={handleSave} onCancel={() => setIsOpen(false)} />
+            </DialogContent>
+        </Dialog>
+    )
 }
 
 export default function SecondReviewPage() {
@@ -232,7 +290,10 @@ export default function SecondReviewPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">2nd Review</h1>
-        <AIExtractUploadDialog onUploadComplete={fetchInvoices} />
+        <div className="flex gap-2">
+            <AIExtractUploadDialog onUploadComplete={fetchInvoices} />
+            <ManualUploadDialog onUploadComplete={fetchInvoices} />
+        </div>
       </div>
       <Card>
         <CardHeader>
