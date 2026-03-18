@@ -530,6 +530,11 @@ export default function PaymentBatchesPage() {
 
         currentBatches.forEach(inv => {
             const batchKey = inv.paymentBatch || 'Uncategorized';
+            
+            if (batchKey === 'private') {
+                return;
+            }
+
             if (!batches[batchKey]) {
                 batches[batchKey] = { CAP: [], S38: [], S39: [] };
             }
