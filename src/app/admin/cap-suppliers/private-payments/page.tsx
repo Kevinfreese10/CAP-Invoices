@@ -541,35 +541,49 @@ export default function PrivatePaymentsPage() {
     };
     
     const privateAndUncategorizedBatches = useMemo(() => {
+        const batches: { 
+            private: { CAP: ExtractedInvoice[], S38: ExtractedInvoice[], S39: ExtractedInvoice[] },
+            uncategorized: { CAP: ExtractedInvoice[], S38: ExtractedInvoice[], S39: ExtractedInvoice[] }
+        } = {
+            private: { CAP: [], S38: [], S39: [] },
+            uncategorized: { CAP: [], S38: [], S39: [] }
+        };
+
         const privateInvoices = invoices.filter(inv => inv.isPrivate === true);
         const uncategorizedInvoices = invoices.filter(inv => !inv.isPrivate && !inv.paymentBatch);
 
-        const batches = [];
-
-        if (privateInvoices.length > 0) {
-            const { totalPayable, totalPAYE } = calculateBatchTotals(privateInvoices);
-            batches.push({
-                title: 'Private & Confidential',
-                batchKey: 'private',
-                invoices: privateInvoices,
-                total: totalPayable,
-                paye: totalPAYE,
-            });
-        }
+        privateInvoices.forEach(inv => {
+            if (inv.expenseType === 'CAP') {
+                batches.private.CAP.push(inv);
+            } else if (inv.expenseType === 'S39') {
+                batches.private.S39.push(inv);
+            } else { // S38 or undefined
+                batches.private.S38.push(inv);
+            }
+        });
         
-        if (uncategorizedInvoices.length > 0) {
-            const { totalPayable, totalPAYE } = calculateBatchTotals(uncategorizedInvoices);
-             batches.push({
-                title: 'Uncategorized',
-                batchKey: 'uncategorized',
-                invoices: uncategorizedInvoices,
-                total: totalPayable,
-                paye: totalPAYE,
-            });
-        }
+        uncategorizedInvoices.forEach(inv => {
+            if (inv.expenseType === 'CAP') {
+                batches.uncategorized.CAP.push(inv);
+            } else if (inv.expenseType === 'S39') {
+                batches.uncategorized.S39.push(inv);
+            } else { // S38 or undefined
+                batches.uncategorized.S38.push(inv);
+            }
+        });
 
         return batches;
     }, [invoices]);
+
+    const hasPrivateInvoices = useMemo(() => {
+        const { private: privateBatch } = privateAndUncategorizedBatches;
+        return privateBatch.CAP.length > 0 || privateBatch.S38.length > 0 || privateBatch.S39.length > 0;
+    }, [privateAndUncategorizedBatches]);
+
+    const hasUncategorizedInvoices = useMemo(() => {
+        const { uncategorized } = privateAndUncategorizedBatches;
+        return uncategorized.CAP.length > 0 || uncategorized.S38.length > 0 || uncategorized.S39.length > 0;
+    }, [privateAndUncategorizedBatches]);
 
     return (
         <div className="space-y-8">
@@ -587,28 +601,128 @@ export default function PrivatePaymentsPage() {
                 </div>
             ) : (
                 <div className="space-y-6">
-                    {privateAndUncategorizedBatches.length === 0 ? (
+                    {!hasPrivateInvoices && !hasUncategorizedInvoices ? (
                         <Card>
                             <CardContent className="py-10">
                                 <p className="text-center text-muted-foreground">No private or uncategorized invoices found.</p>
                             </CardContent>
                         </Card>
                     ) : (
-                        privateAndUncategorizedBatches.map(batch => (
-                            <PaymentBatchTable 
-                                key={batch.batchKey}
-                                title={batch.title}
-                                batchKey={batch.batchKey}
-                                invoices={batch.invoices}
-                                allInvoices={invoices}
-                                totalAmount={batch.total}
-                                totalPAYE={batch.paye}
-                                onDelete={handleRemoveFromBatch}
-                                onUploadPop={handleUploadPop}
-                                onEdit={setEditingInvoice}
-                                onRemovePop={handleRemovePop}
-                            />
-                        ))
+                       <>
+                            {hasPrivateInvoices && (
+                                <Collapsible defaultOpen>
+                                    <CollapsibleTrigger className="w-full">
+                                        <div className="flex items-center gap-2 p-3 bg-muted rounded-t-lg border">
+                                            <ChevronDown className="h-5 w-5 transition-transform duration-200 group-data-[state=open]:-rotate-180" />
+                                            <h2 className="text-xl font-bold">Private & Confidential</h2>
+                                        </div>
+                                    </CollapsibleTrigger>
+                                    <CollapsibleContent className="space-y-8 p-4 border-x border-b rounded-b-lg">
+                                        <div className="grid grid-cols-1 xl:grid-cols-3 lg:grid-cols-2 gap-8 items-start">
+                                            {privateAndUncategorizedBatches.private.CAP.length > 0 && (
+                                                <PaymentBatchTable 
+                                                    title="CAP Expenses"
+                                                    batchKey="private-cap"
+                                                    invoices={privateAndUncategorizedBatches.private.CAP}
+                                                    allInvoices={invoices}
+                                                    totalAmount={calculateBatchTotals(privateAndUncategorizedBatches.private.CAP).totalPayable}
+                                                    totalPAYE={calculateBatchTotals(privateAndUncategorizedBatches.private.CAP).totalPAYE}
+                                                    onDelete={handleRemoveFromBatch}
+                                                    onUploadPop={handleUploadPop}
+                                                    onEdit={setEditingInvoice}
+                                                    onRemovePop={handleRemovePop}
+                                                />
+                                            )}
+                                            {privateAndUncategorizedBatches.private.S38.length > 0 && (
+                                                <PaymentBatchTable 
+                                                    title="S38 Expenses"
+                                                    batchKey="private-s38"
+                                                    invoices={privateAndUncategorizedBatches.private.S38}
+                                                    allInvoices={invoices}
+                                                    totalAmount={calculateBatchTotals(privateAndUncategorizedBatches.private.S38).totalPayable}
+                                                    totalPAYE={calculateBatchTotals(privateAndUncategorizedBatches.private.S38).totalPAYE}
+                                                    onDelete={handleRemoveFromBatch}
+                                                    onUploadPop={handleUploadPop}
+                                                    onEdit={setEditingInvoice}
+                                                    onRemovePop={handleRemovePop}
+                                                />
+                                            )}
+                                            {privateAndUncategorizedBatches.private.S39.length > 0 && (
+                                                <PaymentBatchTable 
+                                                    title="S39 Expenses"
+                                                    batchKey="private-s39"
+                                                    invoices={privateAndUncategorizedBatches.private.S39}
+                                                    allInvoices={invoices}
+                                                    totalAmount={calculateBatchTotals(privateAndUncategorizedBatches.private.S39).totalPayable}
+                                                    totalPAYE={calculateBatchTotals(privateAndUncategorizedBatches.private.S39).totalPAYE}
+                                                    onDelete={handleRemoveFromBatch}
+                                                    onUploadPop={handleUploadPop}
+                                                    onEdit={setEditingInvoice}
+                                                    onRemovePop={handleRemovePop}
+                                                />
+                                            )}
+                                        </div>
+                                    </CollapsibleContent>
+                                </Collapsible>
+                            )}
+
+                             {hasUncategorizedInvoices && (
+                                <Collapsible defaultOpen>
+                                    <CollapsibleTrigger className="w-full">
+                                        <div className="flex items-center gap-2 p-3 bg-muted rounded-t-lg border">
+                                            <ChevronDown className="h-5 w-5 transition-transform duration-200 group-data-[state=open]:-rotate-180" />
+                                            <h2 className="text-xl font-bold">Uncategorized</h2>
+                                        </div>
+                                    </CollapsibleTrigger>
+                                    <CollapsibleContent className="space-y-8 p-4 border-x border-b rounded-b-lg">
+                                        <div className="grid grid-cols-1 xl:grid-cols-3 lg:grid-cols-2 gap-8 items-start">
+                                            {privateAndUncategorizedBatches.uncategorized.CAP.length > 0 && (
+                                                <PaymentBatchTable 
+                                                    title="CAP Expenses"
+                                                    batchKey="uncategorized-cap"
+                                                    invoices={privateAndUncategorizedBatches.uncategorized.CAP}
+                                                    allInvoices={invoices}
+                                                    totalAmount={calculateBatchTotals(privateAndUncategorizedBatches.uncategorized.CAP).totalPayable}
+                                                    totalPAYE={calculateBatchTotals(privateAndUncategorizedBatches.uncategorized.CAP).totalPAYE}
+                                                    onDelete={handleRemoveFromBatch}
+                                                    onUploadPop={handleUploadPop}
+                                                    onEdit={setEditingInvoice}
+                                                    onRemovePop={handleRemovePop}
+                                                />
+                                            )}
+                                            {privateAndUncategorizedBatches.uncategorized.S38.length > 0 && (
+                                                <PaymentBatchTable 
+                                                    title="S38 Expenses"
+                                                    batchKey="uncategorized-s38"
+                                                    invoices={privateAndUncategorizedBatches.uncategorized.S38}
+                                                    allInvoices={invoices}
+                                                    totalAmount={calculateBatchTotals(privateAndUncategorizedBatches.uncategorized.S38).totalPayable}
+                                                    totalPAYE={calculateBatchTotals(privateAndUncategorizedBatches.uncategorized.S38).totalPAYE}
+                                                    onDelete={handleRemoveFromBatch}
+                                                    onUploadPop={handleUploadPop}
+                                                    onEdit={setEditingInvoice}
+                                                    onRemovePop={handleRemovePop}
+                                                />
+                                            )}
+                                            {privateAndUncategorizedBatches.uncategorized.S39.length > 0 && (
+                                                <PaymentBatchTable 
+                                                    title="S39 Expenses"
+                                                    batchKey="uncategorized-s39"
+                                                    invoices={privateAndUncategorizedBatches.uncategorized.S39}
+                                                    allInvoices={invoices}
+                                                    totalAmount={calculateBatchTotals(privateAndUncategorizedBatches.uncategorized.S39).totalPayable}
+                                                    totalPAYE={calculateBatchTotals(privateAndUncategorizedBatches.uncategorized.S39).totalPAYE}
+                                                    onDelete={handleRemoveFromBatch}
+                                                    onUploadPop={handleUploadPop}
+                                                    onEdit={setEditingInvoice}
+                                                    onRemovePop={handleRemovePop}
+                                                />
+                                            )}
+                                        </div>
+                                    </CollapsibleContent>
+                                </Collapsible>
+                            )}
+                        </>
                     )}
                 </div>
             )}
