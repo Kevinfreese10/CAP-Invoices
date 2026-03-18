@@ -526,15 +526,16 @@ export default function PaymentBatchesPage() {
     const weeklyBatches = useMemo(() => {
         const batches: { [week: string]: { CAP: ExtractedInvoice[], S38: ExtractedInvoice[], S39: ExtractedInvoice[] } } = {};
         
-        const currentBatches = invoices.filter(inv => (inv.status === 'batched_for_payment' || inv.status === 'paid') && inv.isPrivate !== true);
+        const currentBatches = invoices.filter(inv => 
+            (inv.status === 'batched_for_payment' || inv.status === 'paid') && 
+            !inv.isPrivate &&
+            inv.paymentBatch && 
+            inv.paymentBatch !== 'private'
+        );
 
         currentBatches.forEach(inv => {
-            const batchKey = inv.paymentBatch || 'Uncategorized';
+            const batchKey = inv.paymentBatch!;
             
-            if (batchKey === 'private') {
-                return;
-            }
-
             if (!batches[batchKey]) {
                 batches[batchKey] = { CAP: [], S38: [], S39: [] };
             }
@@ -551,26 +552,13 @@ export default function PaymentBatchesPage() {
         const mappedBatches = Object.entries(batches).map(([batchKey, expenseGroups]) => {
             let title: string;
             let batchDate: Date | null = null;
-            if (batchKey === 'this_week') {
-                title = 'This Week';
-                batchDate = new Date();
-            }
-            else if (batchKey === 'month_end') {
-                title = 'Month End';
-                batchDate = endOfDay(new Date()); // Represents a future payment
-            }
-            else if (batchKey === 'Uncategorized') {
-                title = 'Uncategorized';
-                batchDate = new Date(); // Treat as current for visibility
-            }
-            else {
-                try {
-                    batchDate = parseISO(batchKey);
-                    title = `Payment for ${format(batchDate, 'dd MMMM yyyy')}`;
-                } catch(e) {
-                    title = `Batch: ${batchKey}`;
-                    batchDate = new Date(9999, 11, 31); // Put invalid dates at the end
-                }
+            
+            try {
+                batchDate = parseISO(batchKey);
+                title = `Payment for ${format(batchDate, 'dd MMMM yyyy')}`;
+            } catch(e) {
+                title = `Batch: ${batchKey}`;
+                batchDate = new Date(9999, 11, 31); // Put invalid dates at the end
             }
             
             const calculateTotals = (invoices: ExtractedInvoice[]) => {

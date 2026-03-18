@@ -398,6 +398,21 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
     )
 }
 
+const calculateBatchTotals = (invoices: ExtractedInvoice[]) => {
+    return invoices.reduce((acc, inv) => {
+        const { payableAmount, payeAmount } = inv.lineItems.reduce((lineAcc, item) => {
+            const lineValue = item.exclusiveAmount + item.vatAmount;
+            const payeDeduction = item.paye ? lineValue * 0.25 : 0;
+            lineAcc.payableAmount += lineValue - payeDeduction;
+            lineAcc.payeAmount += payeDeduction;
+            return lineAcc;
+        }, { payableAmount: 0, payeAmount: 0 });
+        acc.totalPayable += payableAmount;
+        acc.totalPAYE += payeAmount;
+        return acc;
+    }, { totalPayable: 0, totalPAYE: 0 });
+};
+
 export default function PrivatePaymentsPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -409,7 +424,6 @@ export default function PrivatePaymentsPage() {
         try {
             const q = query(
                 collection(db, 'extractedInvoices'), 
-                where('isPrivate', '==', true),
                 where('status', 'in', ['batched_for_payment', 'paid'])
             );
             const querySnapshot = await getDocs(q);
@@ -417,7 +431,7 @@ export default function PrivatePaymentsPage() {
             setInvoices(fetchedInvoices);
         } catch (error) {
             console.error("Error fetching private invoices:", error);
-            toast({ title: 'Error', description: 'Could not fetch private invoices.', variant: 'destructive'});
+            toast({ title: 'Error', description: 'Could not fetch invoices.', variant: 'destructive'});
         } finally {
             setIsLoading(false);
         }
@@ -467,7 +481,7 @@ export default function PrivatePaymentsPage() {
     const handleUploadPop = async (supplierName: string, file: File, batchKey: string) => {
         const invoicesToUpdate = invoices.filter(inv => 
             inv.supplier === supplierName && 
-            inv.isPrivate === true &&
+            (inv.isPrivate === true || !inv.paymentBatch) && // Capture private and uncategorized
             inv.status === 'batched_for_payment'
         );
 
@@ -500,7 +514,7 @@ export default function PrivatePaymentsPage() {
     const handleRemovePop = async (supplierName: string, batchKey: string) => {
         const invoicesToUpdate = invoices.filter(inv =>
             inv.supplier === supplierName &&
-            inv.isPrivate === true &&
+            (inv.paymentBatch === batchKey || (!inv.paymentBatch && batchKey === 'uncategorized')) &&
             inv.status === 'paid'
         );
 
@@ -526,26 +540,35 @@ export default function PrivatePaymentsPage() {
         }
     };
     
-    const privateBatch = useMemo(() => {
+    const privateAndUncategorizedBatches = useMemo(() => {
         const privateInvoices = invoices.filter(inv => inv.isPrivate === true);
-        const { totalPayable, totalPAYE } = privateInvoices.reduce((acc, inv) => {
-            const { payableAmount, payeAmount } = inv.lineItems.reduce((lineAcc, item) => {
-                const lineValue = item.exclusiveAmount + item.vatAmount;
-                const payeDeduction = item.paye ? lineValue * 0.25 : 0;
-                lineAcc.payableAmount += lineValue - payeDeduction;
-                lineAcc.payeAmount += payeDeduction;
-                return lineAcc;
-            }, { payableAmount: 0, payeAmount: 0 });
-            acc.totalPayable += payableAmount;
-            acc.totalPAYE += payeAmount;
-            return acc;
-        }, { totalPayable: 0, totalPAYE: 0 });
+        const uncategorizedInvoices = invoices.filter(inv => !inv.isPrivate && !inv.paymentBatch);
+
+        const batches = [];
+
+        if (privateInvoices.length > 0) {
+            const { totalPayable, totalPAYE } = calculateBatchTotals(privateInvoices);
+            batches.push({
+                title: 'Private & Confidential',
+                batchKey: 'private',
+                invoices: privateInvoices,
+                total: totalPayable,
+                paye: totalPAYE,
+            });
+        }
         
-        return {
-            invoices: privateInvoices,
-            total: totalPayable,
-            paye: totalPAYE,
-        };
+        if (uncategorizedInvoices.length > 0) {
+            const { totalPayable, totalPAYE } = calculateBatchTotals(uncategorizedInvoices);
+             batches.push({
+                title: 'Uncategorized',
+                batchKey: 'uncategorized',
+                invoices: uncategorizedInvoices,
+                total: totalPayable,
+                paye: totalPAYE,
+            });
+        }
+
+        return batches;
     }, [invoices]);
 
     return (
@@ -554,7 +577,7 @@ export default function PrivatePaymentsPage() {
                  <Shield className="h-8 w-8 text-destructive" />
                  <div>
                     <h1 className="text-3xl font-bold tracking-tight">Private Payments</h1>
-                    <p className="text-muted-foreground">Confidential invoices batched for payment.</p>
+                    <p className="text-muted-foreground">Confidential and uncategorized invoices batched for payment.</p>
                  </div>
             </div>
             
@@ -564,25 +587,28 @@ export default function PrivatePaymentsPage() {
                 </div>
             ) : (
                 <div className="space-y-6">
-                    {privateBatch.invoices.length === 0 ? (
+                    {privateAndUncategorizedBatches.length === 0 ? (
                         <Card>
                             <CardContent className="py-10">
-                                <p className="text-center text-muted-foreground">No private invoices found.</p>
+                                <p className="text-center text-muted-foreground">No private or uncategorized invoices found.</p>
                             </CardContent>
                         </Card>
                     ) : (
-                        <PaymentBatchTable 
-                            title="Private & Confidential"
-                            batchKey="private"
-                            invoices={privateBatch.invoices}
-                            allInvoices={invoices}
-                            totalAmount={privateBatch.total}
-                            totalPAYE={privateBatch.paye}
-                            onDelete={handleRemoveFromBatch}
-                            onUploadPop={handleUploadPop}
-                            onEdit={setEditingInvoice}
-                            onRemovePop={handleRemovePop}
-                        />
+                        privateAndUncategorizedBatches.map(batch => (
+                            <PaymentBatchTable 
+                                key={batch.batchKey}
+                                title={batch.title}
+                                batchKey={batch.batchKey}
+                                invoices={batch.invoices}
+                                allInvoices={invoices}
+                                totalAmount={batch.total}
+                                totalPAYE={batch.paye}
+                                onDelete={handleRemoveFromBatch}
+                                onUploadPop={handleUploadPop}
+                                onEdit={setEditingInvoice}
+                                onRemovePop={handleRemovePop}
+                            />
+                        ))
                     )}
                 </div>
             )}
