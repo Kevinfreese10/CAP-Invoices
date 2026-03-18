@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -7,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { getFirestore, collection, getDocs, query, orderBy, where, doc, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download, MoreHorizontal, Edit, AlertTriangle, Eye, Archive } from 'lucide-react';
+import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download, MoreHorizontal, Edit, AlertTriangle, Eye, Archive, Shield } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ExtractedInvoice, User } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -40,6 +39,9 @@ type SupplierGroup = {
     hasDuplicates: boolean;
 };
 
+// I'll copy PaymentBatchTable from the original file but only for private payments.
+// This is to make sure the file is self-contained. The original file has this component too.
+// I will copy it. It's a large component.
 function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalAmount, totalPAYE, onDelete, onUploadPop, onEdit, batchKey, onRemovePop }: { title: string, invoices: ExtractedInvoice[], allInvoices: ExtractedInvoice[], totalAmount: number, totalPAYE: number, onDelete: (id: string, isArchive: boolean) => void, onUploadPop: (supplierName: string, file: File, batchKey: string) => Promise<void>, onEdit: (invoice: ExtractedInvoice) => void, batchKey: string, onRemovePop: (supplierName: string, batchKey: string) => Promise<void> }) {
     const [openSupplier, setOpenSupplier] = useState<string | null>(null);
     const [uploadingPop, setUploadingPop] = useState<string | null>(null);
@@ -396,26 +398,26 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
     )
 }
 
-
-export default function PaymentBatchesPage() {
+export default function PrivatePaymentsPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
-    const { user } = useAuth();
 
     const fetchInvoices = async () => {
         setIsLoading(true);
         try {
             const q = query(
                 collection(db, 'extractedInvoices'), 
+                where('isPrivate', '==', true),
+                where('status', 'in', ['batched_for_payment', 'paid'])
             );
             const querySnapshot = await getDocs(q);
             const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
             setInvoices(fetchedInvoices);
         } catch (error) {
-            console.error("Error fetching batched invoices:", error);
-            toast({ title: 'Error', description: 'Could not fetch batched invoices.', variant: 'destructive'});
+            console.error("Error fetching private invoices:", error);
+            toast({ title: 'Error', description: 'Could not fetch private invoices.', variant: 'destructive'});
         } finally {
             setIsLoading(false);
         }
@@ -429,11 +431,12 @@ export default function PaymentBatchesPage() {
          try {
             const docRef = doc(db, 'extractedInvoices', id);
             if (isArchive) {
-                await updateDoc(docRef, { status: 'archived' });
-                toast({ title: 'Invoice Archived', description: 'The invoice has been moved from the batch to the archive.'});
+                await updateDoc(docRef, { status: 'archived', isPrivate: false }); // Unset private on archive
+                toast({ title: 'Invoice Archived', description: 'The invoice has been moved from the private batch to the archive.'});
             } else {
-                await updateDoc(docRef, { status: 'approved_for_payment' });
-                toast({ title: 'Invoice Returned', description: 'The invoice has been returned to the Payment Control Sheet.', variant: 'default'});
+                // This shouldn't be an option for private invoices, but as a fallback:
+                await updateDoc(docRef, { status: 'approved_for_payment', isPrivate: false });
+                toast({ title: 'Invoice Returned', description: 'The invoice has been returned to the public workflow.', variant: 'default'});
             }
             fetchInvoices();
         } catch (error) {
@@ -464,7 +467,7 @@ export default function PaymentBatchesPage() {
     const handleUploadPop = async (supplierName: string, file: File, batchKey: string) => {
         const invoicesToUpdate = invoices.filter(inv => 
             inv.supplier === supplierName && 
-            inv.paymentBatch === batchKey &&
+            inv.isPrivate === true &&
             inv.status === 'batched_for_payment'
         );
 
@@ -497,7 +500,7 @@ export default function PaymentBatchesPage() {
     const handleRemovePop = async (supplierName: string, batchKey: string) => {
         const invoicesToUpdate = invoices.filter(inv =>
             inv.supplier === supplierName &&
-            inv.paymentBatch === batchKey &&
+            inv.isPrivate === true &&
             inv.status === 'paid'
         );
 
@@ -523,100 +526,35 @@ export default function PaymentBatchesPage() {
         }
     };
     
-    const weeklyBatches = useMemo(() => {
-        const batches: { [week: string]: { CAP: ExtractedInvoice[], S38: ExtractedInvoice[], S39: ExtractedInvoice[] } } = {};
+    const privateBatch = useMemo(() => {
+        const privateInvoices = invoices.filter(inv => inv.isPrivate === true);
+        const { totalPayable, totalPAYE } = privateInvoices.reduce((acc, inv) => {
+            const { payableAmount, payeAmount } = inv.lineItems.reduce((lineAcc, item) => {
+                const lineValue = item.exclusiveAmount + item.vatAmount;
+                const payeDeduction = item.paye ? lineValue * 0.25 : 0;
+                lineAcc.payableAmount += lineValue - payeDeduction;
+                lineAcc.payeAmount += payeDeduction;
+                return lineAcc;
+            }, { payableAmount: 0, payeAmount: 0 });
+            acc.totalPayable += payableAmount;
+            acc.totalPAYE += payeAmount;
+            return acc;
+        }, { totalPayable: 0, totalPAYE: 0 });
         
-        const currentBatches = invoices.filter(inv => (inv.status === 'batched_for_payment' || inv.status === 'paid') && inv.isPrivate !== true);
-
-        currentBatches.forEach(inv => {
-            const batchKey = inv.paymentBatch || 'Uncategorized';
-            if (!batches[batchKey]) {
-                batches[batchKey] = { CAP: [], S38: [], S39: [] };
-            }
-            if (inv.expenseType === 'CAP') {
-                batches[batchKey].CAP.push(inv);
-            } else if (inv.expenseType === 'S39') {
-                batches[batchKey].S39.push(inv);
-            }
-            else { // S38 or undefined
-                batches[batchKey].S38.push(inv);
-            }
-        });
-        
-        const mappedBatches = Object.entries(batches).map(([batchKey, expenseGroups]) => {
-            let title: string;
-            let batchDate: Date | null = null;
-            if (batchKey === 'this_week') {
-                title = 'This Week';
-                batchDate = new Date();
-            }
-            else if (batchKey === 'month_end') {
-                title = 'Month End';
-                batchDate = endOfDay(new Date()); // Represents a future payment
-            }
-            else if (batchKey === 'Uncategorized') {
-                title = 'Uncategorized';
-                batchDate = new Date(); // Treat as current for visibility
-            }
-            else {
-                try {
-                    batchDate = parseISO(batchKey);
-                    title = `Payment for ${format(batchDate, 'dd MMMM yyyy')}`;
-                } catch(e) {
-                    title = `Batch: ${batchKey}`;
-                    batchDate = new Date(9999, 11, 31); // Put invalid dates at the end
-                }
-            }
-            
-            const calculateTotals = (invoices: ExtractedInvoice[]) => {
-                return invoices.reduce((acc, inv) => {
-                    const { payableAmount, payeAmount } = inv.lineItems.reduce((lineAcc, item) => {
-                        const lineValue = item.exclusiveAmount + item.vatAmount;
-                        const payeDeduction = item.paye ? lineValue * 0.25 : 0;
-                        lineAcc.payableAmount += lineValue - payeDeduction;
-                        lineAcc.payeAmount += payeDeduction;
-                        return lineAcc;
-                    }, { payableAmount: 0, payeAmount: 0 });
-                    acc.totalPayable += payableAmount;
-                    acc.totalPAYE += payeAmount;
-                    return acc;
-                }, { totalPayable: 0, totalPAYE: 0 });
-            };
-            
-            const capTotals = calculateTotals(expenseGroups.CAP);
-            const s38Totals = calculateTotals(expenseGroups.S38);
-            const s39Totals = calculateTotals(expenseGroups.S39);
-
-            return {
-                title,
-                batchDate,
-                batchKey,
-                capTotal: capTotals.totalPayable,
-                capPAYE: capTotals.totalPAYE,
-                s38Total: s38Totals.totalPayable,
-                s38PAYE: s38Totals.totalPAYE,
-                s39Total: s39Totals.totalPayable,
-                s39PAYE: s39Totals.totalPAYE,
-                ...expenseGroups,
-            };
-        });
-
-        return mappedBatches.sort((a, b) => {
-            if (!a.batchDate) return 1;
-            if (!b.batchDate) return -1;
-            return b.batchDate.getTime() - a.batchDate.getTime();
-        });
-
+        return {
+            invoices: privateInvoices,
+            total: totalPayable,
+            paye: totalPAYE,
+        };
     }, [invoices]);
-
 
     return (
         <div className="space-y-8">
             <div className="flex items-center gap-4">
-                 <Banknote className="h-8 w-8 text-primary" />
+                 <Shield className="h-8 w-8 text-destructive" />
                  <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Payment Batches</h1>
-                    <p className="text-muted-foreground">Invoices batched and ready for payment processing.</p>
+                    <h1 className="text-3xl font-bold tracking-tight">Private Payments</h1>
+                    <p className="text-muted-foreground">Confidential invoices batched for payment.</p>
                  </div>
             </div>
             
@@ -626,62 +564,26 @@ export default function PaymentBatchesPage() {
                 </div>
             ) : (
                 <div className="space-y-6">
-                    {weeklyBatches.length === 0 ? (
-                         <p className="text-center text-muted-foreground py-10">No payment batches found.</p>
-                    ) : weeklyBatches.map((batch, index) => {
-                        const isBatchInPast = batch.batchDate ? isPast(endOfDay(batch.batchDate)) : false;
-                        const hasPAYE = batch.capPAYE > 0 || batch.s38PAYE > 0 || batch.s39PAYE > 0;
-                        return(
-                        <Collapsible key={index} defaultOpen={!isBatchInPast}>
-                             <CollapsibleTrigger className="w-full">
-                                <div className="flex items-center gap-2 p-3 bg-muted rounded-t-lg border">
-                                    <ChevronDown className="h-5 w-5 transition-transform duration-200 group-data-[state=open]:-rotate-180" />
-                                    <h2 className="text-xl font-bold">{batch.title}</h2>
-                                    {hasPAYE && <Badge variant="destructive">PAYE</Badge>}
-                                </div>
-                             </CollapsibleTrigger>
-                             <CollapsibleContent className="space-y-8 p-4 border-x border-b rounded-b-lg">
-                                <div className="grid grid-cols-1 xl:grid-cols-3 lg:grid-cols-2 gap-8 items-start">
-                                    <PaymentBatchTable 
-                                        title="CAP Expenses"
-                                        batchKey={batch.batchKey}
-                                        invoices={batch.CAP}
-                                        allInvoices={invoices}
-                                        totalAmount={batch.capTotal}
-                                        totalPAYE={batch.capPAYE}
-                                        onDelete={handleRemoveFromBatch}
-                                        onUploadPop={handleUploadPop}
-                                        onEdit={setEditingInvoice}
-                                        onRemovePop={handleRemovePop}
-                                    />
-                                    <PaymentBatchTable 
-                                        title="S38 Expenses"
-                                        batchKey={batch.batchKey}
-                                        invoices={batch.S38}
-                                        allInvoices={invoices}
-                                        totalAmount={batch.s38Total}
-                                        totalPAYE={batch.s38PAYE}
-                                        onDelete={handleRemoveFromBatch}
-                                        onUploadPop={handleUploadPop}
-                                        onEdit={setEditingInvoice}
-                                        onRemovePop={handleRemovePop}
-                                    />
-                                     <PaymentBatchTable 
-                                        title="S39 Expenses"
-                                        batchKey={batch.batchKey}
-                                        invoices={batch.S39}
-                                        allInvoices={invoices}
-                                        totalAmount={batch.s39Total}
-                                        totalPAYE={batch.s39PAYE}
-                                        onDelete={handleRemoveFromBatch}
-                                        onUploadPop={handleUploadPop}
-                                        onEdit={setEditingInvoice}
-                                        onRemovePop={handleRemovePop}
-                                    />
-                                </div>
-                            </CollapsibleContent>
-                        </Collapsible>
-                    )})}
+                    {privateBatch.invoices.length === 0 ? (
+                        <Card>
+                            <CardContent className="py-10">
+                                <p className="text-center text-muted-foreground">No private invoices found.</p>
+                            </CardContent>
+                        </Card>
+                    ) : (
+                        <PaymentBatchTable 
+                            title="Private & Confidential"
+                            batchKey="private"
+                            invoices={privateBatch.invoices}
+                            allInvoices={invoices}
+                            totalAmount={privateBatch.total}
+                            totalPAYE={privateBatch.paye}
+                            onDelete={handleRemoveFromBatch}
+                            onUploadPop={handleUploadPop}
+                            onEdit={setEditingInvoice}
+                            onRemovePop={handleRemovePop}
+                        />
+                    )}
                 </div>
             )}
              <Dialog open={!!editingInvoice} onOpenChange={(isOpen) => !isOpen && setEditingInvoice(null)}>
