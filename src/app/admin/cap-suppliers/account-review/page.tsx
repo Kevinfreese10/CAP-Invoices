@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -5,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { getFirestore, collection, getDocs, query, orderBy, where, doc, updateDoc, writeBatch, serverTimestamp, addDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, FileCheck2, Eye, Edit, MoreHorizontal, PlusCircle, Upload } from 'lucide-react';
+import { Loader2, FileCheck2, Eye, Edit, MoreHorizontal, PlusCircle, Upload, Shield } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -19,6 +20,7 @@ import ManualInvoiceForm from '@/components/admin/cap-suppliers/ManualInvoiceFor
 import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
 import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
@@ -28,6 +30,7 @@ function AIExtractUploadDialog({ onUploadComplete }: { onUploadComplete: () => v
     const [isOpen, setIsOpen] = useState(false);
     const [file, setFile] = useState<File | null>(null);
     const [isExtracting, setIsExtracting] = useState(false);
+    const [isPrivate, setIsPrivate] = useState(true);
     const { toast } = useToast();
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -75,19 +78,27 @@ function AIExtractUploadDialog({ onUploadComplete }: { onUploadComplete: () => v
                 return;
             }
             
-            // 4. Save to Firestore with a status of 'approved' to appear on this page.
+            // 4. Save to Firestore with a status based on privacy
             const invoiceData = {
                 ...result,
                 fileName: file.name,
                 fileUrl: downloadURL,
-                status: 'pending_review', // Go to review first
+                status: isPrivate ? 'batched_for_payment' : 'pending_review',
+                paymentBatch: isPrivate ? 'private' : null,
+                isPrivate: isPrivate,
                 uploadedBy: 'manual_ai_upload',
                 createdAt: serverTimestamp(),
+                note: isPrivate ? 'Manually added as a private invoice via AI upload.' : null,
             };
 
             await addDoc(collection(db, "extractedInvoices"), invoiceData);
 
-            toast({ title: 'Upload Successful', description: 'The invoice has been extracted and sent for review.' });
+            toast({ 
+                title: 'Upload Successful', 
+                description: isPrivate 
+                    ? 'The invoice has been extracted and added to the private batch.'
+                    : 'The invoice has been extracted and sent for review.' 
+            });
             onUploadComplete();
             setFile(null);
             setIsOpen(false);
@@ -111,10 +122,16 @@ function AIExtractUploadDialog({ onUploadComplete }: { onUploadComplete: () => v
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle>Upload Invoice (AI Extraction)</DialogTitle>
-                    <DialogDescription>Select an invoice PDF or image. The AI will extract the details and send it for review.</DialogDescription>
+                    <DialogDescription>Select an invoice PDF or image. The AI will extract the details.</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                     <Input id="invoice-file" type="file" accept="application/pdf,image/*" onChange={handleFileChange} />
+                    <div className="flex items-center space-x-2 pt-2">
+                        <Checkbox id="is-private" checked={isPrivate} onCheckedChange={(checked) => setIsPrivate(Boolean(checked))} />
+                        <label htmlFor="is-private" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                            Mark as Private & Confidential
+                        </label>
+                    </div>
                 </div>
                 <DialogFooter>
                     <Button variant="ghost" onClick={() => setIsOpen(false)}>Cancel</Button>
@@ -289,7 +306,7 @@ export default function AccountReviewPage() {
                                     <CardTitle>{invoice.supplier}</CardTitle>
                                     <CardDescription>
                                         Invoice #: {invoice.invoiceNumber} | Commission #: {invoice.commissionNumber || 'N/A'} | Allocated by: <span className="font-semibold">{getApproverName(invoice.approvedBy)}</span>
-                                        {invoice.paymentBatch && ` | Payment Batch: ${format(new Date(invoice.paymentBatch), 'dd MMMM yyyy')}`}
+                                        {invoice.paymentBatch && invoice.paymentBatch !== 'private' && ` | Payment Batch: ${format(new Date(invoice.paymentBatch), 'dd MMMM yyyy')}`}
                                     </CardDescription>
                                 </div>
                                 <div className="flex items-center gap-2">

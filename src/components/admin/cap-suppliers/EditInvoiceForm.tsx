@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -7,7 +6,7 @@ import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -42,6 +41,7 @@ const formSchema = z.object({
   expenseType: z.enum(['CAP', 'S38', 'S39']).optional(),
   paymentBatch: z.string().optional(),
   note: z.string().optional(),
+  isPrivate: z.boolean().optional(),
 });
 
 function getUpcomingFridays(): { value: string; label: string }[] {
@@ -87,7 +87,7 @@ function getUpcomingFridays(): { value: string; label: string }[] {
             const isMonthEndFriday = isLastDayOfMonth(today) || getMonth(addDays(today, 7)) !== getMonth(today);
             fridays.unshift({
                 value: format(today, 'yyyy-MM-dd'),
-                label: `${format(today, 'dd MMMM yyyy')}${isMonthEndFriday ? ' (Month End)' : ''}`,
+                label: `${format(day, 'dd MMMM yyyy')}${isMonthEndFriday ? ' (Month End)' : ''}`,
             });
         }
     }
@@ -116,6 +116,7 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice
             expenseType: invoice?.expenseType || 'S38',
             paymentBatch: invoice?.paymentBatch || upcomingFridays[0]?.value,
             note: invoice?.note || '',
+            isPrivate: invoice?.isPrivate || false,
         }
     });
 
@@ -247,6 +248,27 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice
                                 <Textarea placeholder="Add an internal note for this invoice..." {...field} />
                             </FormControl>
                             <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                
+                <FormField
+                    control={form.control}
+                    name="isPrivate"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                            <div className="space-y-0.5">
+                                <FormLabel>Private & Confidential</FormLabel>
+                                <FormDescription>
+                                    Private invoices bypass the standard payment batches and are only visible to supervisors.
+                                </FormDescription>
+                            </div>
+                            <FormControl>
+                                <Checkbox
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                />
+                            </FormControl>
                         </FormItem>
                     )}
                 />
