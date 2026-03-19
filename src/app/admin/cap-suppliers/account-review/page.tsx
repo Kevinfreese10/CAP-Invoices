@@ -204,6 +204,7 @@ export default function AccountReviewPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
     const { toast } = useToast();
+    const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
 
     const fetchInvoices = async () => {
         setIsLoading(true);
@@ -228,6 +229,42 @@ export default function AccountReviewPage() {
     useEffect(() => {
         fetchInvoices();
     }, []);
+
+    const handleReturnToSecondReview = async () => {
+        if (selectedInvoices.length === 0) {
+            toast({ title: "No invoices selected", variant: "destructive" });
+            return;
+        }
+
+        try {
+            const batch = writeBatch(db);
+            selectedInvoices.forEach(id => {
+                const docRef = doc(db, 'extractedInvoices', id);
+                batch.update(docRef, { status: 'approved' }); // Set status back to 'approved' for 2nd review
+            });
+            await batch.commit();
+
+            toast({
+                title: `${selectedInvoices.length} Invoice(s) Returned`,
+                description: 'The selected invoices have been moved back to 2nd Review.',
+            });
+            setSelectedInvoices([]);
+            fetchInvoices();
+        } catch (error) {
+            console.error("Error returning invoices:", error);
+            toast({
+                title: 'Error',
+                description: 'Could not return the invoices.',
+                variant: 'destructive',
+            });
+        }
+    };
+    
+    const handleToggleSelect = (id: string) => {
+        setSelectedInvoices(prev =>
+            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        );
+    };
     
     const handleApprove = async (invoiceId: string) => {
         try {
@@ -281,6 +318,27 @@ export default function AccountReviewPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Account Review</h1>
         <div className="flex gap-2">
+             <AlertDialog>
+                <AlertDialogTrigger asChild>
+                    <Button variant="outline" disabled={selectedInvoices.length === 0}>
+                        Return Selected to 2nd Review ({selectedInvoices.length})
+                    </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will move {selectedInvoices.length} selected invoice(s) back to the 2nd Review stage.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleReturnToSecondReview}>
+                            Yes, Return
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
             <AIExtractUploadDialog onUploadComplete={fetchInvoices} />
             <ManualUploadDialog onUploadComplete={fetchInvoices} />
         </div>
@@ -302,12 +360,19 @@ export default function AccountReviewPage() {
                     <Card key={invoice.id}>
                         <CardHeader className="bg-muted/50">
                             <div className="flex flex-wrap justify-between items-start gap-2">
-                                <div>
-                                    <CardTitle>{invoice.supplier}</CardTitle>
-                                    <CardDescription>
-                                        Invoice #: {invoice.invoiceNumber} | Commission #: {invoice.commissionNumber || 'N/A'} | Allocated by: <span className="font-semibold">{getApproverName(invoice.approvedBy)}</span>
-                                        {invoice.paymentBatch && invoice.paymentBatch !== 'private' && ` | Payment Batch: ${format(new Date(invoice.paymentBatch), 'dd MMMM yyyy')}`}
-                                    </CardDescription>
+                                <div className="flex items-center gap-4">
+                                     <Checkbox
+                                        checked={selectedInvoices.includes(invoice.id)}
+                                        onCheckedChange={() => handleToggleSelect(invoice.id)}
+                                        aria-label={`Select invoice ${invoice.id}`}
+                                    />
+                                    <div>
+                                        <CardTitle>{invoice.supplier}</CardTitle>
+                                        <CardDescription>
+                                            Invoice #: {invoice.invoiceNumber} | Commission #: {invoice.commissionNumber || 'N/A'} | Allocated by: <span className="font-semibold">{getApproverName(invoice.approvedBy)}</span>
+                                            {invoice.paymentBatch && invoice.paymentBatch !== 'private' && ` | Payment Batch: ${format(new Date(invoice.paymentBatch), 'dd MMMM yyyy')}`}
+                                        </CardDescription>
+                                    </div>
                                 </div>
                                 <div className="flex items-center gap-2">
                                      <Button asChild variant="outline" size="icon">
