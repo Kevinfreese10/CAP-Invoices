@@ -501,7 +501,10 @@ export default function ThirdReviewPage() {
                                                     aria-label={`Select invoice ${invoice.id}`}
                                                 />
                                                 <div>
-                                                    <CardTitle className="text-lg">{invoice.supplier}</CardTitle>
+                                                    <CardTitle className="text-lg flex items-center gap-2">
+                                                        {invoice.supplier}
+                                                        {invoice.expenseType && <Badge variant="outline">{invoice.expenseType}</Badge>}
+                                                    </CardTitle>
                                                     <CardDescription>
                                                         {invoice.commissionNumber && <span>Commission #: {invoice.commissionNumber}</span>}
                                                         {invoice.storyName && <span className="text-xs italic text-muted-foreground block mt-1">Story: {invoice.storyName}</span>}
@@ -623,3 +626,5 @@ export default function ThirdReviewPage() {
         </div>
     );
 }
+
+    
