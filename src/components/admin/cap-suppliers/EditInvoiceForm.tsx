@@ -160,13 +160,19 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice
 
     const onSubmit = (data: z.infer<typeof formSchema>) => {
         if (invoice) {
-            // Ensure ledgerDescription is persisted
+            // Sanitize line items to ensure no `undefined` values are sent to Firestore.
+            const sanitizedLineItems = data.lineItems.map(item => ({
+                description: item.description,
+                exclusiveAmount: item.exclusiveAmount,
+                vatAmount: item.vatAmount,
+                accountId: item.accountId || null,
+                paye: item.paye || false,
+                ledgerDescription: item.description,
+            }));
+
             const dataToSave = {
                 ...data,
-                lineItems: data.lineItems.map(item => ({
-                    ...item,
-                    ledgerDescription: item.description,
-                })),
+                lineItems: sanitizedLineItems,
             };
             onSave(invoice.id, dataToSave);
         }
