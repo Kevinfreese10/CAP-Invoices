@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { getFirestore, collection, getDocs, query, orderBy, where, doc, updateDoc, writeBatch, addDoc, serverTimestamp } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, CheckCircle, MoreHorizontal, Edit, PlusCircle, FileCheck2, Eye } from 'lucide-react';
+import { Loader2, CheckCircle, MoreHorizontal, Edit, PlusCircle, FileCheck2, Eye, Shield } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ExtractedInvoice } from '@/lib/types';
@@ -93,6 +93,7 @@ export default function PaymentControlSheetPage() {
                 commissionNumber: data.commissionNumber || null,
                 paymentBatch: data.paymentBatch || null,
                 expenseType: data.expenseType || null,
+                note: data.note || null,
             };
             await updateDoc(docRef, dataToSave);
             toast({ title: 'Invoice Updated', description: 'Your changes have been saved.' });
@@ -197,7 +198,14 @@ export default function PaymentControlSheetPage() {
                                                     onCheckedChange={(checked) => handleToggleSelect(invoice.id, checked)}
                                                 />
                                                 <div>
-                                                    <CardTitle className="text-lg">{invoice.supplier}</CardTitle>
+                                                    <CardTitle className="text-lg flex items-center gap-2">
+                                                        {invoice.supplier}
+                                                        {invoice.isPrivate && (
+                                                            <Badge variant="destructive">
+                                                                <Shield className="mr-1 h-3 w-3" /> Private
+                                                            </Badge>
+                                                        )}
+                                                    </CardTitle>
                                                     <CardDescription>
                                                         Invoice #: {invoice.invoiceNumber} | Date: {invoice.date}
                                                         {invoice.commissionNumber && ` | Commission #: ${invoice.commissionNumber}`}
