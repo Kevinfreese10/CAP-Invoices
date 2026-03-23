@@ -120,6 +120,7 @@ export default function CostLedgerPage() {
     const paymentBatches = useMemo(() => {
         const batches = new Set(invoices.map(inv => inv.paymentBatch).filter(Boolean));
         return Array.from(batches)
+            .filter(b => b && !isNaN(new Date(b).getTime()))
             .sort((a,b) => new Date(b!).getTime() - new Date(a!).getTime())
             .map(b => ({ value: b!, label: format(new Date(b!), 'dd MMMM yyyy') }));
     }, [invoices]);

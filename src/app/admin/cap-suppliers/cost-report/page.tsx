@@ -125,7 +125,9 @@ export default function CostReportPage() {
         const batches = new Set(invoices.map(inv => inv.paymentBatch).filter(Boolean));
         return {
             commissionNumbers: Array.from(commissions).sort(),
-            paymentBatches: Array.from(batches).sort((a,b) => new Date(b).getTime() - new Date(a).getTime()),
+            paymentBatches: Array.from(batches)
+                .filter(b => b && !isNaN(new Date(b).getTime()))
+                .sort((a,b) => new Date(b).getTime() - new Date(a).getTime()),
         };
     }, [invoices]);
     
