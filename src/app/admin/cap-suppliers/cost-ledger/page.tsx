@@ -308,7 +308,7 @@ export default function CostLedgerPage() {
                                                                 <TableCell>{item.commissionNumber || 'N/A'}</TableCell>
                                                                 <TableCell>
                                                                     {item.paymentBatch ? (
-                                                                        <Badge variant="outline">{format(new Date(item.paymentBatch), 'dd MMM yyyy')}</Badge>
+                                                                        <Badge variant="outline">{!isNaN(new Date(item.paymentBatch).getTime()) ? format(new Date(item.paymentBatch), 'dd MMM yyyy') : item.paymentBatch}</Badge>
                                                                     ): 'N/A'}
                                                                 </TableCell>
                                                                 <TableCell className="text-right font-mono">{formatPrice(item.exclusiveAmount)}</TableCell>
@@ -329,4 +329,3 @@ export default function CostLedgerPage() {
         </div>
     );
 }
-
