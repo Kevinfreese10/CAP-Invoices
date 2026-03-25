@@ -33,6 +33,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { sendEmail } from '@/lib/email';
 import InvoiceRejectionEmail from '@/components/emails/InvoiceRejectionEmail';
 import { render } from '@react-email/components';
+import Image from 'next/image';
 
 const db = getFirestore(firebaseApp);
 
@@ -104,7 +105,7 @@ function CreateRuleDialog({ open, onOpenChange, supplierName, onRuleCreated }: {
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleSaveRule)} className="space-y-4">
                         <FormField control={form.control} name="supplierName" render={({ field }) => ( <FormItem><FormLabel>Supplier</FormLabel><FormControl><Input {...field} readOnly disabled /></FormControl></FormItem> )} />
-                        <FormField control={form.control} name="defaultVatType" render={({ field }) => ( <FormItem><FormLabel>Default VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                        <FormField control={form.control} name="defaultVatType" render={({ field }) => ( <FormItem><FormLabel>Default VAT Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select VAT type" /></SelectTrigger></FormControl><SelectContent>{allVatTypes.map(vt => ( <SelectItem key={vt.name} value={vt.name}>{vt.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem> )}/>
                         <DialogFooter>
                             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
                             <Button type="submit" disabled={isSaving}>
@@ -239,7 +240,7 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
                             render={({ field }) => (
                                 <FormItem>
                                 <FormLabel>Invoice Total</FormLabel>
-                                <FormControl><Input type="number" step="0.01" {...field} readOnly className="bg-muted" /></FormControl>
+                                <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
                                 <FormMessage />
                                 </FormItem>
                             )}
@@ -355,11 +356,40 @@ function AnalyzeStoryDialog({ open, onOpenChange, invoices, onAnalyzeComplete }:
     )
 }
 
+function ViewInvoiceDialog({ invoice, open, onOpenChange }: { invoice: ExtractedInvoice | null; open: boolean; onOpenChange: (open: boolean) => void; }) {
+    if (!invoice) return null;
+
+    const isPdf = invoice.fileUrl.includes('.pdf');
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-4xl h-[90vh]">
+                <DialogHeader>
+                    <DialogTitle>{invoice.supplier} - #{invoice.invoiceNumber}</DialogTitle>
+                </DialogHeader>
+                <div className="h-full w-full">
+                    {isPdf ? (
+                        <object data={invoice.fileUrl} type="application/pdf" width="100%" height="100%">
+                            <p>It appears you don't have a PDF plugin for this browser. You can <a href={invoice.fileUrl} className="text-primary underline">click here to download the PDF file.</a></p>
+                        </object>
+                    ) : (
+                        <div className="relative h-full w-full">
+                           <Image src={invoice.fileUrl} alt={`Invoice for ${invoice.supplier}`} fill className="object-contain"/>
+                        </div>
+                    )}
+                </div>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+
 export default function ReviewPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isDownloading, setIsDownloading] = useState(false);
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
+    const [viewingInvoice, setViewingInvoice] = useState<ExtractedInvoice | null>(null);
     const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
     const [isAnalyzeDialogOpen, setIsAnalyzeDialogOpen] = useState(false);
     const { toast } = useToast();
@@ -730,8 +760,8 @@ export default function ReviewPage() {
                                     <TableCell>{invoice.invoiceNumber}</TableCell>
                                     <TableCell>{invoice.commissionNumber || 'N/A'}</TableCell>
                                     <TableCell>
-                                        <Button asChild variant="link" className="p-0 h-auto">
-                                            <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer">View Invoice</a>
+                                        <Button variant="link" className="p-0 h-auto" onClick={() => setViewingInvoice(invoice)}>
+                                            View Invoice
                                         </Button>
                                     </TableCell>
                                     <TableCell className="text-right font-mono">{formatPrice(totalVat)}</TableCell>
@@ -809,9 +839,13 @@ export default function ReviewPage() {
             />
         </DialogContent>
       </Dialog>
+      
+      <ViewInvoiceDialog 
+        invoice={viewingInvoice}
+        open={!!viewingInvoice}
+        onOpenChange={(isOpen) => !isOpen && setViewingInvoice(null)}
+      />
 
     </div>
   );
 }
-
-    
