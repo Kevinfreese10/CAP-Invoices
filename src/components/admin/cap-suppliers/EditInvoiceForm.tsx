@@ -346,7 +346,7 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice
                         render={({ field }) => (
                             <FormItem>
                             <FormLabel>Invoice Total</FormLabel>
-                            <FormControl><Input type="number" step="0.01" {...field} readOnly className="bg-muted" /></FormControl>
+                            <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
                             <FormMessage />
                             </FormItem>
                         )}
