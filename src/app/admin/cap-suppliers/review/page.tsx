@@ -7,7 +7,7 @@ import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, dele
 import { firebaseApp } from '@/lib/firebase';
 import { Loader2, MoreHorizontal, Edit, Trash2, FileCheck2, Hourglass, CheckCircle2, Eye, Download, Sparkles, Brain, AlertTriangle, AlertCircle, Mail, Archive } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { format, toDate } from 'date-fns';
+import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -33,7 +33,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { sendEmail } from '@/lib/email';
 import InvoiceRejectionEmail from '@/components/emails/InvoiceRejectionEmail';
 import { render } from '@react-email/components';
-import Image from 'next/image';
 
 const db = getFirestore(firebaseApp);
 
@@ -356,40 +355,11 @@ function AnalyzeStoryDialog({ open, onOpenChange, invoices, onAnalyzeComplete }:
     )
 }
 
-function ViewInvoiceDialog({ invoice, open, onOpenChange }: { invoice: ExtractedInvoice | null; open: boolean; onOpenChange: (open: boolean) => void; }) {
-    if (!invoice) return null;
-
-    const isPdf = invoice.fileUrl.includes('.pdf');
-
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-4xl h-[90vh]">
-                <DialogHeader>
-                    <DialogTitle>{invoice.supplier} - #{invoice.invoiceNumber}</DialogTitle>
-                </DialogHeader>
-                <div className="h-full w-full">
-                    {isPdf ? (
-                        <object data={invoice.fileUrl} type="application/pdf" width="100%" height="100%">
-                            <p>It appears you don't have a PDF plugin for this browser. You can <a href={invoice.fileUrl} className="text-primary underline">click here to download the PDF file.</a></p>
-                        </object>
-                    ) : (
-                        <div className="relative h-full w-full">
-                           <Image src={invoice.fileUrl} alt={`Invoice for ${invoice.supplier}`} fill className="object-contain"/>
-                        </div>
-                    )}
-                </div>
-            </DialogContent>
-        </Dialog>
-    )
-}
-
-
 export default function ReviewPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isDownloading, setIsDownloading] = useState(false);
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
-    const [viewingInvoice, setViewingInvoice] = useState<ExtractedInvoice | null>(null);
     const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
     const [isAnalyzeDialogOpen, setIsAnalyzeDialogOpen] = useState(false);
     const { toast } = useToast();
@@ -760,8 +730,8 @@ export default function ReviewPage() {
                                     <TableCell>{invoice.invoiceNumber}</TableCell>
                                     <TableCell>{invoice.commissionNumber || 'N/A'}</TableCell>
                                     <TableCell>
-                                        <Button variant="link" className="p-0 h-auto" onClick={() => setViewingInvoice(invoice)}>
-                                            View Invoice
+                                        <Button asChild variant="link" className="p-0 h-auto">
+                                          <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer">View Invoice</a>
                                         </Button>
                                     </TableCell>
                                     <TableCell className="text-right font-mono">{formatPrice(totalVat)}</TableCell>
@@ -840,11 +810,6 @@ export default function ReviewPage() {
         </DialogContent>
       </Dialog>
       
-      <ViewInvoiceDialog 
-        invoice={viewingInvoice}
-        open={!!viewingInvoice}
-        onOpenChange={(isOpen) => !isOpen && setViewingInvoice(null)}
-      />
 
     </div>
   );
