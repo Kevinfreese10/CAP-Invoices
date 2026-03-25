@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { getFirestore, collection, getDocs, query, orderBy, where, doc, updateDoc, writeBatch, addDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, CheckCircle, MoreHorizontal, Edit, PlusCircle, FileCheck2, Save, Eye, Trash2, Brain } from 'lucide-react';
+import { Loader2, CheckCircle, MoreHorizontal, Edit, PlusCircle, FileCheck2, Save, Eye, Trash2, Brain, SortAsc } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ExtractedInvoice } from '@/lib/types';
@@ -197,6 +197,7 @@ export default function ThirdReviewPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [supplierFilter, setSupplierFilter] = useState('');
     const [accountFilter, setAccountFilter] = useState('all');
+    const [sortBy, setSortBy] = useState('account');
     const { toast } = useToast();
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
     const [localInvoiceData, setLocalInvoiceData] = useState<ExtractedInvoice[]>([]);
@@ -302,16 +303,26 @@ export default function ThirdReviewPage() {
         );
     };
 
-    const handleSaveLedgerDescriptions = async (invoiceId: string) => {
-        const invoiceToSave = localInvoiceData.find(inv => inv.id === invoiceId);
-        if (!invoiceToSave) return;
-
-        toast({ title: 'Saving...', description: 'Saving ledger descriptions.'});
+    const handleSaveAllLedgerDescriptions = async () => {
+        toast({ title: 'Saving...', description: 'Saving all modified ledger descriptions.'});
         try {
-            const docRef = doc(db, 'extractedInvoices', invoiceId);
-            await updateDoc(docRef, { lineItems: invoiceToSave.lineItems });
-            toast({ title: 'Saved!', description: 'Ledger descriptions have been updated.'});
-            fetchInvoices(); // Refresh from DB to ensure consistency
+            const batch = writeBatch(db);
+            let changesFound = 0;
+            localInvoiceData.forEach(localInvoice => {
+                const originalInvoice = invoices.find(inv => inv.id === localInvoice.id);
+                if (originalInvoice && JSON.stringify(localInvoice.lineItems) !== JSON.stringify(originalInvoice.lineItems)) {
+                    const docRef = doc(db, 'extractedInvoices', localInvoice.id);
+                    batch.update(docRef, { lineItems: localInvoice.lineItems });
+                    changesFound++;
+                }
+            });
+            if (changesFound > 0) {
+                await batch.commit();
+                toast({ title: 'Saved!', description: `${changesFound} invoice(s) have been updated.`});
+                fetchInvoices(); 
+            } else {
+                toast({ title: 'No Changes', description: 'There were no new ledger descriptions to save.'});
+            }
         } catch (error) {
             toast({ title: 'Error', description: 'Could not save ledger descriptions.', variant: 'destructive'});
             console.error(error);
@@ -374,18 +385,45 @@ export default function ThirdReviewPage() {
     }, [invoices]);
 
     const filteredInvoices = useMemo(() => {
-        return localInvoiceData.filter(invoice => {
+        const sorted = [...localInvoiceData].sort((a, b) => {
+            if (sortBy === 'account') {
+                const accountA = a.lineItems[0]?.accountId || 'zzzz';
+                const accountB = b.lineItems[0]?.accountId || 'zzzz';
+                return accountA.localeCompare(accountB);
+            }
+            if (sortBy === 'supplier') {
+                return a.supplier.localeCompare(b.supplier);
+            }
+             if (sortBy === 'date') {
+                 // Assuming date is in 'DD/MM/YYYY' format
+                const dateA = new Date(a.date.split('/').reverse().join('-'));
+                const dateB = new Date(b.date.split('/').reverse().join('-'));
+                return dateB.getTime() - dateA.getTime();
+            }
+            return 0;
+        });
+
+        return sorted.filter(invoice => {
             const supplierMatch = invoice.supplier.toLowerCase().includes(supplierFilter.toLowerCase());
             const accountMatch = accountFilter === 'all' || invoice.lineItems.some(item => item.accountId === accountFilter);
             return supplierMatch && accountMatch;
         });
-    }, [localInvoiceData, supplierFilter, accountFilter]);
+    }, [localInvoiceData, supplierFilter, accountFilter, sortBy]);
     
     const handleToggleSelect = (id: string) => {
         setSelectedInvoices(prev => 
             prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
         );
     }
+    
+    const handleSelectAll = (checked: boolean) => {
+        if(checked) {
+            setSelectedInvoices(filteredInvoices.map(i => i.id));
+        } else {
+            setSelectedInvoices([]);
+        }
+    }
+
 
     return (
         <div className="space-y-8">
@@ -430,53 +468,72 @@ export default function ThirdReviewPage() {
                             </Select>
                         </div>
                     </div>
-                     <div className="flex justify-end items-center gap-2 pt-4 border-t mt-4">
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                <Button variant="destructive" disabled={selectedInvoices.length === 0}>
-                                    <Trash2 className="mr-2 h-4 w-4"/>
-                                    Delete ({selectedInvoices.length})
-                                </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                        This will delete {selectedInvoices.length} invoice(s). You can view them later in the Deleted page.
-                                    </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleDeleteSelected}>
-                                        Yes, Delete
-                                    </AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
-                         <Button onClick={() => setIsAnalyzeDialogOpen(true)} variant="outline" disabled={selectedInvoices.length === 0}>
-                            <Brain className="mr-2 h-4 w-4"/>
-                            Analyze ({selectedInvoices.length})
-                        </Button>
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                <Button disabled={selectedInvoices.length === 0}>
-                                    <FileCheck2 className="mr-2 h-4 w-4" />
-                                    Approve Selected ({selectedInvoices.length})
-                                </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>Confirm Batch Approval</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                        This will approve {selectedInvoices.length} invoice(s) and move them to the payment control sheet. Are you sure?
-                                    </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleBatchApproval}>Yes, Approve</AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
+                     <div className="flex justify-between items-center gap-2 pt-4 border-t mt-4">
+                        <div className="flex items-center gap-2">
+                            <SortAsc className="h-4 w-4 text-muted-foreground"/>
+                             <Select value={sortBy} onValueChange={setSortBy}>
+                                <SelectTrigger className="w-[180px]">
+                                    <SelectValue placeholder="Sort by..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="account">Allocated Account</SelectItem>
+                                    <SelectItem value="supplier">Supplier</SelectItem>
+                                    <SelectItem value="date">Date</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="destructive" disabled={selectedInvoices.length === 0}>
+                                        <Trash2 className="mr-2 h-4 w-4"/>
+                                        Delete ({selectedInvoices.length})
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This will delete {selectedInvoices.length} invoice(s). You can view them later in the Deleted page.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={handleDeleteSelected}>
+                                            Yes, Delete
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                            <Button onClick={() => setIsAnalyzeDialogOpen(true)} variant="outline" disabled={selectedInvoices.length === 0}>
+                                <Brain className="mr-2 h-4 w-4"/>
+                                Analyze ({selectedInvoices.length})
+                            </Button>
+                             <Button onClick={handleSaveAllLedgerDescriptions} variant="outline">
+                                <Save className="mr-2 h-4 w-4" /> Save All Descriptions
+                            </Button>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button disabled={selectedInvoices.length === 0}>
+                                        <FileCheck2 className="mr-2 h-4 w-4" />
+                                        Approve Selected ({selectedInvoices.length})
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Confirm Batch Approval</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This will approve {selectedInvoices.length} invoice(s) and move them to the payment control sheet. Are you sure?
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={handleBatchApproval}>Yes, Approve</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </div>
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -490,6 +547,15 @@ export default function ThirdReviewPage() {
                         </p>
                     ) : (
                          <div className="space-y-6">
+                             <div className="p-2 border rounded-md">
+                                 <Checkbox
+                                    id="select-all"
+                                    onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                                    checked={filteredInvoices.length > 0 && selectedInvoices.length === filteredInvoices.length}
+                                    className="mr-2"
+                                />
+                                <label htmlFor="select-all" className="text-sm font-medium">Select All ({selectedInvoices.length} selected)</label>
+                            </div>
                             {filteredInvoices.map((invoice) => (
                                 <Card key={invoice.id} className="overflow-hidden">
                                     <CardHeader className="bg-muted/50">
@@ -522,9 +588,6 @@ export default function ThirdReviewPage() {
                                                         <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
                                                     </DropdownMenuTrigger>
                                                     <DropdownMenuContent>
-                                                        <DropdownMenuItem onSelect={() => handleSaveLedgerDescriptions(invoice.id)}>
-                                                            <Save className="mr-2 h-4 w-4" /> Save Descriptions
-                                                        </DropdownMenuItem>
                                                          <AlertDialog>
                                                             <AlertDialogTrigger asChild>
                                                                 <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
@@ -627,4 +690,3 @@ export default function ThirdReviewPage() {
     );
 }
 
-    
