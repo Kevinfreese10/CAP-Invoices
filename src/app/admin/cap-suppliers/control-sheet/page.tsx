@@ -69,6 +69,31 @@ export default function SecondReviewPage() {
             toast({ title: 'Error', description: 'Could not save changes.', variant: 'destructive'});
         }
     };
+
+    const handleSaveAndApprove = async (id: string, data: any) => {
+        try {
+            // First, save the data
+            const docRef = doc(db, 'extractedInvoices', id);
+            const dataToSave = {
+                ...data,
+                commissionNumber: data.commissionNumber || null,
+                paymentBatch: data.paymentBatch || null,
+                expenseType: data.expenseType || null,
+                note: data.note || null,
+            };
+            await updateDoc(docRef, dataToSave);
+            
+            // Then, approve
+            await updateDoc(docRef, { status: 'pending_account_review' });
+
+            toast({ title: 'Saved & Approved', description: 'The invoice has been updated and sent to Account Review.' });
+            setEditingInvoice(null);
+            fetchInvoices();
+        } catch (error) {
+            console.error("Error saving and approving:", error);
+            toast({ title: 'Error', description: 'Could not save and approve the invoice.', variant: 'destructive' });
+        }
+    };
     
     const handleApproveForNextStep = async (id: string) => {
         try {
@@ -261,6 +286,7 @@ export default function SecondReviewPage() {
             <EditInvoiceForm 
                 invoice={editingInvoice} 
                 onSave={handleSave} 
+                onSaveAndApprove={handleSaveAndApprove}
                 onCancel={() => setEditingInvoice(null)} 
             />
         </DialogContent>

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -95,8 +94,14 @@ function getUpcomingFridays(): { value: string; label: string }[] {
     return fridays;
 }
 
+interface EditInvoiceFormProps {
+    invoice: ExtractedInvoice | null;
+    onSave: (id: string, data: any) => void;
+    onCancel: () => void;
+    onSaveAndApprove?: (id: string, data: any) => void;
+}
 
-export default function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvoice | null, onSave: (id: string, data: any) => void, onCancel: () => void }) {
+export default function EditInvoiceForm({ invoice, onSave, onCancel, onSaveAndApprove }: EditInvoiceFormProps) {
     const upcomingFridays = getUpcomingFridays();
     const [openPopover, setOpenPopover] = useState<number | null>(null);
 
@@ -177,6 +182,28 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice
             onSave(invoice.id, dataToSave);
         }
     };
+    
+    const handleSaveAndApproveClick = async () => {
+        const isValid = await form.trigger();
+        if (isValid && invoice && onSaveAndApprove) {
+            const data = form.getValues();
+            const sanitizedLineItems = data.lineItems.map(item => ({
+                description: item.description,
+                exclusiveAmount: item.exclusiveAmount,
+                vatAmount: item.vatAmount,
+                accountId: item.accountId || null,
+                paye: item.paye || false,
+                ledgerDescription: item.description,
+            }));
+
+            const dataToSave = {
+                ...data,
+                lineItems: sanitizedLineItems,
+            };
+            onSaveAndApprove(invoice.id, dataToSave);
+        }
+    };
+
 
     return (
         <Form {...form}>
@@ -365,6 +392,11 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice
                 <DialogFooter>
                     <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
                     <Button type="submit">Save Changes</Button>
+                    {onSaveAndApprove && (
+                        <Button type="button" onClick={handleSaveAndApproveClick}>
+                            Save and Approve
+                        </Button>
+                    )}
                 </DialogFooter>
             </form>
         </Form>
