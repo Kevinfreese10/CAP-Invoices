@@ -21,6 +21,7 @@ import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
 import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
@@ -367,7 +368,10 @@ export default function AccountReviewPage() {
                                         aria-label={`Select invoice ${invoice.id}`}
                                     />
                                     <div>
-                                        <CardTitle>{invoice.supplier}</CardTitle>
+                                        <CardTitle className="flex items-center gap-2">
+                                          {invoice.supplier}
+                                          {invoice.expenseType && <Badge variant="outline">{invoice.expenseType}</Badge>}
+                                        </CardTitle>
                                         <CardDescription>
                                             Invoice #: {invoice.invoiceNumber} | Commission #: {invoice.commissionNumber || 'N/A'} | Allocated by: <span className="font-semibold">{getApproverName(invoice.approvedBy)}</span>
                                             {invoice.paymentBatch && invoice.paymentBatch !== 'private' && ` | Payment Batch: ${format(new Date(invoice.paymentBatch), 'dd MMMM yyyy')}`}
