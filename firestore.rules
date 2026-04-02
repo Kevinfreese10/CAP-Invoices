@@ -61,5 +61,8 @@ service cloud.firestore {
     match /commissionData/{docId} {
       allow read, write: if request.auth != null;
     }
+    match /commissions/{commissionId} {
+      allow read, write: if request.auth != null;
+    }
   }
 }
