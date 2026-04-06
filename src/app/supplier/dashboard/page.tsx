@@ -8,12 +8,14 @@ import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
 import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, firebaseApp } from '@/lib/firebase';
-import { ExtractedInvoice } from '@/lib/types';
+import { ExtractedInvoice, Commission } from '@/lib/types';
+import { s39ChartOfAccounts } from '@/lib/cap-chart-of-accounts'; // Import s39 accounts
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'; // Import Select components
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Upload, Sparkles, AlertTriangle, CheckCircle, FileCheck2, Hourglass, FileX2, Eye } from 'lucide-react';
@@ -26,39 +28,53 @@ const storage = getStorage(firebaseApp);
 
 const formSchema = z.object({
   invoice: z.custom<FileList>().refine((files) => files && files.length > 0, 'An invoice file is required.'),
+  commissionNumber: z.string().min(1, 'Please select a commission number.'),
+  s39AccountId: z.string().min(1, 'Please select an S39 account to allocate to.'),
 });
 
 export default function SupplierDashboardPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const [commissions, setCommissions] = useState<Commission[]>([]);
   const { toast } = useToast();
   const { user } = useAuth();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
+    defaultValues: {
+        commissionNumber: '',
+        s39AccountId: '',
+    }
   });
   
-  const fetchInvoiceHistory = useCallback(async () => {
+  const fetchInvoiceHistoryAndCommissions = useCallback(async () => {
     if (!user) return;
     setIsLoadingHistory(true);
     try {
+        // Fetch commissions
+        const commsQuery = query(collection(db, 'commissions'), orderBy('commissionNumber', 'asc'));
+        const commsSnapshot = await getDocs(commsQuery);
+        const fetchedCommissions = commsSnapshot.docs.map(doc => doc.data() as Commission);
+        setCommissions(fetchedCommissions);
+
+        // Fetch invoice history
         const q = query(collection(db, 'extractedInvoices'), where('uploadedBy', '==', user.uid), orderBy('createdAt', 'desc'));
         const querySnapshot = await getDocs(q);
         const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
         setInvoices(fetchedInvoices);
     } catch (error) {
-        console.error("Error fetching invoice history:", error);
-        toast({ title: 'Error', description: 'Could not load your invoice history.', variant: 'destructive' });
+        console.error("Error fetching data:", error);
+        toast({ title: 'Error', description: 'Could not load your data.', variant: 'destructive' });
     } finally {
         setIsLoadingHistory(false);
     }
   }, [user, toast]);
 
   useEffect(() => {
-    fetchInvoiceHistory();
-  }, [fetchInvoiceHistory]);
+    fetchInvoiceHistoryAndCommissions();
+  }, [fetchInvoiceHistoryAndCommissions]);
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+  async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!user?.uid) {
       toast({ title: 'Error', description: 'You must be logged in to upload.', variant: 'destructive' });
       return;
@@ -98,8 +114,15 @@ export default function SupplierDashboardPage() {
         return;
       }
       
+      const lineItemsWithAccount = result.lineItems.map(item => ({
+        ...item,
+        accountId: values.s39AccountId,
+      }));
+
       const invoiceData = {
           ...result,
+          lineItems: lineItemsWithAccount,
+          commissionNumber: values.commissionNumber,
           fileName: file.name,
           fileUrl: downloadURL,
           status: 'pending_review' as const,
@@ -111,7 +134,7 @@ export default function SupplierDashboardPage() {
 
       toast({ title: 'Upload Successful', description: 'Your invoice has been submitted for review.' });
       form.reset();
-      fetchInvoiceHistory();
+      fetchInvoiceHistoryAndCommissions();
 
     } catch (error) {
       console.error("Invoice upload error:", error);
@@ -152,6 +175,48 @@ export default function SupplierDashboardPage() {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                    control={form.control}
+                    name="commissionNumber"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Commission Number</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value} disabled={commissions.length === 0}>
+                            <FormControl>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select a commission..." />
+                            </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                            {commissions.map(c => <SelectItem key={c.id} value={c.commissionNumber}>{c.commissionNumber} - {c.storyName}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                 <FormField
+                    control={form.control}
+                    name="s39AccountId"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>S39 Account Allocation</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select an account..." />
+                            </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                            {s39ChartOfAccounts.map(acc => <SelectItem key={acc.accountNumber} value={acc.accountNumber}>{acc.accountNumber} - {acc.description}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+              </div>
               <FormField
                 control={form.control}
                 name="invoice"
@@ -196,6 +261,7 @@ export default function SupplierDashboardPage() {
                         <TableRow>
                             <TableHead>Invoice #</TableHead>
                             <TableHead>Date</TableHead>
+                            <TableHead>Commission #</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="text-right">Total</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
@@ -206,6 +272,7 @@ export default function SupplierDashboardPage() {
                             <TableRow key={invoice.id}>
                                 <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
                                 <TableCell>{invoice.date}</TableCell>
+                                <TableCell>{invoice.commissionNumber || 'N/A'}</TableCell>
                                 <TableCell>{getStatusBadge(invoice.status)}</TableCell>
                                 <TableCell className="text-right font-mono">{formatPrice(invoice.invoiceTotal)}</TableCell>
                                 <TableCell className="text-right">
@@ -225,5 +292,3 @@ export default function SupplierDashboardPage() {
     </div>
   );
 }
-
-    
