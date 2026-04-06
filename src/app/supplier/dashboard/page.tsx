@@ -103,10 +103,10 @@ export default function SupplierDashboardPage() {
 
       const result = await extractInvoiceData({ invoiceImage: dataUrl });
 
-      if (!result || !result.supplier || result.supplier.toLowerCase() !== user.companyName?.toLowerCase()) {
+      if (!result || !result.supplier) {
         toast({
-            title: 'Extraction or Validation Failed',
-            description: 'The AI could not read the invoice or the supplier name does not match your profile. Please ensure the invoice is for "' + user.companyName + '".',
+            title: 'Extraction Failed',
+            description: 'The AI could not read the required details from the invoice. Please try a clearer image.',
             variant: 'destructive',
             duration: 9000,
         });
