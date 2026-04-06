@@ -185,3 +185,5 @@ export const ProtectedRoute = ({ children }: { children: ReactNode }) => {
   if(isAuthenticated === true) return <>{children}</>;
   return null;
 }
+
+    

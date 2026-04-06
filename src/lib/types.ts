@@ -1,5 +1,4 @@
 
-
 import { z } from 'zod';
 export type VatType =
   // Output Tax
@@ -182,7 +181,7 @@ export type User = {
   id: string; // Document ID
   name: string;
   email: string;
-  role: 'client' | 'admin' | 'staff' | 'reseller' | 'ai_accountant' | 'cap_staff' | 'cap_supervisor';
+  role: 'client' | 'admin' | 'staff' | 'reseller' | 'ai_accountant' | 'cap_staff' | 'cap_supervisor' | 'supplier';
   createdAt?: any;
   password?: string;
   source?: 'AI Accountant' | 'Client Management';
@@ -410,3 +409,5 @@ export type Commission = {
   producer: string;
   createdAt: any;
 };
+
+    

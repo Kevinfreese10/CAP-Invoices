@@ -1,3 +1,4 @@
+
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -95,7 +96,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
 
       <SidebarMenu className="flex-1">
         
-        {(user.role === 'admin' || user.role === 'staff' || user.role === 'cap_staff' || user.role === 'cap_supervisor') && (
+        {(user.role === 'admin' || user.role === 'staff' || user.role === 'cap_staff' || user.role === 'cap_supervisor' || user.role === 'supplier') && (
             <>
             {(user.role === 'admin' || user.role === 'staff' || user.role === 'cap_staff' || user.role === 'cap_supervisor') && (
                 <Collapsible open={isCapSuppliersOpen} onOpenChange={setIsCapSuppliersOpen}>
@@ -135,6 +136,27 @@ export default function DashboardNav({ user }: { user: UserType }) {
                     </SidebarMenuButton>
                 </SidebarMenuItem>
             )}
+
+            {user.role === 'supplier' && (
+                <>
+                    <SidebarMenuItem>
+                        <SidebarMenuButton asChild isActive={pathname === '/supplier/dashboard'} tooltip="Dashboard">
+                            <Link href="/supplier/dashboard">
+                                <LayoutDashboard />
+                                <span>Dashboard</span>
+                            </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                        <SidebarMenuButton asChild isActive={pathname === '/supplier/profile'} tooltip="Profile">
+                            <Link href="/supplier/profile">
+                                <User />
+                                <span>Profile</span>
+                            </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                </>
+            )}
             </>
         )}
       </SidebarMenu>
@@ -152,3 +174,5 @@ export default function DashboardNav({ user }: { user: UserType }) {
     </>
   );
 }
+
+    
