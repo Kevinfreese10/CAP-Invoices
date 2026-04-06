@@ -14,6 +14,9 @@ import { firebaseApp } from '@/lib/firebase';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { sendEmail } from '@/lib/email';
+import { render } from '@react-email/components';
+import SupplierWelcomeEmail from '../emails/SupplierWelcomeEmail';
 
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
@@ -61,6 +64,24 @@ export default function SupplierSignupForm() {
             role: 'supplier',
         });
         
+        // Send welcome email
+        try {
+            const emailHtml = render(<SupplierWelcomeEmail
+                contactPerson={values.contactPerson}
+                companyName={values.companyName}
+                loginUrl={`${process.env.NEXT_PUBLIC_APP_URL}/login`}
+            />);
+            await sendEmail({
+                to: values.email,
+                subject: `Welcome to the My Accountant Supplier Portal`,
+                html: emailHtml,
+                bcc: 'kev@thinkestry.co.za',
+            });
+        } catch (emailError) {
+            console.error("Failed to send welcome email:", emailError);
+            // Don't block the user flow if email fails, just log it.
+        }
+        
         await login(values.email, values.password);
 
         toast({
@@ -104,5 +125,3 @@ export default function SupplierSignupForm() {
     </Form>
   );
 }
-
-    
