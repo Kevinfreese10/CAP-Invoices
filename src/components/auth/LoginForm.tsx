@@ -125,6 +125,8 @@ export default function LoginForm() {
         router.push('/admin/cap-suppliers/control-sheet');
     } else if (result.role === 'reseller') {
         router.push('/reseller/dashboard');
+    } else if (result.role === 'supplier') {
+        router.push('/supplier/dashboard');
     } else if (result.role === 'ai_accountant') {
         router.push('/dashboard/ai-accountant/clients');
     } else {
