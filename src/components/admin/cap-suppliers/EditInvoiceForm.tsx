@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -118,7 +119,7 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel, onSaveAndAp
                 paye: item.paye || false 
             })) || [],
             invoiceTotal: invoice?.invoiceTotal || 0,
-            expenseType: invoice?.expenseType || 'S38',
+            expenseType: invoice?.expenseType || undefined,
             paymentBatch: invoice?.paymentBatch || upcomingFridays[0]?.value,
             note: invoice?.note || '',
             isPrivate: invoice?.isPrivate || false,
