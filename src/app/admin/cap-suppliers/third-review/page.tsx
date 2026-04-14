@@ -87,19 +87,19 @@ const ledgerExamples: { [key: string]: string } = {
     '4121-03': 'IS6690 - Last Cast - Insert VO RX - Floris Brand - 09/05/2025 @ R1250 x 1.5 hours',
     '4121-04': 'IS6741 - Paupers Graves - Insert AFM - BKFK Studio - 20/07/2025 @ R1250 x 6 hours',
     '4121-05': 'IS6699 - TFU Impossible - AFM - Floris Brand - 11/04/2025 @ R1250 x 1 hour',
-    '4151-01': 'External Hard Drives: Backups' },
-    { accountNumber: '4151-02', description: 'External Hard Drives: Floating' },
-    { accountNumber: '5003-01', description: 'Office Rental & Parking Bays' },
-    { accountNumber: '5003-02', description: 'Office Security' },
-    { accountNumber: '5003-03', description: 'Office Utilities' },
-    { accountNumber: '5003-04', description: 'Generator Maintenance - Cummins - Fuel Seperator Spinon - EA - x 1 @ R307.23' },
-    { accountNumber: '5003-05', description: 'Stationary - TJ Office Supplies - Black pens - @ R21.00 x 5' },
-    { accountNumber: '5010-01', description: 'Monthly Printer Copy Charges - iTech - 25/10/25 @ R2413.15' },
-    { accountNumber: '5012-01', description: 'VOIP Cloud Backup - iTRINITY - 09/2025 @ R70 x 26 users' },
-    { accountNumber: '5012-02', description: 'Mobile Phone Allowances - L Janse Van Rensburg - 06/2025 @ R750.00 x 1 month' },
-    { accountNumber: '5015-01', description: 'Data Protection: e-Purifier Enterprise - iTRINITY - @ R120 x 57 users' },
-    { accountNumber: '5016-01', description: 'MS Office Exchange Online (Plan 1) - iTRINITY - 06/2025 @ R85 x 29 users' },
-    { accountNumber: '5016-12', description: 'IT Support - Remote Monitoring - iTRINITY - 09/2025 @ R80 x 17 users' },
+    '4151-01': 'External Hard Drives: Backups',
+    '4151-02': 'External Hard Drives: Floating',
+    '5003-01': 'Office Rental & Parking Bays',
+    '5003-02': 'Office Security',
+    '5003-03': 'Office Utilities',
+    '5003-04': 'Generator Maintenance - Cummins - Fuel Seperator Spinon - EA - x 1 @ R307.23',
+    '5003-05': 'Stationary - TJ Office Supplies - Black pens - @ R21.00 x 5',
+    '5010-01': 'Monthly Printer Copy Charges - iTech - 25/10/25 @ R2413.15',
+    '5012-01': 'VOIP Cloud Backup - iTRINITY - 09/2025 @ R70 x 26 users',
+    '5012-02': 'Mobile Phone Allowances - L Janse Van Rensburg - 06/2025 @ R750.00 x 1 month',
+    '5015-01': 'Data Protection: e-Purifier Enterprise - iTRINITY - @ R120 x 57 users',
+    '5016-01': 'MS Office Exchange Online (Plan 1) - iTRINITY - 06/2025 @ R85 x 29 users',
+    '5016-12': 'IT Support - Remote Monitoring - iTRINITY - 09/2025 @ R80 x 17 users',
 };
 
 
@@ -685,5 +685,3 @@ export default function ThirdReviewPage() {
         </div>
     );
 }
-
-    
