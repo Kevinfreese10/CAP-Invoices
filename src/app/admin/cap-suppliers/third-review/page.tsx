@@ -9,7 +9,7 @@ import { firebaseApp } from '@/lib/firebase';
 import { Loader2, CheckCircle, MoreHorizontal, Edit, PlusCircle, FileCheck2, Save, Eye, Trash2, Brain, SortAsc } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { ExtractedInvoice } from '@/lib/types';
+import { ExtractedInvoice, Commission } from '@/lib/types';
 import { capChartOfAccounts, s38ChartOfAccounts, s39ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -22,8 +22,6 @@ import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
-import { findStoryName } from '@/ai/flows/find-story-name';
-import { commissionList as defaultCommissionList } from '@/lib/commission-list';
 import { Textarea } from '@/components/ui/textarea';
 
 
@@ -89,47 +87,51 @@ const ledgerExamples: { [key: string]: string } = {
     '4121-03': 'IS6690 - Last Cast - Insert VO RX - Floris Brand - 09/05/2025 @ R1250 x 1.5 hours',
     '4121-04': 'IS6741 - Paupers Graves - Insert AFM - BKFK Studio - 20/07/2025 @ R1250 x 6 hours',
     '4121-05': 'IS6699 - TFU Impossible - AFM - Floris Brand - 11/04/2025 @ R1250 x 1 hour',
-    '5003-01': 'Office Rental & Parking Bays - Tulbach North (Pty) Ltd - 10/2025 - Open Parkings @ R396.27 x 2 parkings',
-    '5003-02': 'Office Security - Tulbach North Body Corporate - 05/2025 @ R7027.56',
-    '5003-03': 'Office Utilities - Sewer - Tulbach North Body Corporate - Reading period 15/08-09/09/2025',
-    '5003-04': 'Generator Maintenance - Cummins - Fuel Seperator Spinon - EA - x 1 @ R307.23',
-    '5003-05': 'Stationary - TJ Office Supplies - Black pens - @ R21.00 x 5',
-    '5010-01': 'Monthly Printer Copy Charges - iTech - 25/10/25 @ R2413.15',
-    '5012-01': 'VOIP Cloud Backup - iTRINITY - 09/2025 @ R70 x 26 users',
-    '5012-02': 'Mobile Phone Allowances - L Janse Van Rensburg - 06/2025 @ R750.00 x 1 month',
-    '5015-01': 'Data Protection: e-Purifier Enterprise - iTRINITY - @ R120 x 57 users',
-    '5016-01': 'MS Office Exchange Online (Plan 1) - iTRINITY - 06/2025 @ R85 x 29 users',
-    '5016-12': 'IT Support - Remote Monitoring - iTRINITY - 09/2025 @ R80 x 17 users',
+    '4151-01': 'External Hard Drives: Backups' },
+    { accountNumber: '4151-02', description: 'External Hard Drives: Floating' },
+    { accountNumber: '5003-01', description: 'Office Rental & Parking Bays' },
+    { accountNumber: '5003-02', description: 'Office Security' },
+    { accountNumber: '5003-03', description: 'Office Utilities' },
+    { accountNumber: '5003-04', description: 'Generator Maintenance - Cummins - Fuel Seperator Spinon - EA - x 1 @ R307.23' },
+    { accountNumber: '5003-05', description: 'Stationary - TJ Office Supplies - Black pens - @ R21.00 x 5' },
+    { accountNumber: '5010-01', description: 'Monthly Printer Copy Charges - iTech - 25/10/25 @ R2413.15' },
+    { accountNumber: '5012-01', description: 'VOIP Cloud Backup - iTRINITY - 09/2025 @ R70 x 26 users' },
+    { accountNumber: '5012-02', description: 'Mobile Phone Allowances - L Janse Van Rensburg - 06/2025 @ R750.00 x 1 month' },
+    { accountNumber: '5015-01', description: 'Data Protection: e-Purifier Enterprise - iTRINITY - @ R120 x 57 users' },
+    { accountNumber: '5016-01', description: 'MS Office Exchange Online (Plan 1) - iTRINITY - 06/2025 @ R85 x 29 users' },
+    { accountNumber: '5016-12', description: 'IT Support - Remote Monitoring - iTRINITY - 09/2025 @ R80 x 17 users' },
 };
 
 
 function AnalyzeStoryDialog({ open, onOpenChange, invoices, onAnalyzeComplete }: { open: boolean; onOpenChange: (open: boolean) => void; invoices: ExtractedInvoice[]; onAnalyzeComplete: () => void; }) {
     const { toast } = useToast();
     const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [knowledgeBase, setKnowledgeBase] = useState('');
-    const [isKbLoading, setIsKbLoading] = useState(true);
+    const [commissions, setCommissions] = useState<Commission[]>([]);
+    const [isDataLoading, setIsDataLoading] = useState(true);
 
     useEffect(() => {
         if (open) {
-            const fetchCommissionData = async () => {
-                setIsKbLoading(true);
-                const docRef = doc(db, 'commissionData', 'list');
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                    setKnowledgeBase(docSnap.data().content);
-                } else {
-                    // Fallback to static data if not in Firestore
-                    setKnowledgeBase(defaultCommissionList);
+            const fetchCommissions = async () => {
+                setIsDataLoading(true);
+                try {
+                    const commsQuery = query(collection(db, 'commissions'), orderBy('commissionNumber', 'asc'));
+                    const commsSnapshot = await getDocs(commsQuery);
+                    const fetchedCommissions = commsSnapshot.docs.map(doc => doc.data() as Commission);
+                    setCommissions(fetchedCommissions);
+                } catch (error) {
+                    console.error("Error fetching commissions:", error);
+                    toast({ title: 'Error', description: 'Could not load the commission list.', variant: 'destructive' });
+                } finally {
+                    setIsDataLoading(false);
                 }
-                setIsKbLoading(false);
             };
-            fetchCommissionData();
+            fetchCommissions();
         }
-    }, [open]);
+    }, [open, toast]);
 
     const handleAnalyze = async () => {
         setIsAnalyzing(true);
-        toast({ title: 'Analyzing ' + invoices.length + ' invoice(s)...' });
+        toast({ title: `Analyzing ${invoices.length} invoice(s)...` });
 
         try {
             const batch = writeBatch(db);
@@ -137,20 +139,21 @@ function AnalyzeStoryDialog({ open, onOpenChange, invoices, onAnalyzeComplete }:
 
             for (const invoice of invoices) {
                 if (invoice.commissionNumber) {
-                    const result = await findStoryName({
-                        commissionNumber: invoice.commissionNumber,
-                        knowledgeBase: knowledgeBase,
-                    });
-                    if (result.storyName) {
+                    const matchingCommission = commissions.find(
+                        (c) => c.commissionNumber === invoice.commissionNumber
+                    );
+
+                    if (matchingCommission && matchingCommission.shortName) {
                         const invoiceRef = doc(db, 'extractedInvoices', invoice.id);
-                        batch.update(invoiceRef, { storyName: result.storyName });
+                        // Update storyName field with the shortName
+                        batch.update(invoiceRef, { storyName: matchingCommission.shortName });
                         updatedCount++;
                     }
                 }
             }
             if (updatedCount > 0) {
                 await batch.commit();
-                toast({ title: 'Analysis Complete', description: updatedCount + ' invoice(s) were updated with a story name.' });
+                toast({ title: 'Analysis Complete', description: `${updatedCount} invoice(s) were updated with a story name.` });
                 onAnalyzeComplete();
             } else {
                  toast({ title: 'No Matches Found', description: 'No story names could be found for the selected invoices.', variant: 'default' });
@@ -166,24 +169,17 @@ function AnalyzeStoryDialog({ open, onOpenChange, invoices, onAnalyzeComplete }:
     
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-xl">
+            <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle>Analyze Story Names</DialogTitle>
-                    <DialogDescription>Paste your commission list from Google Sheets below. The AI will match commission numbers to find the story name.</DialogDescription>
+                    <DialogDescription>
+                        This will automatically find the "Short Name" from your commissions list and update the "Story Name" for the {invoices.length} selected invoice(s).
+                    </DialogDescription>
                 </DialogHeader>
-                <div className="py-4">
-                     <Textarea
-                        value={knowledgeBase}
-                        onChange={(e) => setKnowledgeBase(e.target.value)}
-                        rows={15}
-                        placeholder="Paste your two-column data here (e.g., CM-123\tMy Story Name)"
-                        disabled={isKbLoading}
-                    />
-                </div>
                 <DialogFooter>
                     <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-                    <Button onClick={handleAnalyze} disabled={isAnalyzing || isKbLoading}>
-                         {isAnalyzing || isKbLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Brain className="mr-2 h-4 w-4" />}
+                    <Button onClick={handleAnalyze} disabled={isAnalyzing || isDataLoading}>
+                         {isAnalyzing || isDataLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Brain className="mr-2 h-4 w-4" />}
                         Analyze and Update
                     </Button>
                 </DialogFooter>
@@ -690,3 +686,4 @@ export default function ThirdReviewPage() {
     );
 }
 
+    

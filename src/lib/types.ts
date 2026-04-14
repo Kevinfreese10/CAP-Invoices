@@ -389,17 +389,6 @@ export type AIAllocationJob = {
     error?: string;
 }
 
-export const FindStoryNameInputSchema = z.object({
-  commissionNumber: z.string().describe('The commission number to search for.'),
-  knowledgeBase: z.string().describe('A block of text containing mappings of commission numbers to story names. Each entry is typically on a new line, e.g., "CM-123\tMy Story Name".'),
-});
-export type FindStoryNameInput = z.infer<typeof FindStoryNameInputSchema>;
-
-export const FindStoryNameOutputSchema = z.object({
-  storyName: z.string().optional().describe('The corresponding story name found in the knowledge base. Returns nothing if no match is found.'),
-});
-export type FindStoryNameOutput = z.infer<typeof FindStoryNameOutputSchema>;
-
 export type Commission = {
   id: string;
   commissionNumber: string;
