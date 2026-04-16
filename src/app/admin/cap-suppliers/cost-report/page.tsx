@@ -164,6 +164,7 @@ export default function CostReportPage() {
                     invoiceDate: inv.date,
                     invoiceNumber: inv.invoiceNumber,
                     paymentBatch: inv.paymentBatch,
+                    expenseType: inv.expenseType,
                 });
             });
         });
@@ -207,8 +208,14 @@ export default function CostReportPage() {
         if (!groupedByCommission.length) return;
 
         const dataToExport = groupedByCommission.flatMap(group => 
-            group.items.map(item => {
-                const account = allAccounts.find(acc => acc.accountNumber === item.accountId);
+            group.items.map((item: any) => {
+                let account;
+                switch(item.expenseType) {
+                    case 'S38': account = s38ChartOfAccounts.find(acc => acc.accountNumber === item.accountId); break;
+                    case 'S39': account = s39ChartOfAccounts.find(acc => acc.accountNumber === item.accountId); break;
+                    case 'CAP': account = capChartOfAccounts.find(acc => acc.accountNumber === item.accountId); break;
+                    default: account = allAccounts.find(acc => acc.accountNumber === item.accountId);
+                }
                 return {
                     'Commission Number': group.commission,
                     'Supplier': item.supplier,
@@ -219,6 +226,7 @@ export default function CostReportPage() {
                     'Account Name': account ? account.description : 'N/A',
                     'Payment Batch': item.paymentBatch ? format(new Date(item.paymentBatch), 'dd MMM yyyy') : 'N/A',
                     'Exclusive Amount': item.exclusiveAmount,
+                    'Expense Type': item.expenseType,
                 };
             })
         );
@@ -226,7 +234,7 @@ export default function CostReportPage() {
         const worksheet = XLSX.utils.json_to_sheet(dataToExport);
         worksheet['!cols'] = [
             { wch: 20 }, { wch: 30 }, { wch: 15 }, { wch: 20 }, { wch: 50 },
-            { wch: 20 }, { wch: 40 }, { wch: 20 }, { wch: 20 }
+            { wch: 20 }, { wch: 40 }, { wch: 20 }, { wch: 20 }, { wch: 15 }
         ];
 
         const workbook = XLSX.utils.book_new();

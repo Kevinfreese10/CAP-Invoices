@@ -25,7 +25,6 @@ import { Badge } from '@/components/ui/badge';
 
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
-const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts, ...s39ChartOfAccounts];
 
 function AIExtractUploadDialog({ onUploadComplete }: { onUploadComplete: () => void }) {
     const [isOpen, setIsOpen] = useState(false);
@@ -298,9 +297,16 @@ export default function AccountReviewPage() {
         }
     };
 
-    const getAccountDescription = (accountId?: string) => {
+    const getAccountDescription = (accountId?: string, expenseType?: 'CAP' | 'S38' | 'S39') => {
         if (!accountId) return 'N/A';
-        const account = allAccounts.find(acc => acc.accountNumber === accountId);
+        let chart;
+        switch(expenseType) {
+            case 'S38': chart = s38ChartOfAccounts; break;
+            case 'S39': chart = s39ChartOfAccounts; break;
+            case 'CAP': chart = capChartOfAccounts; break;
+            default: chart = [...capChartOfAccounts, ...s38ChartOfAccounts, ...s39ChartOfAccounts]; // Fallback
+        }
+        const account = chart.find(acc => acc.accountNumber === accountId);
         return account ? account.description : 'Unknown Account';
     }
 
@@ -413,7 +419,7 @@ export default function AccountReviewPage() {
                                     {invoice.lineItems.map((item, index) => (
                                         <TableRow key={`${invoice.id}-${index}`}>
                                             <TableCell>{item.description}</TableCell>
-                                            <TableCell>{getAccountDescription(item.accountId)}</TableCell>
+                                            <TableCell>{getAccountDescription(item.accountId, invoice.expenseType)}</TableCell>
                                             <TableCell className="text-right font-mono">{formatPrice(item.exclusiveAmount)}</TableCell>
                                         </TableRow>
                                     ))}

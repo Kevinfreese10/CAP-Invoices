@@ -26,8 +26,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
 
-const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts, ...s39ChartOfAccounts];
-
 
 export default function PaymentControlSheetPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
@@ -112,9 +110,16 @@ export default function PaymentControlSheetPage() {
         }).format(price);
     };
 
-    const getAccountDescription = (accountId?: string) => {
+    const getAccountDescription = (accountId?: string, expenseType?: 'CAP' | 'S38' | 'S39') => {
         if (!accountId) return { description: 'N/A', number: '' };
-        const account = allAccounts.find(acc => acc.accountNumber === accountId);
+        let chart;
+        switch(expenseType) {
+            case 'S38': chart = s38ChartOfAccounts; break;
+            case 'S39': chart = s39ChartOfAccounts; break;
+            case 'CAP': chart = capChartOfAccounts; break;
+            default: chart = [...capChartOfAccounts, ...s38ChartOfAccounts, ...s39ChartOfAccounts];
+        }
+        const account = chart.find(acc => acc.accountNumber === accountId);
         return account ? { description: account.description, number: account.accountNumber } : { description: accountId, number: accountId };
     }
 
@@ -247,7 +252,7 @@ export default function PaymentControlSheetPage() {
                                             </TableHeader>
                                             <TableBody>
                                                 {invoice.lineItems.map((item, index) => {
-                                                    const account = getAccountDescription(item.accountId);
+                                                    const account = getAccountDescription(item.accountId, invoice.expenseType);
                                                     return (
                                                     <TableRow key={index}>
                                                         <TableCell className="font-semibold">{item.ledgerDescription || item.description}</TableCell>
@@ -286,5 +291,3 @@ export default function PaymentControlSheetPage() {
         </div>
     );
 }
-
-    

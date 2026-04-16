@@ -21,7 +21,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 
 
 const db = getFirestore(firebaseApp);
-const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts, ...s39ChartOfAccounts];
 
 type GroupedLineItem = ExtractedInvoice['lineItems'][0] & {
     invoiceId: string;
@@ -31,6 +30,7 @@ type GroupedLineItem = ExtractedInvoice['lineItems'][0] & {
     fileUrl: string;
     commissionNumber?: string;
     paymentBatch?: string;
+    expenseType?: 'CAP' | 'S38' | 'S39';
 };
 
 function MultiSelectFilter({ title, options, selectedValues, setSelectedValues }: { title: string, options: { value: string; label: string }[], selectedValues: string[], setSelectedValues: (values: string[]) => void }) {
@@ -143,6 +143,7 @@ export default function CostLedgerPage() {
                         fileUrl: invoice.fileUrl,
                         commissionNumber: invoice.commissionNumber,
                         paymentBatch: invoice.paymentBatch,
+                        expenseType: invoice.expenseType,
                     });
                 }
             });
@@ -151,32 +152,46 @@ export default function CostLedgerPage() {
     }, [invoices, selectedBatches]);
 
     const groupedByAccount = useMemo(() => {
-        const groups: { [key: string]: { account: any; items: GroupedLineItem[]; total: number; } } = {};
+        const groups: { [key: string]: { account: any; items: GroupedLineItem[]; total: number; expenseType?: 'CAP' | 'S38' | 'S39' } } = {};
 
         filteredLineItems.forEach(item => {
             if (!item.accountId) return;
+            const groupKey = `${item.accountId}-${item.expenseType || 'CAP'}`;
 
-            if (!groups[item.accountId]) {
-                const accountDetails = allAccounts.find(acc => acc.accountNumber === item.accountId);
-                groups[item.accountId] = {
+            if (!groups[groupKey]) {
+                let accountDetails;
+                let chart;
+                switch(item.expenseType) {
+                    case 'S38': chart = s38ChartOfAccounts; break;
+                    case 'S39': chart = s39ChartOfAccounts; break;
+                    default: chart = capChartOfAccounts;
+                }
+                accountDetails = chart.find(acc => acc.accountNumber === item.accountId);
+                
+                groups[groupKey] = {
                     account: accountDetails || { accountNumber: item.accountId, description: 'Unknown Account' },
                     items: [],
                     total: 0,
+                    expenseType: item.expenseType
                 };
             }
-            groups[item.accountId].items.push(item);
-            groups[item.accountId].total += item.exclusiveAmount;
+            groups[groupKey].items.push(item);
+            groups[groupKey].total += item.exclusiveAmount;
         });
 
-        for (const accountId in groups) {
-            groups[accountId].items.sort((a, b) => {
+        for (const groupKey in groups) {
+            groups[groupKey].items.sort((a, b) => {
                 const dateA = new Date(a.invoiceDate.split('/').reverse().join('-'));
                 const dateB = new Date(b.invoiceDate.split('/').reverse().join('-'));
                 return dateA.getTime() - dateB.getTime();
             });
         }
-
-        return Object.values(groups).sort((a, b) => a.account.accountNumber.localeCompare(b.account.accountNumber));
+        
+        return Object.values(groups).sort((a, b) => {
+            const numCompare = a.account.accountNumber.localeCompare(b.account.accountNumber);
+            if (numCompare !== 0) return numCompare;
+            return (a.expenseType || 'CAP').localeCompare(b.expenseType || 'CAP');
+        });
     }, [filteredLineItems]);
 
     const handleExportAll = () => {
@@ -191,12 +206,9 @@ export default function CostLedgerPage() {
         ];
 
         groupedByAccount.forEach(group => {
-            // Add account header
-            dataToExport.push([`${group.account.accountNumber} - ${group.account.description}`]);
-            // Add transaction headers
+            dataToExport.push([`${group.account.accountNumber} - ${group.account.description} (${group.expenseType || 'CAP'})`]);
             dataToExport.push(header);
             
-            // Add transaction rows
             group.items.forEach(item => {
                 dataToExport.push([
                     item.invoiceDate,
@@ -207,19 +219,16 @@ export default function CostLedgerPage() {
                 ]);
             });
 
-            // Add account total row
             dataToExport.push([
                 '', '', 'Total for Account:', group.total
             ]);
             
-            // Add a spacer row
             dataToExport.push([]); 
         });
 
         const worksheet = XLSX.utils.aoa_to_sheet(dataToExport);
         
-        // Auto-fit columns
-        const colWidths = header.map((_, i) => ({ wch: 20 })); // default width
+        const colWidths = header.map((_, i) => ({ wch: 20 })); 
         worksheet['!cols'] = colWidths;
         
         const workbook = XLSX.utils.book_new();
@@ -266,8 +275,8 @@ export default function CostLedgerPage() {
                         </p>
                     ) : (
                         <div className="space-y-4">
-                            {groupedByAccount.map(({ account, items, total }) => (
-                                <Collapsible key={account.accountNumber}>
+                            {groupedByAccount.map((group) => (
+                                <Collapsible key={`${group.account.accountNumber}-${group.expenseType}`}>
                                     <Card>
                                         <CollapsibleTrigger asChild>
                                             <CardHeader className="flex flex-row items-center justify-between cursor-pointer hover:bg-muted/50">
@@ -276,13 +285,13 @@ export default function CostLedgerPage() {
                                                         <ChevronDown className="h-4 w-4 transition-transform"/>
                                                     </Button>
                                                     <div>
-                                                        <CardTitle>{account.description}</CardTitle>
-                                                        <CardDescription>Account: {account.accountNumber}</CardDescription>
+                                                        <CardTitle>{group.account.description}</CardTitle>
+                                                        <CardDescription>Account: {group.account.accountNumber} ({group.expenseType || 'CAP'})</CardDescription>
                                                     </div>
                                                 </div>
                                                 <div className="text-right">
                                                     <p className="text-sm text-muted-foreground">Total</p>
-                                                    <p className="text-xl font-bold">{formatPrice(total)}</p>
+                                                    <p className="text-xl font-bold">{formatPrice(group.total)}</p>
                                                 </div>
                                             </CardHeader>
                                         </CollapsibleTrigger>
@@ -300,7 +309,7 @@ export default function CostLedgerPage() {
                                                         </TableRow>
                                                     </TableHeader>
                                                     <TableBody>
-                                                        {items.map((item, index) => (
+                                                        {group.items.map((item, index) => (
                                                             <TableRow key={`${item.invoiceId}-${index}`}>
                                                                 <TableCell>{item.invoiceDate}</TableCell>
                                                                 <TableCell>{item.supplier}</TableCell>

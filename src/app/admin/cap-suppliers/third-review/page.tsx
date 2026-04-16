@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -27,8 +28,6 @@ import { Textarea } from '@/components/ui/textarea';
 
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
-
-const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts, ...s39ChartOfAccounts];
 
 const ledgerExamples: { [key: string]: string } = {
     '1038-01': 'R&D - Skid Testing - Volkswagen SA - 21/05/2025 @ R4675 x 1 day',
@@ -362,9 +361,17 @@ export default function ThirdReviewPage() {
         }).format(price);
     };
 
-    const getAccountDescription = (accountId?: string) => {
+    const getAccountDescription = (accountId?: string, expenseType?: 'CAP' | 'S38' | 'S39') => {
         if (!accountId) return { description: 'N/A', number: '' };
-        const account = allAccounts.find(acc => acc.accountNumber === accountId);
+    
+        let chart;
+        switch(expenseType) {
+            case 'S38': chart = s38ChartOfAccounts; break;
+            case 'S39': chart = s39ChartOfAccounts; break;
+            case 'CAP': chart = capChartOfAccounts; break;
+            default: chart = [...capChartOfAccounts, ...s38ChartOfAccounts, ...s39ChartOfAccounts];
+        }
+        const account = chart.find(acc => acc.accountNumber === accountId);
         return account ? { description: account.description, number: account.accountNumber } : { description: accountId, number: accountId };
     }
     
@@ -377,7 +384,7 @@ export default function ThirdReviewPage() {
                 }
             });
         });
-        return Array.from(accountSet).map(id => getAccountDescription(id)).sort((a,b) => a.number.localeCompare(b.number));
+        return Array.from(accountSet).map(id => getAccountDescription(id, 'S38')).sort((a,b) => a.number.localeCompare(b.number));
     }, [invoices]);
 
     const filteredInvoices = useMemo(() => {
@@ -634,7 +641,7 @@ export default function ThirdReviewPage() {
                                             </TableHeader>
                                             <TableBody>
                                                 {invoice.lineItems.map((item, index) => {
-                                                    const account = getAccountDescription(item.accountId);
+                                                    const account = getAccountDescription(item.accountId, invoice.expenseType);
                                                     const example = item.accountId ? ledgerExamples[item.accountId] : '';
                                                     return (
                                                         <TableRow key={'' + invoice.id + '-' + index}>
