@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { s38ChartOfAccounts, capChartOfAccounts } from '@/lib/cap-chart-of-accounts';
+import { s38ChartOfAccounts, capChartOfAccounts, s39ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 
 export default function CapChartOfAccountsPage() {
   return (
@@ -27,6 +27,33 @@ export default function CapChartOfAccountsPage() {
                 </TableHeader>
                 <TableBody>
                     {s38ChartOfAccounts.map((account) => (
+                        <TableRow key={account.accountNumber}>
+                            <TableCell className="font-mono">{account.accountNumber}</TableCell>
+                            <TableCell>{account.description}</TableCell>
+                        </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>S39 Chart of Accounts</CardTitle>
+          <CardDescription>
+            This is the chart of accounts for S39.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead>Account Number</TableHead>
+                        <TableHead>Description</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {s39ChartOfAccounts.map((account) => (
                         <TableRow key={account.accountNumber}>
                             <TableCell className="font-mono">{account.accountNumber}</TableCell>
                             <TableCell>{account.description}</TableCell>
