@@ -246,7 +246,7 @@ export default function SupplierDashboardPage() {
                     name="approvalAllocation"
                     render={({ field }) => (
                         <FormItem>
-                        <FormLabel>Approval Allocation</FormLabel>
+                        <FormLabel>What are you invoicing for</FormLabel>
                         <Select 
                             onValueChange={(label) => {
                                 const allocation = approvalAllocations.find(a => a.label === label);
@@ -258,7 +258,7 @@ export default function SupplierDashboardPage() {
                         >
                             <FormControl>
                             <SelectTrigger>
-                                <SelectValue placeholder="Select an approver..." />
+                                <SelectValue placeholder="Select what you are invoicing for..." />
                             </SelectTrigger>
                             </FormControl>
                             <SelectContent>
