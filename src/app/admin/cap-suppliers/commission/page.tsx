@@ -9,7 +9,7 @@ import { useMemo, useState, useEffect } from "react";
 import { getFirestore, doc, getDoc, setDoc, collection, onSnapshot, query, orderBy, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, PlusCircle } from "lucide-react";
+import { Loader2, PlusCircle, MoreHorizontal, Edit } from "lucide-react";
 import { commissionList as fallbackData } from "@/lib/commission-list";
 import { Commission } from "@/lib/types";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
@@ -19,6 +19,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 const db = getFirestore(firebaseApp);
 
@@ -31,10 +32,10 @@ const commissionFormSchema = z.object({
 });
 
 
-function AddCommissionDialog({ onCommissionAdded }: { onCommissionAdded: () => void }) {
-    const [isOpen, setIsOpen] = useState(false);
+function CommissionDialog({ onSave, commission, open, onOpenChange }: { onSave: (data: any, id: string) => Promise<void>, commission: Commission | null, open: boolean, onOpenChange: (open: boolean) => void }) {
+    const isEditing = !!commission;
     const [isSaving, setIsSaving] = useState(false);
-    const { toast } = useToast();
+
     const form = useForm<z.infer<typeof commissionFormSchema>>({
         resolver: zodResolver(commissionFormSchema),
         defaultValues: {
@@ -46,49 +47,41 @@ function AddCommissionDialog({ onCommissionAdded }: { onCommissionAdded: () => v
         }
     });
 
+    useEffect(() => {
+        if (open) {
+            if (commission) {
+                form.reset(commission);
+            } else {
+                form.reset({
+                    commissionNumber: '',
+                    shortName: '',
+                    storyName: '',
+                    commissionedDuration: 0,
+                    producer: '',
+                });
+            }
+        }
+    }, [commission, form, open]);
+
+
     const handleSave = async (values: z.infer<typeof commissionFormSchema>) => {
         setIsSaving(true);
-        try {
-            const commissionId = values.commissionNumber.trim();
-            const docRef = doc(db, 'commissions', commissionId);
-            
-            const newCommission = {
-                ...values,
-                id: commissionId,
-                createdAt: serverTimestamp(),
-            };
-
-            await setDoc(docRef, newCommission);
-
-            toast({ title: 'Commission Added', description: `Commission ${commissionId} has been saved.` });
-            onCommissionAdded();
-            setIsOpen(false);
-            form.reset();
-        } catch (error) {
-            console.error("Error saving commission:", error);
-            toast({ title: 'Error', description: 'Could not save the new commission.', variant: 'destructive' });
-        } finally {
-            setIsSaving(false);
-        }
+        const id = isEditing ? commission.id : values.commissionNumber.trim();
+        await onSave(values, id);
+        setIsSaving(false);
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>
-                <Button>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Add Commission
-                </Button>
-            </DialogTrigger>
+        <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-2xl">
                 <DialogHeader>
-                    <DialogTitle>Add New Commission</DialogTitle>
-                    <DialogDescription>Fill in the details for the new commission.</DialogDescription>
+                    <DialogTitle>{isEditing ? 'Edit Commission' : 'Add New Commission'}</DialogTitle>
+                    <DialogDescription>{isEditing ? 'Update the details for this commission.' : 'Fill in the details for the new commission.'}</DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleSave)} className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                             <FormField control={form.control} name="commissionNumber" render={({ field }) => ( <FormItem><FormLabel>Commission Number (COMM)</FormLabel><FormControl><Input placeholder="e.g. 6757" {...field} /></FormControl><FormMessage /></FormItem> )}/>
+                             <FormField control={form.control} name="commissionNumber" render={({ field }) => ( <FormItem><FormLabel>Commission Number (COMM)</FormLabel><FormControl><Input placeholder="e.g. 6757" {...field} disabled={isEditing} /></FormControl><FormMessage /></FormItem> )}/>
                              <FormField control={form.control} name="shortName" render={({ field }) => ( <FormItem><FormLabel>Short Name</FormLabel><FormControl><Input placeholder="e.g. Pick Pocket" {...field} /></FormControl><FormMessage /></FormItem> )}/>
                         </div>
                         <FormField control={form.control} name="storyName" render={({ field }) => ( <FormItem><FormLabel>Story Name</FormLabel><FormControl><Input placeholder="Full story name" {...field} /></FormControl><FormMessage /></FormItem> )}/>
@@ -97,7 +90,7 @@ function AddCommissionDialog({ onCommissionAdded }: { onCommissionAdded: () => v
                             <FormField control={form.control} name="producer" render={({ field }) => ( <FormItem><FormLabel>Producer</FormLabel><FormControl><Input placeholder="Producer's name" {...field} /></FormControl><FormMessage /></FormItem> )}/>
                         </div>
                         <DialogFooter>
-                            <Button type="button" variant="ghost" onClick={() => setIsOpen(false)}>Cancel</Button>
+                            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
                             <Button type="submit" disabled={isSaving}>
                                 {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Save Commission
@@ -118,6 +111,8 @@ export default function CommissionPage() {
     const [commissions, setCommissions] = useState<Commission[]>([]);
     const [isCommissionsLoading, setIsCommissionsLoading] = useState(true);
     const { toast } = useToast();
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [selectedCommission, setSelectedCommission] = useState<Commission | null>(null);
 
     useEffect(() => {
         const fetchCommissionData = async () => {
@@ -164,6 +159,37 @@ export default function CommissionPage() {
             setIsSaving(false);
         }
     };
+    
+    const handleSaveCommission = async (values: any, id: string) => {
+        try {
+            const docRef = doc(db, 'commissions', id);
+            const isEditing = !!selectedCommission;
+
+            const commissionData = {
+                ...values,
+                id,
+                ...(isEditing ? { updatedAt: serverTimestamp() } : { createdAt: serverTimestamp() }),
+            };
+
+            await setDoc(docRef, commissionData, { merge: true });
+
+            toast({ title: `Commission ${isEditing ? 'Updated' : 'Added'}`, description: `Commission ${id} has been saved.` });
+            setIsDialogOpen(false);
+        } catch (error) {
+            console.error("Error saving commission:", error);
+            toast({ title: 'Error', description: 'Could not save the commission.', variant: 'destructive' });
+        }
+    };
+
+    const handleAddNew = () => {
+        setSelectedCommission(null);
+        setIsDialogOpen(true);
+    };
+
+    const handleEdit = (commission: Commission) => {
+        setSelectedCommission(commission);
+        setIsDialogOpen(true);
+    };
 
     const commissionListFromText = useMemo(() => {
         return commissionText.split('\n').map(line => {
@@ -181,7 +207,10 @@ export default function CommissionPage() {
                         <CardTitle>Commissions</CardTitle>
                         <CardDescription>A structured list of all commissions.</CardDescription>
                     </div>
-                    <AddCommissionDialog onCommissionAdded={() => {}} />
+                    <Button onClick={handleAddNew}>
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Add Commission
+                    </Button>
                 </CardHeader>
                 <CardContent>
                      {isCommissionsLoading ? (
@@ -198,6 +227,7 @@ export default function CommissionPage() {
                                     <TableHead>Duration (mins)</TableHead>
                                     <TableHead>Producer</TableHead>
                                     <TableHead>Created</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -209,6 +239,18 @@ export default function CommissionPage() {
                                         <TableCell>{commission.commissionedDuration}</TableCell>
                                         <TableCell>{commission.producer}</TableCell>
                                         <TableCell>{commission.createdAt ? format(commission.createdAt.toDate(), 'dd/MM/yyyy') : 'N/A'}</TableCell>
+                                        <TableCell className="text-right">
+                                             <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent>
+                                                    <DropdownMenuItem onSelect={() => handleEdit(commission)}>
+                                                        <Edit className="mr-2 h-4 w-4" /> Edit
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                             </DropdownMenu>
+                                        </TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
@@ -216,6 +258,13 @@ export default function CommissionPage() {
                     )}
                 </CardContent>
             </Card>
+
+             <CommissionDialog 
+                open={isDialogOpen}
+                onOpenChange={setIsDialogOpen}
+                commission={selectedCommission}
+                onSave={handleSaveCommission}
+            />
 
             <Card>
                 <CardHeader>
