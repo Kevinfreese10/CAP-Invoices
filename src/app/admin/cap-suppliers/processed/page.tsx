@@ -18,7 +18,7 @@ const db = getFirestore(firebaseApp);
 export default function ProcessedInvoicesPage() {
     const [processedInvoices, setProcessedInvoices] = useState<ExtractedInvoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [supplierFilter, setSupplierFilter] = useState('');
+    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         const fetchInvoices = async () => {
@@ -44,11 +44,13 @@ export default function ProcessedInvoicesPage() {
     }, []);
 
     const filteredProcessedInvoices = useMemo(() => {
-        if (!supplierFilter) return processedInvoices;
+        if (!searchTerm) return processedInvoices;
+        const lowercasedFilter = searchTerm.toLowerCase();
         return processedInvoices.filter(invoice =>
-            invoice.supplier.toLowerCase().includes(supplierFilter.toLowerCase())
+            invoice.supplier.toLowerCase().includes(lowercasedFilter) ||
+            invoice.invoiceNumber.toLowerCase().includes(lowercasedFilter)
         );
-    }, [processedInvoices, supplierFilter]);
+    }, [processedInvoices, searchTerm]);
     
     const getInvoiceStatusBadge = (status: ExtractedInvoice['status']) => {
         switch(status) {
@@ -87,9 +89,9 @@ export default function ProcessedInvoicesPage() {
                             </CardDescription>
                         </div>
                          <Input 
-                            placeholder="Filter by supplier..."
-                            value={supplierFilter}
-                            onChange={(e) => setSupplierFilter(e.target.value)}
+                            placeholder="Filter by supplier or invoice #..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
                             className="max-w-sm"
                         />
                     </div>
@@ -106,6 +108,7 @@ export default function ProcessedInvoicesPage() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>Supplier</TableHead>
+                                    <TableHead>Invoice #</TableHead>
                                     <TableHead>Processed At</TableHead>
                                     <TableHead>Status</TableHead>
                                     <TableHead className="text-right">Total</TableHead>
@@ -116,6 +119,7 @@ export default function ProcessedInvoicesPage() {
                                 {filteredProcessedInvoices.map((invoice) => (
                                     <TableRow key={invoice.id}>
                                         <TableCell className="font-medium">{invoice.supplier}</TableCell>
+                                        <TableCell>{invoice.invoiceNumber}</TableCell>
                                         <TableCell>
                                             {invoice.createdAt?.toDate ? format(invoice.createdAt.toDate(), 'dd/MM/yyyy HH:mm') : 'N/A'}
                                         </TableCell>
