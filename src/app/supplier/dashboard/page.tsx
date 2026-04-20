@@ -193,7 +193,7 @@ export default function SupplierDashboardPage() {
     switch (status) {
         case 'paid': return <Badge variant={'success'}><CheckCircle className="mr-1 h-3 w-3" />Paid</Badge>;
         case 'approved_for_payment': return <Badge variant={'payment'}><FileCheck2 className="mr-1 h-3 w-3" />Approved for Payment</Badge>;
-        case 'batched_for_payment': return <Badge variant={'payment'}><FileCheck2 className="mr-1 h-3 w-3" />Batched for Payment</Badge>;
+        case 'batched_for_payment': return <Badge variant={'payment'}><FileCheck2 className="mr-1 h-3 w-3" />Batched</Badge>;
         case 'rejected': return <Badge variant={'destructive'}><FileX2 className="mr-1 h-3 w-3" />Rejected</Badge>;
         case 'duplicate': return <Badge variant={'destructive'}><AlertTriangle className="mr-1 h-3 w-3" />Duplicate</Badge>;
         default: return <Badge variant={'warning'}><Hourglass className="mr-1 h-3 w-3" />{status.replace(/_/g, ' ')}</Badge>;
@@ -247,14 +247,26 @@ export default function SupplierDashboardPage() {
                     render={({ field }) => (
                         <FormItem>
                         <FormLabel>Approval Allocation</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select 
+                            onValueChange={(label) => {
+                                const allocation = approvalAllocations.find(a => a.label === label);
+                                if (allocation) {
+                                    field.onChange(allocation.email);
+                                }
+                            }} 
+                            value={approvalAllocations.find(a => a.email === field.value)?.label}
+                        >
                             <FormControl>
                             <SelectTrigger>
                                 <SelectValue placeholder="Select an approver..." />
                             </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                            {approvalAllocations.map(acc => <SelectItem key={acc.label} value={acc.email}>{acc.label}</SelectItem>)}
+                                {approvalAllocations.map(acc => (
+                                    <SelectItem key={acc.label} value={acc.label}>
+                                        {acc.label}
+                                    </SelectItem>
+                                ))}
                             </SelectContent>
                         </Select>
                         <FormMessage />
