@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -263,6 +262,7 @@ export default function SupplierDashboardPage() {
                             <TableHead>Date</TableHead>
                             <TableHead>Commission #</TableHead>
                             <TableHead>Status</TableHead>
+                            <TableHead>Payment Batch</TableHead>
                             <TableHead className="text-right">Total</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -274,6 +274,13 @@ export default function SupplierDashboardPage() {
                                 <TableCell>{invoice.date}</TableCell>
                                 <TableCell>{invoice.commissionNumber || 'N/A'}</TableCell>
                                 <TableCell>{getStatusBadge(invoice.status)}</TableCell>
+                                <TableCell>
+                                    {invoice.paymentBatch && invoice.paymentBatch !== 'private' ? (
+                                        <Badge variant="outline">{format(new Date(invoice.paymentBatch), 'dd MMM yyyy')}</Badge>
+                                    ) : (
+                                        <span className="text-muted-foreground text-xs">N/A</span>
+                                    )}
+                                </TableCell>
                                 <TableCell className="text-right font-mono">{formatPrice(invoice.invoiceTotal)}</TableCell>
                                 <TableCell className="text-right">
                                     <Button asChild variant="ghost" size="icon">
