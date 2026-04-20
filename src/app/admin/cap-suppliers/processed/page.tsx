@@ -111,6 +111,7 @@ export default function ProcessedInvoicesPage() {
                                     <TableHead>Invoice #</TableHead>
                                     <TableHead>Processed At</TableHead>
                                     <TableHead>Status</TableHead>
+                                    <TableHead>Payment Batch</TableHead>
                                     <TableHead className="text-right">Total</TableHead>
                                     <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
@@ -125,6 +126,13 @@ export default function ProcessedInvoicesPage() {
                                         </TableCell>
                                         <TableCell>
                                             {getInvoiceStatusBadge(invoice.status)}
+                                        </TableCell>
+                                        <TableCell>
+                                            {invoice.paymentBatch && invoice.paymentBatch !== 'private' ? (
+                                                <Badge variant="outline">{!isNaN(new Date(invoice.paymentBatch).getTime()) ? format(new Date(invoice.paymentBatch), 'dd MMM yyyy') : invoice.paymentBatch}</Badge>
+                                            ) : (
+                                                <span className="text-muted-foreground text-xs">N/A</span>
+                                            )}
                                         </TableCell>
                                         <TableCell className="text-right font-mono">{formatPrice(invoice.invoiceTotal)}</TableCell>
                                         <TableCell className="text-right">
