@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -25,10 +26,60 @@ import { format } from 'date-fns';
 
 const storage = getStorage(firebaseApp);
 
+const approvalAllocations = [
+    { label: "Per Diem - Crew", email: "nombuson@combinedartists.co.za" },
+    { label: "Field Presenting", email: "nombuson@combinedartists.co.za" },
+    { label: "Studio Presenting", email: "nombuson@combinedartists.co.za" },
+    { label: "Voice Overs: Weekly Teasers & Promos (English)", email: "nombuson@combinedartists.co.za" },
+    { label: "Voice Overs: Teasers (Afrikaans)", email: "nombuson@combinedartists.co.za" },
+    { label: "Voice Overs: Throwforwards & Updates", email: "nombuson@combinedartists.co.za" },
+    { label: "Voice Overs: Inserts (Guest Presenters)", email: "nombuson@combinedartists.co.za" },
+    { label: "Shuttle Service", email: "nombuson@combinedartists.co.za" },
+    { label: "Excess Baggage", email: "nombuson@combinedartists.co.za" },
+    { label: "Accommodation Reimbursements", email: "nombuson@combinedartists.co.za" },
+    { label: "Studio Director", email: "meinie@carteblanche.co.za" },
+    { label: "Assistant Studio Director", email: "meinie@carteblanche.co.za" },
+    { label: "Floor Manager", email: "meinie@carteblanche.co.za" },
+    { label: "Autocue Operator", email: "meinie@carteblanche.co.za" },
+    { label: "DOP (Gear & Assistant)", email: "meinie@carteblanche.co.za" },
+    { label: "Stylist", email: "meinie@carteblanche.co.za" },
+    { label: "Make-Up Artist", email: "meinie@carteblanche.co.za" },
+    { label: "Location Fees", email: "meinie@carteblanche.co.za" },
+    { label: "Studio Rental", email: "meinie@carteblanche.co.za" },
+    { label: "Location Security", email: "meinie@carteblanche.co.za" },
+    { label: "Parking", email: "meinie@carteblanche.co.za" },
+    { label: "Toll Fees", email: "meinie@carteblanche.co.za" },
+    { label: "Mileage & Fuel Claims", email: "meinie@carteblanche.co.za" },
+    { label: "Studio Catering", email: "meinie@carteblanche.co.za" },
+    { label: "Insert Transcripts", email: "meinie@carteblanche.co.za" },
+    { label: "Final Mix: VO Recordings (Promos & Teasers)", email: "meinie@carteblanche.co.za" },
+    { label: "Final Mix: Mix (Promos & Teasers)", email: "meinie@carteblanche.co.za" },
+    { label: "Final Mix: VO Recordings (Inserts)", email: "meinie@carteblanche.co.za" },
+    { label: "Final Mix: Mix (Inserts)", email: "meinie@carteblanche.co.za" },
+    { label: "Final Mix: VO Recordings & Mix (Throwforwards & Updates)", email: "meinie@carteblanche.co.za" },
+    { label: "External Hard Drives", email: "meinie@carteblanche.co.za" },
+    { label: "IT Support", email: "meinie@carteblanche.co.za" },
+    { label: "Server Storage", email: "meinie@carteblanche.co.za" },
+    { label: "Drycleaning", email: "meinie@carteblanche.co.za" },
+    { label: "Edit Suite: Internal Edits", email: "meinie@carteblanche.co.za" },
+    { label: "Edit Suite: Weekly Deliveries", email: "meinie@carteblanche.co.za" },
+    { label: "Insert Producers (Per Minute Rate)", email: "rudi@combinedartists.co.za" },
+    { label: "Editorial Assistant", email: "rudi@combinedartists.co.za" },
+    { label: "Viewer Panel Consultant", email: "rudi@combinedartists.co.za" },
+    { label: "Research & Development", email: "rudi@combinedartists.co.za" },
+    { label: "Investigative", email: "rudi@combinedartists.co.za" },
+    { label: "Operational Manager", email: "rudi@combinedartists.co.za" },
+    { label: "Production Co-Ordinator", email: "rudi@combinedartists.co.za" },
+    { label: "Travel Agent Management", email: "rudi@combinedartists.co.za" },
+    { label: "Per Diem - EP", email: "rudi@combinedartists.co.za" },
+    { label: "Archive Material", email: "rudi@combinedartists.co.za" },
+    { label: "Foreign Specials", email: "rudi@combinedartists.co.za" },
+];
+
 const formSchema = z.object({
   invoice: z.custom<FileList>().refine((files) => files && files.length > 0, 'An invoice file is required.'),
   commissionNumber: z.string().min(1, 'Please select a commission number.'),
-  s39AccountId: z.string().min(1, 'Please select an S39 account to allocate to.'),
+  approvalAllocation: z.string().min(1, 'Please select an approver.'),
 });
 
 export default function SupplierDashboardPage() {
@@ -42,7 +93,7 @@ export default function SupplierDashboardPage() {
     resolver: zodResolver(formSchema),
     defaultValues: {
         commissionNumber: '',
-        s39AccountId: '',
+        approvalAllocation: '',
     }
   });
   
@@ -113,15 +164,10 @@ export default function SupplierDashboardPage() {
         return;
       }
       
-      const lineItemsWithAccount = result.lineItems.map(item => ({
-        ...item,
-        accountId: values.s39AccountId,
-      }));
-
       const invoiceData = {
           ...result,
-          lineItems: lineItemsWithAccount,
           commissionNumber: values.commissionNumber,
+          assignedToEmail: values.approvalAllocation,
           fileName: file.name,
           fileUrl: downloadURL,
           status: 'pending_review' as const,
@@ -197,18 +243,18 @@ export default function SupplierDashboardPage() {
                     />
                  <FormField
                     control={form.control}
-                    name="s39AccountId"
+                    name="approvalAllocation"
                     render={({ field }) => (
                         <FormItem>
-                        <FormLabel>S39 Account Allocation</FormLabel>
+                        <FormLabel>Approval Allocation</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl>
                             <SelectTrigger>
-                                <SelectValue placeholder="Select an account..." />
+                                <SelectValue placeholder="Select an approver..." />
                             </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                            {s39ChartOfAccounts.map(acc => <SelectItem key={acc.accountNumber} value={acc.accountNumber}>{acc.accountNumber} - {acc.description}</SelectItem>)}
+                            {approvalAllocations.map(acc => <SelectItem key={acc.label} value={acc.email}>{acc.label}</SelectItem>)}
                             </SelectContent>
                         </Select>
                         <FormMessage />

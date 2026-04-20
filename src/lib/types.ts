@@ -343,10 +343,6 @@ export type ExtractedInvoice = {
   createdAt: any;
   uploadedBy: string;
   approvedBy?: string;
-  rejectedBy?: string;
-  expenseType?: 'CAP' | 'S38' | 'S39';
-  commissionNumber?: string;
-  storyName?: string;
   rejectionReason?: string;
   paymentBatch?: string;
   sourceEmailUid?: number;
@@ -355,6 +351,11 @@ export type ExtractedInvoice = {
   deletedBy?: string;
   deletedAt?: any;
   isPrivate?: boolean;
+  assignedToEmail?: string;
+  rejectedBy?: string;
+  expenseType?: 'CAP' | 'S38' | 'S39';
+  commissionNumber?: string;
+  storyName?: string;
 };
 
 export type CommunityQuestion = {
@@ -399,4 +400,13 @@ export type Commission = {
   createdAt: any;
 };
 
-    
+export const FindStoryNameInputSchema = z.object({
+  commissionNumber: z.string(),
+  knowledgeBase: z.string(),
+});
+export type FindStoryNameInput = z.infer<typeof FindStoryNameInputSchema>;
+
+export const FindStoryNameOutputSchema = z.object({
+  storyName: z.string().optional(),
+});
+export type FindStoryNameOutput = z.infer<typeof FindStoryNameOutputSchema>;

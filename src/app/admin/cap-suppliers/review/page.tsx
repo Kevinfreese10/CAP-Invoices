@@ -22,11 +22,9 @@ import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
-import { AllocationRule, ExtractedInvoice, FindStoryNameInput, FindStoryNameInputSchema, FindStoryNameOutput, FindStoryNameOutputSchema, User } from '@/lib/types';
+import { AllocationRule, ExtractedInvoice, FindStoryNameInput, FindStoryNameInputSchema, FindStoryNameOutput, FindStoryNameOutputSchema, User, Commission } from '@/lib/types';
 import { allVatTypes } from '@/lib/vat-types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { findStoryName } from '@/ai/flows/find-story-name';
-import { commissionList as defaultCommissionList } from '@/lib/commission-list';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -269,26 +267,28 @@ function EditInvoiceForm({ invoice, onSave, onCancel }: { invoice: ExtractedInvo
 function AnalyzeStoryDialog({ open, onOpenChange, invoices, onAnalyzeComplete }: { open: boolean; onOpenChange: (open: boolean) => void; invoices: ExtractedInvoice[]; onAnalyzeComplete: () => void; }) {
     const { toast } = useToast();
     const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [knowledgeBase, setKnowledgeBase] = useState('');
-    const [isKbLoading, setIsKbLoading] = useState(true);
+    const [commissions, setCommissions] = useState<Commission[]>([]);
+    const [isDataLoading, setIsDataLoading] = useState(true);
 
     useEffect(() => {
         if (open) {
-            const fetchCommissionData = async () => {
-                setIsKbLoading(true);
-                const docRef = doc(db, 'commissionData', 'list');
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                    setKnowledgeBase(docSnap.data().content);
-                } else {
-                    // Fallback to static data if not in Firestore
-                    setKnowledgeBase(defaultCommissionList);
+            const fetchCommissions = async () => {
+                setIsDataLoading(true);
+                try {
+                    const commsQuery = query(collection(db, 'commissions'), orderBy('commissionNumber', 'asc'));
+                    const commsSnapshot = await getDocs(commsQuery);
+                    const fetchedCommissions = commsSnapshot.docs.map(doc => doc.data() as Commission);
+                    setCommissions(fetchedCommissions);
+                } catch (error) {
+                    console.error("Error fetching commissions:", error);
+                    toast({ title: 'Error', description: 'Could not load the commission list.', variant: 'destructive' });
+                } finally {
+                    setIsDataLoading(false);
                 }
-                setIsKbLoading(false);
             };
-            fetchCommissionData();
+            fetchCommissions();
         }
-    }, [open]);
+    }, [open, toast]);
 
     const handleAnalyze = async () => {
         setIsAnalyzing(true);
@@ -300,13 +300,13 @@ function AnalyzeStoryDialog({ open, onOpenChange, invoices, onAnalyzeComplete }:
 
             for (const invoice of invoices) {
                 if (invoice.commissionNumber) {
-                    const result = await findStoryName({
-                        commissionNumber: invoice.commissionNumber,
-                        knowledgeBase: knowledgeBase,
-                    });
-                    if (result.storyName) {
+                    const matchingCommission = commissions.find(
+                        (c) => c.commissionNumber === invoice.commissionNumber
+                    );
+
+                    if (matchingCommission && matchingCommission.shortName) {
                         const invoiceRef = doc(db, 'extractedInvoices', invoice.id);
-                        batch.update(invoiceRef, { storyName: result.storyName });
+                        batch.update(invoiceRef, { storyName: matchingCommission.shortName });
                         updatedCount++;
                     }
                 }
@@ -329,24 +329,17 @@ function AnalyzeStoryDialog({ open, onOpenChange, invoices, onAnalyzeComplete }:
     
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-xl">
+            <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle>Analyze Story Names</DialogTitle>
-                    <DialogDescription>Paste your commission list from Google Sheets below. The AI will match commission numbers to find the story name.</DialogDescription>
+                    <DialogDescription>
+                        This will automatically find the "Short Name" from your commissions list and update the "Story Name" for the {invoices.length} selected invoice(s).
+                    </DialogDescription>
                 </DialogHeader>
-                <div className="py-4">
-                     <Textarea
-                        value={knowledgeBase}
-                        onChange={(e) => setKnowledgeBase(e.target.value)}
-                        rows={15}
-                        placeholder="Paste your two-column data here (e.g., CM-123\tMy Story Name)"
-                        disabled={isKbLoading}
-                    />
-                </div>
                 <DialogFooter>
                     <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-                    <Button onClick={handleAnalyze} disabled={isAnalyzing || isKbLoading}>
-                         {isAnalyzing || isKbLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Brain className="mr-2 h-4 w-4" />}
+                    <Button onClick={handleAnalyze} disabled={isAnalyzing || isDataLoading}>
+                         {isAnalyzing || isDataLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Brain className="mr-2 h-4 w-4" />}
                         Analyze and Update
                     </Button>
                 </DialogFooter>
@@ -375,8 +368,13 @@ export default function ReviewPage() {
             const fetchedRules = rulesSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as AllocationRule));
             setGlobalRules(fetchedRules);
             
-            const q = query(collection(db, 'extractedInvoices'), where('status', 'in', ['pending_review', 'duplicate']), orderBy('createdAt', 'desc'));
-            const querySnapshot = await getDocs(q);
+            let invoicesQuery = query(collection(db, 'extractedInvoices'), where('status', 'in', ['pending_review', 'duplicate']), orderBy('createdAt', 'desc'));
+            
+            if (user && (user.role === 'staff' || user.role === 'cap_staff')) {
+                invoicesQuery = query(invoicesQuery, where('assignedToEmail', '==', user.email));
+            }
+
+            const querySnapshot = await getDocs(invoicesQuery);
             const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
             setInvoices(fetchedInvoices);
 
@@ -389,8 +387,10 @@ export default function ReviewPage() {
     };
     
     useEffect(() => {
-        fetchInvoicesAndRules();
-    }, []);
+        if(user) {
+            fetchInvoicesAndRules();
+        }
+    }, [user]);
 
     const handleSave = async (id: string, data: any) => {
         try {
