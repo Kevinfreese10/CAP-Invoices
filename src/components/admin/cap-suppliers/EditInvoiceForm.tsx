@@ -318,26 +318,30 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel, onSaveAndAp
                  <FormField control={form.control} name="date" render={({ field }) => ( <FormItem><FormLabel>Date</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                  
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField control={form.control} name="commissionNumber" render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Commission Number</FormLabel>
-                            <div className="relative">
-                                <FormControl><Input {...field} /></FormControl>
-                                {commissionNumber && (
-                                    <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                        {isCommissionsLoading ? (
-                                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                                        ) : isValidCommission ? (
-                                            <CheckCircle2 className="h-4 w-4 text-green-500" />
-                                        ) : (
-                                            <AlertCircle className="h-4 w-4 text-destructive" />
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                            <FormMessage />
-                        </FormItem>
-                    )} />
+                    <FormField
+                        control={form.control}
+                        name="commissionNumber"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Commission Number</FormLabel>
+                                <div className="relative">
+                                    <FormControl><Input {...field} /></FormControl>
+                                    {commissionNumber && (
+                                        <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                                            {isCommissionsLoading ? (
+                                                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                            ) : isValidCommission ? (
+                                                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                            ) : (
+                                                <AlertCircle className="h-4 w-4 text-destructive" />
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
                     <FormField control={form.control} name="storyName" render={({ field }) => (
                         <FormItem>
                             <FormLabel>Story Name</FormLabel>
