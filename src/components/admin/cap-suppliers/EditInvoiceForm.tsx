@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -12,8 +11,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from '@/components/ui/checkbox';
-import { DialogFooter } from '@/components/ui/dialog';
-import { Trash2, ChevronsUpDown, Loader2, CheckCircle2, AlertCircle, Check } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Trash2, ChevronsUpDown, Loader2, CheckCircle2, AlertCircle, Check, Search } from 'lucide-react';
 import { s38ChartOfAccounts, capChartOfAccounts, s39ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 import { ExtractedInvoice, Commission } from '@/lib/types';
 import { format, addDays, eachDayOfInterval, endOfMonth, isFriday, getMonth, isLastDayOfMonth, addMonths, endOfYear, startOfYear, getYear } from 'date-fns';
@@ -110,7 +109,8 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel, onSaveAndAp
     const [openPopover, setOpenPopover] = useState<number | null>(null);
     const [commissions, setCommissions] = useState<Commission[]>([]);
     const [isCommissionsLoading, setIsCommissionsLoading] = useState(true);
-    const [isCommissionPopoverOpen, setIsCommissionPopoverOpen] = useState(false);
+    const [isCommissionSearchOpen, setIsCommissionSearchOpen] = useState(false);
+
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -249,253 +249,259 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel, onSaveAndAp
 
 
     return (
-        <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto pr-4">
-                 <div className="grid grid-cols-2 gap-8">
-                    <FormField
-                        control={form.control}
-                        name="expenseType"
-                        render={({ field }) => (
-                            <FormItem className="space-y-3">
-                            <FormLabel>Expense Type</FormLabel>
-                            <FormControl>
-                                <RadioGroup
-                                onValueChange={field.onChange}
-                                defaultValue={field.value}
-                                className="flex items-center space-x-4"
+        <>
+            <Dialog open={isCommissionSearchOpen} onOpenChange={setIsCommissionSearchOpen}>
+                <DialogContent className="sm:max-w-xl">
+                    <DialogHeader>
+                        <DialogTitle>Search Commission</DialogTitle>
+                        <DialogDescription>Search for a commission by number or story name.</DialogDescription>
+                    </DialogHeader>
+                    <Command>
+                        <CommandInput placeholder="Search commission..." />
+                        <CommandList>
+                            <CommandEmpty>
+                                {isCommissionsLoading ? (
+                                    <div className="flex items-center justify-center p-4">
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Loading commissions...
+                                    </div>
+                                ) : "No commission found."}
+                            </CommandEmpty>
+                            {commissions.map((c) => (
+                                <CommandItem
+                                    value={`${c.commissionNumber} ${c.storyName}`}
+                                    key={c.id}
+                                    onSelect={() => {
+                                        form.setValue("commissionNumber", c.commissionNumber);
+                                        form.setValue("storyName", c.shortName);
+                                        setIsCommissionSearchOpen(false);
+                                    }}
                                 >
-                                <FormItem className="flex items-center space-x-2 space-y-0">
-                                    <FormControl><RadioGroupItem value="CAP" /></FormControl>
-                                    <FormLabel className="font-normal">CAP</FormLabel>
+                                    {c.commissionNumber} - {c.storyName}
+                                </CommandItem>
+                            ))}
+                        </CommandList>
+                    </Command>
+                </DialogContent>
+            </Dialog>
+
+            <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto pr-4">
+                    <div className="grid grid-cols-2 gap-8">
+                        <FormField
+                            control={form.control}
+                            name="expenseType"
+                            render={({ field }) => (
+                                <FormItem className="space-y-3">
+                                <FormLabel>Expense Type</FormLabel>
+                                <FormControl>
+                                    <RadioGroup
+                                    onValueChange={field.onChange}
+                                    defaultValue={field.value}
+                                    className="flex items-center space-x-4"
+                                    >
+                                    <FormItem className="flex items-center space-x-2 space-y-0">
+                                        <FormControl><RadioGroupItem value="CAP" /></FormControl>
+                                        <FormLabel className="font-normal">CAP</FormLabel>
+                                    </FormItem>
+                                    <FormItem className="flex items-center space-x-2 space-y-0">
+                                        <FormControl><RadioGroupItem value="S38" /></FormControl>
+                                        <FormLabel className="font-normal">S38</FormLabel>
+                                    </FormItem>
+                                    <FormItem className="flex items-center space-x-2 space-y-0">
+                                        <FormControl><RadioGroupItem value="S39" /></FormControl>
+                                        <FormLabel className="font-normal">S39</FormLabel>
+                                    </FormItem>
+                                    </RadioGroup>
+                                </FormControl>
+                                <FormMessage />
                                 </FormItem>
-                                <FormItem className="flex items-center space-x-2 space-y-0">
-                                    <FormControl><RadioGroupItem value="S38" /></FormControl>
-                                    <FormLabel className="font-normal">S38</FormLabel>
+                            )}
+                            />
+                        <FormField
+                            control={form.control}
+                            name="paymentBatch"
+                            render={({ field }) => (
+                                <FormItem className="space-y-3">
+                                <FormLabel>Payment Batch</FormLabel>
+                                <FormControl>
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select a payment date" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {upcomingFridays.map(friday => (
+                                                <SelectItem key={friday.value} value={friday.value}>
+                                                    {friday.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </FormControl>
+                                <FormMessage />
                                 </FormItem>
-                                <FormItem className="flex items-center space-x-2 space-y-0">
-                                    <FormControl><RadioGroupItem value="S39" /></FormControl>
-                                    <FormLabel className="font-normal">S39</FormLabel>
+                            )}
+                            />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <FormField control={form.control} name="supplier" render={({ field }) => ( <FormItem><FormLabel>Supplier</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                        <FormField control={form.control} name="invoiceNumber" render={({ field }) => ( <FormItem><FormLabel>Invoice Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    </div>
+                    <FormField control={form.control} name="date" render={({ field }) => ( <FormItem><FormLabel>Date</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="flex items-end gap-2">
+                            <FormField control={form.control} name="commissionNumber" render={({ field }) => (
+                                <FormItem className="flex-grow">
+                                <FormLabel>Commission Number</FormLabel>
+                                <FormControl><Input {...field} readOnly placeholder="Click Search" /></FormControl>
+                                <FormMessage />
                                 </FormItem>
-                                </RadioGroup>
-                            </FormControl>
-                            <FormMessage />
+                            )} />
+                            <Button type="button" variant="outline" onClick={() => setIsCommissionSearchOpen(true)}>
+                                <Search className="mr-2 h-4 w-4" />
+                                Search
+                            </Button>
+                        </div>
+
+                        <FormField control={form.control} name="storyName" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Story Name</FormLabel>
+                                <FormControl><Input {...field} readOnly className="bg-muted" /></FormControl>
+                                <FormMessage />
                             </FormItem>
-                        )}
-                        />
-                     <FormField
-                        control={form.control}
-                        name="paymentBatch"
-                        render={({ field }) => (
-                            <FormItem className="space-y-3">
-                            <FormLabel>Payment Batch</FormLabel>
-                            <FormControl>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select a payment date" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {upcomingFridays.map(friday => (
-                                            <SelectItem key={friday.value} value={friday.value}>
-                                                {friday.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </FormControl>
-                            <FormMessage />
-                            </FormItem>
-                        )}
-                        />
-                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                    <FormField control={form.control} name="supplier" render={({ field }) => ( <FormItem><FormLabel>Supplier</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="invoiceNumber" render={({ field }) => ( <FormItem><FormLabel>Invoice Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                </div>
-                 <FormField control={form.control} name="date" render={({ field }) => ( <FormItem><FormLabel>Date</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        )} />
+                    </div>
+
                     <FormField
                         control={form.control}
-                        name="commissionNumber"
+                        name="note"
                         render={({ field }) => (
-                            <FormItem className="flex flex-col">
-                                <FormLabel>Commission Number</FormLabel>
-                                <Popover open={isCommissionPopoverOpen} onOpenChange={setIsCommissionPopoverOpen}>
-                                    <PopoverTrigger asChild>
-                                        <FormControl>
-                                            <Button variant="outline" role="combobox" className={cn("w-full justify-between", !field.value && "text-muted-foreground")}>
-                                                {isCommissionsLoading
-                                                    ? "Loading..."
-                                                    : field.value
-                                                    ? commissions.find((c) => c.commissionNumber === field.value)?.commissionNumber
-                                                    : "Select commission..."}
-                                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                            </Button>
-                                        </FormControl>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                                        <Command>
-                                            <CommandInput placeholder="Search commission..." />
-                                            <CommandList>
-                                                <CommandEmpty>No commission found.</CommandEmpty>
-                                                {commissions.map((c) => (
-                                                    <CommandItem
-                                                        value={`${c.commissionNumber} ${c.storyName}`}
-                                                        key={c.id}
-                                                        onSelect={() => {
-                                                            form.setValue("commissionNumber", c.commissionNumber);
-                                                            setIsCommissionPopoverOpen(false);
-                                                        }}
-                                                    >
-                                                        <Check className={cn("mr-2 h-4 w-4", c.commissionNumber === field.value ? "opacity-100" : "opacity-0")} />
-                                                        {c.commissionNumber} - {c.storyName}
-                                                    </CommandItem>
-                                                ))}
-                                            </CommandList>
-                                        </Command>
-                                    </PopoverContent>
-                                </Popover>
+                            <FormItem>
+                                <FormLabel>Note</FormLabel>
+                                <FormControl>
+                                    <Textarea placeholder="Add an internal note for this invoice..." {...field} />
+                                </FormControl>
                                 <FormMessage />
                             </FormItem>
                         )}
                     />
-                    <FormField control={form.control} name="storyName" render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Story Name</FormLabel>
-                            <FormControl><Input {...field} readOnly className="bg-muted" /></FormControl>
-                            <FormMessage />
-                        </FormItem>
-                    )} />
-                </div>
-
-                 <FormField
-                    control={form.control}
-                    name="note"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Note</FormLabel>
-                            <FormControl>
-                                <Textarea placeholder="Add an internal note for this invoice..." {...field} />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
-                
-                <FormField
-                    control={form.control}
-                    name="isPrivate"
-                    render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                            <div className="space-y-0.5">
-                                <FormLabel>Private & Confidential</FormLabel>
-                                <FormDescription>
-                                    Private invoices bypass the standard payment batches and are only visible to supervisors.
-                                </FormDescription>
-                            </div>
-                            <FormControl>
-                                <Checkbox
-                                    checked={field.value}
-                                    onCheckedChange={field.onChange}
-                                />
-                            </FormControl>
-                        </FormItem>
-                    )}
-                />
-
-                <h4 className="font-medium">Line Items</h4>
-                <div className="space-y-2">
-                    {fields.map((field, index) => {
-                         const lineItem = watchedLineItems?.[index];
-                         const exclusive = lineItem?.exclusiveAmount || 0;
-                         const vat = lineItem?.vatAmount || 0;
-                         const inclusive = exclusive + vat;
-                        return (
-                        <div key={field.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end border p-2 rounded-md">
-                            <FormField control={form.control} name={`lineItems.${index}.description`} render={({ field }) => (<FormItem className="md:col-span-12"><FormLabel className={index > 0 ? "hidden": ""}>Description</FormLabel><FormControl><Textarea {...field} rows={1} /></FormControl></FormItem>)} />
-                            <FormField control={form.control} name={`lineItems.${index}.exclusiveAmount`} render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>Exclusive</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
-                            <FormField control={form.control} name={`lineItems.${index}.vatAmount`} render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>VAT</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
-                            <FormField control={form.control} name={`lineItems.${index}.accountId`} render={({ field }) => (
-                                <FormItem className="flex flex-col md:col-span-4">
-                                    <FormLabel className={index > 0 ? "hidden": ""}>Account</FormLabel>
-                                    <Popover open={openPopover === index} onOpenChange={(isOpen) => setOpenPopover(isOpen ? index : null)}>
-                                        <PopoverTrigger asChild>
-                                            <FormControl>
-                                                <Button variant="outline" role="combobox" className={cn("w-full justify-between", !field.value && "text-muted-foreground")} >
-                                                    {field.value ? chartOfAccounts.find(acc => acc.accountNumber === field.value)?.description : "Select account"}
-                                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                                </Button>
-                                            </FormControl>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                                            <Command>
-                                                <CommandInput placeholder="Search account..." />
-                                                <CommandList>
-                                                    <CommandEmpty>No account found.</CommandEmpty>
-                                                    {chartOfAccounts.map((account) => (
-                                                        <CommandItem value={account.description} key={account.accountNumber} onSelect={() => { form.setValue(`lineItems.${index}.accountId`, account.accountNumber); setOpenPopover(null);}}>
-                                                            {account.description}
-                                                        </CommandItem>
-                                                    ))}
-                                                </CommandList>
-                                            </Command>
-                                        </PopoverContent>
-                                    </Popover>
-                                    <FormMessage />
-                                </FormItem>
-                            )} />
-                            <FormField control={form.control} name={`lineItems.${index}.paye`} render={({ field }) => (
-                                <FormItem className="md:col-span-2 flex flex-col items-center justify-end h-full pb-2">
-                                    <div className="flex items-center space-x-2">
-                                        <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                                        <FormLabel className="text-xs font-normal">Deduct PAYE?</FormLabel>
-                                    </div>
-                                    <FormMessage />
-                                </FormItem>
-                            )} />
-                            <div className="md:col-span-1 flex justify-end"><Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button></div>
-                        </div>
-                    )})}
-                </div>
-                 <Button type="button" variant="outline" size="sm" onClick={() => append({ description: '', exclusiveAmount: 0, vatAmount: 0, paye: false })}>Add Line</Button>
-                
-                <div className="grid grid-cols-3 gap-4 pt-4">
-                    <FormItem>
-                        <FormLabel>Control Total</FormLabel>
-                        <Input type="number" value={Number(controlTotal).toFixed(2)} readOnly className="bg-muted font-semibold" />
-                    </FormItem>
+                    
                     <FormField
                         control={form.control}
-                        name="invoiceTotal"
+                        name="isPrivate"
                         render={({ field }) => (
-                            <FormItem>
-                            <FormLabel>Invoice Total</FormLabel>
-                            <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
-                            <FormMessage />
+                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                                <div className="space-y-0.5">
+                                    <FormLabel>Private & Confidential</FormLabel>
+                                    <FormDescription>
+                                        Private invoices bypass the standard payment batches and are only visible to supervisors.
+                                    </FormDescription>
+                                </div>
+                                <FormControl>
+                                    <Checkbox
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                    />
+                                </FormControl>
                             </FormItem>
                         )}
                     />
-                    <FormItem>
-                        <FormLabel>Difference</FormLabel>
-                        <Input 
-                            type="number" 
-                            value={difference.toFixed(2)} 
-                            readOnly 
-                            className={cn("font-bold", difference !== 0 ? 'text-destructive bg-destructive/10' : 'text-green-600 bg-green-50')}
-                        />
-                    </FormItem>
-                </div>
 
-                <DialogFooter>
-                    <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
-                    <Button type="submit">Save Changes</Button>
-                    {onSaveAndApprove && (
-                        <Button type="button" onClick={handleSaveAndApproveClick}>
-                            Save and Approve
-                        </Button>
-                    )}
-                </DialogFooter>
-            </form>
-        </Form>
+                    <h4 className="font-medium">Line Items</h4>
+                    <div className="space-y-2">
+                        {fields.map((field, index) => {
+                            const lineItem = watchedLineItems?.[index];
+                            const exclusive = lineItem?.exclusiveAmount || 0;
+                            const vat = lineItem?.vatAmount || 0;
+                            const inclusive = exclusive + vat;
+                            return (
+                            <div key={field.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end border p-2 rounded-md">
+                                <FormField control={form.control} name={`lineItems.${index}.description`} render={({ field }) => (<FormItem className="md:col-span-12"><FormLabel className={index > 0 ? "hidden": ""}>Description</FormLabel><FormControl><Textarea {...field} rows={1} /></FormControl></FormItem>)} />
+                                <FormField control={form.control} name={`lineItems.${index}.exclusiveAmount`} render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>Exclusive</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
+                                <FormField control={form.control} name={`lineItems.${index}.vatAmount`} render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel className={index > 0 ? "hidden": ""}>VAT</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
+                                <FormField control={form.control} name={`lineItems.${index}.accountId`} render={({ field }) => (
+                                    <FormItem className="flex flex-col md:col-span-4">
+                                        <FormLabel className={index > 0 ? "hidden": ""}>Account</FormLabel>
+                                        <Popover open={openPopover === index} onOpenChange={(isOpen) => setOpenPopover(isOpen ? index : null)}>
+                                            <PopoverTrigger asChild>
+                                                <FormControl>
+                                                    <Button variant="outline" role="combobox" className={cn("w-full justify-between", !field.value && "text-muted-foreground")} >
+                                                        {field.value ? chartOfAccounts.find(acc => acc.accountNumber === field.value)?.description : "Select account"}
+                                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                    </Button>
+                                                </FormControl>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                                <Command>
+                                                    <CommandInput placeholder="Search account..." />
+                                                    <CommandList>
+                                                        <CommandEmpty>No account found.</CommandEmpty>
+                                                        {chartOfAccounts.map((account) => (
+                                                            <CommandItem value={account.description} key={account.accountNumber} onSelect={() => { form.setValue(`lineItems.${index}.accountId`, account.accountNumber); setOpenPopover(null);}}>
+                                                                {account.description}
+                                                            </CommandItem>
+                                                        ))}
+                                                    </CommandList>
+                                                </Command>
+                                            </PopoverContent>
+                                        </Popover>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
+                                <FormField control={form.control} name={`lineItems.${index}.paye`} render={({ field }) => (
+                                    <FormItem className="md:col-span-2 flex flex-col items-center justify-end h-full pb-2">
+                                        <div className="flex items-center space-x-2">
+                                            <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                                            <FormLabel className="text-xs font-normal">Deduct PAYE?</FormLabel>
+                                        </div>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
+                                <div className="md:col-span-1 flex justify-end"><Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button></div>
+                            </div>
+                        )})}
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={() => append({ description: '', exclusiveAmount: 0, vatAmount: 0, paye: false })}>Add Line</Button>
+                    
+                    <div className="grid grid-cols-3 gap-4 pt-4">
+                        <FormItem>
+                            <FormLabel>Control Total</FormLabel>
+                            <Input type="number" value={Number(controlTotal).toFixed(2)} readOnly className="bg-muted font-semibold" />
+                        </FormItem>
+                        <FormField
+                            control={form.control}
+                            name="invoiceTotal"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Invoice Total</FormLabel>
+                                <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormItem>
+                            <FormLabel>Difference</FormLabel>
+                            <Input 
+                                type="number" 
+                                value={difference.toFixed(2)} 
+                                readOnly 
+                                className={cn("font-bold", difference !== 0 ? 'text-destructive bg-destructive/10' : 'text-green-600 bg-green-50')}
+                            />
+                        </FormItem>
+                    </div>
+
+                    <DialogFooter>
+                        <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
+                        <Button type="submit">Save Changes</Button>
+                        {onSaveAndApprove && (
+                            <Button type="button" onClick={handleSaveAndApproveClick}>
+                                Save and Approve
+                            </Button>
+                        )}
+                    </DialogFooter>
+                </form>
+            </Form>
+        </>
     );
 }
