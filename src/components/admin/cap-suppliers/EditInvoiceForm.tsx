@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from '@/components/ui/checkbox';
 import { DialogFooter } from '@/components/ui/dialog';
-import { Trash2, ChevronsUpDown, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Trash2, ChevronsUpDown, Loader2, CheckCircle2, AlertCircle, Check } from 'lucide-react';
 import { s38ChartOfAccounts, capChartOfAccounts, s39ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 import { ExtractedInvoice, Commission } from '@/lib/types';
 import { format, addDays, eachDayOfInterval, endOfMonth, isFriday, getMonth, isLastDayOfMonth, addMonths, endOfYear, startOfYear, getYear } from 'date-fns';
@@ -110,6 +110,7 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel, onSaveAndAp
     const [openPopover, setOpenPopover] = useState<number | null>(null);
     const [commissions, setCommissions] = useState<Commission[]>([]);
     const [isCommissionsLoading, setIsCommissionsLoading] = useState(true);
+    const [isCommissionPopoverOpen, setIsCommissionPopoverOpen] = useState(false);
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -322,22 +323,43 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel, onSaveAndAp
                         control={form.control}
                         name="commissionNumber"
                         render={({ field }) => (
-                            <FormItem>
+                            <FormItem className="flex flex-col">
                                 <FormLabel>Commission Number</FormLabel>
-                                <div className="relative">
-                                    <FormControl><Input {...field} /></FormControl>
-                                    {commissionNumber && (
-                                        <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                            {isCommissionsLoading ? (
-                                                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                                            ) : isValidCommission ? (
-                                                <CheckCircle2 className="h-4 w-4 text-green-500" />
-                                            ) : (
-                                                <AlertCircle className="h-4 w-4 text-destructive" />
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
+                                <Popover open={isCommissionPopoverOpen} onOpenChange={setIsCommissionPopoverOpen}>
+                                    <PopoverTrigger asChild>
+                                        <FormControl>
+                                            <Button variant="outline" role="combobox" className={cn("w-full justify-between", !field.value && "text-muted-foreground")}>
+                                                {isCommissionsLoading
+                                                    ? "Loading..."
+                                                    : field.value
+                                                    ? commissions.find((c) => c.commissionNumber === field.value)?.commissionNumber
+                                                    : "Select commission..."}
+                                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                            </Button>
+                                        </FormControl>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                        <Command>
+                                            <CommandInput placeholder="Search commission..." />
+                                            <CommandList>
+                                                <CommandEmpty>No commission found.</CommandEmpty>
+                                                {commissions.map((c) => (
+                                                    <CommandItem
+                                                        value={`${c.commissionNumber} ${c.storyName}`}
+                                                        key={c.id}
+                                                        onSelect={() => {
+                                                            form.setValue("commissionNumber", c.commissionNumber);
+                                                            setIsCommissionPopoverOpen(false);
+                                                        }}
+                                                    >
+                                                        <Check className={cn("mr-2 h-4 w-4", c.commissionNumber === field.value ? "opacity-100" : "opacity-0")} />
+                                                        {c.commissionNumber} - {c.storyName}
+                                                    </CommandItem>
+                                                ))}
+                                            </CommandList>
+                                        </Command>
+                                    </PopoverContent>
+                                </Popover>
                                 <FormMessage />
                             </FormItem>
                         )}
@@ -482,5 +504,3 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel, onSaveAndAp
         </Form>
     );
 }
-
-    
