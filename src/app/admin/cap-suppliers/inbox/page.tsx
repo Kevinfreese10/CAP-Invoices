@@ -257,21 +257,6 @@ export default function InboxPage() {
     useEffect(() => {
         fetchEmailsAndInvoices();
     }, [fetchEmailsAndInvoices]);
-
-    const getStatusBadge = (email: Email) => {
-        if (email.isProcessed) {
-            return <Badge variant="success"><CheckCircle2 className="mr-1 h-3 w-3"/>Processed</Badge>;
-        }
-        
-        const hasProcessableAttachment = email.attachments.some(a => 
-            a.contentType === 'application/pdf'
-        );
-        
-        if (hasProcessableAttachment) {
-            return <Badge variant="outline">Unprocessed</Badge>;
-        }
-        return <Badge variant="destructive"><FileSymlink className="mr-1 h-3 w-3"/>No Invoice File</Badge>;
-    }
     
     const invoicesByEmail = useMemo(() => {
         return invoices.reduce((acc, invoice) => {
@@ -284,6 +269,30 @@ export default function InboxPage() {
             return acc;
         }, {} as { [key: number]: ExtractedInvoice[] });
     }, [invoices]);
+
+    const getStatusBadge = (email: Email) => {
+        const processableAttachments = email.attachments.filter(att => 
+            att.contentType === 'application/pdf'
+        );
+
+        if (processableAttachments.length === 0) {
+            return <Badge variant="destructive"><FileSymlink className="mr-1 h-3 w-3"/>No Invoice File</Badge>;
+        }
+
+        const processedInvoicesForEmail = invoicesByEmail[email.uid] || [];
+        const processedFilenames = new Set(processedInvoicesForEmail.map(inv => inv.fileName));
+        const processedCount = processableAttachments.filter(att => att.filename && processedFilenames.has(att.filename)).length;
+
+        if (processedCount >= processableAttachments.length) {
+             return <Badge variant="success"><CheckCircle2 className="mr-1 h-3 w-3"/>Processed</Badge>;
+        }
+        
+        if (processedCount > 0) {
+            return <Badge variant="warning"><Hourglass className="mr-1 h-3 w-3" />Partially Processed</Badge>;
+        }
+
+        return <Badge variant="outline">Unprocessed</Badge>;
+    }
 
     return (
         <div className="space-y-8">

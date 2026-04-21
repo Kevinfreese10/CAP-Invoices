@@ -95,6 +95,7 @@ export async function POST(req: Request) {
 
     let processedCount = 0;
     let failedCount = 0;
+    let duplicateCount = 0;
 
     for (const attachment of processableAttachments) {
       try {
@@ -117,10 +118,10 @@ export async function POST(req: Request) {
         );
         const existingInvoices = await getDocs(invoiceQuery);
         
-        // If reprocessing, we don't create a new one. If not reprocessing, we mark as duplicate.
         if (!existingInvoices.empty) {
             if (reprocess) {
                  console.log(`Reprocess: Invoice for ${result.supplier} from file ${attachment.filename} already exists. Skipping.`);
+                 duplicateCount++;
                  continue;
             }
              // Not reprocessing, so create it but mark as duplicate
@@ -171,24 +172,26 @@ export async function POST(req: Request) {
       }
     }
 
-    // 4. Mark the email as processed in Firestore to avoid re-processing in future sessions
-    // This happens even if some attachments failed, to prevent reprocessing successful ones.
-    const processedEmailRef = doc(db, 'processedEmails', String(emailStub.uid));
-    const finalStatus = processedCount > 0 ? 'processed' : (failedCount > 0 ? 'failed' : 'no_attachments');
+    // 4. Mark the email as processed in Firestore ONLY IF all attachments were handled successfully.
+    const allAccountedFor = (processedCount + duplicateCount + failedCount) >= processableAttachments.length;
     
-    await setDoc(processedEmailRef, {
-        uid: emailStub.uid,
-        processedAt: serverTimestamp(),
-        subject: emailStub.subject,
-        from: emailStub.from,
-        status: finalStatus
-    });
-    
+    if (allAccountedFor && failedCount === 0) {
+        const processedEmailRef = doc(db, 'processedEmails', String(emailStub.uid));
+        await setDoc(processedEmailRef, {
+            uid: emailStub.uid,
+            processedAt: serverTimestamp(),
+            subject: emailStub.subject,
+            from: emailStub.from,
+            status: 'processed'
+        });
+    }
 
     return NextResponse.json({ 
         message: 'Attachments processed.',
         totalProcessable: processableAttachments.length,
         processedCount: processedCount,
+        duplicateCount: duplicateCount,
+        failedCount: failedCount
     });
   } catch (error: any) {
     console.error('Error processing attachments:', error);
