@@ -2,7 +2,7 @@
 // /src/app/api/emails/process-attachments/route.ts
 import { NextResponse } from 'next/server';
 import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
-import { addDoc, collection, getFirestore, serverTimestamp, doc, setDoc, getDocs, query, where, writeBatch } from 'firebase/firestore';
+import { addDoc, collection, getFirestore, serverTimestamp, doc, setDoc, getDocs, query, where, writeBatch, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
 import imaps from 'imap-simple';
@@ -63,7 +63,7 @@ async function fetchFullEmail(uid: number) {
 
 export async function POST(req: Request) {
   try {
-    const { email: emailStub, reprocess } = await req.json();
+    const { email: emailStub, reprocess, attachmentFilename } = await req.json();
 
     if (!emailStub || !emailStub.uid) {
       return NextResponse.json({ error: 'Invalid email data provided.' }, { status: 400 });
@@ -76,9 +76,19 @@ export async function POST(req: Request) {
         'application/pdf'
     ];
 
-    const processableAttachments = attachments.filter(
+    let processableAttachments = attachments.filter(
       (att: any) => att.contentType && allowedContentTypes.includes(att.contentType)
     );
+
+    if (attachmentFilename) {
+        processableAttachments = processableAttachments.filter(
+            (att: any) => att.filename === attachmentFilename
+        );
+         if (processableAttachments.length === 0) {
+            return NextResponse.json({ message: `Attachment ${attachmentFilename} not found or not processable in this email.` }, { status: 404 });
+        }
+    }
+
 
     if (processableAttachments.length === 0) {
       // Mark as processed even if no attachments, to prevent retries
@@ -101,68 +111,64 @@ export async function POST(req: Request) {
       try {
         if(!attachment.dataUrl) continue;
         
-        // 1. Extract data using AI first to check for duplicates before uploading
-        const result = await extractInvoiceData({ invoiceImage: attachment.dataUrl });
-
-        if (!result || !result.supplier || !result.invoiceNumber) {
-          console.warn(`AI could not extract valid data for ${attachment.filename}. Skipping.`);
-          failedCount++;
-          continue; // Skip this attachment if AI fails
-        }
-        
-        // --- Duplicate Prevention Check ---
-        const invoiceQuery = query(
+        const existingInvoiceQuery = query(
             collection(db, "extractedInvoices"),
             where("sourceEmailUid", "==", emailStub.uid),
             where("fileName", "==", attachment.filename)
         );
-        const existingInvoices = await getDocs(invoiceQuery);
-        
-        if (!existingInvoices.empty) {
-            if (reprocess) {
-                 console.log(`Reprocess: Invoice for ${result.supplier} from file ${attachment.filename} already exists. Skipping.`);
-                 duplicateCount++;
-                 continue;
-            }
-             // Not reprocessing, so create it but mark as duplicate
-            const storageRef = ref(storage, `invoices/email-${emailStub.uid}/${Date.now()}-${attachment.filename}`);
-            const base64Data = attachment.dataUrl.split(',')[1];
-            const uploadResult = await uploadString(storageRef, base64Data, 'base64', { contentType: attachment.contentType || undefined });
-            const downloadURL = await getDownloadURL(uploadResult.ref);
+        const existingInvoicesSnapshot = await getDocs(existingInvoiceQuery);
+        const existingInvoiceDoc = existingInvoicesSnapshot.empty ? null : existingInvoicesSnapshot.docs[0];
 
-            const invoiceData = {
-              ...result,
-              fileName: attachment.filename || 'N/A',
-              fileUrl: downloadURL,
-              status: 'duplicate' as const,
-              uploadedBy: 'email_inbox',
-              createdAt: serverTimestamp(),
-              sourceEmailUid: emailStub.uid,
-            };
-            await addDoc(collection(db, "extractedInvoices"), invoiceData);
-            processedCount++;
-            continue; // Move to next attachment
+        if (existingInvoiceDoc && !reprocess) {
+            duplicateCount++;
+            continue;
         }
-        // --- End of Duplicate Prevention Check ---
 
-        // 2. If not a duplicate, proceed with upload and save
+        const result = await extractInvoiceData({ invoiceImage: attachment.dataUrl });
+
+        if (!result || !result.supplier || !result.invoiceNumber) {
+          failedCount++;
+          const failureData: Partial<ExtractedInvoice> = {
+              status: 'extraction_failed',
+              rejectionReason: 'AI could not read invoice details.',
+              supplier: emailStub.from.split('<')[0].trim() || 'Unknown',
+              invoiceNumber: `FAILED-${Date.now()}`,
+              date: new Date().toLocaleDateString('en-CA'), // YYYY-MM-DD
+              lineItems: [],
+              invoiceTotal: 0,
+              fileName: attachment.filename || 'N/A',
+              sourceEmailUid: emailStub.uid,
+              uploadedBy: 'email_inbox',
+          };
+          if(existingInvoiceDoc) {
+            await updateDoc(existingInvoiceDoc.ref, failureData);
+          } else {
+            await addDoc(collection(db, "extractedInvoices"), {...failureData, createdAt: serverTimestamp()});
+          }
+          continue;
+        }
+
         const storageRef = ref(storage, `invoices/email-${emailStub.uid}/${Date.now()}-${attachment.filename}`);
         const base64Data = attachment.dataUrl.split(',')[1];
         const uploadResult = await uploadString(storageRef, base64Data, 'base64', { contentType: attachment.contentType || undefined });
         const downloadURL = await getDownloadURL(uploadResult.ref);
         
-        // 3. Save to Firestore with the download URL
-        const invoiceData = {
+        const invoiceData: Partial<ExtractedInvoice> = {
           ...result,
           fileName: attachment.filename || 'N/A',
           fileUrl: downloadURL,
           status: 'pending_review' as const,
-          uploadedBy: 'email_inbox', // Mark as system upload
-          createdAt: serverTimestamp(),
+          uploadedBy: 'email_inbox',
           sourceEmailUid: emailStub.uid,
+          rejectionReason: '', // Clear previous rejection reasons
         };
         
-        await addDoc(collection(db, "extractedInvoices"), invoiceData);
+        if (existingInvoiceDoc) {
+            await updateDoc(existingInvoiceDoc.ref, {...invoiceData, modifiedAt: serverTimestamp()});
+        } else {
+            await addDoc(collection(db, "extractedInvoices"), {...invoiceData, createdAt: serverTimestamp()});
+        }
+
         processedCount++;
 
       } catch (error) {
@@ -172,10 +178,10 @@ export async function POST(req: Request) {
       }
     }
 
-    // 4. Mark the email as processed in Firestore ONLY IF all attachments were handled successfully.
+    // Mark the email as processed in Firestore ONLY IF all attachments were handled successfully (or skipped as duplicates).
     const allAccountedFor = (processedCount + duplicateCount + failedCount) >= processableAttachments.length;
     
-    if (allAccountedFor && failedCount === 0) {
+    if (allAccountedFor && failedCount === 0 && !attachmentFilename) { // Only mark full email if not processing single file
         const processedEmailRef = doc(db, 'processedEmails', String(emailStub.uid));
         await setDoc(processedEmailRef, {
             uid: emailStub.uid,

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -49,6 +48,7 @@ const getInvoiceStatusBadge = (status: ExtractedInvoice['status']) => {
         case 'paid': return <Badge variant={'success'}><CheckCircle className="mr-1 h-3 w-3" />Paid</Badge>;
         case 'rejected': return <Badge variant={'destructive'}><XCircle className="mr-1 h-3 w-3" />Rejected</Badge>;
         case 'duplicate': return <Badge variant={'destructive'}><AlertTriangle className="mr-1 h-3 w-3" />Duplicate</Badge>;
+        case 'extraction_failed': return <Badge variant={'destructive'}><AlertTriangle className="mr-1 h-3 w-3" />Extraction Failed</Badge>;
         case 'pending_review': return <Badge variant={'warning'}><Hourglass className="mr-1 h-3 w-3" />Pending Review</Badge>;
         case 'pending_account_review': return <Badge variant={'warning'}><Hourglass className="mr-1 h-3 w-3" />Pending Account Review</Badge>;
         case 'pending_third_review': return <Badge variant={'third_review'}><Hourglass className="mr-1 h-3 w-3" />Pending 3rd Review</Badge>;
@@ -63,17 +63,18 @@ export default function InboxPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isTesting, setIsTesting] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [reprocessingFile, setReprocessingFile] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [selectedUids, setSelectedUids] = useState<Set<number>>(new Set());
     const [openEmail, setOpenEmail] = useState<number | null>(null);
     const { toast } = useToast();
     
-    const handleProcessAttachments = useCallback(async (email: Email, reprocess = false) => {
+    const handleProcessAttachments = useCallback(async (email: Email, reprocess = false, attachmentFilename?: string) => {
         const processableAttachments = email.attachments.filter(att => 
             att.contentType === 'application/pdf'
         );
 
-        if (processableAttachments.length === 0) {
+        if (processableAttachments.length === 0 && !attachmentFilename) {
             return;
         }
 
@@ -81,7 +82,7 @@ export default function InboxPage() {
             await fetch('/api/emails/process-attachments', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, reprocess }),
+                body: JSON.stringify({ email, reprocess, attachmentFilename }),
             });
         } catch (err: any) {
              toast({
@@ -205,6 +206,25 @@ export default function InboxPage() {
             setIsProcessing(false);
         }
     };
+    
+    const handleReprocessOne = async (email: Email, filename: string) => {
+        const fileKey = `${email.uid}-${filename}`;
+        setReprocessingFile(fileKey);
+        toast({ title: `Reprocessing ${filename}...` });
+        try {
+            await handleProcessAttachments(email, true, filename);
+            toast({ title: 'Reprocessing complete!', description: 'The attachment has been submitted for processing again.' });
+            fetchEmailsAndInvoices(); // Refresh all data
+        } catch (err: any) {
+             toast({
+                title: `Reprocessing Failed for ${filename}`,
+                description: err.message,
+                variant: "destructive",
+            });
+        } finally {
+            setReprocessingFile(null);
+        }
+    };
 
 
     const handleSelectAll = (checked: boolean) => {
@@ -293,6 +313,11 @@ export default function InboxPage() {
 
         return <Badge variant="outline">Unprocessed</Badge>;
     }
+    
+    const isReprocessable = (status: ExtractedInvoice['status'] | undefined) => {
+        return !status || status === 'duplicate' || status === 'extraction_failed';
+    }
+
 
     return (
         <div className="space-y-8">
@@ -379,6 +404,7 @@ export default function InboxPage() {
                                         ...att,
                                         status: foundInvoice?.status,
                                         fileUrl: foundInvoice?.fileUrl,
+                                        rejectionReason: foundInvoice?.rejectionReason,
                                     }
                                 });
                                 return (
@@ -419,23 +445,34 @@ export default function InboxPage() {
                                                     </TableRow>
                                                 </TableHeader>
                                                 <TableBody>
-                                                    {attachmentsWithStatus.map((att, idx) => (
-                                                        <TableRow key={idx}>
-                                                            <TableCell className="truncate" title={att.filename || 'No filename'}>{att.filename}</TableCell>
-                                                            <TableCell>
-                                                                {att.status ? getInvoiceStatusBadge(att.status) : <Badge variant="secondary">Not Processed</Badge>}
-                                                            </TableCell>
-                                                             <TableCell className="text-right">
-                                                                {att.fileUrl && (
-                                                                    <Button asChild variant="ghost" size="icon">
-                                                                        <a href={att.fileUrl} target="_blank" rel="noopener noreferrer">
-                                                                            <Eye className="h-4 w-4" />
-                                                                        </a>
-                                                                    </Button>
-                                                                )}
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    ))}
+                                                    {attachmentsWithStatus.map((att, idx) => {
+                                                        const isProcessingThis = reprocessingFile === `${email.uid}-${att.filename}`;
+                                                        return (
+                                                            <TableRow key={idx}>
+                                                                <TableCell className="truncate" title={att.filename || 'No filename'}>{att.filename}</TableCell>
+                                                                <TableCell>
+                                                                    {att.status ? getInvoiceStatusBadge(att.status) : <Badge variant="secondary">Not Processed</Badge>}
+                                                                    {att.status === 'duplicate' && <p className="text-xs text-muted-foreground mt-1">Reason: Duplicate file in this email.</p>}
+                                                                    {att.status === 'extraction_failed' && <p className="text-xs text-muted-foreground mt-1">Reason: AI could not read details.</p>}
+                                                                </TableCell>
+                                                                <TableCell className="text-right">
+                                                                     {isReprocessable(att.status) && (
+                                                                        <Button variant="outline" size="sm" onClick={() => handleReprocessOne(email, att.filename!)} disabled={isProcessingThis}>
+                                                                            {isProcessingThis ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RotateCw className="mr-2 h-4 w-4" />}
+                                                                            Reprocess
+                                                                        </Button>
+                                                                    )}
+                                                                    {att.fileUrl && (
+                                                                        <Button asChild variant="ghost" size="icon">
+                                                                            <a href={att.fileUrl} target="_blank" rel="noopener noreferrer">
+                                                                                <Eye className="h-4 w-4" />
+                                                                            </a>
+                                                                        </Button>
+                                                                    )}
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        );
+                                                    })}
                                                 </TableBody>
                                             </Table>
                                             ) : (

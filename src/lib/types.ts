@@ -337,7 +337,7 @@ export type ExtractedInvoice = {
     ledgerDescription?: string;
   }[];
   invoiceTotal: number;
-  status: 'pending_review' | 'approved' | 'rejected' | 'batched_for_payment' | 'duplicate' | 'pending_account_review' | 'pending_third_review' | 'approved_for_payment' | 'paid' | 'archived';
+  status: 'pending_review' | 'approved' | 'rejected' | 'batched_for_payment' | 'duplicate' | 'pending_account_review' | 'pending_third_review' | 'approved_for_payment' | 'paid' | 'archived' | 'extraction_failed';
   fileName: string;
   fileUrl: string;
   createdAt: any;
