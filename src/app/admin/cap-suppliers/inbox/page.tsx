@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -452,8 +453,9 @@ export default function InboxPage() {
                                                                 <TableCell className="truncate" title={att.filename || 'No filename'}>{att.filename}</TableCell>
                                                                 <TableCell>
                                                                     {att.status ? getInvoiceStatusBadge(att.status) : <Badge variant="secondary">Not Processed</Badge>}
-                                                                    {att.status === 'duplicate' && <p className="text-xs text-muted-foreground mt-1">Reason: Duplicate file in this email.</p>}
-                                                                    {att.status === 'extraction_failed' && <p className="text-xs text-muted-foreground mt-1">Reason: AI could not read details.</p>}
+                                                                    {att.rejectionReason && (
+                                                                        <p className="text-xs text-muted-foreground mt-1">Reason: {att.rejectionReason}</p>
+                                                                    )}
                                                                 </TableCell>
                                                                 <TableCell className="text-right">
                                                                      {isReprocessable(att.status) && (

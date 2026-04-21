@@ -7,6 +7,7 @@ import { firebaseApp } from '@/lib/firebase';
 import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
 import imaps from 'imap-simple';
 import { simpleParser } from 'mailparser';
+import { ExtractedInvoice } from '@/lib/types';
 
 
 const db = getFirestore(firebaseApp);
@@ -108,14 +109,15 @@ export async function POST(req: Request) {
     let duplicateCount = 0;
 
     for (const attachment of processableAttachments) {
+      const existingInvoiceQuery = query(
+        collection(db, "extractedInvoices"),
+        where("sourceEmailUid", "==", emailStub.uid),
+        where("fileName", "==", attachment.filename)
+      );
+
       try {
         if(!attachment.dataUrl) continue;
         
-        const existingInvoiceQuery = query(
-            collection(db, "extractedInvoices"),
-            where("sourceEmailUid", "==", emailStub.uid),
-            where("fileName", "==", attachment.filename)
-        );
         const existingInvoicesSnapshot = await getDocs(existingInvoiceQuery);
         const existingInvoiceDoc = existingInvoicesSnapshot.empty ? null : existingInvoicesSnapshot.docs[0];
 
@@ -127,25 +129,7 @@ export async function POST(req: Request) {
         const result = await extractInvoiceData({ invoiceImage: attachment.dataUrl });
 
         if (!result || !result.supplier || !result.invoiceNumber) {
-          failedCount++;
-          const failureData: Partial<ExtractedInvoice> = {
-              status: 'extraction_failed',
-              rejectionReason: 'AI could not read invoice details.',
-              supplier: emailStub.from.split('<')[0].trim() || 'Unknown',
-              invoiceNumber: `FAILED-${Date.now()}`,
-              date: new Date().toLocaleDateString('en-CA'), // YYYY-MM-DD
-              lineItems: [],
-              invoiceTotal: 0,
-              fileName: attachment.filename || 'N/A',
-              sourceEmailUid: emailStub.uid,
-              uploadedBy: 'email_inbox',
-          };
-          if(existingInvoiceDoc) {
-            await updateDoc(existingInvoiceDoc.ref, failureData);
-          } else {
-            await addDoc(collection(db, "extractedInvoices"), {...failureData, createdAt: serverTimestamp()});
-          }
-          continue;
+          throw new Error('AI could not read the required details from the invoice.');
         }
 
         const storageRef = ref(storage, `invoices/email-${emailStub.uid}/${Date.now()}-${attachment.filename}`);
@@ -160,7 +144,7 @@ export async function POST(req: Request) {
           status: 'pending_review' as const,
           uploadedBy: 'email_inbox',
           sourceEmailUid: emailStub.uid,
-          rejectionReason: '', // Clear previous rejection reasons
+          rejectionReason: null, // Clear previous rejection reasons
         };
         
         if (existingInvoiceDoc) {
@@ -171,10 +155,30 @@ export async function POST(req: Request) {
 
         processedCount++;
 
-      } catch (error) {
+      } catch (error: any) {
         failedCount++;
         console.error(`Failed to process attachment ${attachment.filename}:`, error);
-        // Continue to the next attachment even if one fails
+        
+        // Record the failure in Firestore
+        const failureData: Partial<ExtractedInvoice> = {
+            status: 'extraction_failed',
+            rejectionReason: error.message || 'An unknown error occurred during processing.',
+            supplier: emailStub.from.split('<')[0].trim() || 'Unknown',
+            invoiceNumber: `FAILED-${Date.now()}`,
+            date: new Date().toLocaleDateString('en-CA'),
+            lineItems: [],
+            invoiceTotal: 0,
+            fileName: attachment.filename || 'N/A',
+            sourceEmailUid: emailStub.uid,
+            uploadedBy: 'email_inbox',
+        };
+
+        const existingFailureSnapshot = await getDocs(existingInvoiceQuery);
+        if (!existingFailureSnapshot.empty) {
+            await updateDoc(existingFailureSnapshot.docs[0].ref, failureData);
+        } else {
+            await addDoc(collection(db, "extractedInvoices"), {...failureData, createdAt: serverTimestamp()});
+        }
       }
     }
 
