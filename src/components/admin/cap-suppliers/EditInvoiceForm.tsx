@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -349,7 +350,7 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel, onSaveAndAp
                     </div>
                     <FormField control={form.control} name="date" render={({ field }) => ( <FormItem><FormLabel>Date</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="flex items-end gap-2">
                             <FormField control={form.control} name="commissionNumber" render={({ field }) => (
                                 <FormItem className="flex-grow">
