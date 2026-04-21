@@ -188,11 +188,6 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel, onSaveAndAp
         }
     }, [commissionNumber, commissions, form]);
 
-    const isValidCommission = useMemo(() => {
-        if (!commissionNumber) return false;
-        return commissions.some(c => c.commissionNumber === commissionNumber);
-    }, [commissionNumber, commissions]);
-
     const chartOfAccounts = expenseType === 'S38' 
         ? s38ChartOfAccounts 
         : expenseType === 'S39' 
