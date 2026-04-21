@@ -13,13 +13,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from '@/components/ui/checkbox';
 import { DialogFooter } from '@/components/ui/dialog';
-import { Trash2, ChevronsUpDown } from 'lucide-react';
+import { Trash2, ChevronsUpDown, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { s38ChartOfAccounts, capChartOfAccounts, s39ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
-import { ExtractedInvoice } from '@/lib/types';
+import { ExtractedInvoice, Commission } from '@/lib/types';
 import { format, addDays, eachDayOfInterval, endOfMonth, isFriday, getMonth, isLastDayOfMonth, addMonths, endOfYear, startOfYear, getYear } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { getFirestore, collection, query, orderBy, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 
 const lineItemSchema = z.object({
@@ -35,6 +37,7 @@ const formSchema = z.object({
   supplier: z.string().min(1, "Supplier name is required"),
   invoiceNumber: z.string().min(1, "Invoice number is required"),
   commissionNumber: z.string().optional(),
+  storyName: z.string().optional(),
   date: z.string().min(1, "Date is required"),
   lineItems: z.array(lineItemSchema),
   invoiceTotal: z.preprocess((val) => Number(val), z.number()),
@@ -105,6 +108,8 @@ interface EditInvoiceFormProps {
 export default function EditInvoiceForm({ invoice, onSave, onCancel, onSaveAndApprove }: EditInvoiceFormProps) {
     const upcomingFridays = getUpcomingFridays();
     const [openPopover, setOpenPopover] = useState<number | null>(null);
+    const [commissions, setCommissions] = useState<Commission[]>([]);
+    const [isCommissionsLoading, setIsCommissionsLoading] = useState(true);
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -112,6 +117,7 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel, onSaveAndAp
             supplier: invoice?.supplier || '',
             invoiceNumber: invoice?.invoiceNumber || '',
             commissionNumber: invoice?.commissionNumber || '',
+            storyName: invoice?.storyName || '',
             date: invoice?.date || '',
             lineItems: invoice?.lineItems.map(item => ({ 
                 ...item, 
@@ -125,6 +131,23 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel, onSaveAndAp
             isPrivate: invoice?.isPrivate || false,
         }
     });
+
+     useEffect(() => {
+        const fetchCommissions = async () => {
+            setIsCommissionsLoading(true);
+            try {
+                const commsQuery = query(collection(db, 'commissions'), orderBy('commissionNumber', 'asc'));
+                const commsSnapshot = await getDocs(commsQuery);
+                const fetchedCommissions = commsSnapshot.docs.map(doc => doc.data() as Commission);
+                setCommissions(fetchedCommissions);
+            } catch (error) {
+                console.error("Error fetching commissions:", error);
+            } finally {
+                setIsCommissionsLoading(false);
+            }
+        };
+        fetchCommissions();
+    }, []);
 
     const { fields, append, remove } = useFieldArray({
         control: form.control,
@@ -145,6 +168,29 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel, onSaveAndAp
         control: form.control,
         name: 'expenseType',
     });
+    
+    const commissionNumber = useWatch({
+        control: form.control,
+        name: 'commissionNumber',
+    });
+    
+     useEffect(() => {
+        if (commissionNumber && commissions.length > 0) {
+            const matchingCommission = commissions.find(
+                (c) => c.commissionNumber === commissionNumber
+            );
+            if (matchingCommission) {
+                form.setValue('storyName', matchingCommission.shortName, { shouldValidate: true });
+            } else {
+                 form.setValue('storyName', '', { shouldValidate: true });
+            }
+        }
+    }, [commissionNumber, commissions, form]);
+
+    const isValidCommission = useMemo(() => {
+        if (!commissionNumber) return false;
+        return commissions.some(c => c.commissionNumber === commissionNumber);
+    }, [commissionNumber, commissions]);
 
     const chartOfAccounts = expenseType === 'S38' 
         ? s38ChartOfAccounts 
@@ -270,8 +316,37 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel, onSaveAndAp
                     <FormField control={form.control} name="invoiceNumber" render={({ field }) => ( <FormItem><FormLabel>Invoice Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                 </div>
                  <FormField control={form.control} name="date" render={({ field }) => ( <FormItem><FormLabel>Date</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                 <FormField control={form.control} name="commissionNumber" render={({ field }) => ( <FormItem><FormLabel>Commission Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                  
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="commissionNumber" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Commission Number</FormLabel>
+                            <div className="relative">
+                                <FormControl><Input {...field} /></FormControl>
+                                {commissionNumber && (
+                                    <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                                        {isCommissionsLoading ? (
+                                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                        ) : isValidCommission ? (
+                                            <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                        ) : (
+                                            <AlertCircle className="h-4 w-4 text-destructive" />
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                            <FormMessage />
+                        </FormItem>
+                    )} />
+                    <FormField control={form.control} name="storyName" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Story Name</FormLabel>
+                            <FormControl><Input {...field} readOnly className="bg-muted" /></FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )} />
+                </div>
+
                  <FormField
                     control={form.control}
                     name="note"
