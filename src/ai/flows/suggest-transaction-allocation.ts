@@ -58,7 +58,7 @@ const suggestTransactionAllocationFlow = ai.defineFlow(
     outputSchema: SuggestTransactionAllocationOutputSchema,
   },
   async (input) => {
-    const { output } = await prompt(input, { model: 'googleai/gemini-pro' });
+    const { output } = await prompt(input);
     return output!;
   }
 );
