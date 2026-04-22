@@ -53,6 +53,7 @@ const getInvoiceStatusBadge = (status: ExtractedInvoice['status']) => {
         case 'pending_review': return <Badge variant={'warning'}><Hourglass className="mr-1 h-3 w-3" />Pending Review</Badge>;
         case 'pending_account_review': return <Badge variant={'warning'}><Hourglass className="mr-1 h-3 w-3" />Pending Account Review</Badge>;
         case 'pending_third_review': return <Badge variant={'third_review'}><Hourglass className="mr-1 h-3 w-3" />Pending 3rd Review</Badge>;
+        case 'archived': return <Badge variant={'secondary'}><XCircle className="mr-1 h-3 w-3" />Archived</Badge>;
         default: return <Badge>{status.replace(/_/g, ' ')}</Badge>;
     }
 }
@@ -307,6 +308,8 @@ export default function InboxPage() {
             return foundInvoice?.status;
         });
 
+        const terminalSuccessStates = ['approved', 'approved_for_payment', 'batched_for_payment', 'paid', 'archived', 'duplicate'];
+
         // Priority 1: Handle explicit failure/rejection states first
         if (attachmentStatuses.some(s => s === 'rejected')) {
              return <Badge variant={'destructive'}><FileX2 className="mr-1 h-3 w-3" />Rejected</Badge>;
@@ -322,19 +325,17 @@ export default function InboxPage() {
         }
         
         // Priority 3: Check if all attachments are fully and successfully processed
-        const successStates = ['approved', 'approved_for_payment', 'batched_for_payment', 'paid'];
         const allAttachmentsHaveInvoiceEntry = processableAttachments.every(att => 
             processedInvoicesForEmail.some(inv => inv.fileName === att.filename && inv.status)
         );
 
-        if (allAttachmentsHaveInvoiceEntry && attachmentStatuses.every(s => s && successStates.includes(s))) {
+        if (allAttachmentsHaveInvoiceEntry && attachmentStatuses.every(s => s && terminalSuccessStates.includes(s))) {
             return <Badge variant="success"><CheckCircle2 className="mr-1 h-3 w-3"/>Processed</Badge>;
         }
         
         // Priority 4: If some are processed successfully but not all (and no failures/pending)
-        // This also catches cases where some attachments haven't been processed at all yet.
-        const anyProcessed = attachmentStatuses.some(s => s && successStates.includes(s));
-        if (anyProcessed || (allAttachmentsHaveInvoiceEntry && attachmentStatuses.some(s => s === 'duplicate'))) {
+        const anyProcessed = attachmentStatuses.some(s => s && terminalSuccessStates.includes(s));
+        if (anyProcessed) {
             return <Badge variant="warning"><Hourglass className="mr-1 h-3 w-3" />Partially Processed</Badge>;
         }
 
