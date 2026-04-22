@@ -301,10 +301,19 @@ export default function InboxPage() {
         }
 
         const processedInvoicesForEmail = invoicesByEmail[email.uid] || [];
-        const processedFilenames = new Set(processedInvoicesForEmail.map(inv => inv.fileName));
-        const processedCount = processableAttachments.filter(att => att.filename && processedFilenames.has(att.filename)).length;
+        
+        const attachmentStatuses = processableAttachments.map(att => {
+            const foundInvoice = processedInvoicesForEmail.find(inv => inv.fileName === att.filename);
+            return foundInvoice?.status;
+        });
 
-        if (processedCount >= processableAttachments.length) {
+        if (attachmentStatuses.some(s => s === 'extraction_failed')) {
+            return <Badge variant="destructive"><AlertTriangle className="mr-1 h-3 w-3"/>Extraction Failed</Badge>;
+        }
+
+        const processedCount = attachmentStatuses.filter(s => s && s !== 'pending_review' && s !== 'new' && s !== 'extraction_failed').length;
+        
+        if (processedCount === processableAttachments.length) {
              return <Badge variant="success"><CheckCircle2 className="mr-1 h-3 w-3"/>Processed</Badge>;
         }
         
@@ -454,7 +463,7 @@ export default function InboxPage() {
                                                                 <TableCell>
                                                                     {att.status ? getInvoiceStatusBadge(att.status) : <Badge variant="secondary">Not Processed</Badge>}
                                                                     {att.rejectionReason && (
-                                                                        <p className="text-xs text-muted-foreground mt-1">Reason: {att.rejectionReason}</p>
+                                                                        <p className="text-xs text-muted-foreground mt-1 max-w-xs break-words">Reason: {att.rejectionReason}</p>
                                                                     )}
                                                                 </TableCell>
                                                                 <TableCell className="text-right">

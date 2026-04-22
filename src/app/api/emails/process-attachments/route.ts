@@ -180,6 +180,10 @@ export async function POST(req: Request) {
             await addDoc(collection(db, "extractedInvoices"), {...failureData, createdAt: serverTimestamp()});
         }
       }
+      // Add a delay between API calls to avoid rate limiting
+      if (processableAttachments.length > 1) {
+          await new Promise(resolve => setTimeout(resolve, 3000));
+      }
     }
 
     // Mark the email as processed in Firestore ONLY IF all attachments were handled successfully (or skipped as duplicates).
