@@ -308,9 +308,7 @@ export default function InboxPage() {
             return foundInvoice?.status;
         });
 
-        const terminalSuccessStates = ['approved', 'approved_for_payment', 'batched_for_payment', 'paid', 'archived', 'duplicate'];
-
-        // Priority 1: Handle explicit failure/rejection states first
+        // Priority 1: Handle explicit failure states first
         if (attachmentStatuses.some(s => s === 'rejected')) {
              return <Badge variant={'destructive'}><FileX2 className="mr-1 h-3 w-3" />Rejected</Badge>;
         }
@@ -318,27 +316,30 @@ export default function InboxPage() {
             return <Badge variant="destructive"><AlertTriangle className="mr-1 h-3 w-3"/>Extraction Failed</Badge>;
         }
         
-        // Priority 2: Handle states that are waiting for user/system action
-        const pendingStates = ['pending_review', 'pending_account_review', 'pending_third_review'];
-        if (attachmentStatuses.some(s => s && pendingStates.includes(s))) {
-            return <Badge variant="warning"><Hourglass className="mr-1 h-3 w-3" />Pending Review</Badge>;
-        }
+        const handledStates = [
+            'pending_review', 'pending_account_review', 'pending_third_review',
+            'approved', 'approved_for_payment', 'batched_for_payment', 'paid', 
+            'archived', 'duplicate'
+        ];
         
-        // Priority 3: Check if all attachments are fully and successfully processed
-        const allAttachmentsHaveInvoiceEntry = processableAttachments.every(att => 
-            processedInvoicesForEmail.some(inv => inv.fileName === att.filename && inv.status)
-        );
+        const allAttachmentsHandled = processableAttachments.every(att => {
+            const invoice = processedInvoicesForEmail.find(inv => inv.fileName === att.filename);
+            return invoice && invoice.status && handledStates.includes(invoice.status);
+        });
 
-        if (allAttachmentsHaveInvoiceEntry && attachmentStatuses.every(s => s && terminalSuccessStates.includes(s))) {
+        if (allAttachmentsHandled) {
             return <Badge variant="success"><CheckCircle2 className="mr-1 h-3 w-3"/>Processed</Badge>;
         }
         
-        // Priority 4: If some are processed successfully but not all (and no failures/pending)
-        const anyProcessed = attachmentStatuses.some(s => s && terminalSuccessStates.includes(s));
-        if (anyProcessed) {
+        const anyAttachmentHandled = processableAttachments.some(att => {
+            const invoice = processedInvoicesForEmail.find(inv => inv.fileName === att.filename);
+            return invoice && invoice.status && handledStates.includes(invoice.status);
+        });
+
+        if (anyAttachmentHandled) {
             return <Badge variant="warning"><Hourglass className="mr-1 h-3 w-3" />Partially Processed</Badge>;
         }
-
+        
         // Fallback: Unprocessed
         return <Badge variant="outline">Unprocessed</Badge>;
     }
