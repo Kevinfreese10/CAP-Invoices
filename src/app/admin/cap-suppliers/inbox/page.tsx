@@ -310,14 +310,19 @@ export default function InboxPage() {
         if (attachmentStatuses.some(s => s === 'extraction_failed')) {
             return <Badge variant="destructive"><AlertTriangle className="mr-1 h-3 w-3"/>Extraction Failed</Badge>;
         }
-
-        const processedCount = attachmentStatuses.filter(s => s && s !== 'pending_review' && s !== 'new' && s !== 'extraction_failed').length;
         
-        if (processedCount === processableAttachments.length) {
-             return <Badge variant="success"><CheckCircle2 className="mr-1 h-3 w-3"/>Processed</Badge>;
+        const allProcessed = attachmentStatuses.every(s => s && s !== 'new' && s !== 'pending_review' && s !== 'extraction_failed');
+        if (allProcessed && attachmentStatuses.length > 0) {
+            return <Badge variant="success"><CheckCircle2 className="mr-1 h-3 w-3"/>Processed</Badge>;
+        }
+
+        const anyPendingReview = attachmentStatuses.some(s => s === 'pending_review');
+        if (anyPendingReview) {
+            return <Badge variant="warning"><Hourglass className="mr-1 h-3 w-3" />Pending Review</Badge>;
         }
         
-        if (processedCount > 0) {
+        const anyProcessed = attachmentStatuses.some(s => s && s !== 'new' && s !== 'extraction_failed');
+        if (anyProcessed) {
             return <Badge variant="warning"><Hourglass className="mr-1 h-3 w-3" />Partially Processed</Badge>;
         }
 
