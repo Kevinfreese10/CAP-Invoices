@@ -108,7 +108,12 @@ export async function POST(req: Request) {
     let failedCount = 0;
     let duplicateCount = 0;
 
-    for (const attachment of processableAttachments) {
+    for (const [index, attachment] of processableAttachments.entries()) {
+      // Add a delay between API calls to avoid rate limiting, especially on free tiers.
+      if (index > 0) {
+        await new Promise(resolve => setTimeout(resolve, 5000)); // 5-second delay
+      }
+
       const existingInvoiceQuery = query(
         collection(db, "extractedInvoices"),
         where("sourceEmailUid", "==", emailStub.uid),
@@ -179,10 +184,6 @@ export async function POST(req: Request) {
         } else {
             await addDoc(collection(db, "extractedInvoices"), {...failureData, createdAt: serverTimestamp()});
         }
-      }
-      // Add a delay between API calls to avoid rate limiting
-      if (processableAttachments.length > 1) {
-          await new Promise(resolve => setTimeout(resolve, 3000));
       }
     }
 
