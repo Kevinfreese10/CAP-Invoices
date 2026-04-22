@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Inbox, RefreshCw, FileWarning, Plug, Paperclip, CheckCircle2, RotateCw, Trash2, FileSymlink, Eye, CheckCircle, Hourglass, AlertTriangle, FileCheck2, XCircle } from 'lucide-react';
+import { Loader2, Inbox, RefreshCw, FileWarning, Plug, Paperclip, CheckCircle2, RotateCw, Trash2, FileSymlink, Eye, CheckCircle, Hourglass, AlertTriangle, FileCheck2, XCircle, FileX2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -307,30 +307,43 @@ export default function InboxPage() {
             return foundInvoice?.status;
         });
 
+        // Priority 1: Handle explicit failure/rejection states first
+        if (attachmentStatuses.some(s => s === 'rejected')) {
+             return <Badge variant={'destructive'}><FileX2 className="mr-1 h-3 w-3" />Rejected</Badge>;
+        }
         if (attachmentStatuses.some(s => s === 'extraction_failed')) {
             return <Badge variant="destructive"><AlertTriangle className="mr-1 h-3 w-3"/>Extraction Failed</Badge>;
         }
         
-        const allProcessed = attachmentStatuses.every(s => s && s !== 'new' && s !== 'pending_review' && s !== 'extraction_failed');
-        if (allProcessed && attachmentStatuses.length > 0) {
-            return <Badge variant="success"><CheckCircle2 className="mr-1 h-3 w-3"/>Processed</Badge>;
-        }
-
-        const anyPendingReview = attachmentStatuses.some(s => s === 'pending_review');
-        if (anyPendingReview) {
+        // Priority 2: Handle states that are waiting for user/system action
+        const pendingStates = ['pending_review', 'pending_account_review', 'pending_third_review'];
+        if (attachmentStatuses.some(s => s && pendingStates.includes(s))) {
             return <Badge variant="warning"><Hourglass className="mr-1 h-3 w-3" />Pending Review</Badge>;
         }
         
-        const anyProcessed = attachmentStatuses.some(s => s && s !== 'new' && s !== 'extraction_failed');
-        if (anyProcessed) {
+        // Priority 3: Check if all attachments are fully and successfully processed
+        const successStates = ['approved', 'approved_for_payment', 'batched_for_payment', 'paid'];
+        const allAttachmentsHaveInvoiceEntry = processableAttachments.every(att => 
+            processedInvoicesForEmail.some(inv => inv.fileName === att.filename && inv.status)
+        );
+
+        if (allAttachmentsHaveInvoiceEntry && attachmentStatuses.every(s => s && successStates.includes(s))) {
+            return <Badge variant="success"><CheckCircle2 className="mr-1 h-3 w-3"/>Processed</Badge>;
+        }
+        
+        // Priority 4: If some are processed successfully but not all (and no failures/pending)
+        // This also catches cases where some attachments haven't been processed at all yet.
+        const anyProcessed = attachmentStatuses.some(s => s && successStates.includes(s));
+        if (anyProcessed || (allAttachmentsHaveInvoiceEntry && attachmentStatuses.some(s => s === 'duplicate'))) {
             return <Badge variant="warning"><Hourglass className="mr-1 h-3 w-3" />Partially Processed</Badge>;
         }
 
+        // Fallback: Unprocessed
         return <Badge variant="outline">Unprocessed</Badge>;
     }
     
     const isReprocessable = (status: ExtractedInvoice['status'] | undefined) => {
-        return !status || status === 'duplicate' || status === 'extraction_failed';
+        return !status || status === 'duplicate' || status === 'extraction_failed' || status === 'rejected';
     }
 
 
