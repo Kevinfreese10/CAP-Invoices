@@ -24,6 +24,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
 import { Textarea } from '@/components/ui/textarea';
+import { format, addDays, eachDayOfInterval, endOfMonth, isFriday, getMonth, isLastDayOfMonth, addMonths, endOfYear, startOfYear, getYear } from 'date-fns';
 
 
 const db = getFirestore(firebaseApp);
@@ -576,6 +577,11 @@ export default function ThirdReviewPage() {
                                                     </CardTitle>
                                                     <CardDescription>
                                                         {invoice.commissionNumber && <span>Commission #: {invoice.commissionNumber}</span>}
+                                                        {invoice.paymentBatch && 
+                                                            <span className="ml-2 pl-2 border-l">
+                                                                Batch: {!isNaN(new Date(invoice.paymentBatch).getTime()) ? format(new Date(invoice.paymentBatch), 'dd MMM yyyy') : invoice.paymentBatch.replace(/_/g, ' ')}
+                                                            </span>
+                                                        }
                                                         {invoice.storyName && <span className="text-xs italic text-muted-foreground block mt-1">Story: {invoice.storyName}</span>}
                                                     </CardDescription>
                                                 </div>
