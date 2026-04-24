@@ -9,7 +9,7 @@ import { useMemo, useState, useEffect } from "react";
 import { getFirestore, doc, getDoc, setDoc, collection, onSnapshot, query, orderBy, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, PlusCircle, MoreHorizontal, Edit } from "lucide-react";
+import { Loader2, PlusCircle, MoreHorizontal, Edit, ArrowUpDown } from "lucide-react";
 import { commissionList as fallbackData } from "@/lib/commission-list";
 import { Commission } from "@/lib/types";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
@@ -113,6 +113,7 @@ export default function CommissionPage() {
     const { toast } = useToast();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [selectedCommission, setSelectedCommission] = useState<Commission | null>(null);
+    const [sortConfig, setSortConfig] = useState<{ key: keyof Commission; direction: 'ascending' | 'descending' } | null>(null);
 
     useEffect(() => {
         const fetchCommissionData = async () => {
@@ -138,6 +139,56 @@ export default function CommissionPage() {
         return () => unsubscribe();
 
     }, []);
+
+    const requestSort = (key: keyof Commission) => {
+        let direction: 'ascending' | 'descending' = 'ascending';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
+            direction = 'descending';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const sortedCommissions = useMemo(() => {
+        if (!sortConfig) {
+            return commissions;
+        }
+        let sortableItems = [...commissions];
+        sortableItems.sort((a, b) => {
+            const aValue = a[sortConfig.key];
+            const bValue = b[sortConfig.key];
+            
+            if (sortConfig.key === 'createdAt') {
+                const dateA = aValue?.toDate ? aValue.toDate() : new Date(0);
+                const dateB = bValue?.toDate ? bValue.toDate() : new Date(0);
+                if (dateA < dateB) {
+                    return sortConfig.direction === 'ascending' ? -1 : 1;
+                }
+                if (dateA > dateB) {
+                    return sortConfig.direction === 'ascending' ? 1 : -1;
+                }
+                return 0;
+            }
+
+            if (sortConfig.key === 'commissionedDuration') {
+                const numA = Number(aValue) || 0;
+                const numB = Number(bValue) || 0;
+                return sortConfig.direction === 'ascending' ? numA - numB : numB - numA;
+            }
+
+            // Fallback to string comparison
+            const strA = String(aValue).toLowerCase();
+            const strB = String(bValue).toLowerCase();
+
+            if (strA < strB) {
+                return sortConfig.direction === 'ascending' ? -1 : 1;
+            }
+            if (strA > strB) {
+                return sortConfig.direction === 'ascending' ? 1 : -1;
+            }
+            return 0;
+        });
+        return sortableItems;
+    }, [commissions, sortConfig]);
 
     const handleSaveText = async () => {
         setIsSaving(true);
@@ -221,17 +272,29 @@ export default function CommissionPage() {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Comm #</TableHead>
-                                    <TableHead>Short Name</TableHead>
-                                    <TableHead>Story Name</TableHead>
-                                    <TableHead>Duration (mins)</TableHead>
-                                    <TableHead>Producer</TableHead>
-                                    <TableHead>Created</TableHead>
+                                    <TableHead>
+                                        <Button variant="ghost" onClick={() => requestSort('commissionNumber')}>Comm # <ArrowUpDown className="ml-2 h-4 w-4 inline-block" /></Button>
+                                    </TableHead>
+                                    <TableHead>
+                                         <Button variant="ghost" onClick={() => requestSort('shortName')}>Short Name <ArrowUpDown className="ml-2 h-4 w-4 inline-block" /></Button>
+                                    </TableHead>
+                                    <TableHead>
+                                         <Button variant="ghost" onClick={() => requestSort('storyName')}>Story Name <ArrowUpDown className="ml-2 h-4 w-4 inline-block" /></Button>
+                                    </TableHead>
+                                    <TableHead>
+                                        <Button variant="ghost" onClick={() => requestSort('commissionedDuration')}>Duration (mins) <ArrowUpDown className="ml-2 h-4 w-4 inline-block" /></Button>
+                                    </TableHead>
+                                    <TableHead>
+                                        <Button variant="ghost" onClick={() => requestSort('producer')}>Producer <ArrowUpDown className="ml-2 h-4 w-4 inline-block" /></Button>
+                                    </TableHead>
+                                    <TableHead>
+                                         <Button variant="ghost" onClick={() => requestSort('createdAt')}>Created <ArrowUpDown className="ml-2 h-4 w-4 inline-block" /></Button>
+                                    </TableHead>
                                     <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {commissions.map((commission) => (
+                                {sortedCommissions.map((commission) => (
                                     <TableRow key={commission.id}>
                                         <TableCell className="font-mono">{commission.commissionNumber}</TableCell>
                                         <TableCell>{commission.shortName}</TableCell>
