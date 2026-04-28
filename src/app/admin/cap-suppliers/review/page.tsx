@@ -5,12 +5,12 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc, where, addDoc, writeBatch, getDoc, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, MoreHorizontal, Edit, Trash2, FileCheck2, Hourglass, CheckCircle2, Eye, Download, Sparkles, Brain, AlertTriangle, AlertCircle, Mail, Archive } from 'lucide-react';
+import { Loader2, MoreHorizontal, Edit, Trash2, FileCheck2, Hourglass, CheckCircle2, Eye, Download, Sparkles, Brain, AlertTriangle, AlertCircle, Mail, Archive, Paperclip } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -729,10 +729,28 @@ export default function ReviewPage() {
                                     <TableCell className="font-medium">{invoice.supplier}</TableCell>
                                     <TableCell>{invoice.invoiceNumber}</TableCell>
                                     <TableCell>{invoice.commissionNumber || 'N/A'}</TableCell>
-                                    <TableCell>
+                                    <TableCell className="flex items-center gap-2">
                                         <Button asChild variant="link" className="p-0 h-auto">
                                           <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer">View Invoice</a>
                                         </Button>
+                                        {invoice.supportingDocuments && invoice.supportingDocuments.length > 0 && (
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-6 w-6">
+                                                        <Paperclip className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent>
+                                                    <DropdownMenuLabel>Supporting Docs</DropdownMenuLabel>
+                                                    <DropdownMenuSeparator />
+                                                    {invoice.supportingDocuments.map((doc, i) => (
+                                                        <DropdownMenuItem key={i} asChild>
+                                                            <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer">{doc.fileName}</a>
+                                                        </DropdownMenuItem>
+                                                    ))}
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        )}
                                     </TableCell>
                                     <TableCell className="text-right font-mono">{formatPrice(totalVat)}</TableCell>
                                     <TableCell className="text-right font-mono">{formatPrice(invoice.invoiceTotal)}</TableCell>

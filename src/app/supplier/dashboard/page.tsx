@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
-import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, orderBy, doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, firebaseApp } from '@/lib/firebase';
 import { ExtractedInvoice, Commission, User } from '@/lib/types';
@@ -18,12 +18,13 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'; // Import Select components
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Upload, Sparkles, AlertTriangle, CheckCircle, FileCheck2, Hourglass, FileX2, Eye } from 'lucide-react';
+import { Loader2, Upload, Sparkles, AlertTriangle, CheckCircle, FileCheck2, Hourglass, FileX2, Eye, Paperclip } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { format } from 'date-fns';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 const storage = getStorage(firebaseApp);
 
@@ -82,6 +83,89 @@ const formSchema = z.object({
   commissionNumber: z.string().min(1, 'Please select a commission number.'),
   approvalAllocation: z.string().min(1, 'Please select an approver.'),
 });
+
+function SupportingDocumentsDialog({ invoice, onUploadComplete }: { invoice: ExtractedInvoice, onUploadComplete: () => void }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const [file, setFile] = useState<File | null>(null);
+    const { user } = useAuth();
+    const { toast } = useToast();
+
+    const handleFileUpload = async () => {
+        if (!file || !user) return;
+        setIsUploading(true);
+        toast({ title: "Uploading file...", description: file.name });
+        try {
+            const storageRef = ref(storage, `supporting-documents/${invoice.id}/${Date.now()}-${file.name}`);
+            const uploadResult = await uploadBytes(storageRef, file);
+            const downloadURL = await getDownloadURL(uploadResult.ref);
+            
+            const newDocument = {
+                fileName: file.name,
+                fileUrl: downloadURL,
+                uploadedBy: user.uid,
+                uploadedAt: serverTimestamp(),
+            };
+
+            const invoiceRef = doc(db, "extractedInvoices", invoice.id);
+            await updateDoc(invoiceRef, {
+                supportingDocuments: arrayUnion(newDocument)
+            });
+
+            toast({ title: "Upload Successful", description: "Your supporting document has been added." });
+            setFile(null);
+            onUploadComplete();
+        } catch (error) {
+            console.error("Error uploading supporting document:", error);
+            toast({ title: 'Upload Failed', variant: 'destructive' });
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                    <Paperclip className="mr-2 h-4 w-4" />
+                    Docs ({invoice.supportingDocuments?.length || 0})
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Supporting Documents for Invoice #{invoice.invoiceNumber}</DialogTitle>
+                    <DialogDescription>Upload and manage supporting documents for this invoice.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                    {invoice.supportingDocuments && invoice.supportingDocuments.length > 0 && (
+                        <div>
+                            <h4 className="font-medium mb-2">Uploaded Documents:</h4>
+                            <ul className="space-y-2">
+                                {invoice.supportingDocuments.map((doc, index) => (
+                                    <li key={index} className="flex items-center justify-between text-sm p-2 bg-muted rounded-md">
+                                        <span>{doc.fileName}</span>
+                                        <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer"><Eye className="h-4 w-4 text-muted-foreground" /></a>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                    <div className="space-y-2 pt-4">
+                        <h4 className="font-medium">Upload New Document</h4>
+                        <Input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="ghost" onClick={() => setIsOpen(false)}>Close</Button>
+                    <Button onClick={handleFileUpload} disabled={!file || isUploading}>
+                        {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                        Upload File
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 export default function SupplierDashboardPage() {
   const [isUploading, setIsUploading] = useState(false);
@@ -374,7 +458,8 @@ export default function SupplierDashboardPage() {
                                     )}
                                 </TableCell>
                                 <TableCell className="text-right font-mono">{formatPrice(invoice.invoiceTotal)}</TableCell>
-                                <TableCell className="text-right">
+                                <TableCell className="text-right space-x-1">
+                                    <SupportingDocumentsDialog invoice={invoice} onUploadComplete={fetchInvoiceHistoryAndCommissions} />
                                     <Button asChild variant="ghost" size="icon">
                                         <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer">
                                             <Eye className="h-4 w-4" />

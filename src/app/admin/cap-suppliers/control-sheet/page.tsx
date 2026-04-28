@@ -5,11 +5,11 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, orderBy, where, doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, MoreHorizontal, Edit, Trash2, CheckCircle2, FileCheck2, XCircle, Eye, FileX2, Mail } from 'lucide-react';
+import { Loader2, MoreHorizontal, Edit, Trash2, CheckCircle2, FileCheck2, XCircle, Eye, FileX2, Mail, Paperclip } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -269,12 +269,30 @@ export default function SecondReviewPage() {
                                         )}
                                     </TableCell>
                                     <TableCell>{invoice.date}</TableCell>
-                                    <TableCell>
+                                    <TableCell className="flex items-center gap-1">
                                         <Button asChild variant="ghost" size="icon">
                                             <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer">
                                                 <Eye className="h-4 w-4" />
                                             </a>
                                         </Button>
+                                        {invoice.supportingDocuments && invoice.supportingDocuments.length > 0 && (
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                        <Paperclip className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent>
+                                                    <DropdownMenuLabel>Supporting Docs</DropdownMenuLabel>
+                                                    <DropdownMenuSeparator />
+                                                    {invoice.supportingDocuments.map((doc, i) => (
+                                                        <DropdownMenuItem key={i} asChild>
+                                                            <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer">{doc.fileName}</a>
+                                                        </DropdownMenuItem>
+                                                    ))}
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        )}
                                     </TableCell>
                                     <TableCell className="text-right font-mono">R {amountPayable.toFixed(2)}</TableCell>
                                     <TableCell className="text-right">

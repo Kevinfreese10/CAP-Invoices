@@ -357,6 +357,12 @@ export type ExtractedInvoice = {
   commissionNumber?: string;
   storyName?: string;
   modifiedAt?: any;
+  supportingDocuments?: {
+    fileName: string;
+    fileUrl: string;
+    uploadedBy: string;
+    uploadedAt: any; // Firestore Timestamp
+  }[];
 };
 
 export type CommunityQuestion = {
