@@ -8,7 +8,7 @@ import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
 import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, firebaseApp } from '@/lib/firebase';
-import { ExtractedInvoice, Commission } from '@/lib/types';
+import { ExtractedInvoice, Commission, User } from '@/lib/types';
 import { s39ChartOfAccounts } from '@/lib/cap-chart-of-accounts'; // Import s39 accounts
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,6 +23,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { format } from 'date-fns';
+import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 const storage = getStorage(firebaseApp);
 
@@ -87,6 +88,7 @@ export default function SupplierDashboardPage() {
   const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [commissions, setCommissions] = useState<Commission[]>([]);
+  const [admins, setAdmins] = useState<User[]>([]);
   const { toast } = useToast();
   const { user } = useAuth();
   const form = useForm<z.infer<typeof formSchema>>({
@@ -112,6 +114,13 @@ export default function SupplierDashboardPage() {
         const querySnapshot = await getDocs(q);
         const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
         setInvoices(fetchedInvoices);
+        
+        // Fetch admins to show who rejected an invoice
+        const adminsQuery = query(collection(db, 'users'), where('role', 'in', ['admin', 'staff', 'cap_supervisor']));
+        const adminsSnapshot = await getDocs(adminsQuery);
+        const fetchedAdmins = adminsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
+        setAdmins(fetchedAdmins);
+
     } catch (error) {
         console.error("Error fetching data:", error);
         toast({ title: 'Error', description: 'Could not load your data.', variant: 'destructive' });
@@ -188,6 +197,12 @@ export default function SupplierDashboardPage() {
       setIsUploading(false);
     }
   };
+
+  const getRejectedByName = (userId?: string) => {
+    if (!userId) return 'System';
+    const admin = admins.find(a => a.uid === userId);
+    return admin ? admin.name : 'Unknown User';
+  }
 
   const getStatusBadge = (status: ExtractedInvoice['status']) => {
     switch (status) {
@@ -331,7 +346,26 @@ export default function SupplierDashboardPage() {
                                 <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
                                 <TableCell>{invoice.date}</TableCell>
                                 <TableCell>{invoice.commissionNumber || 'N/A'}</TableCell>
-                                <TableCell>{getStatusBadge(invoice.status)}</TableCell>
+                                <TableCell>
+                                    {getStatusBadge(invoice.status)}
+                                    {invoice.status === 'rejected' && invoice.rejectionReason && (
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <p className="text-xs text-muted-foreground mt-1 cursor-pointer truncate max-w-[200px]">
+                                                        Reason: {invoice.rejectionReason}
+                                                    </p>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p className="max-w-sm">
+                                                        <strong>Reason:</strong> {invoice.rejectionReason}<br />
+                                                        <strong>By:</strong> {getRejectedByName(invoice.rejectedBy)}
+                                                    </p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    )}
+                                </TableCell>
                                 <TableCell>
                                     {invoice.paymentBatch && invoice.paymentBatch !== 'private' ? (
                                         <Badge variant="outline">{format(new Date(invoice.paymentBatch), 'dd MMM yyyy')}</Badge>

@@ -356,6 +356,7 @@ export type ExtractedInvoice = {
   expenseType?: 'CAP' | 'S38' | 'S39';
   commissionNumber?: string;
   storyName?: string;
+  modifiedAt?: any;
 };
 
 export type CommunityQuestion = {
