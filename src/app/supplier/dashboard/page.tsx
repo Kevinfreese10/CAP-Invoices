@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
@@ -13,7 +13,7 @@ import { s39ChartOfAccounts } from '@/lib/cap-chart-of-accounts'; // Import s39 
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'; // Import Select components
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -182,6 +182,12 @@ export default function SupplierDashboardPage() {
         approvalAllocation: '',
     }
   });
+  
+  const approvalAllocationValue = form.watch('approvalAllocation');
+  const approver = useMemo(() => {
+    if (!approvalAllocationValue || !admins.length) return null;
+    return admins.find(admin => admin.email === approvalAllocationValue);
+  }, [approvalAllocationValue, admins]);
   
   const fetchInvoiceHistoryAndCommissions = useCallback(async () => {
     if (!user) return;
@@ -368,6 +374,11 @@ export default function SupplierDashboardPage() {
                                 ))}
                             </SelectContent>
                         </Select>
+                        {approver && (
+                            <FormDescription>
+                                Approver: {approver.name}
+                            </FormDescription>
+                        )}
                         <FormMessage />
                         </FormItem>
                     )}
