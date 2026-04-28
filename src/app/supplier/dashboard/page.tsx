@@ -116,7 +116,7 @@ export default function SupplierDashboardPage() {
         setInvoices(fetchedInvoices);
         
         // Fetch admins to show who rejected an invoice
-        const adminsQuery = query(collection(db, 'users'), where('role', 'in', ['admin', 'staff', 'cap_supervisor']));
+        const adminsQuery = query(collection(db, 'users'), where('role', 'in', ['admin', 'staff', 'cap_supervisor', 'cap_staff']));
         const adminsSnapshot = await getDocs(adminsQuery);
         const fetchedAdmins = adminsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
         setAdmins(fetchedAdmins);
