@@ -9,16 +9,16 @@ import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDoc
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, firebaseApp } from '@/lib/firebase';
 import { ExtractedInvoice, Commission, User } from '@/lib/types';
-import { s39ChartOfAccounts } from '@/lib/cap-chart-of-accounts'; // Import s39 accounts
+import { s39ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'; // Import Select components
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Upload, Sparkles, AlertTriangle, CheckCircle, FileCheck2, Hourglass, FileX2, Eye, Paperclip } from 'lucide-react';
+import { Loader2, Upload, Sparkles, AlertTriangle, CheckCircle, FileCheck2, Hourglass, FileX2, Eye, Paperclip, X } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -173,8 +173,10 @@ export default function SupplierDashboardPage() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [commissions, setCommissions] = useState<Commission[]>([]);
   const [admins, setAdmins] = useState<User[]>([]);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
+  
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -183,6 +185,23 @@ export default function SupplierDashboardPage() {
     }
   });
   
+  const watchedInvoice = form.watch('invoice');
+
+  useEffect(() => {
+    if (watchedInvoice && watchedInvoice.length > 0) {
+        const file = watchedInvoice[0];
+        if (file.type === 'application/pdf') {
+            const url = URL.createObjectURL(file);
+            setPreviewUrl(url);
+            return () => URL.revokeObjectURL(url);
+        } else {
+            setPreviewUrl(null);
+        }
+    } else {
+        setPreviewUrl(null);
+    }
+  }, [watchedInvoice]);
+
   const approvalAllocationValue = form.watch('approvalAllocation');
   const approver = useMemo(() => {
     if (!approvalAllocationValue || !admins.length) return null;
@@ -193,19 +212,16 @@ export default function SupplierDashboardPage() {
     if (!user) return;
     setIsLoadingHistory(true);
     try {
-        // Fetch commissions
         const commsQuery = query(collection(db, 'commissions'), orderBy('commissionNumber', 'asc'));
         const commsSnapshot = await getDocs(commsQuery);
         const fetchedCommissions = commsSnapshot.docs.map(doc => doc.data() as Commission);
         setCommissions(fetchedCommissions);
 
-        // Fetch invoice history
         const q = query(collection(db, 'extractedInvoices'), where('uploadedBy', '==', user.uid), orderBy('createdAt', 'desc'));
         const querySnapshot = await getDocs(q);
         const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
         setInvoices(fetchedInvoices);
         
-        // Fetch admins to show who rejected an invoice
         const adminsQuery = query(collection(db, 'users'), where('role', 'in', ['admin', 'staff', 'cap_supervisor', 'cap_staff']));
         const adminsSnapshot = await getDocs(adminsQuery);
         const fetchedAdmins = adminsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
@@ -320,7 +336,7 @@ export default function SupplierDashboardPage() {
       <Card>
         <CardHeader>
           <CardTitle>Submit New Invoice</CardTitle>
-          <CardDescription>Upload an invoice in PDF format. The system will automatically extract the details.</CardDescription>
+          <CardDescription>Upload an invoice in PDF format. You can review the file before submitting.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -401,9 +417,40 @@ export default function SupplierDashboardPage() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" disabled={isUploading}>
+
+              {previewUrl && (
+                <div className="mt-6 space-y-4">
+                    <div className="flex items-center justify-between border-b pb-2">
+                        <h4 className="font-semibold text-lg flex items-center gap-2">
+                            <Eye className="h-5 w-5 text-primary" />
+                            File Review
+                        </h4>
+                        <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => {
+                                setPreviewUrl(null);
+                                form.setValue('invoice', {} as FileList, { shouldValidate: true });
+                            }}
+                        >
+                            <X className="h-4 w-4 mr-2" />
+                            Clear File
+                        </Button>
+                    </div>
+                    <div className="border-2 border-dashed rounded-lg overflow-hidden bg-white shadow-inner h-[500px]">
+                        <iframe src={previewUrl} className="w-full h-full" title="Invoice Preview" />
+                    </div>
+                    <p className="text-sm text-muted-foreground italic flex items-center gap-2">
+                        <AlertTriangle className="h-4 w-4" />
+                        Please ensure the document is clear and all details are legible before submitting.
+                    </p>
+                </div>
+              )}
+
+              <Button type="submit" disabled={isUploading || !watchedInvoice || watchedInvoice.length === 0} size="lg" className="w-full sm:w-auto">
                 {isUploading ? <Sparkles className="mr-2 h-4 w-4 animate-ping" /> : <Upload className="mr-2 h-4 w-4" />}
-                {isUploading ? 'Processing...' : 'Upload & Submit Invoice'}
+                {isUploading ? 'Processing...' : 'Review Complete - Upload & Submit'}
               </Button>
             </form>
           </Form>
