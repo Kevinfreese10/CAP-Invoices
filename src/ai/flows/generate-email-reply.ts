@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview An AI agent for drafting email replies.
@@ -33,7 +32,7 @@ const prompt = ai.definePrompt({
   name: 'generateEmailReplyPrompt',
   input: { schema: GenerateEmailReplyInputSchema },
   output: { schema: GenerateEmailReplyOutputSchema },
-  prompt: `You are an expert administrative assistant for an accounting firm called "My Accountant". Your name is Khai.
+  prompt: `You are an expert administrative assistant for an accounting firm called "CAP Payments Portal". Your name is Khai.
 
 Your task is to draft a professional and helpful reply to the following email.
 
@@ -42,7 +41,7 @@ Your task is to draft a professional and helpful reply to the following email.
 - Directly address the main point of their email.
 - If they are asking a question, try to answer it. If they are sending documents, acknowledge receipt.
 - Keep the reply concise.
-- End with a friendly closing (e.g., "Regards," or "Kind regards,") followed by your name, "Khai", and the company name, "My Accountant".
+- End with a friendly closing (e.g., "Regards," or "Kind regards,") followed by your name, "Khai", and the company name, "CAP Payments Portal".
 
 **Original Email:**
 **From:** {{{sender}}}

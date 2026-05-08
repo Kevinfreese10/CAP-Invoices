@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -77,7 +76,7 @@ const prompt = ai.definePrompt({
 
   **Task, Action, & Reply Guidelines:**
   - If the email contains a clear instruction for work (e.g., "Please file my VAT"), set 'suggestedAction' to 'create_task' and 'task.shouldCreate' to true. The task title must be specific and include the client's name. Do NOT generate a draft reply.
-  - If the email is a general inquiry or question, set 'suggestedAction' to 'draft_reply'. Do NOT create a task. You MUST generate a draft reply. Address the client by name, be helpful and professional, and sign off as 'Khai, My Accountant'.
+  - If the email is a general inquiry or question, set 'suggestedAction' to 'draft_reply'. Do NOT create a task. You MUST generate a draft reply. Address the client by name, be helpful and professional, and sign off as 'Khai, CAP Payments Portal'.
   - If the email is marketing, a newsletter, or spam, categorize it as 'Spam/Promo', set priority to 'Low', and set 'suggestedAction' to 'archive'.
   - If no clear action is needed, set 'suggestedAction' to 'none'.
   
@@ -115,4 +114,3 @@ const categorizeSupportRequestFlow = ai.defineFlow(
     return output!;
   }
 );
-    

@@ -1,4 +1,3 @@
-
 import {
   Body,
   Container,
@@ -68,7 +67,7 @@ const button = {
 };
 
 export const SupplierWelcomeEmail = ({ contactPerson, companyName, loginUrl }: SupplierWelcomeEmailProps) => {
-  const previewText = `Welcome to the My Accountant Supplier Portal`;
+  const previewText = `Welcome to the CAP Payments Portal`;
 
   return (
     <Html>
@@ -94,7 +93,7 @@ export const SupplierWelcomeEmail = ({ contactPerson, companyName, loginUrl }: S
             </Text>
             <Hr style={hr} />
             <Text style={{ ...paragraph, fontSize: '12px', color: '#8898aa' }}>
-              The My Accountant Team
+              The CAP Payments Portal Team
             </Text>
           </Section>
         </Container>

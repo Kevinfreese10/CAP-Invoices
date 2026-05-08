@@ -1,4 +1,3 @@
-
 'use server';
 
 import nodemailer from 'nodemailer';
@@ -69,7 +68,7 @@ export async function sendEmail({ to, subject, html, from, bcc, resellerId, atta
       },
       tls: { rejectUnauthorized: false },
     };
-    fromAddress = `"My Accountant" <${systemSmtpConfig.user}>`;
+    fromAddress = `"CAP Payments Portal" <${systemSmtpConfig.user}>`;
   }
   
   if (from) {
