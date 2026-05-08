@@ -18,13 +18,14 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Upload, Sparkles, AlertTriangle, CheckCircle, FileCheck2, Hourglass, FileX2, Eye, Paperclip, X } from 'lucide-react';
+import { Loader2, Upload, Sparkles, AlertTriangle, CheckCircle, FileCheck2, Hourglass, FileX2, Eye, Paperclip, X, Banknote, List } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const storage = getStorage(firebaseApp);
 
@@ -83,6 +84,14 @@ const formSchema = z.object({
   commissionNumber: z.string().min(1, 'Please select a commission number.'),
   approvalAllocation: z.string().min(1, 'Please select an approver.'),
 });
+
+const calculatePayableAmount = (invoice: ExtractedInvoice) => {
+    return invoice.lineItems.reduce((acc, item) => {
+        const lineValue = item.exclusiveAmount + item.vatAmount;
+        const payeDeduction = item.paye ? lineValue * 0.25 : 0;
+        return acc + (lineValue - payeDeduction);
+    }, 0);
+};
 
 function SupportingDocumentsDialog({ invoice, onUploadComplete }: { invoice: ExtractedInvoice, onUploadComplete: () => void }) {
     const [isOpen, setIsOpen] = useState(false);
@@ -325,6 +334,24 @@ export default function SupplierDashboardPage() {
     return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(price);
   };
 
+  const paymentBatches = useMemo(() => {
+    const batches: { [key: string]: { invoices: ExtractedInvoice[], total: number, status: string } } = {};
+    
+    invoices.filter(inv => inv.paymentBatch && (inv.status === 'batched_for_payment' || inv.status === 'paid')).forEach(inv => {
+        const batchKey = inv.paymentBatch!;
+        if (!batches[batchKey]) {
+            batches[batchKey] = { invoices: [], total: 0, status: 'batched' };
+        }
+        batches[batchKey].invoices.push(inv);
+        batches[batchKey].total += calculatePayableAmount(inv);
+        if (inv.status === 'paid') {
+            batches[batchKey].status = 'paid';
+        }
+    });
+
+    return Object.entries(batches).sort((a, b) => b[0].localeCompare(a[0]));
+  }, [invoices]);
+
 
   return (
     <div className="space-y-8">
@@ -457,80 +484,157 @@ export default function SupplierDashboardPage() {
         </CardContent>
       </Card>
       
-      <Card>
-        <CardHeader>
-          <CardTitle>My Invoice History</CardTitle>
-          <CardDescription>Track the status of your submitted invoices.</CardDescription>
-        </CardHeader>
-        <CardContent>
-            {isLoadingHistory ? (
-                <div className="flex justify-center items-center h-40">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
-            ) : invoices.length === 0 ? (
-                <p className="text-center text-muted-foreground py-10">You have not submitted any invoices yet.</p>
-            ) : (
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Invoice #</TableHead>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Commission #</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Payment Batch</TableHead>
-                            <TableHead className="text-right">Total</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {invoices.map((invoice) => (
-                            <TableRow key={invoice.id}>
-                                <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
-                                <TableCell>{invoice.date}</TableCell>
-                                <TableCell>{invoice.commissionNumber || 'N/A'}</TableCell>
-                                <TableCell>
-                                    {getStatusBadge(invoice.status)}
-                                    {invoice.status === 'rejected' && invoice.rejectionReason && (
-                                        <TooltipProvider>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <p className="text-xs text-muted-foreground mt-1 cursor-pointer truncate max-w-[200px]">
-                                                        Reason: {invoice.rejectionReason}
-                                                    </p>
-                                                </TooltipTrigger>
-                                                <TooltipContent>
-                                                    <p className="max-w-sm">
-                                                        <strong>Reason:</strong> {invoice.rejectionReason}<br />
-                                                        <strong>By:</strong> {getRejectedByName(invoice.rejectedBy)}
-                                                    </p>
-                                                </TooltipContent>
-                                            </Tooltip>
-                                        </TooltipProvider>
-                                    )}
-                                </TableCell>
-                                <TableCell>
-                                    {invoice.paymentBatch && invoice.paymentBatch !== 'private' ? (
-                                        <Badge variant="outline">{format(new Date(invoice.paymentBatch), 'dd MMM yyyy')}</Badge>
-                                    ) : (
-                                        <span className="text-muted-foreground text-xs">N/A</span>
-                                    )}
-                                </TableCell>
-                                <TableCell className="text-right font-mono">{formatPrice(invoice.invoiceTotal)}</TableCell>
-                                <TableCell className="text-right space-x-1">
-                                    <SupportingDocumentsDialog invoice={invoice} onUploadComplete={fetchInvoiceHistoryAndCommissions} />
-                                    <Button asChild variant="ghost" size="icon">
-                                        <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer">
-                                            <Eye className="h-4 w-4" />
-                                        </a>
-                                    </Button>
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            )}
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="history" className="w-full">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="history" className="flex items-center gap-2">
+                <List className="h-4 w-4" />
+                Invoice History
+            </TabsTrigger>
+            <TabsTrigger value="batches" className="flex items-center gap-2">
+                <Banknote className="h-4 w-4" />
+                Payment Batches
+            </TabsTrigger>
+        </TabsList>
+        <TabsContent value="history" className="mt-6">
+            <Card>
+                <CardHeader>
+                <CardTitle>My Invoice History</CardTitle>
+                <CardDescription>Track the status of your submitted invoices.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {isLoadingHistory ? (
+                        <div className="flex justify-center items-center h-40">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        </div>
+                    ) : invoices.length === 0 ? (
+                        <p className="text-center text-muted-foreground py-10">You have not submitted any invoices yet.</p>
+                    ) : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Invoice #</TableHead>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Commission #</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead>Payment Batch</TableHead>
+                                    <TableHead className="text-right">Total</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {invoices.map((invoice) => (
+                                    <TableRow key={invoice.id}>
+                                        <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
+                                        <TableCell>{invoice.date}</TableCell>
+                                        <TableCell>{invoice.commissionNumber || 'N/A'}</TableCell>
+                                        <TableCell>
+                                            {getStatusBadge(invoice.status)}
+                                            {invoice.status === 'rejected' && invoice.rejectionReason && (
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <p className="text-xs text-muted-foreground mt-1 cursor-pointer truncate max-w-[200px]">
+                                                                Reason: {invoice.rejectionReason}
+                                                            </p>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p className="max-w-sm">
+                                                                <strong>Reason:</strong> {invoice.rejectionReason}<br />
+                                                                <strong>By:</strong> {getRejectedByName(invoice.rejectedBy)}
+                                                            </p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            {invoice.paymentBatch && invoice.paymentBatch !== 'private' ? (
+                                                <Badge variant="outline">{format(new Date(invoice.paymentBatch), 'dd MMM yyyy')}</Badge>
+                                            ) : (
+                                                <span className="text-muted-foreground text-xs">N/A</span>
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="text-right font-mono">{formatPrice(invoice.invoiceTotal)}</TableCell>
+                                        <TableCell className="text-right space-x-1">
+                                            <SupportingDocumentsDialog invoice={invoice} onUploadComplete={fetchInvoiceHistoryAndCommissions} />
+                                            <Button asChild variant="ghost" size="icon">
+                                                <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer">
+                                                    <Eye className="h-4 w-4" />
+                                                </a>
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    )}
+                </CardContent>
+            </Card>
+        </TabsContent>
+        <TabsContent value="batches" className="mt-6">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Payment Batches</CardTitle>
+                    <CardDescription>View grouped invoice payments and upcoming batch totals.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                     {isLoadingHistory ? (
+                        <div className="flex justify-center items-center h-40">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        </div>
+                    ) : paymentBatches.length === 0 ? (
+                        <p className="text-center text-muted-foreground py-10">No payment batches have been scheduled yet.</p>
+                    ) : (
+                        <div className="space-y-6">
+                            {paymentBatches.map(([date, data]) => (
+                                <Card key={date} className="overflow-hidden border-primary/20">
+                                    <CardHeader className="bg-primary/5 py-3">
+                                        <div className="flex justify-between items-center">
+                                            <div className="flex items-center gap-2">
+                                                <CardTitle className="text-lg">
+                                                    {format(parseISO(date), 'dd MMMM yyyy')}
+                                                </CardTitle>
+                                                <Badge variant={data.status === 'paid' ? 'success' : 'payment'}>
+                                                    {data.status === 'paid' ? 'Paid' : 'Scheduled'}
+                                                </Badge>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-xs text-muted-foreground">Total Batch Payout (Net)</p>
+                                                <p className="text-lg font-bold text-primary">{formatPrice(data.total)}</p>
+                                            </div>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent className="p-0">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead className="pl-6">Invoice #</TableHead>
+                                                    <TableHead>Invoice Date</TableHead>
+                                                    <TableHead className="text-right pr-6">Net Amount</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {data.invoices.map((invoice) => {
+                                                    const payable = calculatePayableAmount(invoice);
+                                                    return (
+                                                        <TableRow key={invoice.id}>
+                                                            <TableCell className="pl-6 font-medium">{invoice.invoiceNumber}</TableCell>
+                                                            <TableCell>{invoice.date}</TableCell>
+                                                            <TableCell className="text-right pr-6 font-mono">{formatPrice(payable)}</TableCell>
+                                                        </TableRow>
+                                                    )
+                                                })}
+                                            </TableBody>
+                                        </Table>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
