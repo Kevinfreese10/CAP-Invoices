@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -554,7 +553,13 @@ export default function SupplierDashboardPage() {
                                                 <span className="text-muted-foreground text-xs">N/A</span>
                                             )}
                                         </TableCell>
-                                        <TableCell className="text-right font-mono">{formatPrice(invoice.invoiceTotal)}</TableCell>
+                                        <TableCell className="text-right font-mono">
+                                            {['pending_review', 'duplicate', 'extraction_failed'].includes(invoice.status) ? (
+                                                <span className="text-muted-foreground italic text-xs">Reviewing...</span>
+                                            ) : (
+                                                formatPrice(invoice.invoiceTotal)
+                                            )}
+                                        </TableCell>
                                         <TableCell className="text-right space-x-1">
                                             <SupportingDocumentsDialog invoice={invoice} onUploadComplete={fetchInvoiceHistoryAndCommissions} />
                                             <Button asChild variant="ghost" size="icon">
