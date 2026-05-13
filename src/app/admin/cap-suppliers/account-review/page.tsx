@@ -211,7 +211,7 @@ export default function AccountReviewPage() {
         try {
             const usersQuery = query(collection(db, "users"));
             const usersSnapshot = await getDocs(usersQuery);
-            const fetchedUsers = usersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User));
+            const fetchedUsers = usersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, uid: doc.id } as User));
             setUsers(fetchedUsers);
 
             const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'pending_account_review'), orderBy('createdAt', 'desc'));
@@ -350,7 +350,7 @@ export default function AccountReviewPage() {
 
     const getApproverName = (userId?: string) => {
         if (!userId) return 'N/A';
-        const user = users.find(u => u.uid === userId);
+        const user = users.find(u => u.uid === userId || u.id === userId);
         return user ? user.name : 'Unknown User';
     }
     
@@ -452,7 +452,7 @@ export default function AccountReviewPage() {
                                           {invoice.expenseType && <Badge variant="outline">{invoice.expenseType}</Badge>}
                                         </CardTitle>
                                         <CardDescription>
-                                            Invoice #: {invoice.invoiceNumber} | Commission #: {invoice.commissionNumber || 'N/A'} | Allocated by: <span className="font-semibold">{getApproverName(invoice.approvedBy)}</span>
+                                            Invoice #: {invoice.invoiceNumber} | Commission #: {invoice.commissionNumber || 'N/A'} | Approved (2nd Review) by: <span className="font-semibold">{getApproverName(invoice.approvedBy)}</span>
                                             {invoice.paymentBatch && invoice.paymentBatch !== 'private' && ` | Payment Batch: ${format(new Date(invoice.paymentBatch), 'dd MMMM yyyy')}`}
                                         </CardDescription>
                                     </div>

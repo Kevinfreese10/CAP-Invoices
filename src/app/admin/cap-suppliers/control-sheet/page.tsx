@@ -78,6 +78,7 @@ export default function SecondReviewPage() {
     };
 
     const handleSaveAndApprove = async (id: string, data: any) => {
+        if (!user) return;
         try {
             // First, save the data
             const docRef = doc(db, 'extractedInvoices', id);
@@ -90,8 +91,11 @@ export default function SecondReviewPage() {
             };
             await updateDoc(docRef, dataToSave);
             
-            // Then, approve
-            await updateDoc(docRef, { status: 'pending_account_review' });
+            // Then, approve and set current user as the approver
+            await updateDoc(docRef, { 
+                status: 'pending_account_review',
+                approvedBy: user.uid 
+            });
 
             toast({ title: 'Saved & Approved', description: 'The invoice has been updated and sent to Account Review.' });
             setEditingInvoice(null);
@@ -103,9 +107,13 @@ export default function SecondReviewPage() {
     };
     
     const handleApproveForNextStep = async (id: string) => {
+        if (!user) return;
         try {
             const docRef = doc(db, 'extractedInvoices', id);
-            await updateDoc(docRef, { status: 'pending_account_review' });
+            await updateDoc(docRef, { 
+                status: 'pending_account_review',
+                approvedBy: user.uid 
+            });
             toast({ title: 'Invoice Approved for Account Review', description: 'The invoice has been moved to the next review step.' });
             fetchInvoices();
         } catch (error) {
