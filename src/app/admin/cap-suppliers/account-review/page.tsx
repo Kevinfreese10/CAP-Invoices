@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { getFirestore, collection, getDocs, query, orderBy, where, doc, updateDoc, writeBatch, serverTimestamp, addDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, FileCheck2, Eye, Edit, MoreHorizontal, PlusCircle, Upload, Shield, Paperclip } from 'lucide-react';
+import { Loader2, FileCheck2, Eye, Edit, MoreHorizontal, PlusCircle, Upload, Shield, Paperclip, CheckSquare, Square } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -259,11 +259,49 @@ export default function AccountReviewPage() {
             });
         }
     };
+
+    const handleBulkApprove = async () => {
+        if (selectedInvoices.length === 0) {
+            toast({ title: "No invoices selected", variant: "destructive" });
+            return;
+        }
+
+        try {
+            const batch = writeBatch(db);
+            selectedInvoices.forEach(id => {
+                const docRef = doc(db, 'extractedInvoices', id);
+                batch.update(docRef, { status: 'pending_third_review' });
+            });
+            await batch.commit();
+
+            toast({
+                title: `${selectedInvoices.length} Invoice(s) Approved`,
+                description: 'The selected invoices have been moved to 3rd Review.',
+            });
+            setSelectedInvoices([]);
+            fetchInvoices();
+        } catch (error) {
+            console.error("Error approving invoices:", error);
+            toast({
+                title: 'Error',
+                description: 'Could not approve the invoices.',
+                variant: 'destructive',
+            });
+        }
+    };
     
     const handleToggleSelect = (id: string) => {
         setSelectedInvoices(prev =>
             prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
         );
+    };
+
+    const handleSelectAll = (checked: boolean) => {
+        if (checked) {
+            setSelectedInvoices(invoices.map(i => i.id));
+        } else {
+            setSelectedInvoices([]);
+        }
     };
     
     const handleApprove = async (invoiceId: string) => {
@@ -322,10 +360,10 @@ export default function AccountReviewPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <h1 className="text-3xl font-bold tracking-tight">Account Review</h1>
-        <div className="flex gap-2">
-             <AlertDialog>
+        <div className="flex flex-wrap items-center gap-2">
+            <AlertDialog>
                 <AlertDialogTrigger asChild>
                     <Button variant="outline" disabled={selectedInvoices.length === 0}>
                         Return Selected to 2nd Review ({selectedInvoices.length})
@@ -346,9 +384,44 @@ export default function AccountReviewPage() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+             <AlertDialog>
+                <AlertDialogTrigger asChild>
+                    <Button disabled={selectedInvoices.length === 0}>
+                        Approve Selected ({selectedInvoices.length})
+                    </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Approve Selected Invoices?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will move {selectedInvoices.length} selected invoice(s) to the 3rd Review stage.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleBulkApprove}>
+                            Yes, Approve
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
             <AIExtractUploadDialog onUploadComplete={fetchInvoices} />
             <ManualUploadDialog onUploadComplete={fetchInvoices} />
         </div>
+      </div>
+
+      <div className="flex items-center gap-4 py-2 bg-muted/30 px-4 rounded-md border">
+            <Checkbox 
+                id="select-all" 
+                checked={invoices.length > 0 && selectedInvoices.length === invoices.length}
+                onCheckedChange={(checked) => handleSelectAll(!!checked)}
+            />
+            <label htmlFor="select-all" className="text-sm font-medium cursor-pointer flex items-center gap-2">
+                {selectedInvoices.length === invoices.length && invoices.length > 0 ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                Select All ({selectedInvoices.length} of {invoices.length} invoices)
+            </label>
       </div>
       
        {isLoading ? (
@@ -389,7 +462,7 @@ export default function AccountReviewPage() {
                                         <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer">
                                             <Eye className="h-4 w-4" />
                                         </a>
-                                    </Button>
+                                     </Button>
                                     {invoice.supportingDocuments && invoice.supportingDocuments.length > 0 && (
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
