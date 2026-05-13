@@ -9,6 +9,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, firebaseApp } from '@/lib/firebase';
 import { ExtractedInvoice, Commission, User } from '@/lib/types';
 import { s39ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
+import { cn } from '@/lib/utils';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,7 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Upload, Sparkles, AlertTriangle, CheckCircle, FileCheck2, Hourglass, FileX2, Eye, Paperclip, X, Banknote, List } from 'lucide-react';
+import { Loader2, Upload, Sparkles, AlertTriangle, CheckCircle, FileCheck2, Hourglass, FileX2, Eye, Paperclip, X, Banknote, List, ChevronsUpDown, Check } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -25,6 +26,8 @@ import { format, parseISO } from 'date-fns';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 
 const storage = getStorage(firebaseApp);
 
@@ -184,6 +187,9 @@ export default function SupplierDashboardPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
+
+  const [isCommissionPopoverOpen, setIsCommissionPopoverOpen] = useState(false);
+  const [isApproverPopoverOpen, setIsApproverPopoverOpen] = useState(false);
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -372,18 +378,56 @@ export default function SupplierDashboardPage() {
                     control={form.control}
                     name="commissionNumber"
                     render={({ field }) => (
-                        <FormItem>
+                        <FormItem className="flex flex-col">
                         <FormLabel>Commission Number</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value} disabled={commissions.length === 0}>
-                            <FormControl>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select a commission..." />
-                            </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                            {commissions.map(c => <SelectItem key={c.id} value={c.commissionNumber}>{c.commissionNumber} - {c.storyName}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
+                        <Popover open={isCommissionPopoverOpen} onOpenChange={setIsCommissionPopoverOpen}>
+                            <PopoverTrigger asChild>
+                                <FormControl>
+                                    <Button
+                                        variant="outline"
+                                        role="combobox"
+                                        className={cn(
+                                            "w-full justify-between font-normal",
+                                            !field.value && "text-muted-foreground"
+                                        )}
+                                        disabled={commissions.length === 0}
+                                    >
+                                        {field.value
+                                            ? `${field.value} - ${commissions.find((c) => c.commissionNumber === field.value)?.storyName}`
+                                            : "Select a commission..."}
+                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                    </Button>
+                                </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                <Command>
+                                    <CommandInput placeholder="Search commission..." />
+                                    <CommandList>
+                                        <CommandEmpty>No commission found.</CommandEmpty>
+                                        <CommandGroup>
+                                            {commissions.map((c) => (
+                                                <CommandItem
+                                                    value={`${c.commissionNumber} ${c.storyName}`}
+                                                    key={c.id}
+                                                    onSelect={() => {
+                                                        form.setValue("commissionNumber", c.commissionNumber);
+                                                        setIsCommissionPopoverOpen(false);
+                                                    }}
+                                                >
+                                                    <Check
+                                                        className={cn(
+                                                            "mr-2 h-4 w-4",
+                                                            c.commissionNumber === field.value ? "opacity-100" : "opacity-0"
+                                                        )}
+                                                    />
+                                                    {c.commissionNumber} - {c.storyName}
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    </CommandList>
+                                </Command>
+                            </PopoverContent>
+                        </Popover>
                         <FormMessage />
                         </FormItem>
                     )}
@@ -392,30 +436,55 @@ export default function SupplierDashboardPage() {
                     control={form.control}
                     name="approvalAllocation"
                     render={({ field }) => (
-                        <FormItem>
+                        <FormItem className="flex flex-col">
                         <FormLabel>What are you invoicing for</FormLabel>
-                        <Select 
-                            onValueChange={(label) => {
-                                const allocation = approvalAllocations.find(a => a.label === label);
-                                if (allocation) {
-                                    field.onChange(allocation.email);
-                                }
-                            }} 
-                            value={approvalAllocations.find(a => a.email === field.value)?.label}
-                        >
-                            <FormControl>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select what you are invoicing for..." />
-                            </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                                {approvalAllocations.map(acc => (
-                                    <SelectItem key={acc.label} value={acc.label}>
-                                        {acc.label}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <Popover open={isApproverPopoverOpen} onOpenChange={setIsApproverPopoverOpen}>
+                            <PopoverTrigger asChild>
+                                <FormControl>
+                                    <Button
+                                        variant="outline"
+                                        role="combobox"
+                                        className={cn(
+                                            "w-full justify-between font-normal",
+                                            !field.value && "text-muted-foreground"
+                                        )}
+                                    >
+                                        {field.value
+                                            ? approvalAllocations.find((a) => a.email === field.value)?.label
+                                            : "Select what you are invoicing for..."}
+                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                    </Button>
+                                </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                <Command>
+                                    <CommandInput placeholder="Search invoicing category..." />
+                                    <CommandList>
+                                        <CommandEmpty>No category found.</CommandEmpty>
+                                        <CommandGroup>
+                                            {approvalAllocations.map((acc) => (
+                                                <CommandItem
+                                                    value={acc.label}
+                                                    key={acc.label}
+                                                    onSelect={() => {
+                                                        form.setValue("approvalAllocation", acc.email);
+                                                        setIsApproverPopoverOpen(false);
+                                                    }}
+                                                >
+                                                    <Check
+                                                        className={cn(
+                                                            "mr-2 h-4 w-4",
+                                                            acc.email === field.value ? "opacity-100" : "opacity-0"
+                                                        )}
+                                                    />
+                                                    {acc.label}
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    </CommandList>
+                                </Command>
+                            </PopoverContent>
+                        </Popover>
                         {approver && (
                             <FormDescription>
                                 Approver: {approver.name}
