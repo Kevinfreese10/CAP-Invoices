@@ -8,14 +8,12 @@ import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDoc
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, firebaseApp } from '@/lib/firebase';
 import { ExtractedInvoice, Commission, User } from '@/lib/types';
-import { s39ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 import { cn } from '@/lib/utils';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Upload, Sparkles, AlertTriangle, CheckCircle, FileCheck2, Hourglass, FileX2, Eye, Paperclip, X, Banknote, List, ChevronsUpDown, Check } from 'lucide-react';
@@ -25,7 +23,7 @@ import * as z from 'zod';
 import { format, parseISO } from 'date-fns';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@radix-ui/react-tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 
@@ -408,7 +406,7 @@ export default function SupplierDashboardPage() {
                                         <CommandGroup>
                                             {commissions.map((c) => (
                                                 <CommandItem
-                                                    value={`${c.commissionNumber} ${c.storyName}`}
+                                                    value={(`${c.commissionNumber} ${c.storyName}`).toLowerCase()}
                                                     key={c.id}
                                                     onSelect={() => {
                                                         form.setValue("commissionNumber", c.commissionNumber);
@@ -465,7 +463,7 @@ export default function SupplierDashboardPage() {
                                         <CommandGroup>
                                             {approvalAllocations.map((acc) => (
                                                 <CommandItem
-                                                    value={acc.label}
+                                                    value={acc.label.toLowerCase()}
                                                     key={acc.label}
                                                     onSelect={() => {
                                                         form.setValue("approvalAllocation", acc.email);
