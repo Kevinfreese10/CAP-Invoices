@@ -83,7 +83,7 @@ const approvalAllocations = [
 const formSchema = z.object({
   invoice: z.custom<FileList>().refine((files) => files && files.length > 0, 'An invoice file is required.'),
   commissionNumber: z.string().min(1, 'Please select a commission number.'),
-  approvalAllocation: z.string().min(1, 'Please select an approver.'),
+  approvalAllocation: z.string().min(1, 'Please select what you are invoicing for.'),
 });
 
 const calculatePayableAmount = (invoice: ExtractedInvoice) => {
@@ -218,7 +218,9 @@ export default function SupplierDashboardPage() {
   const approvalAllocationValue = form.watch('approvalAllocation');
   const approver = useMemo(() => {
     if (!approvalAllocationValue || !admins.length) return null;
-    return admins.find(admin => admin.email === approvalAllocationValue);
+    const allocation = approvalAllocations.find(a => a.label === approvalAllocationValue);
+    if (!allocation) return null;
+    return admins.find(admin => admin.email === allocation.email);
   }, [approvalAllocationValue, admins]);
   
   const fetchInvoiceHistoryAndCommissions = useCallback(async () => {
@@ -292,10 +294,12 @@ export default function SupplierDashboardPage() {
         return;
       }
       
+      const allocation = approvalAllocations.find(a => a.label === values.approvalAllocation);
+      
       const invoiceData = {
           ...result,
           commissionNumber: values.commissionNumber,
-          assignedToEmail: values.approvalAllocation,
+          assignedToEmail: allocation?.email || null,
           fileName: file.name,
           fileUrl: downloadURL,
           status: 'pending_review' as const,
@@ -449,7 +453,7 @@ export default function SupplierDashboardPage() {
                                         )}
                                     >
                                         {field.value
-                                            ? approvalAllocations.find((a) => a.email === field.value)?.label
+                                            ? field.value
                                             : "Select what you are invoicing for..."}
                                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                     </Button>
@@ -466,14 +470,14 @@ export default function SupplierDashboardPage() {
                                                     value={acc.label.toLowerCase()}
                                                     key={acc.label}
                                                     onSelect={() => {
-                                                        form.setValue("approvalAllocation", acc.email);
+                                                        form.setValue("approvalAllocation", acc.label);
                                                         setIsApproverPopoverOpen(false);
                                                     }}
                                                 >
                                                     <Check
                                                         className={cn(
                                                             "mr-2 h-4 w-4",
-                                                            acc.email === field.value ? "opacity-100" : "opacity-0"
+                                                            acc.label === field.value ? "opacity-100" : "opacity-0"
                                                         )}
                                                     />
                                                     {acc.label}
