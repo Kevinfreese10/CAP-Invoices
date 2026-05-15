@@ -68,7 +68,7 @@ const approvalAllocations = [
     { label: "Drycleaning", email: "meinie@carteblanche.co.za" },
     { label: "Edit Suite: Internal Edits", email: "meinie@carteblanche.co.za" },
     { label: "Edit Suite: Weekly Deliveries", email: "meinie@carteblanche.co.za" },
-    { label: "Editor: Insert Freelancer", email: "meinie@carteblanche.co.za" },
+    { label: "Insert Edit: Freelance", email: "meinie@carteblanche.co.za" },
     { label: "Insert Producers (Per Minute Rate)", email: "rudi@combinedartists.co.za" },
     { label: "Editorial Assistant", email: "rudi@combinedartists.co.za" },
     { label: "Viewer Panel Consultant", email: "rudi@combinedartists.co.za" },
