@@ -25,7 +25,7 @@ import * as z from 'zod';
 import { format, parseISO } from 'date-fns';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@radix-ui/react-tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 
@@ -68,6 +68,7 @@ const approvalAllocations = [
     { label: "Drycleaning", email: "meinie@carteblanche.co.za" },
     { label: "Edit Suite: Internal Edits", email: "meinie@carteblanche.co.za" },
     { label: "Edit Suite: Weekly Deliveries", email: "meinie@carteblanche.co.za" },
+    { label: "Editor: Insert Freelancer", email: "meinie@carteblanche.co.za" },
     { label: "Insert Producers (Per Minute Rate)", email: "rudi@combinedartists.co.za" },
     { label: "Editorial Assistant", email: "rudi@combinedartists.co.za" },
     { label: "Viewer Panel Consultant", email: "rudi@combinedartists.co.za" },
