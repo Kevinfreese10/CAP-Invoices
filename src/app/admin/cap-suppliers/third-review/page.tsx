@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -7,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { getFirestore, collection, getDocs, query, orderBy, where, doc, updateDoc, writeBatch, addDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, CheckCircle, MoreHorizontal, Edit, PlusCircle, FileCheck2, Save, Eye, Trash2, Brain, SortAsc, Paperclip } from 'lucide-react';
+import { Loader2, CheckCircle, MoreHorizontal, Edit, PlusCircle, FileCheck2, Save, Eye, Trash2, Brain, SortAsc, Paperclip, Sparkles } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ExtractedInvoice, Commission } from '@/lib/types';
@@ -19,12 +17,12 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import EditInvoiceForm from '@/components/admin/cap-suppliers/EditInvoiceForm';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
-import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
 import { Textarea } from '@/components/ui/textarea';
 import { format, addDays, eachDayOfInterval, endOfMonth, isFriday, getMonth, isLastDayOfMonth, addMonths, endOfYear, startOfYear, getYear } from 'date-fns';
+import { generateLedgerDescription } from '@/ai/flows/generate-ledger-description';
 
 
 const db = getFirestore(firebaseApp);
@@ -200,6 +198,7 @@ export default function ThirdReviewPage() {
     const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
     const { user } = useAuth();
     const [isAnalyzeDialogOpen, setIsAnalyzeDialogOpen] = useState(false);
+    const [isAnalyzingDescriptions, setIsAnalyzingDescriptions] = useState<{ [key: string]: boolean }>({});
 
 
     const fetchInvoices = async () => {
@@ -297,6 +296,54 @@ export default function ThirdReviewPage() {
                 return invoice;
             })
         );
+    };
+
+    const handleAiAnalyzeLedger = async (invoiceId: string) => {
+        const invoice = localInvoiceData.find(inv => inv.id === invoiceId);
+        if (!invoice) return;
+
+        setIsAnalyzingDescriptions(prev => ({ ...prev, [invoiceId]: true }));
+        toast({ title: "AI is analyzing descriptions...", description: `Processing lines for ${invoice.supplier}` });
+
+        try {
+            const updatedLineItems = await Promise.all(invoice.lineItems.map(async (item) => {
+                const account = getAccountDescription(item.accountId, invoice.expenseType);
+                const result = await generateLedgerDescription({
+                    lineDescription: item.description,
+                    commissionNumber: invoice.commissionNumber,
+                    storyName: invoice.storyName,
+                    accountDescription: account.description,
+                    examples: Object.values(ledgerExamples),
+                });
+                return { ...item, ledgerDescription: result.ledgerDescription };
+            }));
+
+            setLocalInvoiceData(prevData =>
+                prevData.map(inv =>
+                    inv.id === invoiceId ? { ...inv, lineItems: updatedLineItems } : inv
+                )
+            );
+
+            toast({ title: "AI Analysis Complete", description: `Updated descriptions for ${invoice.supplier}. Review and click Save All.` });
+        } catch (error) {
+            console.error("AI Analysis failed:", error);
+            toast({ title: "AI Analysis Failed", description: "Could not generate descriptions for this invoice.", variant: "destructive" });
+        } finally {
+            setIsAnalyzingDescriptions(prev => ({ ...prev, [invoiceId]: false }));
+        }
+    };
+
+    const handleBulkAiAnalyze = async () => {
+        if (selectedInvoices.length === 0) {
+            toast({ title: "No invoices selected", variant: "destructive" });
+            return;
+        }
+
+        toast({ title: "Bulk AI Analysis Started", description: `Processing ${selectedInvoices.length} invoices.` });
+
+        for (const id of selectedInvoices) {
+            await handleAiAnalyzeLedger(id);
+        }
     };
 
     const handleSaveAllLedgerDescriptions = async () => {
@@ -512,7 +559,11 @@ export default function ThirdReviewPage() {
                             </AlertDialog>
                             <Button onClick={() => setIsAnalyzeDialogOpen(true)} variant="outline" disabled={selectedInvoices.length === 0}>
                                 <Brain className="mr-2 h-4 w-4"/>
-                                Analyze ({selectedInvoices.length})
+                                Sync Stories ({selectedInvoices.length})
+                            </Button>
+                            <Button onClick={handleBulkAiAnalyze} variant="outline" disabled={selectedInvoices.length === 0}>
+                                <Sparkles className="mr-2 h-4 w-4" />
+                                AI Analyze Selected
                             </Button>
                              <Button onClick={handleSaveAllLedgerDescriptions} variant="outline">
                                 <Save className="mr-2 h-4 w-4" /> Save All Descriptions
@@ -587,6 +638,10 @@ export default function ThirdReviewPage() {
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2">
+                                                <Button variant="outline" size="sm" onClick={() => handleAiAnalyzeLedger(invoice.id)} disabled={isAnalyzingDescriptions[invoice.id]}>
+                                                    {isAnalyzingDescriptions[invoice.id] ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                                                    AI Analyze
+                                                </Button>
                                                 <Button asChild variant="outline" size="icon">
                                                     <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer">
                                                         <Eye className="h-4 w-4" />
