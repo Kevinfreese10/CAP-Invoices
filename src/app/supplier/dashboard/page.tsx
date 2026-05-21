@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
-import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, orderBy, doc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, orderBy, doc, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, firebaseApp } from '@/lib/firebase';
 import { ExtractedInvoice, Commission, User } from '@/lib/types';
@@ -114,7 +114,7 @@ function SupportingDocumentsDialog({ invoice, onUploadComplete }: { invoice: Ext
                 fileName: file.name,
                 fileUrl: downloadURL,
                 uploadedBy: user.uid,
-                uploadedAt: serverTimestamp(),
+                uploadedAt: Timestamp.now(), // Fixed: serverTimestamp() cannot be used inside arrayUnion
             };
 
             const invoiceRef = doc(db, "extractedInvoices", invoice.id);
