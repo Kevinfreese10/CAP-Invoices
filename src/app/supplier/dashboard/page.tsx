@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -114,7 +115,7 @@ function SupportingDocumentsDialog({ invoice, onUploadComplete }: { invoice: Ext
                 fileName: file.name,
                 fileUrl: downloadURL,
                 uploadedBy: user.uid,
-                uploadedAt: Timestamp.now(), // Fixed: serverTimestamp() cannot be used inside arrayUnion
+                uploadedAt: Timestamp.now(), // Use Timestamp.now() instead of serverTimestamp() for arrayUnion
             };
 
             const invoiceRef = doc(db, "extractedInvoices", invoice.id);

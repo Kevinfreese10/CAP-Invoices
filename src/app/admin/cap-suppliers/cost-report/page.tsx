@@ -106,7 +106,11 @@ export default function CostReportPage() {
     const fetchInvoices = async () => {
         setIsLoading(true);
         try {
-            const q = query(collection(db, 'extractedInvoices'));
+            // Only fetch invoices that are in a payment batch or already paid
+            const q = query(
+                collection(db, 'extractedInvoices'), 
+                where('status', 'in', ['batched_for_payment', 'paid'])
+            );
             const querySnapshot = await getDocs(q);
             const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
             setInvoices(fetchedInvoices);
@@ -250,7 +254,7 @@ export default function CostReportPage() {
                 <CardHeader>
                     <CardTitle>Filter Report</CardTitle>
                     <CardDescription>
-                        Select multiple commission numbers and payment batches to generate a detailed cost report.
+                        Select multiple commission numbers and payment batches to generate a detailed cost report. Only invoices currently in a payment batch are shown.
                     </CardDescription>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 items-end">
                         <MultiSelectFilter title="Commission Numbers" options={commissionNumbers} selectedValues={selectedCommissions} setSelectedValues={setSelectedCommissions} />
