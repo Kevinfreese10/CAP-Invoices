@@ -115,7 +115,7 @@ function SupportingDocumentsDialog({ invoice, onUploadComplete }: { invoice: Ext
                 fileName: file.name,
                 fileUrl: downloadURL,
                 uploadedBy: user.uid,
-                uploadedAt: Timestamp.now(), // Use Timestamp.now() instead of serverTimestamp() for arrayUnion
+                uploadedAt: Timestamp.now(), // Fixed: Use client-side Timestamp for array updates
             };
 
             const invoiceRef = doc(db, "extractedInvoices", invoice.id);
@@ -154,7 +154,7 @@ function SupportingDocumentsDialog({ invoice, onUploadComplete }: { invoice: Ext
                             <ul className="space-y-2">
                                 {invoice.supportingDocuments.map((doc, index) => (
                                     <li key={index} className="flex items-center justify-between text-sm p-2 bg-muted rounded-md">
-                                        <span>{doc.fileName}</span>
+                                        <span className="truncate max-w-[200px]">{doc.fileName}</span>
                                         <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer"><Eye className="h-4 w-4 text-muted-foreground" /></a>
                                     </li>
                                 ))}
@@ -245,11 +245,10 @@ export default function SupplierDashboardPage() {
 
     } catch (error) {
         console.error("Error fetching data:", error);
-        toast({ title: 'Error', description: 'Could not load your data.', variant: 'destructive' });
     } finally {
         setIsLoadingHistory(false);
     }
-  }, [user, toast]);
+  }, [user]);
 
   useEffect(() => {
     fetchInvoiceHistoryAndCommissions();
@@ -621,7 +620,7 @@ export default function SupplierDashboardPage() {
                                         </TableCell>
                                         <TableCell>
                                             {invoice.paymentBatch && invoice.paymentBatch !== 'private' ? (
-                                                <Badge variant="outline">{format(new Date(invoice.paymentBatch), 'dd MMM yyyy')}</Badge>
+                                                <Badge variant="outline">{format(parseISO(invoice.paymentBatch), 'dd MMM yyyy')}</Badge>
                                             ) : (
                                                 <span className="text-muted-foreground text-xs">N/A</span>
                                             )}
