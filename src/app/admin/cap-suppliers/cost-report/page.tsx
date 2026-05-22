@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, where, doc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Check, ChevronsUpDown, ChevronDown } from 'lucide-react';
+import { Loader2, Check, ChevronsUpDown, ChevronDown, Download } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ExtractedInvoice } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -105,7 +105,7 @@ export default function CostReportPage() {
     const fetchInvoices = async () => {
         setIsLoading(true);
         try {
-            // Only fetch invoices that are in a payment batch or already paid
+            // Strictly only fetch invoices that are in a payment batch or already paid
             const q = query(
                 collection(db, 'extractedInvoices'), 
                 where('status', 'in', ['batched_for_payment', 'paid'])
@@ -159,7 +159,8 @@ export default function CostReportPage() {
                 groups[supplierName] = { total: 0, items: [] };
             }
             inv.lineItems.forEach(item => {
-                groups[supplierName].total += item.exclusiveAmount;
+                // Calculation changed to include VAT as this reflects what was paid to supplier
+                groups[supplierName].total += (item.exclusiveAmount + item.vatAmount);
                 groups[supplierName].items.push({
                     ...item,
                     invoiceId: inv.id,
@@ -236,6 +237,8 @@ export default function CostReportPage() {
                     'Account Name': account ? account.description : 'N/A',
                     'Payment Batch': item.paymentBatch ? format(new Date(item.paymentBatch), 'dd MMM yyyy') : 'N/A',
                     'Exclusive Amount': item.exclusiveAmount,
+                    'VAT Amount': item.vatAmount,
+                    'Total (Incl. VAT)': item.exclusiveAmount + item.vatAmount,
                     'Expense Type': item.expenseType,
                 };
             })
@@ -244,7 +247,7 @@ export default function CostReportPage() {
         const worksheet = XLSX.utils.json_to_sheet(dataToExport);
         worksheet['!cols'] = [
             { wch: 30 }, { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 50 },
-            { wch: 20 }, { wch: 40 }, { wch: 20 }, { wch: 20 }, { wch: 15 }
+            { wch: 20 }, { wch: 40 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 20 }, { wch: 15 }
         ];
 
         const workbook = XLSX.utils.book_new();
@@ -268,6 +271,7 @@ export default function CostReportPage() {
                         
                         <div className="flex flex-col justify-end">
                              <Button onClick={handleExport} disabled={groupedBySupplier.length === 0} className="w-full">
+                                <Download className="mr-2 h-4 w-4" />
                                 Export to Excel
                             </Button>
                         </div>
@@ -299,7 +303,7 @@ export default function CostReportPage() {
                                                     <CardTitle>{group.supplier}</CardTitle>
                                                 </div>
                                                 <div className="text-right">
-                                                    <p className="text-sm text-muted-foreground">Total Supplier Cost</p>
+                                                    <p className="text-sm text-muted-foreground">Total Supplier Cost (Incl. VAT)</p>
                                                     <p className="text-xl font-bold">{formatPrice(group.total)}</p>
                                                 </div>
                                              </CardHeader>
@@ -313,7 +317,7 @@ export default function CostReportPage() {
                                                             <TableHead>Invoice #</TableHead>
                                                             <TableHead>Comm #</TableHead>
                                                             <TableHead>Description</TableHead>
-                                                            <TableHead className="text-right">Amount</TableHead>
+                                                            <TableHead className="text-right">Amount (Incl. VAT)</TableHead>
                                                         </TableRow>
                                                     </TableHeader>
                                                     <TableBody>
@@ -323,7 +327,7 @@ export default function CostReportPage() {
                                                                 <TableCell>{item.invoiceNumber}</TableCell>
                                                                 <TableCell><Badge variant="outline">{item.commissionNumber || 'N/A'}</Badge></TableCell>
                                                                 <TableCell className="max-w-md truncate">{item.ledgerDescription || item.description}</TableCell>
-                                                                <TableCell className="text-right font-mono">{formatPrice(item.exclusiveAmount)}</TableCell>
+                                                                <TableCell className="text-right font-mono">{formatPrice(item.exclusiveAmount + item.vatAmount)}</TableCell>
                                                             </TableRow>
                                                         ))}
                                                     </TableBody>
