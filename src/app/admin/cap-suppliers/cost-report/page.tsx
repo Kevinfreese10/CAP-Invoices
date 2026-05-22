@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, where, doc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Check, ChevronsUpDown } from 'lucide-react';
+import { Loader2, Check, ChevronsUpDown, ChevronDown } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ExtractedInvoice } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,6 @@ import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown } from 'lucide-react';
 import { capChartOfAccounts, s38ChartOfAccounts, s39ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 import { Checkbox } from '@/components/ui/checkbox';
 import EditInvoiceForm from '@/components/admin/cap-suppliers/EditInvoiceForm';
@@ -151,35 +150,42 @@ export default function CostReportPage() {
     }, [invoices, selectedCommissions, selectedBatches]);
 
 
-    const groupedByCommission = useMemo(() => {
+    const groupedBySupplier = useMemo(() => {
         const groups: { [key: string]: { total: number; items: any[] } } = {};
 
         filteredInvoices.forEach(inv => {
-            if (!inv.commissionNumber) return;
-            if (!groups[inv.commissionNumber]) {
-                groups[inv.commissionNumber] = { total: 0, items: [] };
+            const supplierName = inv.supplier;
+            if (!groups[supplierName]) {
+                groups[supplierName] = { total: 0, items: [] };
             }
             inv.lineItems.forEach(item => {
-                groups[inv.commissionNumber].total += item.exclusiveAmount;
-                groups[inv.commissionNumber].items.push({
+                groups[supplierName].total += item.exclusiveAmount;
+                groups[supplierName].items.push({
                     ...item,
-                    invoiceId: inv.id, // Important for editing
+                    invoiceId: inv.id,
                     supplier: inv.supplier,
                     invoiceDate: inv.date,
                     invoiceNumber: inv.invoiceNumber,
                     paymentBatch: inv.paymentBatch,
                     expenseType: inv.expenseType,
+                    commissionNumber: inv.commissionNumber,
                 });
             });
         });
         
         Object.values(groups).forEach(group => {
-            group.items.sort((a, b) => new Date(a.invoiceDate.split('/').reverse().join('-')).getTime() - new Date(b.invoiceDate.split('/').reverse().join('-')).getTime());
+            group.items.sort((a, b) => {
+                const [dayA, monthA, yearA] = a.invoiceDate.split('/').map(Number);
+                const [dayB, monthB, yearB] = b.invoiceDate.split('/').map(Number);
+                const dateA = new Date(yearA, monthA - 1, dayA);
+                const dateB = new Date(yearB, monthB - 1, dayB);
+                return dateA.getTime() - dateB.getTime();
+            });
         });
 
         return Object.entries(groups)
-            .map(([commission, data]) => ({ commission, ...data }))
-            .sort((a,b) => a.commission.localeCompare(b.commission));
+            .map(([supplier, data]) => ({ supplier, ...data }))
+            .sort((a,b) => a.supplier.localeCompare(b.supplier));
 
     }, [filteredInvoices]);
 
@@ -209,9 +215,9 @@ export default function CostReportPage() {
 
 
     const handleExport = () => {
-        if (!groupedByCommission.length) return;
+        if (!groupedBySupplier.length) return;
 
-        const dataToExport = groupedByCommission.flatMap(group => 
+        const dataToExport = groupedBySupplier.flatMap(group => 
             group.items.map((item: any) => {
                 let account;
                 switch(item.expenseType) {
@@ -221,10 +227,10 @@ export default function CostReportPage() {
                     default: account = allAccounts.find(acc => acc.accountNumber === item.accountId);
                 }
                 return {
-                    'Commission Number': group.commission,
-                    'Supplier': item.supplier,
+                    'Supplier': group.supplier,
                     'Invoice Date': item.invoiceDate,
                     'Invoice Number': item.invoiceNumber,
+                    'Commission Number': item.commissionNumber || 'N/A',
                     'Ledger Description': item.ledgerDescription || item.description,
                     'Account Code': item.accountId || 'N/A',
                     'Account Name': account ? account.description : 'N/A',
@@ -237,14 +243,14 @@ export default function CostReportPage() {
         
         const worksheet = XLSX.utils.json_to_sheet(dataToExport);
         worksheet['!cols'] = [
-            { wch: 20 }, { wch: 30 }, { wch: 15 }, { wch: 20 }, { wch: 50 },
+            { wch: 30 }, { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 50 },
             { wch: 20 }, { wch: 40 }, { wch: 20 }, { wch: 20 }, { wch: 15 }
         ];
 
         const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, `Cost Report`);
-        const commissionTitle = selectedCommissions.length > 0 ? selectedCommissions.join('_') : 'all_commissions';
-        XLSX.writeFile(workbook, `Cost_Report_${commissionTitle}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+        XLSX.utils.book_append_sheet(workbook, worksheet, `Supplier Cost Report`);
+        const batchTitle = selectedBatches.length > 0 ? selectedBatches.join('_') : 'all_batches';
+        XLSX.writeFile(workbook, `Cost_Report_By_Supplier_${batchTitle}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
     };
 
     return (
@@ -254,14 +260,14 @@ export default function CostReportPage() {
                 <CardHeader>
                     <CardTitle>Filter Report</CardTitle>
                     <CardDescription>
-                        Select multiple commission numbers and payment batches to generate a detailed cost report. Only invoices currently in a payment batch are shown.
+                        Select multiple commission numbers and payment batches to generate a detailed cost report consolidated by supplier.
                     </CardDescription>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 items-end">
                         <MultiSelectFilter title="Commission Numbers" options={commissionNumbers} selectedValues={selectedCommissions} setSelectedValues={setSelectedCommissions} />
                         <MultiSelectFilter title="Payment Batches" options={paymentBatches.map(b => format(new Date(b), 'dd MMMM yyyy'))} selectedValues={selectedBatches} setSelectedValues={(values) => setSelectedBatches(values)} />
                         
                         <div className="flex flex-col justify-end">
-                             <Button onClick={handleExport} disabled={groupedByCommission.length === 0} className="w-full">
+                             <Button onClick={handleExport} disabled={groupedBySupplier.length === 0} className="w-full">
                                 Export to Excel
                             </Button>
                         </div>
@@ -272,7 +278,7 @@ export default function CostReportPage() {
                         <div className="flex justify-center items-center h-64">
                             <Loader2 className="h-8 w-8 animate-spin text-primary" />
                         </div>
-                    ) : groupedByCommission.length === 0 ? (
+                    ) : groupedBySupplier.length === 0 ? (
                         <p className="text-center text-muted-foreground py-10">
                             {selectedCommissions.length > 0 || selectedBatches.length > 0
                                 ? 'No costs found for the selected filters.'
@@ -281,8 +287,8 @@ export default function CostReportPage() {
                         </p>
                     ) : (
                         <div className="space-y-4">
-                            {groupedByCommission.map(group => (
-                                <Collapsible key={group.commission} defaultOpen>
+                            {groupedBySupplier.map(group => (
+                                <Collapsible key={group.supplier} defaultOpen>
                                     <Card>
                                          <CollapsibleTrigger asChild>
                                              <CardHeader className="flex flex-row items-center justify-between cursor-pointer hover:bg-muted/50">
@@ -290,10 +296,10 @@ export default function CostReportPage() {
                                                     <Button variant="ghost" size="icon" className="group-data-[state=open]:rotate-180">
                                                         <ChevronDown className="h-4 w-4 transition-transform"/>
                                                     </Button>
-                                                    <CardTitle>{group.commission}</CardTitle>
+                                                    <CardTitle>{group.supplier}</CardTitle>
                                                 </div>
                                                 <div className="text-right">
-                                                    <p className="text-sm text-muted-foreground">Total Cost</p>
+                                                    <p className="text-sm text-muted-foreground">Total Supplier Cost</p>
                                                     <p className="text-xl font-bold">{formatPrice(group.total)}</p>
                                                 </div>
                                              </CardHeader>
@@ -303,8 +309,9 @@ export default function CostReportPage() {
                                                 <Table>
                                                     <TableHeader>
                                                         <TableRow>
-                                                            <TableHead>Supplier</TableHead>
                                                             <TableHead>Invoice Date</TableHead>
+                                                            <TableHead>Invoice #</TableHead>
+                                                            <TableHead>Comm #</TableHead>
                                                             <TableHead>Description</TableHead>
                                                             <TableHead className="text-right">Amount</TableHead>
                                                         </TableRow>
@@ -312,9 +319,10 @@ export default function CostReportPage() {
                                                     <TableBody>
                                                         {group.items.map((item, index) => (
                                                             <TableRow key={index} className="cursor-pointer" onClick={() => handleEditClick(item.invoiceId)}>
-                                                                <TableCell className="font-medium">{item.supplier}</TableCell>
                                                                 <TableCell>{item.invoiceDate}</TableCell>
-                                                                <TableCell>{item.ledgerDescription || item.description}</TableCell>
+                                                                <TableCell>{item.invoiceNumber}</TableCell>
+                                                                <TableCell><Badge variant="outline">{item.commissionNumber || 'N/A'}</Badge></TableCell>
+                                                                <TableCell className="max-w-md truncate">{item.ledgerDescription || item.description}</TableCell>
                                                                 <TableCell className="text-right font-mono">{formatPrice(item.exclusiveAmount)}</TableCell>
                                                             </TableRow>
                                                         ))}
