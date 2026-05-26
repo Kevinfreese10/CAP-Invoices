@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -41,6 +40,7 @@ const approvalAllocations = [
     { label: "Shuttle Service", email: "nombuson@combinedartists.co.za" },
     { label: "Excess Baggage", email: "nombuson@combinedartists.co.za" },
     { label: "Accommodation Reimbursements", email: "nombuson@combinedartists.co.za" },
+    { label: "Air Tickets: Inserts", email: "meinie@carteblanche.co.za" },
     { label: "Studio Director", email: "meinie@carteblanche.co.za" },
     { label: "Assistant Studio Director", email: "meinie@carteblanche.co.za" },
     { label: "Floor Manager", email: "meinie@carteblanche.co.za" },
