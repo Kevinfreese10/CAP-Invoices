@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, where, doc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Check, ChevronsUpDown, ChevronDown, Download } from 'lucide-react';
+import { Loader2, Check, ChevronsUpDown, ChevronDown, Download, Calculator, Banknote } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ExtractedInvoice } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import EditInvoiceForm from '@/components/admin/cap-suppliers/EditInvoiceForm';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import { Separator } from '@/components/ui/separator';
 
 
 const db = getFirestore(firebaseApp);
@@ -60,9 +61,9 @@ function MultiSelectFilter({ title, options, selectedValues, setSelectedValues }
                                     key={option}
                                     value={option}
                                     onSelect={(currentValue) => {
-                                        const newSelected = selectedValues.includes(currentValue)
-                                            ? selectedValues.filter((v) => v !== currentValue)
-                                            : [...selectedValues, currentValue];
+                                        const newSelected = selectedValues.includes(option)
+                                            ? selectedValues.filter((v) => v !== option)
+                                            : [...selectedValues, option];
                                         setSelectedValues(newSelected);
                                     }}
                                 >
@@ -135,8 +136,11 @@ export default function CostReportPage() {
     }, [invoices]);
     
      const filteredInvoices = useMemo(() => {
+        // Change: Only show data if a commission number is selected
+        if (selectedCommissions.length === 0) return [];
+
         return invoices.filter(inv => {
-            const commissionMatch = selectedCommissions.length === 0 || (inv.commissionNumber && selectedCommissions.includes(inv.commissionNumber));
+            const commissionMatch = inv.commissionNumber && selectedCommissions.includes(inv.commissionNumber);
             const batchMatch = selectedBatches.length === 0 || (inv.paymentBatch && selectedBatches.some(selectedBatch => {
                 try {
                     const formattedSelectedBatch = format(parse(selectedBatch, 'dd MMMM yyyy', new Date()), 'yyyy-MM-dd');
@@ -151,16 +155,16 @@ export default function CostReportPage() {
 
 
     const groupedBySupplier = useMemo(() => {
-        const groups: { [key: string]: { total: number; items: any[] } } = {};
+        const groups: { [key: string]: { totalInclusive: number; totalExclusive: number; items: any[] } } = {};
 
         filteredInvoices.forEach(inv => {
             const supplierName = inv.supplier;
             if (!groups[supplierName]) {
-                groups[supplierName] = { total: 0, items: [] };
+                groups[supplierName] = { totalInclusive: 0, totalExclusive: 0, items: [] };
             }
             inv.lineItems.forEach(item => {
-                // Calculation changed to include VAT as this reflects what was paid to supplier
-                groups[supplierName].total += (item.exclusiveAmount + item.vatAmount);
+                groups[supplierName].totalExclusive += item.exclusiveAmount;
+                groups[supplierName].totalInclusive += (item.exclusiveAmount + item.vatAmount);
                 groups[supplierName].items.push({
                     ...item,
                     invoiceId: inv.id,
@@ -188,6 +192,17 @@ export default function CostReportPage() {
             .map(([supplier, data]) => ({ supplier, ...data }))
             .sort((a,b) => a.supplier.localeCompare(b.supplier));
 
+    }, [filteredInvoices]);
+
+    const reportTotals = useMemo(() => {
+        return filteredInvoices.reduce((acc, inv) => {
+            inv.lineItems.forEach(item => {
+                acc.exclusive += item.exclusiveAmount;
+                acc.vat += item.vatAmount;
+                acc.inclusive += (item.exclusiveAmount + item.vatAmount);
+            });
+            return acc;
+        }, { exclusive: 0, vat: 0, inclusive: 0 });
     }, [filteredInvoices]);
 
     const formatPrice = (price: number) => {
@@ -252,8 +267,8 @@ export default function CostReportPage() {
 
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, `Supplier Cost Report`);
-        const batchTitle = selectedBatches.length > 0 ? selectedBatches.join('_') : 'all_batches';
-        XLSX.writeFile(workbook, `Cost_Report_By_Supplier_${batchTitle}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+        const commTitle = selectedCommissions.length > 0 ? selectedCommissions.join('_') : 'all_commissions';
+        XLSX.writeFile(workbook, `Cost_Report_Comm_${commTitle}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
     };
 
     return (
@@ -263,7 +278,7 @@ export default function CostReportPage() {
                 <CardHeader>
                     <CardTitle>Filter Report</CardTitle>
                     <CardDescription>
-                        Select multiple commission numbers and payment batches to generate a detailed cost report consolidated by supplier.
+                        Select a commission number to view its total costs consolidated by supplier.
                     </CardDescription>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 items-end">
                         <MultiSelectFilter title="Commission Numbers" options={commissionNumbers} selectedValues={selectedCommissions} setSelectedValues={setSelectedCommissions} />
@@ -283,60 +298,90 @@ export default function CostReportPage() {
                             <Loader2 className="h-8 w-8 animate-spin text-primary" />
                         </div>
                     ) : groupedBySupplier.length === 0 ? (
-                        <p className="text-center text-muted-foreground py-10">
-                            {selectedCommissions.length > 0 || selectedBatches.length > 0
-                                ? 'No costs found for the selected filters.'
-                                : 'Select filters to generate a report.'
-                            }
-                        </p>
+                        <div className="text-center py-12 border-2 border-dashed rounded-lg bg-muted/20">
+                            <Calculator className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
+                            <h3 className="mt-4 text-lg font-medium">No Data to Display</h3>
+                            <p className="text-muted-foreground mt-2 max-w-sm mx-auto">
+                                {selectedCommissions.length === 0 
+                                    ? "Please select one or more commission numbers above to generate the cost report."
+                                    : "No costs found matching the selected commission and payment batch filters."
+                                }
+                            </p>
+                        </div>
                     ) : (
-                        <div className="space-y-4">
-                            {groupedBySupplier.map(group => (
-                                <Collapsible key={group.supplier} defaultOpen>
-                                    <Card>
-                                         <CollapsibleTrigger asChild>
-                                             <CardHeader className="flex flex-row items-center justify-between cursor-pointer hover:bg-muted/50">
-                                                <div className="flex items-center gap-4">
-                                                    <Button variant="ghost" size="icon" className="group-data-[state=open]:rotate-180">
-                                                        <ChevronDown className="h-4 w-4 transition-transform"/>
-                                                    </Button>
-                                                    <CardTitle>{group.supplier}</CardTitle>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="text-sm text-muted-foreground">Total Supplier Cost (Incl. VAT)</p>
-                                                    <p className="text-xl font-bold">{formatPrice(group.total)}</p>
-                                                </div>
-                                             </CardHeader>
-                                         </CollapsibleTrigger>
-                                        <CollapsibleContent>
-                                            <CardContent className="p-0">
-                                                <Table>
-                                                    <TableHeader>
-                                                        <TableRow>
-                                                            <TableHead>Invoice Date</TableHead>
-                                                            <TableHead>Invoice #</TableHead>
-                                                            <TableHead>Comm #</TableHead>
-                                                            <TableHead>Description</TableHead>
-                                                            <TableHead className="text-right">Amount (Incl. VAT)</TableHead>
-                                                        </TableRow>
-                                                    </TableHeader>
-                                                    <TableBody>
-                                                        {group.items.map((item, index) => (
-                                                            <TableRow key={index} className="cursor-pointer" onClick={() => handleEditClick(item.invoiceId)}>
-                                                                <TableCell>{item.invoiceDate}</TableCell>
-                                                                <TableCell>{item.invoiceNumber}</TableCell>
-                                                                <TableCell><Badge variant="outline">{item.commissionNumber || 'N/A'}</Badge></TableCell>
-                                                                <TableCell className="max-w-md truncate">{item.ledgerDescription || item.description}</TableCell>
-                                                                <TableCell className="text-right font-mono">{formatPrice(item.exclusiveAmount + item.vatAmount)}</TableCell>
+                        <div className="space-y-6">
+                            <Card className="bg-primary/5 border-primary/20">
+                                <CardHeader className="py-4">
+                                    <div className="flex items-center gap-2">
+                                        <Calculator className="h-5 w-5 text-primary" />
+                                        <CardTitle className="text-lg">Report Summary</CardTitle>
+                                    </div>
+                                    <CardDescription>Totals for the selected commission number(s)</CardDescription>
+                                </CardHeader>
+                                <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6 pb-6">
+                                    <div className="space-y-1">
+                                        <p className="text-sm text-muted-foreground font-medium">Total Exclusive Cost</p>
+                                        <p className="text-2xl font-bold text-primary">{formatPrice(reportTotals.exclusive)}</p>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className="text-sm text-muted-foreground font-medium">Total VAT</p>
+                                        <p className="text-2xl font-bold">{formatPrice(reportTotals.vat)}</p>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className="text-sm text-muted-foreground font-medium">Total Inclusive (Paid to Suppliers)</p>
+                                        <p className="text-2xl font-bold text-teal-600">{formatPrice(reportTotals.inclusive)}</p>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            <div className="space-y-4">
+                                {groupedBySupplier.map(group => (
+                                    <Collapsible key={group.supplier} defaultOpen>
+                                        <Card>
+                                             <CollapsibleTrigger asChild>
+                                                 <CardHeader className="flex flex-row items-center justify-between cursor-pointer hover:bg-muted/50 py-3 px-4">
+                                                    <div className="flex items-center gap-4">
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8 group-data-[state=open]:rotate-180">
+                                                            <ChevronDown className="h-4 w-4 transition-transform"/>
+                                                        </Button>
+                                                        <CardTitle className="text-md">{group.supplier}</CardTitle>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Paid to Supplier (Incl. VAT)</p>
+                                                        <p className="text-md font-bold">{formatPrice(group.totalInclusive)}</p>
+                                                    </div>
+                                                 </CardHeader>
+                                             </CollapsibleTrigger>
+                                            <CollapsibleContent>
+                                                <CardContent className="p-0 border-t">
+                                                    <Table>
+                                                        <TableHeader>
+                                                            <TableRow className="bg-muted/30">
+                                                                <TableHead className="h-9">Date</TableHead>
+                                                                <TableHead className="h-9">Invoice #</TableHead>
+                                                                <TableHead className="h-9">Comm #</TableHead>
+                                                                <TableHead className="h-9">Description</TableHead>
+                                                                <TableHead className="h-9 text-right">Amount (Incl. VAT)</TableHead>
                                                             </TableRow>
-                                                        ))}
-                                                    </TableBody>
-                                                </Table>
-                                            </CardContent>
-                                        </CollapsibleContent>
-                                    </Card>
-                                </Collapsible>
-                            ))}
+                                                        </TableHeader>
+                                                        <TableBody>
+                                                            {group.items.map((item, index) => (
+                                                                <TableRow key={index} className="cursor-pointer text-xs" onClick={() => handleEditClick(item.invoiceId)}>
+                                                                    <TableCell>{item.invoiceDate}</TableCell>
+                                                                    <TableCell>{item.invoiceNumber}</TableCell>
+                                                                    <TableCell><Badge variant="outline" className="font-normal">{item.commissionNumber || 'N/A'}</Badge></TableCell>
+                                                                    <TableCell className="max-w-md truncate italic text-muted-foreground">{item.ledgerDescription || item.description}</TableCell>
+                                                                    <TableCell className="text-right font-mono">{formatPrice(item.exclusiveAmount + item.vatAmount)}</TableCell>
+                                                                </TableRow>
+                                                            ))}
+                                                        </TableBody>
+                                                    </Table>
+                                                </CardContent>
+                                            </CollapsibleContent>
+                                        </Card>
+                                    </Collapsible>
+                                ))}
+                            </div>
                         </div>
                     )}
                 </CardContent>
