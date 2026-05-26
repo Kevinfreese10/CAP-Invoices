@@ -1,10 +1,9 @@
-
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Users, Loader2 } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Users, Loader2, Search } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -158,6 +157,7 @@ export default function ManageUsersPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
   const { user: adminUser, reauthenticate } = useAuth();
   
@@ -179,6 +179,16 @@ export default function ManageUsersPage() {
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  const filteredUsers = useMemo(() => {
+    if (!searchTerm) return users;
+    const lowerTerm = searchTerm.toLowerCase();
+    return users.filter(user => 
+      user.name.toLowerCase().includes(lowerTerm) ||
+      user.email.toLowerCase().includes(lowerTerm) ||
+      user.role.toLowerCase().includes(lowerTerm)
+    );
+  }, [users, searchTerm]);
 
   const handleAdd = () => {
     setSelectedUser(null);
@@ -324,29 +334,40 @@ export default function ManageUsersPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <h1 className="text-3xl font-bold tracking-tight">Manage Users</h1>
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-           <DialogTrigger asChild>
-                <Button onClick={handleAdd}>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Create User
-                </Button>
-           </DialogTrigger>
-           <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                    <DialogTitle>{selectedUser ? 'Edit User' : 'Create New User'}</DialogTitle>
-                    <DialogDescription>
-                        {selectedUser ? 'Update the details of this user.' : 'Fill out the form to add a new user to the system.'}
-                    </DialogDescription>
-                </DialogHeader>
-                <UserForm 
-                    user={selectedUser} 
-                    onSubmit={handleFormSubmit}
-                    onCancel={() => setIsFormOpen(false)}
+        <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
+            <div className="relative w-full sm:max-w-xs">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                    placeholder="Search name, email, or role..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 w-full"
                 />
-           </DialogContent>
-        </Dialog>
+            </div>
+            <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+            <DialogTrigger asChild>
+                    <Button onClick={handleAdd} className="w-full sm:w-auto">
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Create User
+                    </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>{selectedUser ? 'Edit User' : 'Create New User'}</DialogTitle>
+                        <DialogDescription>
+                            {selectedUser ? 'Update the details of this user.' : 'Fill out the form to add a new user to the system.'}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <UserForm 
+                        user={selectedUser} 
+                        onSubmit={handleFormSubmit}
+                        onCancel={() => setIsFormOpen(false)}
+                    />
+            </DialogContent>
+            </Dialog>
+        </div>
       </div>
       <Card>
         <CardHeader>
@@ -358,57 +379,63 @@ export default function ManageUsersPage() {
              <div className="flex justify-center items-center h-64">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="text-center py-10 text-muted-foreground">
+                <p>No users found matching your search.</p>
+            </div>
           ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>UID</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map(user => (
-                <TableRow key={user.id}>
-                  <TableCell className="font-medium">
-                    {user.name}
-                  </TableCell>
-                  <TableCell>{user.email}</TableCell>
-                   <TableCell className="font-mono text-xs">{user.uid}</TableCell>
-                  <TableCell>
-                    <Badge variant={user.role === 'admin' ? 'default' : 'secondary'} className="capitalize">
-                      {user.role.replace('_', ' ')}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{formatDate(user.createdAt)}</TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <span className="sr-only">Open menu</span>
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => handleEdit(user)}>Edit</DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                            className="text-destructive"
-                            onSelect={() => handleDeleteClick(user)}
-                        >
-                            Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+                <TableHeader>
+                <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>UID</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                </TableHeader>
+                <TableBody>
+                {filteredUsers.map(user => (
+                    <TableRow key={user.id}>
+                    <TableCell className="font-medium">
+                        {user.name}
+                    </TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell className="font-mono text-xs">{user.uid}</TableCell>
+                    <TableCell>
+                        <Badge variant={user.role === 'admin' ? 'default' : 'secondary'} className="capitalize">
+                        {user.role.replace('_', ' ')}
+                        </Badge>
+                    </TableCell>
+                    <TableCell>{formatDate(user.createdAt)}</TableCell>
+                    <TableCell className="text-right">
+                        <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">Open menu</span>
+                            <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => handleEdit(user)}>Edit</DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                                className="text-destructive"
+                                onSelect={() => handleDeleteClick(user)}
+                            >
+                                Delete
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                        </DropdownMenu>
+                    </TableCell>
+                    </TableRow>
+                ))}
+                </TableBody>
+            </Table>
+          </div>
           )}
         </CardContent>
       </Card>
@@ -425,5 +452,3 @@ export default function ManageUsersPage() {
     </div>
   );
 }
-
-    
