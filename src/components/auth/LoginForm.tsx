@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -15,7 +15,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { getNextOrderId } from '@/lib/sequence';
 import { doc, setDoc, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
+import { sendPasswordResetEmail } from 'firebase/auth';
+import { Label } from '@/components/ui/label';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email.' }),
@@ -29,6 +31,11 @@ export default function LoginForm() {
   const [isLapsedOpen, setIsLapsedOpen] = useState(false);
   const [lapsedUser, setLapsedUser] = useState<User | null>(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  
+  // Password Reset States
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [isSendingReset, setIsSendingReset] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -43,7 +50,6 @@ export default function LoginForm() {
     setIsProcessingPayment(true);
     toast({ title: "Creating renewal order...", description: "Please wait." });
     
-    // EFT Logic: Redirect to a confirmation page with instructions
     try {
         const orderId = await getNextOrderId();
         const renewalOrderData: Order = {
@@ -66,7 +72,7 @@ export default function LoginForm() {
             renewalForClientId: lapsedUser.uid,
         };
         
-        await setDoc(doc(db, 'orders', orderId), renewalOrderData);
+        await setDoc(doc(db, 'orders', orderId), renewalOrderData, { merge: true });
         router.push(`/order-confirmation/${orderId}`);
         
     } catch(e) {
@@ -75,13 +81,30 @@ export default function LoginForm() {
         setIsProcessingPayment(false);
     }
   }
+
+  const handleResetPassword = async () => {
+    if (!resetEmail || !resetEmail.includes('@')) {
+        toast({ title: 'Invalid Email', description: 'Please enter a valid email address.', variant: 'destructive' });
+        return;
+    }
+    setIsSendingReset(true);
+    try {
+        await sendPasswordResetEmail(auth, resetEmail);
+        toast({ title: 'Email Sent', description: 'Check your inbox for password reset instructions.' });
+        setIsResetDialogOpen(false);
+    } catch (error: any) {
+        console.error("Error sending reset email:", error);
+        toast({ title: 'Error', description: 'Could not send reset email. Please try again.', variant: 'destructive' });
+    } finally {
+        setIsSendingReset(false);
+    }
+  };
   
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     const result = await login(values.email, values.password);
 
     if (result === 'subscription_lapsed') {
-        // tempUser is set in the auth context when subscription is lapsed
         setLapsedUser(tempUser);
         setIsLapsedOpen(true);
         return;
@@ -155,6 +178,35 @@ export default function LoginForm() {
             </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Reset Password</DialogTitle>
+                <DialogDescription>
+                    Enter your email address and we'll send you a link to reset your password.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-2">
+                <Label htmlFor="reset-email">Email Address</Label>
+                <Input
+                    id="reset-email"
+                    type="email"
+                    placeholder="name@example.com"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                />
+            </div>
+            <DialogFooter>
+                <Button variant="ghost" onClick={() => setIsResetDialogOpen(false)}>Cancel</Button>
+                <Button onClick={handleResetPassword} disabled={isSendingReset}>
+                    {isSendingReset && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Send Reset Link
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <FormField
@@ -175,7 +227,18 @@ export default function LoginForm() {
             name="password"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Password</FormLabel>
+                <div className="flex items-center justify-between">
+                    <FormLabel>Password</FormLabel>
+                    <Button
+                        variant="link"
+                        size="sm"
+                        className="px-0 font-normal h-auto py-0"
+                        type="button"
+                        onClick={() => setIsResetDialogOpen(true)}
+                    >
+                        Forgot password?
+                    </Button>
+                </div>
                 <FormControl>
                   <Input type="password" {...field} />
                 </FormControl>
