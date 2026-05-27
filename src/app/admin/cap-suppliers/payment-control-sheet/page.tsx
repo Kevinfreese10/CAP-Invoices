@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { getFirestore, collection, getDocs, query, orderBy, where, doc, updateDoc, writeBatch, addDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query, orderBy, where, doc, updateDoc, writeBatch, addDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, CheckCircle, MoreHorizontal, Edit, PlusCircle, FileCheck2, Eye, Shield, Paperclip } from 'lucide-react';
+import { Loader2, CheckCircle, MoreHorizontal, Edit, PlusCircle, FileCheck2, Eye, Shield, Paperclip, FileX2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { ExtractedInvoice } from '@/lib/types';
+import { ExtractedInvoice, User } from '@/lib/types';
 import { capChartOfAccounts, s38ChartOfAccounts, s39ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,11 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
 import { Checkbox } from '@/components/ui/checkbox';
+import { useAuth } from '@/contexts/AuthContext';
+import { sendEmail } from '@/lib/email';
+import { render } from '@react-email/components';
+import InvoiceRejectionEmail from '@/components/emails/InvoiceRejectionEmail';
+import { Textarea } from '@/components/ui/textarea';
 
 
 const db = getFirestore(firebaseApp);
@@ -32,6 +37,7 @@ export default function PaymentControlSheetPage() {
     const { toast } = useToast();
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
     const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
+    const { user } = useAuth();
 
     const fetchInvoices = async () => {
         setIsLoading(true);
@@ -100,6 +106,39 @@ export default function PaymentControlSheetPage() {
             toast({ title: 'Error', description: 'Could not save changes.', variant: 'destructive'});
         }
     };
+
+    const handleReject = async (id: string, reason: string) => {
+        if (!user) return;
+        const invoice = invoices.find(inv => inv.id === id);
+        if (!invoice) return;
+
+        try {
+            const docRef = doc(db, 'extractedInvoices', id);
+            await updateDoc(docRef, { status: 'rejected', rejectionReason: reason, rejectedBy: user.uid });
+            
+            const uploaderSnap = invoice.uploadedBy ? await getDoc(doc(db, 'users', invoice.uploadedBy)) : null;
+
+            if (uploaderSnap?.exists()) {
+                const uploaderData = uploaderSnap.data() as User;
+                // Only notify if uploader is a supplier
+                if (uploaderData.role === 'supplier') {
+                    const emailHtml = render(<InvoiceRejectionEmail invoice={invoice} reason={reason} rejectedBy={user.name} />);
+                    await sendEmail({
+                        to: uploaderData.email,
+                        bcc: 'kev@thinkestry.co.za',
+                        subject: `Invoice Rejected: ${invoice.supplier} - #${invoice.invoiceNumber}`,
+                        html: emailHtml,
+                    });
+                }
+            }
+
+            toast({ title: 'Invoice Rejected', description: 'The invoice has been marked as rejected.' });
+            fetchInvoices();
+        } catch (error) {
+            console.error("Error rejecting invoice:", error);
+            toast({ title: 'Error', description: 'Could not reject the invoice or send notification.', variant: 'destructive'});
+        }
+    }
 
     const formatPrice = (price: number) => {
         return new Intl.NumberFormat('en-ZA', {
@@ -251,6 +290,29 @@ export default function PaymentControlSheetPage() {
                                                         <DropdownMenuItem onSelect={() => setEditingInvoice(invoice)}>
                                                             <Edit className="mr-2 h-4 w-4" /> Edit
                                                         </DropdownMenuItem>
+                                                        <DropdownMenuSeparator />
+                                                        <AlertDialog>
+                                                            <AlertDialogTrigger asChild>
+                                                                <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                                                    <FileX2 className="mr-2 h-4 w-4" /> Reject
+                                                                </DropdownMenuItem>
+                                                            </AlertDialogTrigger>
+                                                            <AlertDialogContent>
+                                                                <AlertDialogHeader>
+                                                                    <AlertDialogTitle>Reject Invoice?</AlertDialogTitle>
+                                                                    <AlertDialogDescription>Please provide a reason for rejection. If this was submitted by a supplier, they will be notified by email.</AlertDialogDescription>
+                                                                </AlertDialogHeader>
+                                                                <Textarea placeholder="e.g., Invoice is a duplicate." id={`rejection-reason-${invoice.id}`} />
+                                                                <AlertDialogFooter>
+                                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                    <AlertDialogAction onClick={() => {
+                                                                        const reason = (document.getElementById(`rejection-reason-${invoice.id}`) as HTMLTextAreaElement).value;
+                                                                        if(reason) handleReject(invoice.id, reason);
+                                                                        else toast({title: 'Reason Required', description: 'Please provide a reason for rejection.', variant: 'destructive'});
+                                                                    }}>Reject</AlertDialogAction>
+                                                                </AlertDialogFooter>
+                                                            </AlertDialogContent>
+                                                        </AlertDialog>
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
                                             </div>
