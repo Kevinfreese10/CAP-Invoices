@@ -3,10 +3,10 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { getFirestore, collection, getDocs, query, orderBy, where, doc, updateDoc, writeBatch, serverTimestamp, addDoc } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query, orderBy, where, doc, updateDoc, writeBatch, serverTimestamp, addDoc, getDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, FileCheck2, Eye, Edit, MoreHorizontal, PlusCircle, Upload, Shield, Paperclip, CheckSquare, Square } from 'lucide-react';
+import { Loader2, FileCheck2, Eye, Edit, MoreHorizontal, PlusCircle, Upload, Shield, Paperclip, CheckSquare, Square, FileX2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -22,6 +22,11 @@ import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/contexts/AuthContext';
+import { sendEmail } from '@/lib/email';
+import { render } from '@react-email/components';
+import InvoiceRejectionEmail from '@/components/emails/InvoiceRejectionEmail';
+import { Textarea } from '@/components/ui/textarea';
 
 const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
@@ -204,6 +209,7 @@ export default function AccountReviewPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
     const { toast } = useToast();
+    const { user } = useAuth();
     const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
 
     const fetchInvoices = async () => {
@@ -314,6 +320,39 @@ export default function AccountReviewPage() {
             toast({ title: 'Error', description: 'Could not approve the invoice.', variant: 'destructive'});
         }
     };
+
+    const handleReject = async (id: string, reason: string) => {
+        if (!user) return;
+        const invoice = invoices.find(inv => inv.id === id);
+        if (!invoice) return;
+
+        try {
+            const docRef = doc(db, 'extractedInvoices', id);
+            await updateDoc(docRef, { status: 'rejected', rejectionReason: reason, rejectedBy: user.uid });
+            
+            const uploaderSnap = invoice.uploadedBy ? await getDoc(doc(db, 'users', invoice.uploadedBy)) : null;
+
+            if (uploaderSnap?.exists()) {
+                const uploaderData = uploaderSnap.data() as User;
+                // Only notify if uploader is a supplier
+                if (uploaderData.role === 'supplier') {
+                    const emailHtml = render(<InvoiceRejectionEmail invoice={invoice} reason={reason} rejectedBy={user.name} />);
+                    await sendEmail({
+                        to: uploaderData.email,
+                        bcc: 'kev@thinkestry.co.za',
+                        subject: `Invoice Rejected: ${invoice.supplier} - #${invoice.invoiceNumber}`,
+                        html: emailHtml,
+                    });
+                }
+            }
+
+            toast({ title: 'Invoice Rejected', description: 'The invoice has been marked as rejected.' });
+            fetchInvoices();
+        } catch (error) {
+            console.error("Error rejecting invoice:", error);
+            toast({ title: 'Error', description: 'Could not reject the invoice or send notification.', variant: 'destructive'});
+        }
+    }
     
      const handleSave = async (id: string, data: any) => {
         try {
@@ -492,6 +531,29 @@ export default function AccountReviewPage() {
                                             <DropdownMenuItem onSelect={() => setEditingInvoice(invoice)}>
                                                 <Edit className="mr-2 h-4 w-4" /> Edit Invoice
                                             </DropdownMenuItem>
+                                            <DropdownMenuSeparator />
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                                        <FileX2 className="mr-2 h-4 w-4" /> Reject
+                                                    </DropdownMenuItem>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Reject Invoice?</AlertDialogTitle>
+                                                        <AlertDialogDescription>Please provide a reason for rejection. If this was submitted by a supplier, they will be notified by email.</AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <Textarea placeholder="e.g., Invoice is a duplicate." id={`rejection-reason-${invoice.id}`} />
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => {
+                                                            const reason = (document.getElementById(`rejection-reason-${invoice.id}`) as HTMLTextAreaElement).value;
+                                                            if(reason) handleReject(invoice.id, reason);
+                                                            else toast({title: 'Reason Required', description: 'Please provide a reason for rejection.', variant: 'destructive'});
+                                                        }}>Reject</AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
                                 </div>
