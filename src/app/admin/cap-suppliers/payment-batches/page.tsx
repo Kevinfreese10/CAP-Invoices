@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -680,42 +679,48 @@ export default function PaymentBatchesPage() {
                              </CollapsibleTrigger>
                              <CollapsibleContent className="space-y-8 p-4 border-x border-b rounded-b-lg">
                                 <div className="grid grid-cols-1 xl:grid-cols-3 lg:grid-cols-2 gap-8 items-start">
-                                    <PaymentBatchTable 
-                                        title="CAP Expenses"
-                                        batchKey={batch.batchKey}
-                                        invoices={batch.CAP}
-                                        allInvoices={invoices}
-                                        totalAmount={batch.capTotal}
-                                        totalPAYE={batch.capPAYE}
-                                        onDelete={handleRemoveFromBatch}
-                                        onUploadPop={handleUploadPop}
-                                        onEdit={setEditingInvoice}
-                                        onRemovePop={handleRemovePop}
-                                    />
-                                    <PaymentBatchTable 
-                                        title="S38 Expenses"
-                                        batchKey={batch.batchKey}
-                                        invoices={batch.S38}
-                                        allInvoices={invoices}
-                                        totalAmount={batch.s38Total}
-                                        totalPAYE={batch.s38PAYE}
-                                        onDelete={handleRemoveFromBatch}
-                                        onUploadPop={handleUploadPop}
-                                        onEdit={setEditingInvoice}
-                                        onRemovePop={handleRemovePop}
-                                    />
-                                     <PaymentBatchTable 
-                                        title="S39 Expenses"
-                                        batchKey={batch.batchKey}
-                                        invoices={batch.S39}
-                                        allInvoices={invoices}
-                                        totalAmount={batch.s39Total}
-                                        totalPAYE={batch.s39PAYE}
-                                        onDelete={handleRemoveFromBatch}
-                                        onUploadPop={handleUploadPop}
-                                        onEdit={setEditingInvoice}
-                                        onRemovePop={handleRemovePop}
-                                    />
+                                    {batch.CAP.length > 0 && (
+                                        <PaymentBatchTable 
+                                            title="CAP Expenses"
+                                            batchKey={batch.batchKey}
+                                            invoices={batch.CAP}
+                                            allInvoices={invoices}
+                                            totalAmount={batch.capTotal}
+                                            totalPAYE={batch.capPAYE}
+                                            onDelete={handleRemoveFromBatch}
+                                            onUploadPop={handleUploadPop}
+                                            onEdit={setEditingInvoice}
+                                            onRemovePop={handleRemovePop}
+                                        />
+                                    )}
+                                    {batch.S38.length > 0 && (
+                                        <PaymentBatchTable 
+                                            title="S38 Expenses"
+                                            batchKey={batch.batchKey}
+                                            invoices={batch.S38}
+                                            allInvoices={invoices}
+                                            totalAmount={batch.s38Total}
+                                            totalPAYE={batch.s38PAYE}
+                                            onDelete={handleRemoveFromBatch}
+                                            onUploadPop={handleUploadPop}
+                                            onEdit={setEditingInvoice}
+                                            onRemovePop={handleRemovePop}
+                                        />
+                                    )}
+                                     {batch.S39.length > 0 && (
+                                        <PaymentBatchTable 
+                                            title="S39 Expenses"
+                                            batchKey={batch.batchKey}
+                                            invoices={batch.S39}
+                                            allInvoices={invoices}
+                                            totalAmount={batch.s39Total}
+                                            totalPAYE={batch.s39PAYE}
+                                            onDelete={handleRemoveFromBatch}
+                                            onUploadPop={handleUploadPop}
+                                            onEdit={setEditingInvoice}
+                                            onRemovePop={handleRemovePop}
+                                        />
+                                    )}
                                 </div>
                             </CollapsibleContent>
                         </Collapsible>
