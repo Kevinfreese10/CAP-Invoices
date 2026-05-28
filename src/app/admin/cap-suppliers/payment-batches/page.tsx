@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -7,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { getFirestore, collection, getDocs, query, orderBy, where, doc, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download, MoreHorizontal, Edit, AlertTriangle, Eye, Archive } from 'lucide-react';
+import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download, MoreHorizontal, Edit, AlertTriangle, Eye, Archive, AlertCircle } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ExtractedInvoice, User } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -25,6 +24,7 @@ import { capChartOfAccounts, s38ChartOfAccounts, s39ChartOfAccounts } from '@/li
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 
 const db = getFirestore(firebaseApp);
@@ -34,10 +34,12 @@ const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts, ...s39ChartOf
 
 type SupplierGroup = {
     supplier: string;
-    totalAmount: number;
+    totalAmount: number; // Net amount (Inclusive - PAYE)
     totalPAYE: number;
+    totalInvoiceGross: number; // Sum of the extracted invoice.invoiceTotal property
     invoices: ExtractedInvoice[];
     hasDuplicates: boolean;
+    hasDiscrepancy: boolean;
 };
 
 function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalAmount, totalPAYE, onDelete, onUploadPop, onEdit, batchKey, onRemovePop }: { title: string, invoices: ExtractedInvoice[], allInvoices: ExtractedInvoice[], totalAmount: number, totalPAYE: number, onDelete: (id: string, isArchive: boolean) => void, onUploadPop: (supplierName: string, file: File, batchKey: string) => Promise<void>, onEdit: (invoice: ExtractedInvoice) => void, batchKey: string, onRemovePop: (supplierName: string, batchKey: string) => Promise<void> }) {
@@ -53,14 +55,17 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
     };
     
     const groupedBySupplier = useMemo(() => {
-        const groups: { [key: string]: Omit<SupplierGroup, 'hasDuplicates'> & { hasDuplicates?: boolean } } = {};
+        const groups: { [key: string]: SupplierGroup } = {};
         batchInvoices.forEach(invoice => {
             if (!groups[invoice.supplier]) {
                 groups[invoice.supplier] = {
                     supplier: invoice.supplier,
                     totalAmount: 0,
                     totalPAYE: 0,
+                    totalInvoiceGross: 0,
                     invoices: [],
+                    hasDuplicates: false,
+                    hasDiscrepancy: false,
                 };
             }
             
@@ -74,13 +79,20 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
 
             groups[invoice.supplier].totalAmount += payableAmount;
             groups[invoice.supplier].totalPAYE += payeAmount;
+            groups[invoice.supplier].totalInvoiceGross += (invoice.invoiceTotal || 0);
             groups[invoice.supplier].invoices.push(invoice);
         });
 
-        // Check for duplicates
+        // Validation Checks
         Object.values(groups).forEach(group => {
+            // Check for duplicates by invoice number
             const invoiceNumbers = group.invoices.map(inv => inv.invoiceNumber);
             group.hasDuplicates = new Set(invoiceNumbers).size !== invoiceNumbers.length;
+
+            // Check for discrepancy: Sum of extracted totals vs Calculated totals (Net + PAYE)
+            // Using a small epsilon to account for floating point math
+            const calculatedGross = group.totalAmount + group.totalPAYE;
+            group.hasDiscrepancy = Math.abs(group.totalInvoiceGross - calculatedGross) > 0.05;
         });
 
         return Object.values(groups).sort((a, b) => a.supplier.localeCompare(b.supplier));
@@ -241,6 +253,23 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
                                                     {group.supplier}
                                                 </Button>
                                                 {group.hasDuplicates && <AlertTriangle className="h-4 w-4 ml-2 text-destructive" />}
+                                                {group.hasDiscrepancy && (
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <div className="cursor-help ml-2">
+                                                                    <AlertCircle className="h-4 w-4 text-destructive" />
+                                                                </div>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent className="max-w-xs">
+                                                                <p className="font-bold text-destructive">Discrepancy Warning</p>
+                                                                <p className="text-xs">
+                                                                    The sum of "Invoice Totals" ({formatPrice(group.totalInvoiceGross)}) does not match the sum of line items being paid ({formatPrice(group.totalAmount + group.totalPAYE)}). Please check data entry.
+                                                                </p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                )}
                                                 {group.totalPAYE > 0 && <Badge variant="destructive" className="ml-2">PAYE</Badge>}
                                             </div>
                                         </TableCell>
@@ -319,15 +348,31 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
                                                         <TableBody>
                                                             {group.invoices.map(invoice => {
                                                                 const invoiceHasPaye = invoice.lineItems.some(item => item.paye);
+                                                                // Calculate discrepancy for this specific invoice
+                                                                const lineTotalSum = invoice.lineItems.reduce((s, li) => s + li.exclusiveAmount + li.vatAmount, 0);
+                                                                const hasLineDiscrepancy = Math.abs(invoice.invoiceTotal - lineTotalSum) > 0.01;
+
                                                                 return (
                                                                 <TableRow key={invoice.id} className="text-xs">
-                                                                    <TableCell className="py-1 flex items-center">
+                                                                    <TableCell className="py-1 flex items-center gap-2">
                                                                         {invoice.invoiceNumber}
                                                                         {isAlreadyPaid(invoice) && (
-                                                                            <Badge variant="success" className="ml-2">Paid</Badge>
+                                                                            <Badge variant="success">Paid</Badge>
                                                                         )}
                                                                         {invoiceHasPaye && (
-                                                                            <Badge variant="destructive" className="ml-2">PAYE</Badge>
+                                                                            <Badge variant="destructive">PAYE</Badge>
+                                                                        )}
+                                                                        {hasLineDiscrepancy && (
+                                                                            <TooltipProvider>
+                                                                                <Tooltip>
+                                                                                    <TooltipTrigger asChild>
+                                                                                        <AlertCircle className="h-3 w-3 text-destructive" />
+                                                                                    </TooltipTrigger>
+                                                                                    <TooltipContent>
+                                                                                        <p>Invoice total (R{invoice.invoiceTotal.toFixed(2)}) doesn't match line items (R{lineTotalSum.toFixed(2)})</p>
+                                                                                    </TooltipContent>
+                                                                                </Tooltip>
+                                                                            </TooltipProvider>
                                                                         )}
                                                                     </TableCell>
                                                                     <TableCell className="py-1">{invoice.date}</TableCell>
