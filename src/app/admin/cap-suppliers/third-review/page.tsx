@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { getFirestore, collection, getDocs, query, orderBy, where, doc, updateDoc, writeBatch, addDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, CheckCircle, MoreHorizontal, Edit, PlusCircle, FileCheck2, Save, Eye, Trash2, Brain, SortAsc, Paperclip, Sparkles } from 'lucide-react';
+import { Loader2, CheckCircle, MoreHorizontal, Edit, PlusCircle, FileCheck2, Save, Eye, Trash2, Brain, SortAsc, Paperclip, Sparkles, Filter } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ExtractedInvoice, Commission } from '@/lib/types';
@@ -21,7 +21,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
 import { Textarea } from '@/components/ui/textarea';
-import { format, addDays, eachDayOfInterval, endOfMonth, isFriday, getMonth, isLastDayOfMonth, addMonths, endOfYear, startOfYear, getYear } from 'date-fns';
+import { format, addDays, eachDayOfInterval, endOfMonth, isFriday, getMonth, isLastDayOfMonth, addMonths, endOfYear, startOfYear, getYear, parseISO } from 'date-fns';
 import { generateLedgerDescription } from '@/ai/flows/generate-ledger-description';
 
 
@@ -191,6 +191,7 @@ export default function ThirdReviewPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [supplierFilter, setSupplierFilter] = useState('');
     const [accountFilter, setAccountFilter] = useState('all');
+    const [batchFilter, setBatchFilter] = useState('all');
     const [sortBy, setSortBy] = useState('account');
     const { toast } = useToast();
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
@@ -435,6 +436,22 @@ export default function ThirdReviewPage() {
         return Array.from(accountSet).map(id => getAccountDescription(id, 'S38')).sort((a,b) => a.number.localeCompare(b.number));
     }, [invoices]);
 
+    const uniqueBatches = useMemo(() => {
+        const batchSet = new Set<string>();
+        invoices.forEach(invoice => {
+            if (invoice.paymentBatch) {
+                batchSet.add(invoice.paymentBatch);
+            }
+        });
+        return Array.from(batchSet).sort((a, b) => b.localeCompare(a)).map(batch => {
+            try {
+                return { value: batch, label: format(parseISO(batch), 'dd MMMM yyyy') };
+            } catch (e) {
+                return { value: batch, label: batch.replace(/_/g, ' ') };
+            }
+        });
+    }, [invoices]);
+
     const filteredInvoices = useMemo(() => {
         const sorted = [...localInvoiceData].sort((a, b) => {
             if (sortBy === 'account') {
@@ -457,9 +474,10 @@ export default function ThirdReviewPage() {
         return sorted.filter(invoice => {
             const supplierMatch = invoice.supplier.toLowerCase().includes(supplierFilter.toLowerCase());
             const accountMatch = accountFilter === 'all' || invoice.lineItems.some(item => item.accountId === accountFilter);
-            return supplierMatch && accountMatch;
+            const batchMatch = batchFilter === 'all' || invoice.paymentBatch === batchFilter;
+            return supplierMatch && accountMatch && batchMatch;
         });
-    }, [localInvoiceData, supplierFilter, accountFilter, sortBy]);
+    }, [localInvoiceData, supplierFilter, accountFilter, batchFilter, sortBy]);
     
     const handleToggleSelect = (id: string) => {
         setSelectedInvoices(prev => 
@@ -496,13 +514,26 @@ export default function ThirdReviewPage() {
                                 These invoices have passed the second review and are ready for final approval before payment.
                             </CardDescription>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap justify-end">
                              <Input
                                 placeholder="Filter by supplier..."
                                 value={supplierFilter}
                                 onChange={(e) => setSupplierFilter(e.target.value)}
                                 className="max-w-sm"
                             />
+                            <Select value={batchFilter} onValueChange={setBatchFilter}>
+                                <SelectTrigger className="w-[220px]">
+                                    <SelectValue placeholder="Filter by Payment Batch" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Batches</SelectItem>
+                                    {uniqueBatches.map(batch => (
+                                        <SelectItem key={batch.value} value={batch.value}>
+                                            Batch: {batch.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                             <Select value={accountFilter} onValueChange={setAccountFilter}>
                                 <SelectTrigger className="w-[280px]">
                                     <SelectValue placeholder="Filter by Allocated Account" />
@@ -639,7 +670,7 @@ export default function ThirdReviewPage() {
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <Button variant="outline" size="sm" onClick={() => handleAiAnalyzeLedger(invoice.id)} disabled={isAnalyzingDescriptions[invoice.id]}>
-                                                    {isAnalyzingDescriptions[invoice.id] ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                                                    {isAnalyzingDescriptions[invoice.id] ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                                                     AI Analyze
                                                 </Button>
                                                 <Button asChild variant="outline" size="icon">
