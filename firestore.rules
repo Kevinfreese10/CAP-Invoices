@@ -12,8 +12,8 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      // Allow authenticated users to read profiles (names/roles)
-      // and only allow users to edit their own profile
+      // Allow authenticated users to read profiles (needed for picking approvers/seeing names)
+      // while only allowing users to edit their own profile
       allow get: if isAuthenticated();
       allow list: if isAuthenticated();
       allow write: if isOwner(userId);
@@ -93,7 +93,7 @@ service cloud.firestore {
     }
     
     match /commissions/{commissionId} {
-      // Allow all authenticated users to see the commission list
+      // Allow all authenticated users to see the shared commission list
       allow read: if isAuthenticated();
       allow write: if isAuthenticated();
     }

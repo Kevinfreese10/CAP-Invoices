@@ -18,7 +18,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Upload, Sparkles, AlertTriangle, CheckCircle, FileCheck2, Hourglass, FileX2, Eye, Paperclip, X, Banknote, List, ChevronsUpDown, Check } from 'lucide-react';
+import { Loader2, Upload, Sparkles, AlertTriangle, CheckCircle, FileCheck2, Hourglass, FileX2, Eye, Paperclip, X, Banknote, List, ChevronsUpDown, Check, Search } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -194,7 +194,9 @@ export default function SupplierDashboardPage() {
   const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [commissions, setCommissions] = useState<Commission[]>([]);
+  const [isCommissionsLoading, setIsCommissionsLoading] = useState(true);
   const [admins, setAdmins] = useState<User[]>([]);
+  const [isAdminsLoading, setIsAdminsLoading] = useState(true);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
@@ -235,21 +237,25 @@ export default function SupplierDashboardPage() {
     return admins.find(admin => admin.email === allocation.email);
   }, [approvalAllocationValue, admins]);
   
-  const fetchInvoiceHistoryAndCommissions = useCallback(async () => {
+  const fetchDashboardData = useCallback(async () => {
     if (!user) return;
     setIsLoadingHistory(true);
+    setIsCommissionsLoading(true);
+    setIsAdminsLoading(true);
     
     // Fetch commissions
     const commsQuery = query(collection(db, 'commissions'), orderBy('commissionNumber', 'asc'));
     getDocs(commsQuery).then(commsSnapshot => {
         const fetchedCommissions = commsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Commission));
         setCommissions(fetchedCommissions);
+        setIsCommissionsLoading(false);
     }).catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
             path: 'commissions',
             operation: 'list',
         } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
+        setIsCommissionsLoading(false);
     });
 
     // Fetch invoice history
@@ -272,18 +278,20 @@ export default function SupplierDashboardPage() {
     getDocs(adminsQuery).then(adminsSnapshot => {
         const fetchedAdmins = adminsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, uid: doc.id } as User));
         setAdmins(fetchedAdmins);
+        setIsAdminsLoading(false);
     }).catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
             path: 'users',
             operation: 'list',
         } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
+        setIsAdminsLoading(false);
     });
   }, [user]);
 
   useEffect(() => {
-    fetchInvoiceHistoryAndCommissions();
-  }, [fetchInvoiceHistoryAndCommissions]);
+    fetchDashboardData();
+  }, [fetchDashboardData]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!user?.uid) {
@@ -341,7 +349,7 @@ export default function SupplierDashboardPage() {
       addDoc(collRef, invoiceData).then(() => {
         toast({ title: 'Upload Successful', description: 'Your invoice has been submitted for review.' });
         form.reset();
-        fetchInvoiceHistoryAndCommissions();
+        fetchDashboardData();
       }).catch(async (serverError) => {
           const permissionError = new FirestorePermissionError({
               path: collRef.path,
@@ -431,10 +439,11 @@ export default function SupplierDashboardPage() {
                                             "w-full justify-between font-normal text-left",
                                             !field.value && "text-muted-foreground"
                                         )}
-                                        disabled={commissions.length === 0}
+                                        disabled={isCommissionsLoading}
                                     >
                                         <span className="truncate">
-                                            {field.value
+                                            {isCommissionsLoading ? "Loading commissions..." : 
+                                             field.value
                                                 ? `${field.value} - ${commissions.find((c) => c.commissionNumber === field.value)?.storyName || ''}`
                                                 : "Select a commission..."}
                                         </span>
@@ -450,7 +459,7 @@ export default function SupplierDashboardPage() {
                                         <CommandGroup>
                                             {commissions.map((c) => (
                                                 <CommandItem
-                                                    value={(`${c.commissionNumber} ${c.storyName}`).toLowerCase()}
+                                                    value={`${c.commissionNumber} ${c.storyName}`.toLowerCase()}
                                                     key={c.id}
                                                     onSelect={() => {
                                                         form.setValue("commissionNumber", c.commissionNumber);
@@ -589,7 +598,7 @@ export default function SupplierDashboardPage() {
               )}
 
               <Button type="submit" disabled={isUploading || !watchedInvoice || watchedInvoice.length === 0} size="lg" className="w-full sm:w-auto">
-                {isUploading ? <Sparkles className="mr-2 h-4 w-4 animate-ping" /> : <Upload className="mr-2 h-4 w-4" />}
+                {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
                 {isUploading ? 'Processing...' : 'Review Complete - Upload & Submit'}
               </Button>
             </form>
@@ -675,7 +684,7 @@ export default function SupplierDashboardPage() {
                                             )}
                                         </TableCell>
                                         <TableCell className="text-right space-x-1">
-                                            <SupportingDocumentsDialog invoice={invoice} onUploadComplete={fetchInvoiceHistoryAndCommissions} />
+                                            <SupportingDocumentsDialog invoice={invoice} onUploadComplete={fetchDashboardData} />
                                             <Button asChild variant="ghost" size="icon">
                                                 <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer">
                                                     <Eye className="h-4 w-4" />
