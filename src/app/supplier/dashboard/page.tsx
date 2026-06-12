@@ -6,11 +6,11 @@ import { useToast } from '@/hooks/use-toast';
 import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
 import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, orderBy, doc, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, firebaseApp } from '@/lib/firebase';
-import { ExtractedInvoice, Commission, User, SecurityRuleContext } from '@/lib/types';
+import { firebaseApp } from '@/lib/firebase';
+import { ExtractedInvoice, Commission, User } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Upload, Sparkles, AlertTriangle, CheckCircle, FileCheck2, Hourglass, FileX2, Eye, Paperclip, X, Banknote, List, ChevronsUpDown, Check, Search } from 'lucide-react';
+import { Loader2, Upload, Sparkles, AlertTriangle, CheckCircle, FileCheck2, Hourglass, FileX2, Eye, Paperclip, X, Banknote, List, ChevronsUpDown, Check } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -29,6 +29,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 
+const db = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
 
 const approvalAllocations = [
@@ -244,14 +245,15 @@ export default function SupplierDashboardPage() {
     setIsAdminsLoading(true);
     
     // Fetch commissions
-    const commsQuery = query(collection(db, 'commissions'), orderBy('commissionNumber', 'asc'));
+    const commsRef = collection(db, 'commissions');
+    const commsQuery = query(commsRef, orderBy('commissionNumber', 'asc'));
     getDocs(commsQuery).then(commsSnapshot => {
         const fetchedCommissions = commsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Commission));
         setCommissions(fetchedCommissions);
         setIsCommissionsLoading(false);
     }).catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
-            path: 'commissions',
+            path: commsRef.path,
             operation: 'list',
         } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
@@ -259,14 +261,15 @@ export default function SupplierDashboardPage() {
     });
 
     // Fetch invoice history
-    const historyQuery = query(collection(db, 'extractedInvoices'), where('uploadedBy', '==', user.uid), orderBy('createdAt', 'desc'));
+    const historyRef = collection(db, 'extractedInvoices');
+    const historyQuery = query(historyRef, where('uploadedBy', '==', user.uid), orderBy('createdAt', 'desc'));
     getDocs(historyQuery).then(querySnapshot => {
         const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
         setInvoices(fetchedInvoices);
         setIsLoadingHistory(false);
     }).catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
-            path: 'extractedInvoices',
+            path: historyRef.path,
             operation: 'list',
         } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
@@ -274,14 +277,15 @@ export default function SupplierDashboardPage() {
     });
     
     // Fetch admins/staff for approval mapping
-    const adminsQuery = query(collection(db, 'users'), where('role', 'in', ['admin', 'staff', 'cap_supervisor', 'cap_staff']));
+    const usersRef = collection(db, 'users');
+    const adminsQuery = query(usersRef, where('role', 'in', ['admin', 'staff', 'cap_supervisor', 'cap_staff']));
     getDocs(adminsQuery).then(adminsSnapshot => {
         const fetchedAdmins = adminsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, uid: doc.id } as User));
         setAdmins(fetchedAdmins);
         setIsAdminsLoading(false);
     }).catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
-            path: 'users',
+            path: usersRef.path,
             operation: 'list',
         } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
