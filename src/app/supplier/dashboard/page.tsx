@@ -236,48 +236,45 @@ export default function SupplierDashboardPage() {
   const fetchInvoiceHistoryAndCommissions = useCallback(async () => {
     if (!user) return;
     setIsLoadingHistory(true);
-    try {
-        const commsQuery = query(collection(db, 'commissions'), orderBy('commissionNumber', 'asc'));
-        await getDocs(commsQuery).then(commsSnapshot => {
-            const fetchedCommissions = commsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Commission));
-            setCommissions(fetchedCommissions);
-        }).catch(async (serverError) => {
-            const permissionError = new FirestorePermissionError({
-                path: 'commissions',
-                operation: 'list',
-            } satisfies SecurityRuleContext);
-            errorEmitter.emit('permission-error', permissionError);
-        });
+    
+    // Using simple fetch logic to ensure visibility on error
+    const commsQuery = query(collection(db, 'commissions'), orderBy('commissionNumber', 'asc'));
+    getDocs(commsQuery).then(commsSnapshot => {
+        const fetchedCommissions = commsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Commission));
+        setCommissions(fetchedCommissions);
+    }).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: 'commissions',
+            operation: 'list',
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+    });
 
-        const historyQuery = query(collection(db, 'extractedInvoices'), where('uploadedBy', '==', user.uid), orderBy('createdAt', 'desc'));
-        await getDocs(historyQuery).then(querySnapshot => {
-            const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
-            setInvoices(fetchedInvoices);
-        }).catch(async (serverError) => {
-            const permissionError = new FirestorePermissionError({
-                path: 'extractedInvoices',
-                operation: 'list',
-            } satisfies SecurityRuleContext);
-            errorEmitter.emit('permission-error', permissionError);
-        });
-        
-        const adminsQuery = query(collection(db, 'users'), where('role', 'in', ['admin', 'staff', 'cap_supervisor', 'cap_staff']));
-        await getDocs(adminsQuery).then(adminsSnapshot => {
-            const fetchedAdmins = adminsSnapshot.docs.map(doc => ({ id: doc.id, uid: doc.id, ...doc.data() } as User));
-            setAdmins(fetchedAdmins);
-        }).catch(async (serverError) => {
-            const permissionError = new FirestorePermissionError({
-                path: 'users',
-                operation: 'list',
-            } satisfies SecurityRuleContext);
-            errorEmitter.emit('permission-error', permissionError);
-        });
-
-    } catch (error) {
-        // Generic errors are handled by setIsLoadingHistory(false) in finally
-    } finally {
+    const historyQuery = query(collection(db, 'extractedInvoices'), where('uploadedBy', '==', user.uid), orderBy('createdAt', 'desc'));
+    getDocs(historyQuery).then(querySnapshot => {
+        const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
+        setInvoices(fetchedInvoices);
         setIsLoadingHistory(false);
-    }
+    }).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: 'extractedInvoices',
+            operation: 'list',
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+        setIsLoadingHistory(false);
+    });
+    
+    const adminsQuery = query(collection(db, 'users'), where('role', 'in', ['admin', 'staff', 'cap_supervisor', 'cap_staff']));
+    getDocs(adminsQuery).then(adminsSnapshot => {
+        const fetchedAdmins = adminsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, uid: doc.id } as User));
+        setAdmins(fetchedAdmins);
+    }).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: 'users',
+            operation: 'list',
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+    });
   }, [user]);
 
   useEffect(() => {
@@ -434,7 +431,7 @@ export default function SupplierDashboardPage() {
                                     >
                                         <span className="truncate">
                                             {field.value
-                                                ? `${field.value} - ${commissions.find((c) => c.commissionNumber === field.value)?.storyName}`
+                                                ? `${field.value} - ${commissions.find((c) => c.commissionNumber === field.value)?.storyName || ''}`
                                                 : "Select a commission..."}
                                         </span>
                                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
