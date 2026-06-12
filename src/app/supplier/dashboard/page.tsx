@@ -239,7 +239,7 @@ export default function SupplierDashboardPage() {
     try {
         const commsQuery = query(collection(db, 'commissions'), orderBy('commissionNumber', 'asc'));
         await getDocs(commsQuery).then(commsSnapshot => {
-            const fetchedCommissions = commsSnapshot.docs.map(doc => doc.data() as Commission);
+            const fetchedCommissions = commsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Commission));
             setCommissions(fetchedCommissions);
         }).catch(async (serverError) => {
             const permissionError = new FirestorePermissionError({
@@ -263,7 +263,7 @@ export default function SupplierDashboardPage() {
         
         const adminsQuery = query(collection(db, 'users'), where('role', 'in', ['admin', 'staff', 'cap_supervisor', 'cap_staff']));
         await getDocs(adminsQuery).then(adminsSnapshot => {
-            const fetchedAdmins = adminsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
+            const fetchedAdmins = adminsSnapshot.docs.map(doc => ({ id: doc.id, uid: doc.id, ...doc.data() } as User));
             setAdmins(fetchedAdmins);
         }).catch(async (serverError) => {
             const permissionError = new FirestorePermissionError({
@@ -427,14 +427,16 @@ export default function SupplierDashboardPage() {
                                         variant="outline"
                                         role="combobox"
                                         className={cn(
-                                            "w-full justify-between font-normal",
+                                            "w-full justify-between font-normal text-left",
                                             !field.value && "text-muted-foreground"
                                         )}
                                         disabled={commissions.length === 0}
                                     >
-                                        {field.value
-                                            ? `${field.value} - ${commissions.find((c) => c.commissionNumber === field.value)?.storyName}`
-                                            : "Select a commission..."}
+                                        <span className="truncate">
+                                            {field.value
+                                                ? `${field.value} - ${commissions.find((c) => c.commissionNumber === field.value)?.storyName}`
+                                                : "Select a commission..."}
+                                        </span>
                                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                     </Button>
                                 </FormControl>
@@ -485,13 +487,15 @@ export default function SupplierDashboardPage() {
                                         variant="outline"
                                         role="combobox"
                                         className={cn(
-                                            "w-full justify-between font-normal",
+                                            "w-full justify-between font-normal text-left",
                                             !field.value && "text-muted-foreground"
                                         )}
                                     >
-                                        {field.value
-                                            ? field.value
-                                            : "Select what you are invoicing for..."}
+                                        <span className="truncate">
+                                            {field.value
+                                                ? field.value
+                                                : "Select what you are invoicing for..."}
+                                        </span>
                                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                     </Button>
                                 </FormControl>
