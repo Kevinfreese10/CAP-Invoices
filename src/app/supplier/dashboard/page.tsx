@@ -9,6 +9,8 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, firebaseApp } from '@/lib/firebase';
 import { ExtractedInvoice, Commission, User } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -115,17 +117,25 @@ function SupportingDocumentsDialog({ invoice, onUploadComplete }: { invoice: Ext
                 fileName: file.name,
                 fileUrl: downloadURL,
                 uploadedBy: user.uid,
-                uploadedAt: Timestamp.now(), // Fixed: Use client-side Timestamp for array updates
+                uploadedAt: Timestamp.now(),
             };
 
             const invoiceRef = doc(db, "extractedInvoices", invoice.id);
-            await updateDoc(invoiceRef, {
+            updateDoc(invoiceRef, {
                 supportingDocuments: arrayUnion(newDocument)
+            }).then(() => {
+                toast({ title: "Upload Successful", description: "Your supporting document has been added." });
+                setFile(null);
+                onUploadComplete();
+            }).catch(async (serverError) => {
+                const permissionError = new FirestorePermissionError({
+                    path: invoiceRef.path,
+                    operation: 'update',
+                    requestResourceData: { supportingDocuments: [newDocument] },
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
             });
 
-            toast({ title: "Upload Successful", description: "Your supporting document has been added." });
-            setFile(null);
-            onUploadComplete();
         } catch (error) {
             console.error("Error uploading supporting document:", error);
             toast({ title: 'Upload Failed', variant: 'destructive' });
@@ -229,17 +239,44 @@ export default function SupplierDashboardPage() {
     setIsLoadingHistory(true);
     try {
         const commsQuery = query(collection(db, 'commissions'), orderBy('commissionNumber', 'asc'));
-        const commsSnapshot = await getDocs(commsQuery);
+        const commsSnapshot = await getDocs(commsQuery).catch(async (error) => {
+            if (error.code === 'permission-denied') {
+                const permissionError = new FirestorePermissionError({
+                    path: 'commissions',
+                    operation: 'list',
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
+            }
+            throw error;
+        });
         const fetchedCommissions = commsSnapshot.docs.map(doc => doc.data() as Commission);
         setCommissions(fetchedCommissions);
 
-        const q = query(collection(db, 'extractedInvoices'), where('uploadedBy', '==', user.uid), orderBy('createdAt', 'desc'));
-        const querySnapshot = await getDocs(q);
+        const historyQuery = query(collection(db, 'extractedInvoices'), where('uploadedBy', '==', user.uid), orderBy('createdAt', 'desc'));
+        const querySnapshot = await getDocs(historyQuery).catch(async (error) => {
+            if (error.code === 'permission-denied') {
+                const permissionError = new FirestorePermissionError({
+                    path: 'extractedInvoices',
+                    operation: 'list',
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
+            }
+            throw error;
+        });
         const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
         setInvoices(fetchedInvoices);
         
         const adminsQuery = query(collection(db, 'users'), where('role', 'in', ['admin', 'staff', 'cap_supervisor', 'cap_staff']));
-        const adminsSnapshot = await getDocs(adminsQuery);
+        const adminsSnapshot = await getDocs(adminsQuery).catch(async (error) => {
+             if (error.code === 'permission-denied') {
+                const permissionError = new FirestorePermissionError({
+                    path: 'users',
+                    operation: 'list',
+                } satisfies SecurityRuleContext);
+                errorEmitter.emit('permission-error', permissionError);
+            }
+            throw error;
+        });
         const fetchedAdmins = adminsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
         setAdmins(fetchedAdmins);
 
@@ -307,11 +344,19 @@ export default function SupplierDashboardPage() {
           createdAt: serverTimestamp(),
       };
 
-      await addDoc(collection(db, "extractedInvoices"), invoiceData);
-
-      toast({ title: 'Upload Successful', description: 'Your invoice has been submitted for review.' });
-      form.reset();
-      fetchInvoiceHistoryAndCommissions();
+      const collRef = collection(db, "extractedInvoices");
+      addDoc(collRef, invoiceData).then(() => {
+        toast({ title: 'Upload Successful', description: 'Your invoice has been submitted for review.' });
+        form.reset();
+        fetchInvoiceHistoryAndCommissions();
+      }).catch(async (serverError) => {
+          const permissionError = new FirestorePermissionError({
+              path: collRef.path,
+              operation: 'create',
+              requestResourceData: invoiceData,
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
+      });
 
     } catch (error) {
       console.error("Invoice upload error:", error);
