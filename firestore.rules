@@ -2,72 +2,99 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
     match /users/{userId} {
-      // Allow authenticated users to see profile info (names/emails)
-      // Splitting get and list to be explicit
-      allow get: if request.auth != null;
-      allow list: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      // Allow authenticated users to read profiles (names/roles)
+      // and only allow users to edit their own profile
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId);
     }
+    
     match /clients/{clientId} {
-      allow read, write: if request.auth != null; // Allow authenticated users to manage clients
+      allow read, write: if isAuthenticated();
     }
+    
     match /services/{serviceId} {
       allow read: if true;
-      allow write: if request.auth != null; // Allow authenticated users to manage services
+      allow write: if isAuthenticated();
     }
+    
     match /orders/{orderId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isAuthenticated();
     }
+    
     match /blogPosts/{postId} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAuthenticated();
     }
+    
     match /categories/{categoryId} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAuthenticated();
     }
+    
     match /tasks/{taskId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isAuthenticated();
     }
+    
     match /sequences/{sequenceId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isAuthenticated();
     }
-     match /discounts/{discountId} {
-      allow read, write: if request.auth != null;
+    
+    match /discounts/{discountId} {
+      allow read, write: if isAuthenticated();
     }
-     match /complianceRequests/{requestId} {
-      allow read, write: if request.auth != null;
+    
+    match /complianceRequests/{requestId} {
+      allow read, write: if isAuthenticated();
     }
+    
     match /aiAccountantClients/{clientId}/{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isAuthenticated();
     }
-     match /numeraClients/{clientId}/{document=**} {
-      allow read, write: if request.auth != null;
+    
+    match /numeraClients/{clientId}/{document=**} {
+      allow read, write: if isAuthenticated();
     }
+    
     match /extractedInvoices/{invoiceId} {
-      allow read, write: if request.auth != null;
+      // Allow all authenticated users to read/write for now
+      // Specific logic for suppliers to read their own is handled by query filters
+      allow read, write: if isAuthenticated();
     }
-     match /processedEmails/{emailId} {
-      allow read, write: if request.auth != null;
+    
+    match /processedEmails/{emailId} {
+      allow read, write: if isAuthenticated();
     }
+    
     match /allocationRules/{ruleId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null; // Assuming admins should be able to write
+      allow read, write: if isAuthenticated();
     }
+    
     match /unansweredQuestions/{questionId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isAuthenticated();
     }
-     match /communityQuestions/{questionId}/{document=**} {
-      allow read, write: if request.auth != null;
+    
+    match /communityQuestions/{questionId}/{document=**} {
+      allow read, write: if isAuthenticated();
     }
+    
     match /commissionData/{docId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isAuthenticated();
     }
+    
     match /commissions/{commissionId} {
-      // Allow authenticated users (staff and suppliers) to read commissions
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      // Allow all authenticated users to see the commission list
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
     }
   }
 }

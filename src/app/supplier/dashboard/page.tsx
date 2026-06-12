@@ -7,10 +7,10 @@ import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
 import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, orderBy, doc, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, firebaseApp } from '@/lib/firebase';
-import { ExtractedInvoice, Commission, User } from '@/lib/types';
+import { ExtractedInvoice, Commission, User, SecurityRuleContext } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -107,8 +107,10 @@ function SupportingDocumentsDialog({ invoice, onUploadComplete }: { invoice: Ext
     const handleFileUpload = async () => {
         if (!file || !user) return;
         setIsUploading(true);
+        const uniqueFileName = `${Date.now()}-${file.name}`;
+        const storageRef = ref(storage, `supporting-documents/${invoice.id}/${uniqueFileName}`);
+        
         try {
-            const storageRef = ref(storage, `supporting-documents/${invoice.id}/${Date.now()}-${file.name}`);
             const uploadResult = await uploadBytes(storageRef, file);
             const downloadURL = await getDownloadURL(uploadResult.ref);
             
@@ -237,7 +239,7 @@ export default function SupplierDashboardPage() {
     if (!user) return;
     setIsLoadingHistory(true);
     
-    // Using simple fetch logic to ensure visibility on error
+    // Fetch commissions
     const commsQuery = query(collection(db, 'commissions'), orderBy('commissionNumber', 'asc'));
     getDocs(commsQuery).then(commsSnapshot => {
         const fetchedCommissions = commsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Commission));
@@ -250,6 +252,7 @@ export default function SupplierDashboardPage() {
         errorEmitter.emit('permission-error', permissionError);
     });
 
+    // Fetch invoice history
     const historyQuery = query(collection(db, 'extractedInvoices'), where('uploadedBy', '==', user.uid), orderBy('createdAt', 'desc'));
     getDocs(historyQuery).then(querySnapshot => {
         const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
@@ -264,6 +267,7 @@ export default function SupplierDashboardPage() {
         setIsLoadingHistory(false);
     });
     
+    // Fetch admins/staff for approval mapping
     const adminsQuery = query(collection(db, 'users'), where('role', 'in', ['admin', 'staff', 'cap_supervisor', 'cap_staff']));
     getDocs(adminsQuery).then(adminsSnapshot => {
         const fetchedAdmins = adminsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, uid: doc.id } as User));
@@ -357,7 +361,7 @@ export default function SupplierDashboardPage() {
 
   const getRejectedByName = (userId?: string) => {
     if (!userId) return 'System';
-    const admin = admins.find(a => a.uid === userId);
+    const admin = admins.find(a => a.uid === userId || a.id === userId);
     return admin ? admin.name : 'Unknown User';
   }
 
