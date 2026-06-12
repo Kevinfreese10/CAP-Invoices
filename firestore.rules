@@ -14,7 +14,8 @@ service cloud.firestore {
     match /users/{userId} {
       // Allow authenticated users to read profiles (names/roles)
       // and only allow users to edit their own profile
-      allow read: if isAuthenticated();
+      allow get: if isAuthenticated();
+      allow list: if isAuthenticated();
       allow write: if isOwner(userId);
     }
     
