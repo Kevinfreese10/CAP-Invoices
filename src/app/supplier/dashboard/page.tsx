@@ -107,7 +107,6 @@ function SupportingDocumentsDialog({ invoice, onUploadComplete }: { invoice: Ext
     const handleFileUpload = async () => {
         if (!file || !user) return;
         setIsUploading(true);
-        toast({ title: "Uploading file...", description: file.name });
         try {
             const storageRef = ref(storage, `supporting-documents/${invoice.id}/${Date.now()}-${file.name}`);
             const uploadResult = await uploadBytes(storageRef, file);
@@ -239,49 +238,43 @@ export default function SupplierDashboardPage() {
     setIsLoadingHistory(true);
     try {
         const commsQuery = query(collection(db, 'commissions'), orderBy('commissionNumber', 'asc'));
-        const commsSnapshot = await getDocs(commsQuery).catch(async (error) => {
-            if (error.code === 'permission-denied') {
-                const permissionError = new FirestorePermissionError({
-                    path: 'commissions',
-                    operation: 'list',
-                } satisfies SecurityRuleContext);
-                errorEmitter.emit('permission-error', permissionError);
-            }
-            throw error;
+        await getDocs(commsQuery).then(commsSnapshot => {
+            const fetchedCommissions = commsSnapshot.docs.map(doc => doc.data() as Commission);
+            setCommissions(fetchedCommissions);
+        }).catch(async (serverError) => {
+            const permissionError = new FirestorePermissionError({
+                path: 'commissions',
+                operation: 'list',
+            } satisfies SecurityRuleContext);
+            errorEmitter.emit('permission-error', permissionError);
         });
-        const fetchedCommissions = commsSnapshot.docs.map(doc => doc.data() as Commission);
-        setCommissions(fetchedCommissions);
 
         const historyQuery = query(collection(db, 'extractedInvoices'), where('uploadedBy', '==', user.uid), orderBy('createdAt', 'desc'));
-        const querySnapshot = await getDocs(historyQuery).catch(async (error) => {
-            if (error.code === 'permission-denied') {
-                const permissionError = new FirestorePermissionError({
-                    path: 'extractedInvoices',
-                    operation: 'list',
-                } satisfies SecurityRuleContext);
-                errorEmitter.emit('permission-error', permissionError);
-            }
-            throw error;
+        await getDocs(historyQuery).then(querySnapshot => {
+            const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
+            setInvoices(fetchedInvoices);
+        }).catch(async (serverError) => {
+            const permissionError = new FirestorePermissionError({
+                path: 'extractedInvoices',
+                operation: 'list',
+            } satisfies SecurityRuleContext);
+            errorEmitter.emit('permission-error', permissionError);
         });
-        const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
-        setInvoices(fetchedInvoices);
         
         const adminsQuery = query(collection(db, 'users'), where('role', 'in', ['admin', 'staff', 'cap_supervisor', 'cap_staff']));
-        const adminsSnapshot = await getDocs(adminsQuery).catch(async (error) => {
-             if (error.code === 'permission-denied') {
-                const permissionError = new FirestorePermissionError({
-                    path: 'users',
-                    operation: 'list',
-                } satisfies SecurityRuleContext);
-                errorEmitter.emit('permission-error', permissionError);
-            }
-            throw error;
+        await getDocs(adminsQuery).then(adminsSnapshot => {
+            const fetchedAdmins = adminsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
+            setAdmins(fetchedAdmins);
+        }).catch(async (serverError) => {
+            const permissionError = new FirestorePermissionError({
+                path: 'users',
+                operation: 'list',
+            } satisfies SecurityRuleContext);
+            errorEmitter.emit('permission-error', permissionError);
         });
-        const fetchedAdmins = adminsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
-        setAdmins(fetchedAdmins);
 
     } catch (error) {
-        console.error("Error fetching data:", error);
+        // Generic errors are handled by setIsLoadingHistory(false) in finally
     } finally {
         setIsLoadingHistory(false);
     }
@@ -303,7 +296,6 @@ export default function SupplierDashboardPage() {
     }
 
     setIsUploading(true);
-    toast({ title: 'Uploading & Processing Invoice...', description: 'AI is extracting data. Please wait.' });
 
     try {
       const reader = new FileReader();
