@@ -2,100 +2,209 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    
     // Helper functions
     function isAuthenticated() {
       return request.auth != null;
     }
     
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
+    function isAdmin() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    function isPartnerStaffOf(resellerId) {
+      return isAuthenticated() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.partnerId == resellerId;
+    }
+
+    // --- Users ---
     match /users/{userId} {
-      // Allow authenticated users to read profiles (needed for picking approvers/seeing names)
-      // while only allowing users to edit their own profile
-      allow get: if isAuthenticated();
-      allow list: if isAuthenticated();
-      allow write: if isOwner(userId);
+      // Allow authenticated users to read profiles (needed for picking approvers/seeing names in CAP)
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && (
+        request.auth.uid == userId ||
+        isAdmin() ||
+        (resource != null && resource.data.partnerId == request.auth.uid) ||
+        (request.resource != null && request.resource.data.partnerId == request.auth.uid)
+      );
+      match /serviceOverrides/{overrideId} {
+        allow read, write: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      }
+    }
+
+    // --- Clients & Partners ---
+    match /adminClients/{clientId} {
+      allow read, write: if isAuthenticated(); 
     }
     
-    match /clients/{clientId} {
+    match /partnerClients/{clientId} {
+      allow read, write: if isAuthenticated(); 
+    }
+
+    match /aiPayrollClients/{clientId} {
       allow read, write: if isAuthenticated();
+      match /{document=**} {
+        allow read, write: if isAuthenticated();
+      }
     }
-    
+
+    match /clients/{clientId} {
+      allow read, write: if isAuthenticated(); 
+    }
+
+    // --- Services ---
     match /services/{serviceId} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isAdmin(); 
     }
-    
+
+    // --- Orders ---
     match /orders/{orderId} {
-      allow read, write: if isAuthenticated();
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId ||
+        request.auth.uid == resource.data.resellerId ||
+        request.auth.token.email == resource.data.customerEmail ||
+        request.auth.token.email == resource.data.endCustomerEmail ||
+        isAdmin() ||
+        (resource != null && isPartnerStaffOf(resource.data.resellerId))
+      );
+      allow create: if true && (
+        request.resource.data.status == 'Pending Payment' ||
+        isAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        request.auth.uid == resource.data.userId ||
+        request.auth.uid == resource.data.resellerId ||
+        (resource != null && isPartnerStaffOf(resource.data.resellerId))
+      );
+      allow delete: if isAdmin();
     }
-    
+
+    // --- Blog & Categories ---
     match /blogPosts/{postId} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isAdmin();
     }
-    
+
     match /categories/{categoryId} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isAdmin();
     }
-    
+
+    // --- Tasks ---
     match /tasks/{taskId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
-    
+
+    // --- Sequences ---
+    // Must allow public read/write since order generation runs in Next.js Server Actions
+    // during guest checkout before authentication is complete.
     match /sequences/{sequenceId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
-    
+
+    // --- Discounts ---
     match /discounts/{discountId} {
       allow read, write: if isAuthenticated();
     }
-    
+
+    // --- Compliance Requests ---
     match /complianceRequests/{requestId} {
       allow read, write: if isAuthenticated();
     }
-    
-    match /aiAccountantClients/{clientId}/{document=**} {
+
+    // --- AI Accountant / Numera Clients ---
+    match /aiAccountantClients/{clientId} {
       allow read, write: if isAuthenticated();
+      match /{document=**} {
+        allow read, write: if isAuthenticated();
+      }
     }
-    
-    match /numeraClients/{clientId}/{document=**} {
+
+    match /numeraClients/{clientId} {
       allow read, write: if isAuthenticated();
+      match /{document=**} {
+        allow read, write: if isAuthenticated();
+      }
     }
-    
+
+    // --- Extracted Invoices ---
     match /extractedInvoices/{invoiceId} {
-      // Allow all authenticated users to read/write for now
-      // Specific logic for suppliers to read their own is handled by query filters
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
-    
+
+    // --- Processed Emails ---
     match /processedEmails/{emailId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
-    
+
+    // --- Inbox Emails (CAP) ---
+    match /inboxEmails/{emailId} {
+      allow read, write: if true;
+    }
+
+    // --- Allocation Rules ---
     match /allocationRules/{ruleId} {
       allow read, write: if isAuthenticated();
     }
-    
+
+    // --- Unanswered Questions ---
     match /unansweredQuestions/{questionId} {
       allow read, write: if isAuthenticated();
     }
-    
-    match /communityQuestions/{questionId}/{document=**} {
-      allow read, write: if isAuthenticated();
+
+    // --- Leads (myacc) ---
+    match /cvLeads/{leadId} {
+      allow read: if isAuthenticated();
+      allow write: if true; 
     }
-    
+
+    match /demoLeads/{leadId} {
+      allow read: if isAuthenticated();
+      allow write: if true; 
+    }
+
+    // --- Chatbot (myacc) ---
+    match /chatbotConversations/{conversationId} {
+      allow get, create, update: if true;
+      allow list, delete: if isAdmin();
+    }
+
+    // --- Q&A Community (CAP) ---
+    match /communityQuestions/{questionId} {
+      allow read, write: if isAuthenticated();
+      match /{document=**} {
+        allow read, write: if isAuthenticated();
+      }
+    }
+
+    // --- Commissions & Data (CAP) ---
     match /commissionData/{docId} {
       allow read, write: if isAuthenticated();
     }
-    
+
     match /commissions/{commissionId} {
-      // Allow all authenticated users to see the shared commission list
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow read, write: if isAuthenticated();
+    }
+
+    // --- SEO, Media, Knowledgebase ---
+    match /staticSeo/{pageId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /media/{mediaId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /knowledgeBase/{kbId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
   }
 }

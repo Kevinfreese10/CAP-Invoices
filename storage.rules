@@ -2,9 +2,67 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // Allow read and write access to any file for any authenticated user.
-    match /{allPaths=**} {
+    
+    // Uploads path: Accessible by owner or admin
+    match /uploads/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && (
+        request.auth.uid == userId ||
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    // Partner applications path: Accessible by owner or admin
+    match /partner-applications/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && (
+        request.auth.uid == userId ||
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    // Partners path (PartnerProfile logo/hero): Accessible by owner or admin
+    match /partners/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && (
+        request.auth.uid == userId ||
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    // Reseller applications path: Accessible by owner or admin
+    match /reseller-applications/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && (
+        request.auth.uid == userId ||
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    // Orders path: Accessible if the user is associated with the order or is admin/staff
+    match /orders/{orderId}/{allPaths=**} {
+      allow read, write: if request.auth != null && (
+        firestore.get(/databases/(default)/documents/orders/$(orderId)).data.userId == request.auth.uid ||
+        firestore.get(/databases/(default)/documents/orders/$(orderId)).data.resellerId == request.auth.uid ||
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'staff'
+      );
+    }
+
+    // VAT audit docs: Accessible by the client or admin/staff
+    match /vat-audit-docs/{clientId}/{allPaths=**} {
+      allow read, write: if request.auth != null && (
+        request.auth.uid == clientId ||
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'staff'
+      );
+    }
+
+    // Supporting documents: Accessible by any authenticated user (used in CAP)
+    match /supporting-documents/{invoiceId}/{allPaths=**} {
       allow read, write: if request.auth != null;
+    }
+
+    // Invoices path: Accessible by any authenticated user for reading, and writeable by anyone (for server-side email/manual uploads)
+    match /invoices/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if true;
     }
   }
 }
