@@ -57,7 +57,14 @@ Your task is to analyze the provided invoice document and extract the following 
     *   The VAT amount for that specific line item.
 6.  **Invoice Total**: The final, grand total amount due on the invoice.
 
-If the invoice does not explicitly separate exclusive and VAT amounts per line, calculate them assuming a standard South African VAT rate of 15% on the items that include VAT.
+### Critical VAT Extraction Rules:
+- First, check if the invoice is a valid VAT invoice. A South African VAT invoice must contain a 10-digit VAT registration number (usually starting with '4') and charge VAT.
+- If the supplier is not a VAT vendor (e.g., no VAT registration number is listed, or the document is just a plain invoice/receipt without tax charges, or explicitly states VAT is 0%/exempt/no VAT), then NO VAT is being charged.
+  * In this case, you MUST extract \`vatAmount\` as \`0\` for all line items, and set \`exclusiveAmount\` to the full amount of the line item (so exclusiveAmount matches the total line item cost).
+- If the supplier IS a VAT vendor and VAT is charged on the invoice:
+  * Check if the line items are inclusive or exclusive of VAT.
+  * If the invoice does not explicitly separate exclusive and VAT amounts per line, but a VAT total is shown at the bottom, calculate the VAT portion for each line item as \`Line Total * (15 / 115)\` and the exclusive portion as \`Line Total * (100 / 115)\` assuming a standard South African VAT rate of 15%.
+  * If a line item is zero-rated or exempt from VAT, set its \`vatAmount\` to \`0\` and \`exclusiveAmount\` to the full line item cost.
 
 Analyze the following invoice:
 {{media url=invoiceImage}}

@@ -28,7 +28,7 @@ async function connectToImap() {
     const config = {
       imap: {
         user: process.env.IMAP_USER || '',
-        password: process.env.IMAP_PASSWORD || '',
+        password: (process.env.IMAP_PASSWORD || '').trim(),
         host: process.env.IMAP_HOST || '',
         port: Number(process.env.IMAP_PORT) || 993,
         tls: true,
