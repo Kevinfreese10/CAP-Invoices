@@ -1,10 +1,56 @@
-
 import { NextResponse } from 'next/server';
 import { getFirestore, doc, getDoc, updateDoc, collection, addDoc, Timestamp, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { categorizeSupportRequest } from '@/ai/flows/categorize-support-requests';
+import imaps from 'imap-simple';
+import { simpleParser } from 'mailparser';
 
 const db = getFirestore(firebaseApp);
+
+async function connectToImap() {
+    const config = {
+      imap: {
+        user: process.env.IMAP_USER || '',
+        password: process.env.IMAP_PASSWORD || '',
+        host: process.env.IMAP_HOST || '',
+        port: Number(process.env.IMAP_PORT) || 993,
+        tls: true,
+        authTimeout: 30000,
+        tlsOptions: { rejectUnauthorized: false } 
+      },
+    };
+    return await imaps.connect(config);
+}
+
+async function fetchEmailBodyText(uid: number): Promise<string> {
+    let connection;
+    try {
+        connection = await connectToImap();
+        await connection.openBox('INBOX');
+        const messages = await connection.search([['UID', uid]], { bodies: [''] });
+        if (messages.length === 0) {
+            throw new Error(`Email with UID ${uid} not found on server.`);
+        }
+        const item = messages[0];
+        const all = item.parts.find((part) => part.which === '');
+        const mail = await simpleParser(all?.body || '');
+        
+        // Return plain text if available, fallback to html (stripped of tags), fallback to empty string
+        if (mail.text) {
+            return mail.text;
+        } else if (mail.html) {
+            return mail.html.replace(/<[^>]*>?/gm, ' ');
+        }
+        return '';
+    } catch (error: any) {
+        console.error(`Error fetching email body for UID ${uid}:`, error);
+        throw error;
+    } finally {
+        if (connection) {
+            connection.end();
+        }
+    }
+}
 
 export async function POST(req: Request) {
     const { uids } = await req.json();
@@ -21,14 +67,17 @@ export async function POST(req: Request) {
 
             if (docSnap.exists()) {
                 const email = docSnap.data();
-                const requestText = `Subject: ${email.subject}\n\nBody: ${email.body.replace(/<[^>]*>?/gm, ' ')}`; // simple html strip
-                const clientName = email.from.split('<')[0].trim();
                 
                 try {
+                    // Fetch the full email body text directly from IMAP server on-demand
+                    const emailBodyText = await fetchEmailBodyText(uid);
+                    const requestText = `Subject: ${email.subject}\n\nBody: ${emailBodyText}`;
+                    const clientName = email.from.split('<')[0].trim();
+                    
                     const analysis = await categorizeSupportRequest({ 
                         request: requestText, 
                         clientName,
-                        attachments: email.attachments,
+                        attachments: email.attachments || [],
                     });
                     
                     const updateData: any = {

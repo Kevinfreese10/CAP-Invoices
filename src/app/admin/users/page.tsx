@@ -16,8 +16,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { User, Task } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, query, where, serverTimestamp, writeBatch, getDoc } from 'firebase/firestore';
-import { firebaseApp } from '@/lib/firebase';
+import { firebaseApp, firebaseConfig } from '@/lib/firebase';
 import { getAuth, createUserWithEmailAndPassword, User as FirebaseUser, signInWithEmailAndPassword } from 'firebase/auth';
+import { initializeApp, deleteApp } from 'firebase/app';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
@@ -266,8 +267,13 @@ export default function ManageUsersPage() {
             }
             
             let firebaseUser: FirebaseUser;
+            // Initialize a temporary, named Firebase app in-memory to prevent client session takeover
+            const tempAppName = `temp-user-creator-${Date.now()}`;
+            const tempApp = initializeApp(firebaseConfig, tempAppName);
+            const tempAuth = getAuth(tempApp);
+            
             try {
-                const userCredential = await createUserWithEmailAndPassword(auth, userData.email, password);
+                const userCredential = await createUserWithEmailAndPassword(tempAuth, userData.email, password);
                 firebaseUser = userCredential.user;
             } catch (authError: any) {
                 if (authError.code === 'auth/email-already-in-use') {
@@ -275,14 +281,16 @@ export default function ManageUsersPage() {
                     const existingDocs = await getDocs(q);
                     if (!existingDocs.empty) {
                         toast({ title: 'User Exists', description: 'A user profile with this email already exists.', variant: 'destructive'});
+                        await deleteApp(tempApp);
                         return;
                     }
                     
-                    // If no Firestore doc, it's an orphaned auth user. Log them in to get UID.
+                    // If no Firestore doc, it's an orphaned auth user. Log them in on temp app to get UID.
                     toast({ title: "Existing Auth User", description: "This email is already registered. Attempting to link to a new profile." });
-                    const userCredential = await signInWithEmailAndPassword(auth, userData.email, password);
+                    const userCredential = await signInWithEmailAndPassword(tempAuth, userData.email, password);
                     firebaseUser = userCredential.user;
                 } else {
+                    await deleteApp(tempApp);
                     throw authError; // Re-throw other auth errors
                 }
             }
@@ -293,7 +301,7 @@ export default function ManageUsersPage() {
 
             if (userDocSnap.exists()) {
                 toast({ title: 'User Already Exists', description: 'A user with this email already has a profile.', variant: 'destructive'});
-                if (auth.currentUser) await reauthenticate(auth.currentUser);
+                await deleteApp(tempApp);
                 return;
             }
 
@@ -304,9 +312,7 @@ export default function ManageUsersPage() {
                 createdAt: serverTimestamp(),
             });
             
-            if (auth.currentUser) {
-                await reauthenticate(auth.currentUser);
-            }
+            await deleteApp(tempApp); // Clean up the temporary Firebase app
             
             toast({ title: 'User Created', description: 'The new user has been added.' });
         }

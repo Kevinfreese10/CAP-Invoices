@@ -330,7 +330,7 @@ export default function ClientOrderDetailsPage() {
                                 {item.service && item.service.informationToProvide && item.service.informationToProvide.length > 0 && (
                                     <div className="mt-4 pl-4 ml-4 border-l-2 space-y-4">
                                         <h4 className="font-medium text-md">Documents Required:</h4>
-                                        {item.service.informationToProvide.map((info, infoIndex) => {
+                                        {item.service.informationToProvide.map((info: any, infoIndex: number) => {
                                             const upload = order.documentUploads?.find(d => d.serviceId === item.service?.id && d.requirementLabel === info.label);
                                             const uploadKey = `${item.service?.id}-${info.label}`;
                                             const isUploading = uploadingFiles[uploadKey] !== undefined;
