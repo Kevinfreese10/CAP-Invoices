@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, orderBy, where, doc, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -45,6 +45,42 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
     const [openSupplier, setOpenSupplier] = useState<string | null>(null);
     const [uploadingPop, setUploadingPop] = useState<string | null>(null);
     const { toast } = useToast();
+    const cardRef = useRef<HTMLDivElement>(null);
+    const [cardStyle, setCardStyle] = useState<{ width?: string, height?: string }>({});
+
+    useEffect(() => {
+        const savedSize = localStorage.getItem(`batchCardSize-${batchKey}`);
+        if (savedSize) {
+            try {
+                const parsed = JSON.parse(savedSize);
+                setCardStyle({ width: parsed.width, height: parsed.height });
+            } catch (e) {}
+        }
+    }, [batchKey]);
+
+    useEffect(() => {
+        if (!cardRef.current) return;
+        let timeoutId: NodeJS.Timeout;
+        const observer = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                const el = entry.target as HTMLDivElement;
+                if (el.style.height || el.style.width) {
+                    clearTimeout(timeoutId);
+                    timeoutId = setTimeout(() => {
+                        localStorage.setItem(`batchCardSize-${batchKey}`, JSON.stringify({
+                            width: el.style.width || undefined,
+                            height: el.style.height || undefined
+                        }));
+                    }, 500);
+                }
+            }
+        });
+        observer.observe(cardRef.current);
+        return () => {
+            observer.disconnect();
+            clearTimeout(timeoutId);
+        };
+    }, [batchKey]);
 
     const formatPrice = (price: number) => {
         return new Intl.NumberFormat('en-GB', {
@@ -209,7 +245,7 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
     };
 
     return (
-        <Card className="resize overflow-auto min-h-[300px] flex flex-col">
+        <Card ref={cardRef} style={cardStyle} className="resize overflow-auto min-h-[300px] flex flex-col flex-1 min-w-[350px] max-w-full">
             <CardHeader className="flex-none">
                 <div className="flex justify-between items-center">
                     <CardTitle>{title}</CardTitle>
@@ -678,7 +714,7 @@ export default function PaymentBatchesPage() {
                                 </div>
                              </CollapsibleTrigger>
                              <CollapsibleContent className="space-y-8 p-4 border-x border-b rounded-b-lg">
-                                <div className="grid grid-cols-1 xl:grid-cols-3 lg:grid-cols-2 gap-8 items-start">
+                                <div className="flex flex-wrap gap-8 items-start">
                                     {batch.CAP.length > 0 && (
                                         <PaymentBatchTable 
                                             title="CAP Expenses"
