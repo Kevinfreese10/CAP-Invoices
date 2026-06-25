@@ -10,6 +10,8 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+import { getFirestore, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { firebaseApp } from '@/lib/firebase';
 
 const ExtractInvoiceDataInputSchema = z.object({
   invoiceImage: z.string().describe(
@@ -31,6 +33,8 @@ const ExtractInvoiceDataOutputSchema = z.object({
   date: z.string().describe("The invoice date in 'DD/MM/YYYY' format."),
   lineItems: z.array(LineItemSchema).describe("An array of all line items from the invoice."),
   invoiceTotal: z.number().describe("The final, total amount of the invoice including all taxes."),
+  supplierVatNumber: z.string().optional().describe("The 10-digit VAT registration number of the supplier, if present."),
+  documentType: z.enum(["Tax Invoice", "Proforma Invoice", "Quote", "Credit Note", "Statement", "Receipt", "Other"]).optional().describe("The type of document identified."),
 });
 export type ExtractInvoiceDataOutput = z.infer<typeof ExtractInvoiceDataOutputSchema>;
 
@@ -56,6 +60,13 @@ Your task is to analyze the provided invoice document and extract the following 
     *   The amount excluding VAT (exclusiveAmount).
     *   The VAT amount for that specific line item.
 6.  **Invoice Total**: The final, grand total amount due on the invoice.
+7.  **Supplier VAT Number**: The supplier's 10-digit VAT registration number, if present.
+8.  **Document Type**: The type of document identified (e.g. Tax Invoice, Proforma Invoice, Quote, Credit Note, Statement, Receipt, Other).
+
+### Critical Extraction Instructions:
+- **Multi-Page Invoices**: If the invoice spans multiple pages, you MUST analyze all pages and extract all line items across the entire document without omission.
+- **Ambiguous Dates**: Normalize the date format strictly to 'DD/MM/YYYY'. If a date like '02/03/2026' is ambiguous, look at the rest of the invoice or nearby dates to determine whether it means 2 March 2026 or 3 February 2026.
+- **Illegible Text**: If a description, number, or word is blurry or illegible, do not guess or hallucinate. Keep the fields clean and omit or label them 'ILLEGIBLE'.
 
 ### Critical VAT Extraction Rules:
 - First, check if the invoice is a valid VAT invoice. A South African VAT invoice must contain a 10-digit VAT registration number (usually starting with '4') and charge VAT.
@@ -78,7 +89,50 @@ const extractInvoiceDataFlow = ai.defineFlow(
     outputSchema: ExtractInvoiceDataOutputSchema,
   },
   async (input) => {
-    const { output } = await prompt(input);
+    const { output } = await prompt(input, { config: { temperature: 0.0 } });
     return output!;
   }
 );
+
+export async function reanalyzeInvoice(invoiceId: string): Promise<ExtractInvoiceDataOutput> {
+  const db = getFirestore(firebaseApp);
+  const docRef = doc(db, 'extractedInvoices', invoiceId);
+  const docSnap = await getDoc(docRef);
+  
+  if (!docSnap.exists()) {
+    throw new Error('Invoice not found');
+  }
+  
+  const data = docSnap.data();
+  const fileUrl = data.fileUrl;
+  if (!fileUrl) {
+    throw new Error('Invoice does not have a file URL');
+  }
+  
+  // Download the file from fileUrl
+  const response = await fetch(fileUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch file from URL: ${response.statusText}`);
+  }
+  
+  const arrayBuffer = await response.arrayBuffer();
+  const contentType = response.headers.get('content-type') || 'application/pdf';
+  const base64Data = Buffer.from(arrayBuffer).toString('base64');
+  const dataUrl = `data:${contentType};base64,${base64Data}`;
+  
+  // Run extraction
+  const result = await extractInvoiceData({ invoiceImage: dataUrl });
+  
+  // Update Firestore doc
+  await updateDoc(docRef, {
+    supplier: result.supplier,
+    invoiceNumber: result.invoiceNumber,
+    commissionNumber: data.commissionNumber || result.commissionNumber || null,
+    date: result.date,
+    lineItems: result.lineItems,
+    invoiceTotal: result.invoiceTotal,
+    reanalyzedAt: new Date().toISOString(),
+  });
+  
+  return result;
+}

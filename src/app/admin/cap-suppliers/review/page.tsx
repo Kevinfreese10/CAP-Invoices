@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc, where, addDoc, writeBatch, getDoc, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, MoreHorizontal, Edit, Trash2, FileCheck2, Hourglass, CheckCircle2, Eye, Download, Sparkles, Brain, AlertTriangle, AlertCircle, Mail, Archive, Paperclip } from 'lucide-react';
+import { Loader2, MoreHorizontal, Edit, Trash2, FileCheck2, Hourglass, CheckCircle2, Eye, Download, Sparkles, Brain, AlertTriangle, AlertCircle, Mail, Archive, Paperclip, RefreshCw } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
@@ -22,7 +22,8 @@ import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
-import { AllocationRule, ExtractedInvoice, FindStoryNameInput, FindStoryNameInputSchema, FindStoryNameOutput, FindStoryNameOutputSchema, User, Commission } from '@/lib/types';
+import { AllocationRule, ExtractedInvoice, FindStoryNameInput, FindStoryNameInputSchema, FindStoryNameOutput, FindStoryNameOutputSchema, User, Commission, VatType } from '@/lib/types';
+import { reanalyzeInvoice } from '@/ai/flows/extract-invoice-data';
 import { allVatTypes } from '@/lib/vat-types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -72,7 +73,7 @@ function CreateRuleDialog({ open, onOpenChange, supplierName, onRuleCreated }: {
             description: `Default VAT type for supplier: ${values.supplierName}`,
             keywords: [values.supplierName.toLowerCase()],
             accountId: 'supplier_vat_rule', 
-            vatType: values.defaultVatType,
+            vatType: values.defaultVatType as VatType,
             type: 'hard',
             scope: 'global',
         };
@@ -355,6 +356,7 @@ export default function ReviewPage() {
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
     const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
     const [isAnalyzeDialogOpen, setIsAnalyzeDialogOpen] = useState(false);
+    const [isReanalyzing, setIsReanalyzing] = useState(false);
     const { toast } = useToast();
     const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
     const { user } = useAuth();
@@ -518,9 +520,52 @@ export default function ReviewPage() {
             setSelectedInvoices([]);
             fetchInvoicesAndRules();
         } catch (error) {
-            toast({ title: 'Error', description: 'Could not delete selected invoices.', variant: 'destructive'});
+            toast({ title: 'Error', description: 'Could not delete the selected invoices.', variant: 'destructive'});
+        }
+    }
+
+    const handleReanalyzeSingle = async (id: string) => {
+        setIsReanalyzing(true);
+        toast({ title: 'Reanalyzing Invoice...', description: 'Please wait while AI re-extracts the data.' });
+        try {
+            await reanalyzeInvoice(id);
+            toast({ title: 'Reanalysis Complete', description: 'The invoice data has been refreshed.' });
+            fetchInvoicesAndRules();
+        } catch (error) {
+            console.error("Reanalysis error:", error);
+            toast({ title: 'Reanalysis Failed', description: 'Could not reanalyze the invoice.', variant: 'destructive' });
+        } finally {
+            setIsReanalyzing(false);
         }
     };
+
+    const handleReanalyzeSelected = async () => {
+        if (selectedInvoices.length === 0) return;
+        setIsReanalyzing(true);
+        toast({ title: 'Starting Reanalysis...', description: `Reanalyzing ${selectedInvoices.length} selected invoice(s).` });
+        
+        try {
+            let successCount = 0;
+            for (let i = 0; i < selectedInvoices.length; i++) {
+                const id = selectedInvoices[i];
+                toast({ title: `Reanalyzing (${i + 1}/${selectedInvoices.length})`, description: 'Processing...' });
+                try {
+                    await reanalyzeInvoice(id);
+                    successCount++;
+                } catch (err) {
+                    console.error(`Error reanalyzing invoice ${id}:`, err);
+                }
+            }
+            toast({ title: 'Reanalysis Complete', description: `Successfully reanalyzed ${successCount} of ${selectedInvoices.length} invoice(s).` });
+            setSelectedInvoices([]);
+            fetchInvoicesAndRules();
+        } catch (error) {
+            console.error("Bulk reanalysis error:", error);
+            toast({ title: 'Reanalysis Failed', description: 'An error occurred during bulk reanalysis.', variant: 'destructive' });
+        } finally {
+            setIsReanalyzing(false);
+        }
+    };;
 
     const handleDownloadAll = async () => {
         if (invoices.length === 0) {
@@ -658,6 +703,10 @@ export default function ReviewPage() {
                             </AlertDialogFooter>
                         </AlertDialogContent>
                     </AlertDialog>
+                    <Button onClick={handleReanalyzeSelected} variant="outline" disabled={selectedInvoices.length === 0 || isReanalyzing}>
+                        {isReanalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
+                        Reanalyze ({selectedInvoices.length})
+                    </Button>
                     <Button onClick={() => setIsAnalyzeDialogOpen(true)} variant="outline" disabled={selectedInvoices.length === 0}>
                         <Brain className="mr-2 h-4 w-4"/>
                         Analyze ({selectedInvoices.length})
@@ -762,6 +811,9 @@ export default function ReviewPage() {
                                             <DropdownMenuContent>
                                                 <DropdownMenuItem onSelect={() => handleApprove(invoice.id)}>
                                                     <FileCheck2 className="mr-2 h-4 w-4" /> Approve
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onSelect={() => handleReanalyzeSingle(invoice.id)} disabled={isReanalyzing}>
+                                                    <RefreshCw className="mr-2 h-4 w-4" /> Reanalyze
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem onSelect={() => setEditingInvoice(invoice)}>
                                                     <Edit className="mr-2 h-4 w-4" /> Edit

@@ -209,8 +209,8 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
     };
 
     return (
-        <Card>
-            <CardHeader>
+        <Card className="resize overflow-auto min-h-[300px] flex flex-col">
+            <CardHeader className="flex-none">
                 <div className="flex justify-between items-center">
                     <CardTitle>{title}</CardTitle>
                     <div className="flex items-center gap-2">
