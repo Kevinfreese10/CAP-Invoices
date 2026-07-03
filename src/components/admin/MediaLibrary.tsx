@@ -9,8 +9,6 @@ import Image from 'next/image';
 import { Loader2, FileText } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 import { services } from '@/lib/data';
-import { useBlog } from '@/contexts/BlogContext';
-
 const storage = getStorage(firebaseApp);
 
 interface MediaLibraryProps {
@@ -22,8 +20,6 @@ export default function MediaLibrary({ onSelectImage, accept = "image/*" }: Medi
   const [images, setImages] = useState<{ url: string; title: string; isImage: boolean; }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useAuth();
-  const { blogPosts } = useBlog();
-
   useEffect(() => {
     const fetchImages = async () => {
       setIsLoading(true);
@@ -34,15 +30,6 @@ export default function MediaLibrary({ onSelectImage, accept = "image/*" }: Medi
         allImages.push({
           url: service.imageUrl,
           title: service.title,
-          isImage: true,
-        });
-      });
-
-      // 2. Fetch from blog posts
-      blogPosts.forEach(post => {
-        allImages.push({
-          url: post.imageUrl,
-          title: post.title,
           isImage: true,
         });
       });
@@ -78,7 +65,7 @@ export default function MediaLibrary({ onSelectImage, accept = "image/*" }: Medi
     };
 
     fetchImages();
-  }, [user, blogPosts]);
+  }, [user]);
 
   const filteredImages = images.filter(image => {
       if (accept === 'application/pdf') {
