@@ -1,17 +1,15 @@
 
 // /src/app/api/emails/process-attachments/route.ts
 import { NextResponse } from 'next/server';
-import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
-import { addDoc, collection, getFirestore, serverTimestamp, doc, setDoc, getDocs, query, where, writeBatch, updateDoc } from 'firebase/firestore';
-import { firebaseApp } from '@/lib/firebase';
+import { adminDb, adminStorage } from '@/lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
 import imaps from 'imap-simple';
 import { simpleParser } from 'mailparser';
 import { ExtractedInvoice } from '@/lib/types';
 
 
-const db = getFirestore(firebaseApp);
-const storage = getStorage(firebaseApp);
+// Admin SDK initialized via imports
 
 async function fetchFullEmail(uid: number) {
     const config = {
@@ -93,10 +91,10 @@ export async function POST(req: Request) {
 
     if (processableAttachments.length === 0) {
       // Mark as processed even if no attachments, to prevent retries
-      const processedEmailRef = doc(db, 'processedEmails', String(emailStub.uid));
-      await setDoc(processedEmailRef, {
+      const processedEmailRef = adminDb.collection('processedEmails').doc(String(emailStub.uid));
+      await processedEmailRef.set({
           uid: emailStub.uid,
-          processedAt: serverTimestamp(),
+          processedAt: FieldValue.serverTimestamp(),
           subject: emailStub.subject,
           from: emailStub.from,
           status: 'no_attachments'
@@ -114,16 +112,14 @@ export async function POST(req: Request) {
         await new Promise(resolve => setTimeout(resolve, 5000)); // 5-second delay
       }
 
-      const existingInvoiceQuery = query(
-        collection(db, "extractedInvoices"),
-        where("sourceEmailUid", "==", emailStub.uid),
-        where("fileName", "==", attachment.filename)
-      );
+      const existingInvoiceQuery = adminDb.collection("extractedInvoices")
+        .where("sourceEmailUid", "==", emailStub.uid)
+        .where("fileName", "==", attachment.filename);
 
       try {
         if(!attachment.dataUrl) continue;
         
-        const existingInvoicesSnapshot = await getDocs(existingInvoiceQuery);
+        const existingInvoicesSnapshot = await existingInvoiceQuery.get();
         const existingInvoiceDoc = existingInvoicesSnapshot.empty ? null : existingInvoicesSnapshot.docs[0];
 
         if (existingInvoiceDoc && !reprocess) {
@@ -137,10 +133,17 @@ export async function POST(req: Request) {
           throw new Error('AI could not read the required details from the invoice.');
         }
 
-        const storageRef = ref(storage, `invoices/email-${emailStub.uid}/${Date.now()}-${attachment.filename}`);
+        const bucket = adminStorage.bucket();
+        const file = bucket.file(`invoices/email-${emailStub.uid}/${Date.now()}-${attachment.filename}`);
         const base64Data = attachment.dataUrl.split(',')[1];
-        const uploadResult = await uploadString(storageRef, base64Data, 'base64', { contentType: attachment.contentType || undefined });
-        const downloadURL = await getDownloadURL(uploadResult.ref);
+        const buffer = Buffer.from(base64Data, 'base64');
+        
+        await file.save(buffer, {
+          metadata: { contentType: attachment.contentType || 'application/pdf' },
+        });
+        
+        await file.makePublic();
+        const downloadURL = file.publicUrl();
         
         const invoiceData: Partial<ExtractedInvoice> = {
           ...result,
@@ -153,9 +156,9 @@ export async function POST(req: Request) {
         };
         
         if (existingInvoiceDoc) {
-            await updateDoc(existingInvoiceDoc.ref, {...invoiceData, modifiedAt: serverTimestamp()});
+            await existingInvoiceDoc.ref.update({...invoiceData, modifiedAt: FieldValue.serverTimestamp()});
         } else {
-            await addDoc(collection(db, "extractedInvoices"), {...invoiceData, createdAt: serverTimestamp()});
+            await adminDb.collection("extractedInvoices").add({...invoiceData, createdAt: FieldValue.serverTimestamp()});
         }
 
         processedCount++;
@@ -178,11 +181,11 @@ export async function POST(req: Request) {
             uploadedBy: 'email_inbox',
         };
 
-        const existingFailureSnapshot = await getDocs(existingInvoiceQuery);
+        const existingFailureSnapshot = await existingInvoiceQuery.get();
         if (!existingFailureSnapshot.empty) {
-            await updateDoc(existingFailureSnapshot.docs[0].ref, failureData);
+            await existingFailureSnapshot.docs[0].ref.update(failureData);
         } else {
-            await addDoc(collection(db, "extractedInvoices"), {...failureData, createdAt: serverTimestamp()});
+            await adminDb.collection("extractedInvoices").add({...failureData, createdAt: FieldValue.serverTimestamp()});
         }
       }
     }
@@ -191,10 +194,10 @@ export async function POST(req: Request) {
     const allAccountedFor = (processedCount + duplicateCount + failedCount) >= processableAttachments.length;
     
     if (allAccountedFor && failedCount === 0 && !attachmentFilename) { // Only mark full email if not processing single file
-        const processedEmailRef = doc(db, 'processedEmails', String(emailStub.uid));
-        await setDoc(processedEmailRef, {
+        const processedEmailRef = adminDb.collection('processedEmails').doc(String(emailStub.uid));
+        await processedEmailRef.set({
             uid: emailStub.uid,
-            processedAt: serverTimestamp(),
+            processedAt: FieldValue.serverTimestamp(),
             subject: emailStub.subject,
             from: emailStub.from,
             status: 'processed'

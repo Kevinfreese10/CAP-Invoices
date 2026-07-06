@@ -2,10 +2,8 @@
 import { NextResponse } from 'next/server';
 import imaps from 'imap-simple';
 import { simpleParser } from 'mailparser';
-import { getFirestore, collection, getDocs, doc, setDoc, serverTimestamp, query, where, writeBatch, deleteDoc, orderBy, limit } from 'firebase/firestore';
-import { firebaseApp } from '@/lib/firebase';
-
-const db = getFirestore(firebaseApp);
+import { adminDb } from '@/lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
 // This regex matches any character that is not a standard printable ASCII character,
 // newline, carriage return, or tab. This helps remove control characters that break JSON parsing.
@@ -48,8 +46,7 @@ export async function GET(req: Request) {
     try {
         if (shouldSync) {
             // Get the most recent UID from Firestore to only fetch newer emails.
-            const latestEmailQuery = query(collection(db, 'inboxEmails'), orderBy('uid', 'desc'), limit(1));
-            const latestEmailSnapshot = await getDocs(latestEmailQuery);
+            const latestEmailSnapshot = await adminDb.collection('inboxEmails').orderBy('uid', 'desc').limit(1).get();
             let lastUid = 0;
             if (!latestEmailSnapshot.empty) {
                 lastUid = latestEmailSnapshot.docs[0].data().uid;
@@ -65,7 +62,7 @@ export async function GET(req: Request) {
             if (newMessages.length > 0) {
                 const BATCH_SIZE = 10; // Process in smaller batches to avoid timeouts
                 const messagesToProcess = newMessages.slice(0, BATCH_SIZE);
-                const batch = writeBatch(db);
+                const batch = adminDb.batch();
 
                 for (const item of messagesToProcess) {
                     if (item.attributes.uid <= lastUid) continue; // Defensive check
@@ -91,18 +88,18 @@ export async function GET(req: Request) {
                       date: mail.date?.toISOString() || new Date().toISOString(),
                       body: null, // Do not store the body to prevent size limit issues
                       attachments: attachments,
-                      createdAt: serverTimestamp(),
+                      createdAt: FieldValue.serverTimestamp(),
                       processedAction: null,
                     };
                     
-                    const docRef = doc(db, 'inboxEmails', String(emailData.uid));
+                    const docRef = adminDb.collection('inboxEmails').doc(String(emailData.uid));
                     batch.set(docRef, emailData);
                 }
                 await batch.commit();
             }
         }
 
-        const allEmailsSnapshot = await getDocs(query(collection(db, 'inboxEmails'), orderBy('date', 'desc')));
+        const allEmailsSnapshot = await adminDb.collection('inboxEmails').orderBy('date', 'desc').get();
         const allEmails = allEmailsSnapshot.docs.map(doc => doc.data());
         
         return NextResponse.json(allEmails);
@@ -122,7 +119,7 @@ export async function POST(req: Request) {
     }
 
     try {
-        const batch = writeBatch(db);
+        const batch = adminDb.batch();
 
         if (action === 'delete') {
             let connection;
@@ -138,20 +135,20 @@ export async function POST(req: Request) {
             }
             
             uids.forEach((uid: number) => {
-                const docRef = doc(db, 'inboxEmails', String(uid));
+                const docRef = adminDb.collection('inboxEmails').doc(String(uid));
                 batch.delete(docRef);
-                 const processedDocRef = doc(db, 'processedEmails', String(uid));
+                 const processedDocRef = adminDb.collection('processedEmails').doc(String(uid));
                 batch.delete(processedDocRef);
             });
 
         } else if (action === 'unarchive') {
              uids.forEach((uid: number) => {
-                const docRef = doc(db, 'inboxEmails', String(uid));
+                const docRef = adminDb.collection('inboxEmails').doc(String(uid));
                 batch.update(docRef, { processedAction: null });
             });
         } else { // process or archive
              uids.forEach((uid: number) => {
-                const docRef = doc(db, 'inboxEmails', String(uid));
+                const docRef = adminDb.collection('inboxEmails').doc(String(uid));
                 batch.update(docRef, { processedAction: action });
             });
         }

@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getFirestore, doc, getDoc, updateDoc, collection, addDoc, Timestamp, serverTimestamp } from 'firebase/firestore';
-import { firebaseApp } from '@/lib/firebase';
+import { adminDb } from '@/lib/firebase-admin';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { categorizeSupportRequest } from '@/ai/flows/categorize-support-requests';
 import imaps from 'imap-simple';
 import { simpleParser } from 'mailparser';
-
-const db = getFirestore(firebaseApp);
 
 async function connectToImap() {
     const config = {
@@ -62,8 +60,8 @@ export async function POST(req: Request) {
     try {
         let successCount = 0;
         for (const uid of uids) {
-            const docRef = doc(db, 'inboxEmails', String(uid));
-            const docSnap = await getDoc(docRef);
+            const docRef = adminDb.collection('inboxEmails').doc(String(uid));
+            const docSnap = await docRef.get();
 
             if (docSnap.exists()) {
                 const email = docSnap.data();
@@ -93,13 +91,13 @@ export async function POST(req: Request) {
                         const dueDate = new Date();
                         dueDate.setHours(dueDate.getHours() + (analysis.sla || 48));
                         
-                        await addDoc(collection(db, 'tasks'), {
+                        await adminDb.collection('tasks').add({
                             title: analysis.task.title,
                             description: analysis.task.description || 'Generated from email.',
                             status: 'To-Do',
                             priority: analysis.priority,
                             dueDate: Timestamp.fromDate(dueDate),
-                            createdAt: serverTimestamp(),
+                            createdAt: FieldValue.serverTimestamp(),
                             createdBy: 'ai_system',
                             assignedTo: [], // Needs manual assignment
                         });
@@ -107,7 +105,7 @@ export async function POST(req: Request) {
                         updateData.processedAction = 'processed';
                     }
 
-                    await updateDoc(docRef, updateData);
+                    await docRef.update(updateData);
                     successCount++;
                 } catch (aiError) {
                      console.error(`AI analysis failed for email UID ${uid}:`, aiError);
