@@ -32,7 +32,7 @@ const commissionFormSchema = z.object({
 });
 
 
-function CommissionDialog({ onSave, commission, open, onOpenChange }: { onSave: (data: any, id: string) => Promise<void>, commission: Commission | null, open: boolean, onOpenChange: (open: boolean) => void }) {
+function CommissionDialog({ onSave, commission, open, onOpenChange, existingProducers = [] }: { onSave: (data: any, id: string) => Promise<void>, commission: Commission | null, open: boolean, onOpenChange: (open: boolean) => void, existingProducers?: string[] }) {
     const isEditing = !!commission;
     const [isSaving, setIsSaving] = useState(false);
 
@@ -87,7 +87,14 @@ function CommissionDialog({ onSave, commission, open, onOpenChange }: { onSave: 
                         <FormField control={form.control} name="storyName" render={({ field }) => ( <FormItem><FormLabel>Story Name</FormLabel><FormControl><Input placeholder="Full story name" {...field} /></FormControl><FormMessage /></FormItem> )}/>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <FormField control={form.control} name="commissionedDuration" render={({ field }) => ( <FormItem><FormLabel>Commissioned Duration (minutes)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem> )}/>
-                            <FormField control={form.control} name="producer" render={({ field }) => ( <FormItem><FormLabel>Producer</FormLabel><FormControl><Input placeholder="Producer's name" {...field} /></FormControl><FormMessage /></FormItem> )}/>
+                            <FormField control={form.control} name="producer" render={({ field }) => ( <FormItem><FormLabel>Producer</FormLabel><FormControl>
+                                <div>
+                                    <Input placeholder="Producer's name" {...field} list="producers-list" />
+                                    <datalist id="producers-list">
+                                        {existingProducers.map(p => <option key={p} value={p} />)}
+                                    </datalist>
+                                </div>
+                            </FormControl><FormMessage /></FormItem> )}/>
                         </div>
                         <DialogFooter>
                             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
@@ -147,6 +154,10 @@ export default function CommissionPage() {
         }
         setSortConfig({ key, direction });
     };
+
+    const uniqueProducers = useMemo(() => {
+        return Array.from(new Set(commissions.map(c => c.producer).filter(Boolean))).sort();
+    }, [commissions]);
 
     const sortedCommissions = useMemo(() => {
         if (!sortConfig) {
@@ -327,6 +338,7 @@ export default function CommissionPage() {
                 onOpenChange={setIsDialogOpen}
                 commission={selectedCommission}
                 onSave={handleSaveCommission}
+                existingProducers={uniqueProducers}
             />
 
             <Card>
