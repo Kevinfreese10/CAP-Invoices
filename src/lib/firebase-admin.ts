@@ -16,14 +16,14 @@ if (!getApps().length) {
       
       initializeApp({
         credential: cert(serviceAccount),
-        storageBucket: 'studio-2604127518-57889.appspot.com',
+        storageBucket: 'studio-2604127518-57889.firebasestorage.app',
         projectId: 'studio-2604127518-57889'
       });
       console.log('Firebase Admin initialized with local service account.');
     } else {
       // Production (Firebase App Hosting / Cloud Run) using Application Default Credentials
       initializeApp({
-        storageBucket: 'studio-2604127518-57889.appspot.com',
+        storageBucket: 'studio-2604127518-57889.firebasestorage.app',
         projectId: 'studio-2604127518-57889'
       });
       console.log('Firebase Admin initialized with Application Default Credentials.');
