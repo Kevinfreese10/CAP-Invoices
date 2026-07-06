@@ -35,6 +35,7 @@ const commissionFormSchema = z.object({
 function CommissionDialog({ onSave, commission, open, onOpenChange, existingProducers = [] }: { onSave: (data: any, id: string) => Promise<void>, commission: Commission | null, open: boolean, onOpenChange: (open: boolean) => void, existingProducers?: string[] }) {
     const isEditing = !!commission;
     const [isSaving, setIsSaving] = useState(false);
+    const [showSuggestions, setShowSuggestions] = useState(false);
 
     const form = useForm<z.infer<typeof commissionFormSchema>>({
         resolver: zodResolver(commissionFormSchema),
@@ -88,11 +89,31 @@ function CommissionDialog({ onSave, commission, open, onOpenChange, existingProd
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <FormField control={form.control} name="commissionedDuration" render={({ field }) => ( <FormItem><FormLabel>Commissioned Duration (minutes)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem> )}/>
                             <FormField control={form.control} name="producer" render={({ field }) => ( <FormItem><FormLabel>Producer</FormLabel><FormControl>
-                                <div>
-                                    <Input placeholder="Producer's name" {...field} list="producers-list" />
-                                    <datalist id="producers-list">
-                                        {existingProducers.map(p => <option key={p} value={p} />)}
-                                    </datalist>
+                                <div className="relative">
+                                    <Input 
+                                        placeholder="Producer's name" 
+                                        {...field} 
+                                        onFocus={() => setShowSuggestions(true)}
+                                        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                                    />
+                                    {showSuggestions && existingProducers.filter(p => p.toLowerCase().includes((field.value || '').toLowerCase())).length > 0 && (
+                                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-auto">
+                                            {existingProducers
+                                                .filter(p => p.toLowerCase().includes((field.value || '').toLowerCase()))
+                                                .map(p => (
+                                                <div 
+                                                    key={p} 
+                                                    className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                                                    onClick={() => {
+                                                        form.setValue('producer', p);
+                                                        setShowSuggestions(false);
+                                                    }}
+                                                >
+                                                    {p}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             </FormControl><FormMessage /></FormItem> )}/>
                         </div>
