@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, orderBy, where, doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, MoreHorizontal, Edit, Trash2, CheckCircle2, FileCheck2, XCircle, Eye, FileX2, Mail, Paperclip } from 'lucide-react';
+import { Loader2, MoreHorizontal, Edit, Trash2, CheckCircle2, FileCheck2, XCircle, Eye, Shield } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,40 +15,32 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { s38ChartOfAccounts, capChartOfAccounts, s39ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 import { ExtractedInvoice, User } from '@/lib/types';
 import EditInvoiceForm from '@/components/admin/cap-suppliers/EditInvoiceForm';
-import { Input } from '@/components/ui/input';
 import { format, isPast, parseISO, endOfDay } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import InvoiceRejectionEmail from '@/components/emails/InvoiceRejectionEmail';
-import { Textarea } from '@/components/ui/textarea';
-
 
 const db = getFirestore(firebaseApp);
-
 const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts, ...s39ChartOfAccounts];
 
-
-export default function SecondReviewPage() {
+export default function PrivateSecondReview() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
-    const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const { toast } = useToast();
     const { user } = useAuth();
 
     const fetchInvoices = async () => {
         setIsLoading(true);
         try {
-            const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'approved'), orderBy('createdAt', 'desc'));
+            const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'approved'), where('isPrivate', '==', true), orderBy('createdAt', 'desc'));
             const querySnapshot = await getDocs(q);
-            const fetchedInvoices = querySnapshot.docs
-                .map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice))
-                .filter(inv => !inv.isPrivate);
+            const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
             setInvoices(fetchedInvoices);
         } catch (error) {
-            console.error("Error fetching invoices:", error);
-            toast({ title: 'Error', description: 'Could not fetch approved invoices.', variant: 'destructive'});
+            console.error("Error fetching private invoices:", error);
+            toast({ title: 'Error', description: 'Could not fetch approved private invoices.', variant: 'destructive'});
         } finally {
             setIsLoading(false);
         }
@@ -81,7 +73,6 @@ export default function SecondReviewPage() {
     const handleSaveAndApprove = async (id: string, data: any) => {
         if (!user) return;
         try {
-            // First, save the data
             const docRef = doc(db, 'extractedInvoices', id);
             const dataToSave = {
                 ...data,
@@ -92,7 +83,6 @@ export default function SecondReviewPage() {
             };
             await updateDoc(docRef, dataToSave);
             
-            // Then, approve and set current user as the approver
             await updateDoc(docRef, { 
                 status: 'pending_account_review',
                 approvedBy: user.uid 
@@ -163,34 +153,6 @@ export default function SecondReviewPage() {
         }
     }
 
-    const getStatusBadge = (status: ExtractedInvoice['status']) => {
-        switch(status) {
-            case 'approved':
-                return (
-                    <Badge variant={'success'}>
-                        <CheckCircle2 className="mr-1 h-3 w-3" />
-                        Approved
-                    </Badge>
-                );
-            case 'approved_for_payment':
-                 return (
-                    <Badge variant={'payment'}>
-                        <FileCheck2 className="mr-1 h-3 w-3" />
-                        Approved for Payment
-                    </Badge>
-                );
-             case 'rejected':
-                return (
-                    <Badge variant={'destructive'}>
-                        <XCircle className="mr-1 h-3 w-3" />
-                        Rejected
-                    </Badge>
-                );
-            default:
-                return <Badge>{status.replace(/_/g, ' ')}</Badge>;
-        }
-    }
-    
     const calculatePayableAmount = (invoice: ExtractedInvoice) => {
         return invoice.lineItems.reduce((acc, item) => {
             const lineValue = item.exclusiveAmount + item.vatAmount;
@@ -200,24 +162,20 @@ export default function SecondReviewPage() {
     };
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">2nd Review</h1>
-      </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Approved Invoices</CardTitle>
+    <Card className="mb-8 border-purple-200 shadow-sm">
+        <CardHeader className="bg-purple-50/50 border-b border-purple-100 pb-4">
+          <CardTitle className="text-purple-900">Private Invoices - Pending 2nd Review</CardTitle>
           <CardDescription>
-            These invoices have been reviewed and approved.
+            These private invoices have passed 1st review and are waiting for your approval to proceed to Account Review.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
             {isLoading ? (
-                <div className="flex justify-center items-center h-64">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <div className="flex justify-center items-center h-32">
+                    <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
                 </div>
             ) : invoices.length === 0 ? (
-                <p className="text-center text-muted-foreground py-10">No approved invoices yet.</p>
+                <p className="text-center text-muted-foreground py-6">No private invoices pending 2nd review.</p>
             ) : (
                 <Table>
                     <TableHeader>
@@ -240,118 +198,123 @@ export default function SecondReviewPage() {
                             if (invoice.paymentBatch) {
                                 try {
                                     const parsedDate = parseISO(invoice.paymentBatch);
-                                    if (!isNaN(parsedDate.valueOf())) { // Check if date is valid
+                                    if (!isNaN(parsedDate.valueOf())) {
                                         isBatchDatePast = isPast(endOfDay(parsedDate));
                                         batchDateLabel = format(parsedDate, 'dd MMM yyyy');
                                     }
-                                } catch (e) {
-                                    // Not a valid date string
-                                }
+                                } catch (e) {}
                             }
 
                             const isApprovalDisabled = 
-                                !invoice.paymentBatch || 
-                                isBatchDatePast ||
-                                !invoice.expenseType || 
-                                !invoice.lineItems.some(item => !!item.accountId) ||
-                                invoice.status === 'approved_for_payment';
-                            
-                            const amountPayable = calculatePayableAmount(invoice);
+                                invoice.lineItems.length === 0 || 
+                                !invoice.commissionNumber || 
+                                !invoice.expenseType ||
+                                invoice.lineItems.some(item => !item.accountId) ||
+                                (invoice.paymentBatch !== 'private' && isBatchDatePast);
 
                             return (
                                 <TableRow key={invoice.id}>
                                     <TableCell>
-                                        {getStatusBadge(invoice.status)}
+                                         <Badge variant={'success'}>
+                                            <CheckCircle2 className="mr-1 h-3 w-3" />
+                                            Approved (1st Review)
+                                        </Badge>
                                     </TableCell>
-                                    <TableCell className="font-medium">
-                                        <p>{invoice.supplier}</p>
-                                        {invoice.note && <p className="text-xs text-muted-foreground italic mt-1">Note: {invoice.note}</p>}
-                                    </TableCell>
+                                    <TableCell className="font-medium">{invoice.supplier}</TableCell>
                                     <TableCell>{invoice.invoiceNumber}</TableCell>
                                     <TableCell>
-                                        {invoice.paymentBatch ? (
-                                            <Badge variant={isBatchDatePast ? 'destructive' : 'outline'}>
-                                                {batchDateLabel || invoice.paymentBatch.replace(/_/g, ' ')}
+                                        {invoice.paymentBatch === 'private' ? (
+                                            <Badge variant="outline" className="bg-purple-100 text-purple-800 border-purple-200">
+                                                <Shield className="mr-1 h-3 w-3" />
+                                                Private Batch
                                             </Badge>
+                                        ) : invoice.paymentBatch ? (
+                                             <Badge variant={isBatchDatePast ? 'destructive' : 'secondary'} className={isBatchDatePast ? '' : 'bg-green-100 text-green-800 border-green-200'}>
+                                                 {batchDateLabel || invoice.paymentBatch}
+                                             </Badge>
                                         ) : (
-                                            <span className="text-muted-foreground text-xs">Not set</span>
+                                            <span className="text-muted-foreground text-xs italic">Uncategorized</span>
                                         )}
                                     </TableCell>
                                     <TableCell>{invoice.date}</TableCell>
-                                    <TableCell className="flex items-center gap-1">
-                                        <Button asChild variant="ghost" size="icon">
-                                            <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer">
-                                                <Eye className="h-4 w-4" />
-                                            </a>
-                                        </Button>
-                                        {invoice.supportingDocuments && invoice.supportingDocuments.length > 0 && (
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                                                        <Paperclip className="h-4 w-4" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent>
-                                                    <DropdownMenuLabel>Supporting Docs</DropdownMenuLabel>
-                                                    <DropdownMenuSeparator />
-                                                    {invoice.supportingDocuments.map((doc, i) => (
-                                                        <DropdownMenuItem key={i} asChild>
-                                                            <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer">{doc.fileName}</a>
-                                                        </DropdownMenuItem>
-                                                    ))}
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        )}
+                                    <TableCell>
+                                        <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center text-blue-600 hover:underline">
+                                            <Eye className="mr-1 h-4 w-4" />
+                                            View PDF
+                                        </a>
                                     </TableCell>
-                                    <TableCell className="text-right font-mono">R {amountPayable.toFixed(2)}</TableCell>
+                                    <TableCell className="text-right font-medium">
+                                        R {calculatePayableAmount(invoice).toFixed(2)}
+                                    </TableCell>
                                     <TableCell className="text-right">
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
                                                 <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
                                             </DropdownMenuTrigger>
-                                            <DropdownMenuContent>
-                                                <DropdownMenuItem onSelect={() => handleApproveForNextStep(invoice.id)} disabled={isApprovalDisabled}>
-                                                    <FileCheck2 className="mr-2 h-4 w-4" /> Approve for Account Review
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                <DropdownMenuItem onClick={() => setEditingInvoice(invoice)}>
+                                                    <Edit className="mr-2 h-4 w-4" /> Edit Invoice
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem onSelect={() => setEditingInvoice(invoice)}>
-                                                    <Edit className="mr-2 h-4 w-4" /> Edit
+                                                <DropdownMenuItem onClick={() => handleApproveForNextStep(invoice.id)} disabled={isApprovalDisabled} className="text-green-600">
+                                                    <CheckCircle2 className="mr-2 h-4 w-4" /> Approve for Account Review
                                                 </DropdownMenuItem>
+                                                
+                                                <DropdownMenuSeparator />
+                                                
                                                 <AlertDialog>
                                                     <AlertDialogTrigger asChild>
-                                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
-                                                            <FileX2 className="mr-2 h-4 w-4" /> Reject
+                                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-orange-600">
+                                                            <XCircle className="mr-2 h-4 w-4" /> Reject Invoice
                                                         </DropdownMenuItem>
                                                     </AlertDialogTrigger>
                                                     <AlertDialogContent>
                                                         <AlertDialogHeader>
                                                             <AlertDialogTitle>Reject Invoice?</AlertDialogTitle>
-                                                            <AlertDialogDescription>Please provide a reason for rejection. If this was submitted by a supplier, they will be notified by email.</AlertDialogDescription>
+                                                            <AlertDialogDescription>
+                                                                Please provide a reason for rejecting this invoice. An email will be sent to the supplier (if applicable).
+                                                            </AlertDialogDescription>
                                                         </AlertDialogHeader>
-                                                        <Textarea placeholder="e.g., Invoice is a duplicate." id={`rejection-reason-${invoice.id}`} />
-                                                        <AlertDialogFooter>
-                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                            <AlertDialogAction onClick={() => {
-                                                                const reason = (document.getElementById(`rejection-reason-${invoice.id}`) as HTMLTextAreaElement).value;
-                                                                if(reason) handleReject(invoice.id, reason);
-                                                                else toast({title: 'Reason Required', description: 'Please provide a reason for rejection.', variant: 'destructive'});
-                                                            }}>Reject</AlertDialogAction>
-                                                        </AlertDialogFooter>
+                                                        <form onSubmit={(e) => {
+                                                            e.preventDefault();
+                                                            const reason = new FormData(e.currentTarget).get('reason') as string;
+                                                            if (reason) {
+                                                                handleReject(invoice.id, reason);
+                                                                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+                                                            }
+                                                        }}>
+                                                            <div className="py-4">
+                                                                <input name="reason" placeholder="Rejection reason..." className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" required />
+                                                            </div>
+                                                            <AlertDialogFooter>
+                                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                <Button type="submit" variant="destructive">Reject</Button>
+                                                            </AlertDialogFooter>
+                                                        </form>
                                                     </AlertDialogContent>
                                                 </AlertDialog>
+
+                                                <DropdownMenuSeparator />
                                                 <AlertDialog>
                                                     <AlertDialogTrigger asChild>
-                                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
-                                                            <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-600">
+                                                            <Trash2 className="mr-2 h-4 w-4" /> Delete Invoice
                                                         </DropdownMenuItem>
                                                     </AlertDialogTrigger>
                                                     <AlertDialogContent>
-                                                        <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone. This will permanently delete the invoice for {invoice.supplier}.</AlertDialogDescription></AlertDialogHeader>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                                            <AlertDialogDescription>
+                                                                This will permanently delete the invoice data. This action cannot be undone.
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
                                                         <AlertDialogFooter>
                                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                            <AlertDialogAction onClick={() => handleDelete(invoice.id)}>Delete</AlertDialogAction>
+                                                            <AlertDialogAction onClick={() => handleDelete(invoice.id)} className="bg-red-600 hover:bg-red-700">Delete</AlertDialogAction>
                                                         </AlertDialogFooter>
                                                     </AlertDialogContent>
                                                 </AlertDialog>
+
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                     </TableCell>
@@ -361,23 +324,23 @@ export default function SecondReviewPage() {
                     </TableBody>
                 </Table>
             )}
+
+            <Dialog open={!!editingInvoice} onOpenChange={(open) => !open && setEditingInvoice(null)}>
+                <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>Edit Invoice - {editingInvoice?.invoiceNumber}</DialogTitle>
+                    </DialogHeader>
+                    {editingInvoice && (
+                        <EditInvoiceForm 
+                            invoice={editingInvoice} 
+                            onSave={handleSave} 
+                            onCancel={() => setEditingInvoice(null)}
+                            onSaveAndApprove={handleSaveAndApprove}
+                        />
+                    )}
+                </DialogContent>
+            </Dialog>
         </CardContent>
-      </Card>
-      
-      <Dialog open={!!editingInvoice} onOpenChange={(isOpen) => !isOpen && setEditingInvoice(null)}>
-        <DialogContent className="sm:max-w-4xl">
-            <DialogHeader>
-                <DialogTitle>Edit Invoice: {editingInvoice?.supplier}</DialogTitle>
-                <DialogDescription>Review and correct the extracted data.</DialogDescription>
-            </DialogHeader>
-            <EditInvoiceForm 
-                invoice={editingInvoice} 
-                onSave={handleSave} 
-                onSaveAndApprove={handleSaveAndApprove}
-                onCancel={() => setEditingInvoice(null)} 
-            />
-        </DialogContent>
-      </Dialog>
-    </div>
+    </Card>
   );
 }

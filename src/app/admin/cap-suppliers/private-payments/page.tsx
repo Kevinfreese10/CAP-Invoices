@@ -24,6 +24,8 @@ import { capChartOfAccounts, s38ChartOfAccounts, s39ChartOfAccounts } from '@/li
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
+import PrivateSecondReview from '@/components/admin/cap-suppliers/PrivateSecondReview';
+import { AIExtractPrivateUploadDialog, ManualPrivateUploadDialog } from '@/components/admin/cap-suppliers/PrivateUploadDialogs';
 
 
 const db = getFirestore(firebaseApp);
@@ -253,7 +255,7 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
                                                     <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent>
-                                                    <DropdownMenuItem onSelect={() => handleDownloadRemittance(group)}>
+                                                    <DropdownMenuItem onSelect={() => handleDownloadRemittance(group as SupplierGroup)}>
                                                         <Download className="mr-2 h-4 w-4" /> Download Remittance
                                                     </DropdownMenuItem>
                                                     
@@ -587,13 +589,21 @@ export default function PrivatePaymentsPage() {
 
     return (
         <div className="space-y-8">
-            <div className="flex items-center gap-4">
-                 <Shield className="h-8 w-8 text-destructive" />
-                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Private Payments</h1>
-                    <p className="text-muted-foreground">Confidential and uncategorized invoices batched for payment.</p>
-                 </div>
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                     <Shield className="h-8 w-8 text-destructive" />
+                     <div>
+                        <h1 className="text-3xl font-bold tracking-tight">Private Payments</h1>
+                        <p className="text-muted-foreground">Confidential and uncategorized invoices batched for payment.</p>
+                     </div>
+                </div>
+                <div className="flex gap-2">
+                    <AIExtractPrivateUploadDialog onUploadComplete={fetchInvoices} />
+                    <ManualPrivateUploadDialog onUploadComplete={fetchInvoices} />
+                </div>
             </div>
+
+            <PrivateSecondReview />
             
             {isLoading ? (
                 <div className="flex justify-center items-center h-64">

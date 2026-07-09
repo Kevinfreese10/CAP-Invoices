@@ -52,6 +52,8 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const { state, toggleSidebar } = useSidebar();
   const [isCapSuppliersOpen, setIsCapSuppliersOpen] = useState(pathname.startsWith('/admin/cap-suppliers'));
 
+  const isMeinieAllowed = user?.email === 'meinie@carteblanche.co.za';
+
   const handleLogout = () => {
     logout();
     router.push('/');
@@ -98,7 +100,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
         
         {(user.role === 'admin' || user.role === 'staff' || user.role === 'cap_staff' || user.role === 'cap_supervisor' || user.role === 'supplier') && (
             <>
-            {(user.role === 'admin' || user.role === 'staff' || user.role === 'cap_staff' || user.role === 'cap_supervisor') && (
+            {(user.role === 'admin' || user.role === 'staff' || user.role === 'cap_staff' || user.role === 'cap_supervisor' || isMeinieAllowed) && (
                 <Collapsible open={isCapSuppliersOpen} onOpenChange={setIsCapSuppliersOpen}>
                 <SidebarMenuItem>
                     <CollapsibleTrigger asChild>
@@ -111,7 +113,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
                 </SidebarMenuItem>
                 <CollapsibleContent asChild>
                     <SidebarMenu className="pl-4">
-                    {capSupplierItems.filter(item => item.roles.includes(user.role)).map(item => (
+                    {capSupplierItems.filter(item => item.roles.includes(user.role) || (isMeinieAllowed && item.label === 'Private Payments')).map(item => (
                         <SidebarMenuItem key={item.href}>
                         <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label} className="h-8">
                             <Link href={item.href}>

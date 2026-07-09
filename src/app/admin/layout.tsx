@@ -6,19 +6,22 @@ import { ProtectedRoute, useAuth } from '@/contexts/AuthContext';
 import { SidebarProvider, Sidebar, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import DashboardNav from '@/components/dashboard/DashboardNav';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const { user, isAuthenticated } = useAuth();
-  const router = useRouter();
+  const pathname = usePathname();
   
+  const hasAdminRole = user?.role === 'admin' || user?.role === 'staff' || user?.role === 'cap_staff' || user?.role === 'cap_supervisor';
+  const isMeinieAllowed = user?.email === 'meinie@carteblanche.co.za' && pathname === '/admin/cap-suppliers/private-payments';
+
   useEffect(() => {
-    if (isAuthenticated && user?.role !== 'admin' && user?.role !== 'staff' && user?.role !== 'cap_staff' && user?.role !== 'cap_supervisor') {
+    if (isAuthenticated && !hasAdminRole && !isMeinieAllowed) {
       router.push('/login');
     }
-  }, [isAuthenticated, user, router]);
+  }, [isAuthenticated, hasAdminRole, isMeinieAllowed, router]);
   
-  if (isAuthenticated === undefined || (isAuthenticated && user?.role !== 'admin' && user?.role !== 'staff' && user?.role !== 'cap_staff' && user?.role !== 'cap_supervisor')) {
+  if (isAuthenticated === undefined || (isAuthenticated && !hasAdminRole && !isMeinieAllowed)) {
      return (
         <div className="flex min-h-screen">
             <Skeleton className="hidden md:block w-16 lg:w-64" />
