@@ -11,6 +11,7 @@ import { usePathname, useRouter } from 'next/navigation';
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const { user, isAuthenticated } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
   
   const hasAdminRole = user?.role === 'admin' || user?.role === 'staff' || user?.role === 'cap_staff' || user?.role === 'cap_supervisor';
   const isMeinieAllowed = user?.email === 'meinie@carteblanche.co.za' && pathname === '/admin/cap-suppliers/private-payments';
