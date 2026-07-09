@@ -204,15 +204,15 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
     return (
         <Card>
             <CardHeader>
-                <div className="flex justify-between items-center">
-                    <CardTitle>{title}</CardTitle>
-                    <div className="flex items-center gap-2">
+                <div className="flex flex-wrap justify-between items-center gap-4">
+                    <CardTitle className="min-w-fit">{title}</CardTitle>
+                    <div className="flex flex-wrap items-center gap-4 ml-auto">
                         <Button variant="outline" size="sm" onClick={handleDownloadExcel}>
                             <Download className="mr-2 h-4 w-4" /> Download Batch
                         </Button>
-                        <div className="text-right">
+                        <div className="text-right min-w-fit">
                             <p className="text-sm text-muted-foreground">Batch Total Payable</p>
-                            <p className="text-2xl font-bold">{formatPrice(totalAmount)}</p>
+                            <p className="text-xl sm:text-2xl font-bold whitespace-nowrap">{formatPrice(totalAmount)}</p>
                         </div>
                     </div>
                 </div>
