@@ -228,6 +228,7 @@ export const s39ChartOfAccounts: CapChartOfAccount[] = [
     { accountNumber: 'TBA-RB', description: 'Allocated by RB' },
     { accountNumber: 'TBA-NN', description: 'Allocated by NN' },
     { accountNumber: 'TBA-MH', description: 'Allocated by MH' },
+    { accountNumber: '1012-01', description: 'Insert Producers' },
     { accountNumber: '5016-04', description: 'Software: Production - Canva' },
     { accountNumber: '5016-03', description: 'Software: Production - Google' },
     { accountNumber: '5016-06', description: 'Software: Production - MailChimp' },
