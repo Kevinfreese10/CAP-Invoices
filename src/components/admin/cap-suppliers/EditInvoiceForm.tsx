@@ -14,7 +14,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Trash2, ChevronsUpDown, Loader2, CheckCircle2, AlertCircle, Check, Search } from 'lucide-react';
-import { s38ChartOfAccounts, capChartOfAccounts, s39ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
+import { s38ChartOfAccounts, capChartOfAccounts, s39ChartOfAccounts, goChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 import { ExtractedInvoice, Commission } from '@/lib/types';
 import { format, addDays, eachDayOfInterval, endOfMonth, isFriday, getMonth, isLastDayOfMonth, addMonths, endOfYear, startOfYear, getYear } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -41,7 +41,7 @@ const formSchema = z.object({
   date: z.string().min(1, "Date is required"),
   lineItems: z.array(lineItemSchema),
   invoiceTotal: z.preprocess((val) => Number(val), z.number()),
-  expenseType: z.enum(['CAP', 'S38', 'S39']).optional(),
+  expenseType: z.enum(['CAP', 'S38', 'S39', 'GO']).optional(),
   paymentBatch: z.string().optional(),
   note: z.string().optional(),
   isPrivate: z.boolean().optional(),
@@ -193,6 +193,8 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel, onSaveAndAp
         ? s38ChartOfAccounts 
         : expenseType === 'S39' 
         ? s39ChartOfAccounts 
+        : expenseType === 'GO'
+        ? goChartOfAccounts
         : capChartOfAccounts;
     
     const controlTotal = useMemo(() => {
@@ -312,6 +314,10 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel, onSaveAndAp
                                     <FormItem className="flex items-center space-x-2 space-y-0">
                                         <FormControl><RadioGroupItem value="S39" /></FormControl>
                                         <FormLabel className="font-normal">S39</FormLabel>
+                                    </FormItem>
+                                    <FormItem className="flex items-center space-x-2 space-y-0">
+                                        <FormControl><RadioGroupItem value="GO" /></FormControl>
+                                        <FormLabel className="font-normal">GO</FormLabel>
                                     </FormItem>
                                     </RadioGroup>
                                 </FormControl>

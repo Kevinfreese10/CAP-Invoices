@@ -9,7 +9,7 @@ import { Loader2, CheckCircle, MoreHorizontal, Edit, PlusCircle, FileCheck2, Eye
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ExtractedInvoice, User } from '@/lib/types';
-import { capChartOfAccounts, s38ChartOfAccounts, s39ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
+import { capChartOfAccounts, s38ChartOfAccounts, s39ChartOfAccounts, goChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -147,14 +147,15 @@ export default function PaymentControlSheetPage() {
         }).format(price);
     };
 
-    const getAccountDescription = (accountId?: string, expenseType?: 'CAP' | 'S38' | 'S39') => {
+    const getAccountDescription = (accountId?: string, expenseType?: 'CAP' | 'S38' | 'S39' | 'GO') => {
         if (!accountId) return { description: 'N/A', number: '' };
         let chart;
         switch(expenseType) {
             case 'S38': chart = s38ChartOfAccounts; break;
             case 'S39': chart = s39ChartOfAccounts; break;
+            case 'GO': chart = goChartOfAccounts; break;
             case 'CAP': chart = capChartOfAccounts; break;
-            default: chart = [...capChartOfAccounts, ...s38ChartOfAccounts, ...s39ChartOfAccounts];
+            default: chart = [...capChartOfAccounts, ...s38ChartOfAccounts, ...s39ChartOfAccounts, ...goChartOfAccounts];
         }
         const account = chart.find(acc => acc.accountNumber === accountId);
         return account ? { description: account.description, number: account.accountNumber } : { description: accountId, number: accountId };

@@ -543,12 +543,9 @@ export default function PrivatePaymentsPage() {
     };
     
     const privateAndUncategorizedBatches = useMemo(() => {
-        const batches: { 
-            private: { CAP: ExtractedInvoice[], S38: ExtractedInvoice[], S39: ExtractedInvoice[] },
-            uncategorized: { CAP: ExtractedInvoice[], S38: ExtractedInvoice[], S39: ExtractedInvoice[] }
-        } = {
-            private: { CAP: [], S38: [], S39: [] },
-            uncategorized: { CAP: [], S38: [], S39: [] }
+        const batches = {
+            private: { CAP: [] as ExtractedInvoice[], S38: [] as ExtractedInvoice[], S39: [] as ExtractedInvoice[], GO: [] as ExtractedInvoice[] },
+            uncategorized: { CAP: [] as ExtractedInvoice[], S38: [] as ExtractedInvoice[], S39: [] as ExtractedInvoice[], GO: [] as ExtractedInvoice[] }
         };
 
         const privateInvoices = invoices.filter(inv => inv.isPrivate === true);
@@ -559,6 +556,8 @@ export default function PrivatePaymentsPage() {
                 batches.private.CAP.push(inv);
             } else if (inv.expenseType === 'S39') {
                 batches.private.S39.push(inv);
+            } else if (inv.expenseType === 'GO') {
+                batches.private.GO.push(inv);
             } else { // S38 or undefined
                 batches.private.S38.push(inv);
             }
@@ -569,6 +568,8 @@ export default function PrivatePaymentsPage() {
                 batches.uncategorized.CAP.push(inv);
             } else if (inv.expenseType === 'S39') {
                 batches.uncategorized.S39.push(inv);
+            } else if (inv.expenseType === 'GO') {
+                batches.uncategorized.GO.push(inv);
             } else { // S38 or undefined
                 batches.uncategorized.S38.push(inv);
             }
@@ -579,12 +580,12 @@ export default function PrivatePaymentsPage() {
 
     const hasPrivateInvoices = useMemo(() => {
         const { private: privateBatch } = privateAndUncategorizedBatches;
-        return privateBatch.CAP.length > 0 || privateBatch.S38.length > 0 || privateBatch.S39.length > 0;
+        return privateBatch.CAP.length > 0 || privateBatch.S38.length > 0 || privateBatch.S39.length > 0 || privateBatch.GO.length > 0;
     }, [privateAndUncategorizedBatches]);
 
     const hasUncategorizedInvoices = useMemo(() => {
         const { uncategorized } = privateAndUncategorizedBatches;
-        return uncategorized.CAP.length > 0 || uncategorized.S38.length > 0 || uncategorized.S39.length > 0;
+        return uncategorized.CAP.length > 0 || uncategorized.S38.length > 0 || uncategorized.S39.length > 0 || uncategorized.GO.length > 0;
     }, [privateAndUncategorizedBatches]);
 
     return (
@@ -671,6 +672,20 @@ export default function PrivatePaymentsPage() {
                                                     onRemovePop={handleRemovePop}
                                                 />
                                             )}
+                                            {privateAndUncategorizedBatches.private.GO.length > 0 && (
+                                                <PaymentBatchTable 
+                                                    title="GO Expenses"
+                                                    batchKey="private-go"
+                                                    invoices={privateAndUncategorizedBatches.private.GO}
+                                                    allInvoices={invoices}
+                                                    totalAmount={calculateBatchTotals(privateAndUncategorizedBatches.private.GO).totalPayable}
+                                                    totalPAYE={calculateBatchTotals(privateAndUncategorizedBatches.private.GO).totalPAYE}
+                                                    onDelete={handleRemoveFromBatch}
+                                                    onUploadPop={handleUploadPop}
+                                                    onEdit={setEditingInvoice}
+                                                    onRemovePop={handleRemovePop}
+                                                />
+                                            )}
                                         </div>
                                     </CollapsibleContent>
                                 </Collapsible>
@@ -722,6 +737,20 @@ export default function PrivatePaymentsPage() {
                                                     allInvoices={invoices}
                                                     totalAmount={calculateBatchTotals(privateAndUncategorizedBatches.uncategorized.S39).totalPayable}
                                                     totalPAYE={calculateBatchTotals(privateAndUncategorizedBatches.uncategorized.S39).totalPAYE}
+                                                    onDelete={handleRemoveFromBatch}
+                                                    onUploadPop={handleUploadPop}
+                                                    onEdit={setEditingInvoice}
+                                                    onRemovePop={handleRemovePop}
+                                                />
+                                            )}
+                                            {privateAndUncategorizedBatches.uncategorized.GO.length > 0 && (
+                                                <PaymentBatchTable 
+                                                    title="GO Expenses"
+                                                    batchKey="uncategorized-go"
+                                                    invoices={privateAndUncategorizedBatches.uncategorized.GO}
+                                                    allInvoices={invoices}
+                                                    totalAmount={calculateBatchTotals(privateAndUncategorizedBatches.uncategorized.GO).totalPayable}
+                                                    totalPAYE={calculateBatchTotals(privateAndUncategorizedBatches.uncategorized.GO).totalPAYE}
                                                     onDelete={handleRemoveFromBatch}
                                                     onUploadPop={handleUploadPop}
                                                     onEdit={setEditingInvoice}

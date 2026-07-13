@@ -604,7 +604,7 @@ export default function PaymentBatchesPage() {
     };
     
     const weeklyBatches = useMemo(() => {
-        const batches: { [week: string]: { CAP: ExtractedInvoice[], S38: ExtractedInvoice[], S39: ExtractedInvoice[] } } = {};
+        const batches = {} as Record<string, { CAP: ExtractedInvoice[], S38: ExtractedInvoice[], S39: ExtractedInvoice[], GO: ExtractedInvoice[] }>;
         
         const currentBatches = invoices.filter(inv => 
             (inv.status === 'batched_for_payment' || inv.status === 'paid') && 
@@ -614,18 +614,20 @@ export default function PaymentBatchesPage() {
         );
 
         currentBatches.forEach(inv => {
-            const batchKey = inv.paymentBatch!;
+            if (!inv.paymentBatch) return;
             
-            if (!batches[batchKey]) {
-                batches[batchKey] = { CAP: [], S38: [], S39: [] };
+            if (!batches[inv.paymentBatch]) {
+                batches[inv.paymentBatch] = { CAP: [], S38: [], S39: [], GO: [] };
             }
+
             if (inv.expenseType === 'CAP') {
-                batches[batchKey].CAP.push(inv);
+                batches[inv.paymentBatch].CAP.push(inv);
             } else if (inv.expenseType === 'S39') {
-                batches[batchKey].S39.push(inv);
-            }
-            else { // S38 or undefined
-                batches[batchKey].S38.push(inv);
+                batches[inv.paymentBatch].S39.push(inv);
+            } else if (inv.expenseType === 'GO') {
+                batches[inv.paymentBatch].GO.push(inv);
+            } else { // S38 or undefined
+                batches[inv.paymentBatch].S38.push(inv);
             }
         });
         
@@ -659,6 +661,7 @@ export default function PaymentBatchesPage() {
             const capTotals = calculateTotals(expenseGroups.CAP);
             const s38Totals = calculateTotals(expenseGroups.S38);
             const s39Totals = calculateTotals(expenseGroups.S39);
+            const goTotals = calculateTotals(expenseGroups.GO);
 
             return {
                 title,
@@ -670,6 +673,8 @@ export default function PaymentBatchesPage() {
                 s38PAYE: s38Totals.totalPAYE,
                 s39Total: s39Totals.totalPayable,
                 s39PAYE: s39Totals.totalPAYE,
+                goTotal: goTotals.totalPayable,
+                goPAYE: goTotals.totalPAYE,
                 ...expenseGroups,
             };
         });
@@ -703,7 +708,7 @@ export default function PaymentBatchesPage() {
                          <p className="text-center text-muted-foreground py-10">No payment batches found.</p>
                     ) : weeklyBatches.map((batch, index) => {
                         const isBatchInPast = batch.batchDate ? isPast(endOfDay(batch.batchDate)) : false;
-                        const hasPAYE = batch.capPAYE > 0 || batch.s38PAYE > 0 || batch.s39PAYE > 0;
+                        const hasPAYE = batch.capPAYE > 0 || batch.s38PAYE > 0 || batch.s39PAYE > 0 || batch.goPAYE > 0;
                         return(
                         <Collapsible key={index} defaultOpen={!isBatchInPast}>
                              <CollapsibleTrigger className="w-full">
@@ -751,6 +756,20 @@ export default function PaymentBatchesPage() {
                                             allInvoices={invoices}
                                             totalAmount={batch.s39Total}
                                             totalPAYE={batch.s39PAYE}
+                                            onDelete={handleRemoveFromBatch}
+                                            onUploadPop={handleUploadPop}
+                                            onEdit={setEditingInvoice}
+                                            onRemovePop={handleRemovePop}
+                                        />
+                                    )}
+                                    {batch.GO.length > 0 && (
+                                        <PaymentBatchTable 
+                                            title="GO Expenses"
+                                            batchKey={batch.batchKey}
+                                            invoices={batch.GO}
+                                            allInvoices={invoices}
+                                            totalAmount={batch.goTotal}
+                                            totalPAYE={batch.goPAYE}
                                             onDelete={handleRemoveFromBatch}
                                             onUploadPop={handleUploadPop}
                                             onEdit={setEditingInvoice}

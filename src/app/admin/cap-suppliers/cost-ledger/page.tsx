@@ -30,7 +30,7 @@ type GroupedLineItem = ExtractedInvoice['lineItems'][0] & {
     fileUrl: string;
     commissionNumber?: string;
     paymentBatch?: string;
-    expenseType?: 'CAP' | 'S38' | 'S39';
+    expenseType?: 'CAP' | 'S38' | 'S39' | 'GO';
 };
 
 function MultiSelectFilter({ title, options, selectedValues, setSelectedValues }: { title: string, options: { value: string; label: string }[], selectedValues: string[], setSelectedValues: (values: string[]) => void }) {

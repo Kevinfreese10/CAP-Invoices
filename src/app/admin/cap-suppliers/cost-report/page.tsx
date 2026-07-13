@@ -125,8 +125,8 @@ export default function CostReportPage() {
     }, []);
 
     const { commissionNumbers, paymentBatches } = useMemo(() => {
-        const commissions = new Set(invoices.map(inv => inv.commissionNumber).filter(Boolean));
-        const batches = new Set(invoices.map(inv => inv.paymentBatch).filter(Boolean));
+        const commissions = new Set(invoices.map(inv => inv.commissionNumber).filter((c): c is string => !!c));
+        const batches = new Set(invoices.map(inv => inv.paymentBatch).filter((b): b is string => !!b));
         return {
             commissionNumbers: Array.from(commissions).sort(),
             paymentBatches: Array.from(batches)
@@ -281,8 +281,8 @@ export default function CostReportPage() {
                         Select a commission number to view its total costs consolidated by supplier.
                     </CardDescription>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 items-end">
-                        <MultiSelectFilter title="Commission Numbers" options={commissionNumbers} selectedValues={selectedCommissions} setSelectedValues={setSelectedCommissions} />
-                        <MultiSelectFilter title="Payment Batches" options={paymentBatches.map(b => format(new Date(b), 'dd MMMM yyyy'))} selectedValues={selectedBatches} setSelectedValues={(values) => setSelectedBatches(values)} />
+                        <MultiSelectFilter title="Commission Numbers" options={commissionNumbers.map(c => ({ label: c, value: c }))} selectedValues={selectedCommissions} setSelectedValues={setSelectedCommissions} />
+                        <MultiSelectFilter title="Payment Batches" options={paymentBatches.map(b => ({ label: format(new Date(b), 'dd MMMM yyyy'), value: b }))} selectedValues={selectedBatches} setSelectedValues={(values) => setSelectedBatches(values)} />
                         
                         <div className="flex flex-col justify-end">
                              <Button onClick={handleExport} disabled={groupedBySupplier.length === 0} className="w-full">

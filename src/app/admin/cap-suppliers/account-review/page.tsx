@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { ExtractedInvoice, User } from '@/lib/types';
-import { capChartOfAccounts, s38ChartOfAccounts, s39ChartOfAccounts } from '@/lib/cap-chart-of-accounts';
+import { capChartOfAccounts, s38ChartOfAccounts, s39ChartOfAccounts, goChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
@@ -374,17 +374,18 @@ export default function AccountReviewPage() {
         }
     };
 
-    const getAccountDescription = (accountId?: string, expenseType?: 'CAP' | 'S38' | 'S39') => {
+    const getAccountDescription = (accountId?: string, expenseType?: 'CAP' | 'S38' | 'S39' | 'GO') => {
         if (!accountId) return 'N/A';
         let chart;
         switch(expenseType) {
             case 'S38': chart = s38ChartOfAccounts; break;
             case 'S39': chart = s39ChartOfAccounts; break;
+            case 'GO': chart = goChartOfAccounts; break;
             case 'CAP': chart = capChartOfAccounts; break;
-            default: chart = [...capChartOfAccounts, ...s38ChartOfAccounts, ...s39ChartOfAccounts]; // Fallback
+            default: chart = [...capChartOfAccounts, ...s38ChartOfAccounts, ...s39ChartOfAccounts, ...goChartOfAccounts];
         }
         const account = chart.find(acc => acc.accountNumber === accountId);
-        return account ? account.description : 'Unknown Account';
+        return account ? `${account.accountNumber} - ${account.description}` : accountId;
     }
 
     const getApproverName = (userId?: string) => {

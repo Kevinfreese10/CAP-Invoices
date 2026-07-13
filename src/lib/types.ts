@@ -353,7 +353,7 @@ export type ExtractedInvoice = {
   isPrivate?: boolean;
   assignedToEmail?: string;
   rejectedBy?: string;
-  expenseType?: 'CAP' | 'S38' | 'S39';
+  expenseType?: 'CAP' | 'S38' | 'S39' | 'GO';
   commissionNumber?: string;
   storyName?: string;
   modifiedAt?: any;
