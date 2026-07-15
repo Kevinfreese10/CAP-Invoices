@@ -688,7 +688,21 @@ export default function SupplierDashboardPage() {
                                             )}
                                         </TableCell>
                                         <TableCell className="text-right space-x-1">
-                                            <SupportingDocumentsDialog invoice={invoice} onUploadComplete={fetchDashboardData} />
+                                            {invoice.status === 'rejected' ? (
+                                                <Button 
+                                                    variant="outline" 
+                                                    size="sm" 
+                                                    onClick={() => {
+                                                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                                                        toast({ title: 'Resubmit Invoice', description: 'Please use the main form above to upload your revised invoice. It will go through the AI extraction process again.' });
+                                                    }}
+                                                >
+                                                    <Upload className="mr-2 h-4 w-4" />
+                                                    Resubmit
+                                                </Button>
+                                            ) : (
+                                                <SupportingDocumentsDialog invoice={invoice} onUploadComplete={fetchDashboardData} />
+                                            )}
                                             <Button asChild variant="ghost" size="icon">
                                                 <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer">
                                                     <Eye className="h-4 w-4" />
