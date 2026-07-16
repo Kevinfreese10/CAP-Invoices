@@ -280,11 +280,12 @@ export default function CostReportPage() {
                     <CardDescription>
                         Select a commission number to view its total costs consolidated by supplier.
                     </CardDescription>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 items-end">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 items-start">
                         <MultiSelectFilter title="Commission Numbers" options={commissionNumbers} selectedValues={selectedCommissions} setSelectedValues={setSelectedCommissions} />
                         <MultiSelectFilter title="Payment Batches" options={paymentBatches.map(b => format(new Date(b), 'dd MMMM yyyy'))} selectedValues={selectedBatches} setSelectedValues={(values) => setSelectedBatches(values)} />
                         
-                        <div className="flex flex-col justify-end">
+                        <div className="flex flex-col justify-start space-y-2">
+                             <p className="text-sm font-medium invisible">Export</p>
                              <Button onClick={handleExport} disabled={groupedBySupplier.length === 0} className="w-full">
                                 <Download className="mr-2 h-4 w-4" />
                                 Export to Excel
