@@ -360,6 +360,7 @@ export default function CostReportPage() {
                                                                 <TableHead className="h-9">Date</TableHead>
                                                                 <TableHead className="h-9">Invoice #</TableHead>
                                                                 <TableHead className="h-9">Comm #</TableHead>
+                                                                <TableHead className="h-9">Batch</TableHead>
                                                                 <TableHead className="h-9">Description</TableHead>
                                                                 <TableHead className="h-9 text-right">Amount (Incl. VAT)</TableHead>
                                                             </TableRow>
@@ -370,6 +371,7 @@ export default function CostReportPage() {
                                                                     <TableCell>{item.invoiceDate}</TableCell>
                                                                     <TableCell>{item.invoiceNumber}</TableCell>
                                                                     <TableCell><Badge variant="outline" className="font-normal">{item.commissionNumber || 'N/A'}</Badge></TableCell>
+                                                                    <TableCell className="whitespace-nowrap">{item.paymentBatch ? format(new Date(item.paymentBatch), 'dd MMM yyyy') : 'N/A'}</TableCell>
                                                                     <TableCell className="max-w-md truncate italic text-muted-foreground">{item.ledgerDescription || item.description}</TableCell>
                                                                     <TableCell className="text-right font-mono">{formatPrice(item.exclusiveAmount + item.vatAmount)}</TableCell>
                                                                 </TableRow>
