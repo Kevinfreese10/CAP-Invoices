@@ -20,7 +20,7 @@ import { ExtractedInvoice } from '@/lib/types';
 import { Input } from '@/components/ui/input';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 
 const db = getFirestore(firebaseApp);
