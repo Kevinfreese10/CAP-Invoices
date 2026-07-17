@@ -62,7 +62,7 @@ async function fetchFullEmail(uid: number) {
 
 export async function POST(req: Request) {
   try {
-    const { email: emailStub, reprocess, attachmentFilename } = await req.json();
+    const { email: emailStub, reprocess, attachmentFilename, assignedToEmail } = await req.json();
 
     if (!emailStub || !emailStub.uid) {
       return NextResponse.json({ error: 'Invalid email data provided.' }, { status: 400 });
@@ -153,6 +153,7 @@ export async function POST(req: Request) {
           uploadedBy: 'email_inbox',
           sourceEmailUid: emailStub.uid,
           rejectionReason: null, // Clear previous rejection reasons
+          assignedToEmail: assignedToEmail || null,
         };
         
         if (existingInvoiceDoc) {

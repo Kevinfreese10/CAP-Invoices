@@ -20,6 +20,7 @@ import { ExtractedInvoice } from '@/lib/types';
 import { Input } from '@/components/ui/input';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/context/AuthContext';
 
 
 const db = getFirestore(firebaseApp);
@@ -70,6 +71,7 @@ export default function InboxPage() {
     const [selectedUids, setSelectedUids] = useState<Set<number>>(new Set());
     const [openEmail, setOpenEmail] = useState<number | null>(null);
     const { toast } = useToast();
+    const { user } = useAuth();
     
     const handleProcessAttachments = useCallback(async (email: Email, reprocess = false, attachmentFilename?: string) => {
         const processableAttachments = email.attachments.filter(att => 
@@ -84,7 +86,7 @@ export default function InboxPage() {
             await fetch('/api/emails/process-attachments', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, reprocess, attachmentFilename }),
+                body: JSON.stringify({ email, reprocess, attachmentFilename, assignedToEmail: user?.email }),
             });
         } catch (err: any) {
              toast({

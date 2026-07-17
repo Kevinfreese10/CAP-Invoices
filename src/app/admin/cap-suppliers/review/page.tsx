@@ -371,13 +371,14 @@ export default function ReviewPage() {
             setGlobalRules(fetchedRules);
             
             let invoicesQuery = query(collection(db, 'extractedInvoices'), where('status', 'in', ['pending_review', 'duplicate']), orderBy('createdAt', 'desc'));
-            
-            if (user && (user.role === 'staff' || user.role === 'cap_staff')) {
-                invoicesQuery = query(invoicesQuery, where('assignedToEmail', '==', user.email));
-            }
 
             const querySnapshot = await getDocs(invoicesQuery);
-            const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
+            let fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
+
+            if (user && (user.role === 'staff' || user.role === 'cap_staff')) {
+                fetchedInvoices = fetchedInvoices.filter(inv => inv.assignedToEmail === user.email || !inv.assignedToEmail);
+            }
+
             setInvoices(fetchedInvoices);
 
         } catch (error) {
