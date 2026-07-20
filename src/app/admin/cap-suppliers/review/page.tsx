@@ -375,7 +375,7 @@ export default function ReviewPage() {
             const querySnapshot = await getDocs(invoicesQuery);
             let fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
 
-            if (user && (user.role === 'staff' || user.role === 'cap_staff')) {
+            if (user && user.role === 'cap_staff') {
                 fetchedInvoices = fetchedInvoices.filter(inv => inv.assignedToEmail === user.email || !inv.assignedToEmail);
             }
 
