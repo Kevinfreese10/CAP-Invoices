@@ -357,6 +357,7 @@ export type ExtractedInvoice = {
   commissionNumber?: string;
   storyName?: string;
   modifiedAt?: any;
+  isAudited?: boolean;
   supportingDocuments?: {
     fileName: string;
     fileUrl: string;
