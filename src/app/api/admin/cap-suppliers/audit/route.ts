@@ -48,7 +48,9 @@ const nonVatRegistered = [
     "ERIN BATES",
     "FPL AUDIO",
     "NELSON PRODUCTIONS",
-    "PHATHU SIGAMA"
+    "PHATHU SIGAMA",
+    "SCRIBE NOW",
+    "ANNAMARIE BRONKHORST"
 ];
 
 const customLookup = (hostname: string, options: any, callback: any) => {
@@ -111,7 +113,29 @@ export async function POST() {
             const originalInvoiceNum = data.invoiceNumber;
             const originalCommNum = data.commissionNumber;
             
-            const normalizedSupplier = normalizeSupplier(originalSupplier);
+            // Download and parse PDF in memory first
+            let pdfText = "";
+            try {
+                const buffer = await downloadFileToBuffer(data.fileUrl);
+                const parsed = await pdf(buffer);
+                pdfText = parsed.text;
+            } catch (err: any) {
+                console.error(`Error downloading/parsing PDF for doc ${docId}:`, err.message);
+            }
+
+            let normalizedSupplier = normalizeSupplier(originalSupplier);
+            
+            // If the supplier is erroneously set to our own company name (Combined Artistic Productions),
+            // extract the correct supplier from the PDF text (e.g. after 'From:')
+            if (normalizedSupplier.includes("COMBINED ARTISTIC PRODUCTIONS") && pdfText) {
+                const fromMatch = pdfText.match(/From:\s*([^\n\r]+)/i);
+                if (fromMatch && fromMatch[1]) {
+                    const extractedSupplier = fromMatch[1].trim();
+                    normalizedSupplier = normalizeSupplier(extractedSupplier);
+                    console.log(`Corrected supplier from client name to extracted supplier: ${normalizedSupplier}`);
+                }
+            }
+
             const isNonVat = nonVatRegistered.includes(normalizedSupplier);
             
             // Correct lowercase invoice number prefixes
@@ -134,16 +158,6 @@ export async function POST() {
             
             if (isPresenterOrUber || isEasiqGeneral) {
                 correctedCommNum = null;
-            }
-
-            // Download and parse PDF in memory
-            let pdfText = "";
-            try {
-                const buffer = await downloadFileToBuffer(data.fileUrl);
-                const parsed = await pdf(buffer);
-                pdfText = parsed.text;
-            } catch (err: any) {
-                console.error(`Error downloading/parsing PDF for doc ${docId}:`, err.message);
             }
 
             // Check for story commission number in PDF if not null
