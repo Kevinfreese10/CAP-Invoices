@@ -200,6 +200,7 @@ export default function ThirdReviewPage() {
     const { user } = useAuth();
     const [isAnalyzeDialogOpen, setIsAnalyzeDialogOpen] = useState(false);
     const [isAnalyzingDescriptions, setIsAnalyzingDescriptions] = useState<{ [key: string]: boolean }>({});
+    const [isUpdatingDescriptions, setIsUpdatingDescriptions] = useState(false);
 
 
     const fetchInvoices = async () => {
@@ -370,6 +371,28 @@ export default function ThirdReviewPage() {
         } catch (error) {
             toast({ title: 'Error', description: 'Could not save ledger descriptions.', variant: 'destructive'});
             console.error(error);
+        }
+    };
+
+    const handleRunDescriptionUpdater = async () => {
+        setIsUpdatingDescriptions(true);
+        toast({ title: "Running Description Updater", description: "Auditing and updating pending invoice descriptions..." });
+        try {
+            const response = await fetch('/api/admin/cap-suppliers/description-update', {
+                method: 'POST',
+            });
+            const data = await response.json();
+            if (data.success) {
+                toast({ title: "Update Successful", description: "Invoice descriptions updated matching GL templates." });
+                fetchInvoices();
+            } else {
+                toast({ title: "Update Failed", description: data.error || "An error occurred during updating.", variant: "destructive" });
+            }
+        } catch (error: any) {
+            console.error("Description update error:", error);
+            toast({ title: "Error", description: error.message || "An unexpected error occurred.", variant: "destructive" });
+        } finally {
+            setIsUpdatingDescriptions(false);
         }
     };
 
@@ -598,6 +621,10 @@ export default function ThirdReviewPage() {
                             </Button>
                              <Button onClick={handleSaveAllLedgerDescriptions} variant="outline">
                                 <Save className="mr-2 h-4 w-4" /> Save All Descriptions
+                            </Button>
+                            <Button onClick={handleRunDescriptionUpdater} variant="outline" disabled={isUpdatingDescriptions}>
+                                <Sparkles className="mr-2 h-4 w-4" />
+                                {isUpdatingDescriptions ? "Updating..." : "Run Description Updater"}
                             </Button>
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>

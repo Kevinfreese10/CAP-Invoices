@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc, where, addDoc, writeBatch, getDoc, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, MoreHorizontal, Edit, Trash2, FileCheck2, Hourglass, CheckCircle2, Eye, Download, Sparkles, Brain, AlertTriangle, AlertCircle, Mail, Archive, Paperclip, RefreshCw } from 'lucide-react';
+import { Loader2, MoreHorizontal, Edit, Trash2, FileCheck2, Hourglass, CheckCircle2, Eye, Download, Sparkles, Brain, AlertTriangle, AlertCircle, Mail, Archive, Paperclip, RefreshCw, Play } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
@@ -357,10 +357,36 @@ export default function ReviewPage() {
     const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
     const [isAnalyzeDialogOpen, setIsAnalyzeDialogOpen] = useState(false);
     const [isReanalyzing, setIsReanalyzing] = useState(false);
+    const [isAuditing, setIsAuditing] = useState(false);
+    const [isAuditSuccess, setIsAuditSuccess] = useState(false);
     const { toast } = useToast();
     const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
     const { user } = useAuth();
 
+
+    const handleRunInvoiceAudit = async () => {
+        setIsAuditing(true);
+        toast({ title: 'Running Invoice Audit...', description: 'Syncing review page and checking Firestore invoices.' });
+        try {
+            const response = await fetch('/api/admin/cap-suppliers/audit', {
+                method: 'POST',
+            });
+            const data = await response.json();
+            if (response.ok) {
+                toast({ title: 'Audit Complete', description: 'Corrections applied and email notification sent.' });
+                setIsAuditSuccess(true);
+                setTimeout(() => setIsAuditSuccess(false), 4000);
+                fetchInvoicesAndRules();
+            } else {
+                toast({ title: 'Audit Failed', description: data.error || 'Failed to complete audit.', variant: 'destructive' });
+            }
+        } catch (error) {
+            console.error("Audit error:", error);
+            toast({ title: 'Audit Failed', description: 'An error occurred while calling the audit API.', variant: 'destructive' });
+        } finally {
+            setIsAuditing(false);
+        }
+    };
 
     const fetchInvoicesAndRules = async () => {
         setIsLoading(true);
@@ -720,6 +746,17 @@ export default function ReviewPage() {
                         <Download className="mr-2 h-4 w-4" />
                         Export to Excel
                     </Button>
+                    {isAuditSuccess ? (
+                        <Button variant="outline" className="border-green-500 text-green-600 bg-green-50 hover:bg-green-50 cursor-default">
+                            <CheckCircle2 className="mr-2 h-4 w-4 text-green-600 animate-bounce" />
+                            Audit Completed
+                        </Button>
+                    ) : (
+                        <Button onClick={handleRunInvoiceAudit} variant="default" disabled={isAuditing} className="bg-primary text-white hover:bg-primary/90">
+                            {isAuditing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Play className="mr-2 h-4 w-4" />}
+                            Run Invoice Audit
+                        </Button>
+                    )}
                  </div>
             </div>
         </CardHeader>
@@ -764,17 +801,25 @@ export default function ReviewPage() {
                                         />
                                     </TableCell>
                                     <TableCell>
-                                        {invoice.status === 'duplicate' ? (
-                                            <Badge variant={'destructive'}>
-                                                <AlertTriangle className="mr-1 h-3 w-3" />
-                                                Duplicate
-                                            </Badge>
-                                        ) : (
-                                            <Badge variant={'warning'}>
-                                                <Hourglass className="mr-1 h-3 w-3" />
-                                                {invoice.status.replace('_', ' ')}
-                                            </Badge>
-                                        )}
+                                        <div className="flex items-center gap-1.5">
+                                            {invoice.status === 'duplicate' ? (
+                                                <Badge variant={'destructive'}>
+                                                    <AlertTriangle className="mr-1 h-3 w-3" />
+                                                    Duplicate
+                                                </Badge>
+                                            ) : (
+                                                <Badge variant={'warning'}>
+                                                    <Hourglass className="mr-1 h-3 w-3" />
+                                                    {invoice.status.replace('_', ' ')}
+                                                </Badge>
+                                            )}
+                                            {invoice.isAudited && (
+                                                <Badge className="bg-green-100 hover:bg-green-100 text-green-800 border border-green-200">
+                                                    <FileCheck2 className="mr-1 h-3.5 w-3.5 text-green-600" />
+                                                    Audited
+                                                </Badge>
+                                            )}
+                                        </div>
                                     </TableCell>
                                     <TableCell className="font-medium">{invoice.supplier}</TableCell>
                                     <TableCell>{invoice.invoiceNumber}</TableCell>
