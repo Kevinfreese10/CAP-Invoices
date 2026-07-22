@@ -136,7 +136,15 @@ export async function POST() {
                 }
             }
 
-            const isNonVat = nonVatRegistered.includes(normalizedSupplier);
+            let hasSupplierVat = true;
+            if (pdfText) {
+                const cleanTextForVat = pdfText.replace(/[\s-]/g, '');
+                const vatMatches = cleanTextForVat.match(/4\d{9}/g) || [];
+                const supplierVatNumbers = vatMatches.filter(num => num !== '4910117920');
+                hasSupplierVat = supplierVatNumbers.length > 0;
+            }
+
+            const isNonVat = nonVatRegistered.includes(normalizedSupplier) || !hasSupplierVat;
             
             // Correct lowercase invoice number prefixes
             let correctedInvoiceNum = originalInvoiceNum;

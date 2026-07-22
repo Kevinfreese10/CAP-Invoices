@@ -11,9 +11,14 @@ export async function POST() {
         
         // Execute the updater script
         const scriptPath = path.join(process.cwd(), '.agents', 'skills', 'cap-invoice-desc-updater', 'scripts', 'update_descriptions.js');
-        const command = `$env:NODE_PATH="C:\\Users\\kev\\.gemini\\antigravity\\scratch\\node_modules"; node "${scriptPath}"`;
+        const command = `node "${scriptPath}"`;
         
-        const { stdout, stderr } = await execAsync(command, { shell: 'powershell.exe' });
+        const { stdout, stderr } = await execAsync(command, {
+            env: {
+                ...process.env,
+                NODE_PATH: "C:\\Users\\kev\\.gemini\\antigravity\\scratch\\node_modules"
+            }
+        });
         
         console.log("Updater Output:\n", stdout);
         if (stderr) {
