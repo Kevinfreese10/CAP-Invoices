@@ -1,11 +1,11 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, MoreHorizontal, FileX2, Eye, RotateCcw, Trash2, Mail, Download } from 'lucide-react';
+import { Loader2, MoreHorizontal, FileX2, Eye, RotateCcw, Trash2, Mail, Download, ChevronsUpDown, Check } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,10 +19,87 @@ import { sendEmail } from '@/lib/email';
 import InvoiceRejectionEmail from '@/components/emails/InvoiceRejectionEmail';
 import { render } from '@react-email/components';
 import * as XLSX from 'xlsx';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Checkbox } from '@/components/ui/checkbox';
 const db = getFirestore(firebaseApp);
+
+
+function MultiSelectFilter({ title, options, selectedValues, setSelectedValues }: { title: string, options: string[], selectedValues: string[], setSelectedValues: (values: string[]) => void }) {
+    const [open, setOpen] = useState(false);
+
+    return (
+        <div className="space-y-2">
+            <p className="text-sm font-medium">{title}</p>
+            <Popover open={open} onOpenChange={setOpen}>
+                <PopoverTrigger asChild>
+                    <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={open}
+                        className="w-full justify-between"
+                    >
+                        <span className="truncate">
+                            {selectedValues.length === 0
+                                ? `Select ${title.toLowerCase()}...`
+                                : selectedValues.length === 1
+                                ? selectedValues[0]
+                                : `${selectedValues.length} selected`}
+                        </span>
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                    <Command>
+                        <CommandInput placeholder={`Search ${title.toLowerCase()}...`} />
+                        <CommandList>
+                            <CommandEmpty>No results found.</CommandEmpty>
+                            {options.map((option) => (
+                                <CommandItem
+                                    key={option}
+                                    value={option}
+                                    onSelect={(currentValue) => {
+                                        const newSelected = selectedValues.includes(option)
+                                            ? selectedValues.filter((v) => v !== option)
+                                            : [...selectedValues, option];
+                                        setSelectedValues(newSelected);
+                                    }}
+                                >
+                                     <Checkbox
+                                        className="mr-2"
+                                        checked={selectedValues.includes(option)}
+                                        onCheckedChange={(checked) => {
+                                             const newSelected = checked
+                                                ? [...selectedValues, option]
+                                                : selectedValues.filter((v) => v !== option);
+                                            setSelectedValues(newSelected);
+                                        }}
+                                    />
+                                    {option}
+                                </CommandItem>
+                            ))}
+                        </CommandList>
+                    </Command>
+                </PopoverContent>
+            </Popover>
+        </div>
+    );
+}
 
 export default function RejectedInvoicesPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
+    const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
+    
+    const suppliers = useMemo(() => {
+        const uniqueSuppliers = new Set(invoices.map(inv => inv.supplier || 'Unknown Supplier'));
+        return Array.from(uniqueSuppliers).sort();
+    }, [invoices]);
+
+    const filteredInvoices = useMemo(() => {
+        return invoices.filter(inv => {
+            return selectedSuppliers.length === 0 || selectedSuppliers.includes(inv.supplier || 'Unknown Supplier');
+        });
+    }, [invoices, selectedSuppliers]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
     const { user } = useAuth();
@@ -89,10 +166,10 @@ export default function RejectedInvoicesPage() {
     };
 
     const handleExport = () => {
-        if (!invoices.length) return;
+        if (!filteredInvoices.length) return;
 
         // Group by supplier
-        const grouped = invoices.reduce((acc, invoice) => {
+        const grouped = filteredInvoices.reduce((acc, invoice) => {
             const supplier = invoice.supplier || 'Unknown Supplier';
             if (!acc[supplier]) acc[supplier] = [];
             acc[supplier].push(invoice);
@@ -134,16 +211,19 @@ export default function RejectedInvoicesPage() {
                 These invoices were rejected during the review process.
               </CardDescription>
           </div>
-          <Button onClick={handleExport} disabled={invoices.length === 0 || isLoading}>
+          <Button onClick={handleExport} disabled={filteredInvoices.length === 0 || isLoading}>
               <Download className="mr-2 h-4 w-4" /> Export to Excel
           </Button>
         </CardHeader>
         <CardContent>
+             <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+                <MultiSelectFilter title="Suppliers" options={suppliers} selectedValues={selectedSuppliers} setSelectedValues={setSelectedSuppliers} />
+            </div>
             {isLoading ? (
                 <div className="flex justify-center items-center h-64">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
-            ) : invoices.length === 0 ? (
+            ) : filteredInvoices.length === 0 ? (
                 <p className="text-center text-muted-foreground py-10">No rejected invoices.</p>
             ) : (
                 <Table>
@@ -158,7 +238,7 @@ export default function RejectedInvoicesPage() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {invoices.map((invoice) => (
+                        {filteredInvoices.map((invoice) => (
                             <TableRow key={invoice.id}>
                                 <TableCell>
                                      <Badge variant={'destructive'}>
