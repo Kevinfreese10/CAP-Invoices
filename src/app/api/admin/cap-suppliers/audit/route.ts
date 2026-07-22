@@ -138,9 +138,12 @@ export async function POST() {
 
             let hasSupplierVat = true;
             if (pdfText) {
-                const cleanTextForVat = pdfText.replace(/[\s-]/g, '');
-                const vatMatches = cleanTextForVat.match(/4\d{9}/g) || [];
-                const supplierVatNumbers = vatMatches.filter(num => num !== '4910117920');
+                // Match 10-digit numbers starting with 4, either as a single block or with standard 3-3-4 spacing/dashes,
+                // using word boundaries (\b) to avoid matching inside 13-digit ID numbers or longer account numbers.
+                const vatRegex = /\b4\d{2}[\s-]?\d{3}[\s-]?\d{4}\b|\b4\d{9}\b/g;
+                const matches = pdfText.match(vatRegex) || [];
+                const cleanedMatches = matches.map(m => m.replace(/[\s-]/g, ''));
+                const supplierVatNumbers = cleanedMatches.filter(num => num !== '4910117920');
                 hasSupplierVat = supplierVatNumbers.length > 0;
             }
 
