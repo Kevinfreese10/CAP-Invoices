@@ -88,10 +88,16 @@ function formatDescription(invoice: any, item: any): string {
     else if (sLower.includes('kobus zietsman')) supplier = 'Kobus Zietsman';
     else if (sLower.includes('michael schneider')) supplier = 'Michael Schneider';
     else if (sLower.includes('flying fish')) supplier = 'Flying Fish Productions';
+    else if (sLower.includes('stark films')) supplier = 'Stark Films';
+    else if (sLower.includes('annamarie bronkhorst') || sLower.includes('annamarie bronkhorts')) supplier = 'Annamarie Bronkhorst';
+    else if (sLower.includes('peter rudden')) supplier = 'Peter Rudden';
+    else if (sLower.includes('fisheye')) supplier = 'Fisheye Films';
+    else if (sLower.includes('eaton de jongh')) supplier = 'Eaton De Jongh';
+    else if (sLower.includes('itrinity')) supplier = 'iTRINITY';
     
     // Helper to format/standardize date in description
     const getCleanDate = (txt: string, defaultDate: string, formatYearTwoDigit = false) => {
-        const match = txt.match(/(\d{1,2}(?:[\/\-\.]\d{1,2})*[\/\-\.]\d{2,4})/);
+        const match = txt.match(/(\d{1,2}(?:[\/\-\.]\d{1,2})+[\/\-\.]\d{2,4})/);
         if (match) {
             let dStr = match[1].replace(/\./g, '/').replace(/\-/g, '/');
             const parts = dStr.split('/');
@@ -118,19 +124,7 @@ function formatDescription(invoice: any, item: any): string {
         const dayMatch = desc.match(/(\d+(?:\.\d+)?)\s*day/i);
         const days = dayMatch ? dayMatch[1] : '1';
         const dayLabel = parseFloat(days) === 1 ? 'day' : 'days';
-        // Extract everything after 'Insert Edit - ' and before '@ R' or 'R4900' if possible
-        let dateStr = '';
-        const indexEditIndex = desc.indexOf('Insert Edit -');
-        if (indexEditIndex !== -1) {
-            const afterEdit = desc.substring(indexEditIndex + 'Insert Edit -'.length).trim();
-            const atSymbolIndex = afterEdit.indexOf('@');
-            if (atSymbolIndex !== -1) {
-                dateStr = afterEdit.substring(0, atSymbolIndex).trim();
-            }
-        }
-        if (!dateStr) {
-            dateStr = getCleanDate(desc, invoiceDate, true);
-        }
+        const dateStr = getCleanDate(desc, invoiceDate, true);
         return `IS${comm} - ${story} - Insert Edit - ${supplier} - ${dateStr} @ R4900 x ${days} ${dayLabel}`;
     }
     
@@ -184,7 +178,6 @@ function formatDescription(invoice: any, item: any): string {
         const dayMatch = desc.match(/(\d+(?:\.\d+)?)\s*day/i);
         const days = dayMatch ? dayMatch[1] : '1';
         const dayLabel = parseFloat(days) === 1 ? 'day' : 'days';
-        // Recalculate rate based on exclusiveAmount to correct OCR/supplier typos
         const rate = Math.round(item.exclusiveAmount / parseFloat(days));
         const dateStr = getCleanDate(desc, invoiceDate, true);
         return `IS${comm} - ${story} - ${role} - ${supplier} - ${dateStr} @ R${rate} x ${days} ${dayLabel}`;
@@ -248,6 +241,86 @@ function formatDescription(invoice: any, item: any): string {
             return `R&D - ${role} - ${supplier} - ${dates} @ R${rate} x ${days} days`;
         }
         return `R&D - Research - ${supplier} - ${invoiceDate} @ R100 x 1`;
+    }
+
+    // Studio Catering
+    if (code === '3331-02') {
+        const paxMatch = desc.match(/for\s*(\d+)\s*p/i) || desc.match(/(\d+)\s*pax/i);
+        const pax = paxMatch ? paxMatch[1] : '20';
+        const rateMatch = desc.match(/R\s*(\d+)/i) || desc.match(/@\s*R\s*(\d+)/i);
+        const rate = rateMatch ? rateMatch[1] : '140';
+        const dateStr = getCleanDate(desc, invoiceDate, false);
+        return `Studio Catering - ${supplier} - ${dateStr} @ R${parseFloat(rate).toFixed(2)} x ${pax} pax`;
+    }
+
+    // Stylist Retainer
+    if (code === '2452-01') {
+        const parts = invoiceDate.split('/');
+        const monthYear = parts.length === 3 ? `${parts[1]}/${parts[2]}` : '07/2026';
+        return `Monthly Retainer - Resident Stylist - ${supplier} - ${monthYear} @ R27000 x 1 month`;
+    }
+
+    // Wardrobe Purchases
+    if (code === '2473-01') {
+        const parts = invoiceDate.split('/');
+        const monthYear = parts.length === 3 ? `${parts[1]}/${parts[2]}` : '08/2026';
+        return `Wardrobe CB 39 - ${supplier} - ${monthYear} @ R18000 x 1 month`;
+    }
+
+    // Investigative
+    if (code === '1038-02') {
+        const dateStr = getCleanDate(desc, invoiceDate, false);
+        return `Investigative - Camera Operator with equipment - ${supplier} - ${dateStr} @ R${item.exclusiveAmount} x 1`;
+    }
+
+    // IT SLA
+    if (code === '5016-12') {
+        const monthYear = invoiceDate.split('/').slice(1).join('/');
+        if (desc.toLowerCase().includes('sla') || desc.toLowerCase().includes('monthly sla')) {
+            return `Monthly IT Support SLA - ${supplier} - ${monthYear} @ R10498 x 1 month`;
+        } else if (desc.toLowerCase().includes('team viewer') || desc.toLowerCase().includes('teamviewer')) {
+            return `IT Support - Team Viewer License - ${supplier} - ${monthYear} @ R378 x 1 month`;
+        } else if (desc.toLowerCase().includes('remote monitoring') || desc.toLowerCase().includes('sentinelone') || desc.toLowerCase().includes('management')) {
+            return `IT Support - Remote Monitoring - ${supplier} - ${monthYear} @ R1131 x 1 month`;
+        }
+        return `IT Support - SLA - ${supplier} - ${monthYear} @ R${item.exclusiveAmount} x 1 month`;
+    }
+
+    // MS Office
+    if (code === '5016-01') {
+        const monthYear = invoiceDate.split('/').slice(1).join('/');
+        if (desc.toLowerCase().includes('exchange online')) {
+            return `MS Office Exchange Online (Plan 1) - ${supplier} - ${monthYear} @ R${item.exclusiveAmount}`;
+        } else if (desc.toLowerCase().includes('business standard') || desc.toLowerCase().includes('365 business standard')) {
+            return `MS Office 365 Business Standard - ${supplier} - ${monthYear} @ R${item.exclusiveAmount}`;
+        } else if (desc.toLowerCase().includes('business basic') || desc.toLowerCase().includes('365 business basic') || desc.toLowerCase().includes('busienss basic')) {
+            return `MS Office 365 Business Basic - ${supplier} - ${monthYear} @ R${item.exclusiveAmount}`;
+        } else if (desc.toLowerCase().includes('teams essential')) {
+            return `MS Office Teams Essential - ${supplier} - ${monthYear} @ R${item.exclusiveAmount}`;
+        }
+        return `MS Office - ${supplier} - ${monthYear} @ R${item.exclusiveAmount}`;
+    }
+
+    // Data Protection
+    if (code === '5015-01') {
+        const monthYear = invoiceDate.split('/').slice(1).join('/');
+        if (desc.toLowerCase().includes('cloud backup')) {
+            return `Data Protection: Cloud Backup - ${supplier} - ${monthYear} @ R${item.exclusiveAmount}`;
+        } else if (desc.toLowerCase().includes('purifier') || desc.toLowerCase().includes('e-purifier')) {
+            return `Data Protection: e-Purifier Enterprise - ${supplier} - ${monthYear} @ R${item.exclusiveAmount}`;
+        }
+        return `Data Protection - ${supplier} - ${monthYear} @ R${item.exclusiveAmount}`;
+    }
+
+    // Hosting & DynDNS
+    if (code === '5016-13') {
+        const monthYear = invoiceDate.split('/').slice(1).join('/');
+        if (desc.toLowerCase().includes('dyndns') || desc.toLowerCase().includes('dyn dns')) {
+            return `IT Support - DynDNS remote server access - ${supplier} - ${monthYear} @ R${item.exclusiveAmount}`;
+        } else if (desc.toLowerCase().includes('datacentre') || desc.toLowerCase().includes('hosting') || desc.toLowerCase().includes('bandwidth')) {
+            return `IT Support - Server datacentre hosting, power, bandwidth & Sophos - ${supplier} - ${monthYear} @ R${item.exclusiveAmount}`;
+        }
+        return `IT Support - Server Storage - ${supplier} - ${monthYear} @ R${item.exclusiveAmount}`;
     }
     
     return desc;
