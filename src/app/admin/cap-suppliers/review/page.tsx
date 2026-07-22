@@ -357,36 +357,11 @@ export default function ReviewPage() {
     const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
     const [isAnalyzeDialogOpen, setIsAnalyzeDialogOpen] = useState(false);
     const [isReanalyzing, setIsReanalyzing] = useState(false);
-    const [isAuditing, setIsAuditing] = useState(false);
-    const [isAuditSuccess, setIsAuditSuccess] = useState(false);
     const { toast } = useToast();
     const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
     const { user } = useAuth();
 
 
-    const handleRunInvoiceAudit = async () => {
-        setIsAuditing(true);
-        toast({ title: 'Running Invoice Audit...', description: 'Syncing review page and checking Firestore invoices.' });
-        try {
-            const response = await fetch('/api/admin/cap-suppliers/audit', {
-                method: 'POST',
-            });
-            const data = await response.json();
-            if (response.ok) {
-                toast({ title: 'Audit Complete', description: 'Corrections applied and email notification sent.' });
-                setIsAuditSuccess(true);
-                setTimeout(() => setIsAuditSuccess(false), 4000);
-                fetchInvoicesAndRules();
-            } else {
-                toast({ title: 'Audit Failed', description: data.error || 'Failed to complete audit.', variant: 'destructive' });
-            }
-        } catch (error) {
-            console.error("Audit error:", error);
-            toast({ title: 'Audit Failed', description: 'An error occurred while calling the audit API.', variant: 'destructive' });
-        } finally {
-            setIsAuditing(false);
-        }
-    };
 
     const fetchInvoicesAndRules = async () => {
         setIsLoading(true);
@@ -746,17 +721,6 @@ export default function ReviewPage() {
                         <Download className="mr-2 h-4 w-4" />
                         Export to Excel
                     </Button>
-                    {isAuditSuccess ? (
-                        <Button variant="outline" className="border-green-500 text-green-600 bg-green-50 hover:bg-green-50 cursor-default">
-                            <CheckCircle2 className="mr-2 h-4 w-4 text-green-600 animate-bounce" />
-                            Audit Completed
-                        </Button>
-                    ) : (
-                        <Button onClick={handleRunInvoiceAudit} variant="default" disabled={isAuditing} className="bg-primary text-white hover:bg-primary/90">
-                            {isAuditing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Play className="mr-2 h-4 w-4" />}
-                            Run Invoice Audit
-                        </Button>
-                    )}
                  </div>
             </div>
         </CardHeader>
