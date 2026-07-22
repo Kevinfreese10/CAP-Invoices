@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, MoreHorizontal, FileX2, Eye, RotateCcw, Trash2, Mail } from 'lucide-react';
+import { Loader2, MoreHorizontal, FileX2, Eye, RotateCcw, Trash2, Mail, Download } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -18,7 +18,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { sendEmail } from '@/lib/email';
 import InvoiceRejectionEmail from '@/components/emails/InvoiceRejectionEmail';
 import { render } from '@react-email/components';
-
+import * as XLSX from 'xlsx';
 const db = getFirestore(firebaseApp);
 
 export default function RejectedInvoicesPage() {
@@ -88,15 +88,55 @@ export default function RejectedInvoicesPage() {
         }
     };
 
+    const handleExport = () => {
+        if (!invoices.length) return;
+
+        // Group by supplier
+        const grouped = invoices.reduce((acc, invoice) => {
+            const supplier = invoice.supplier || 'Unknown Supplier';
+            if (!acc[supplier]) acc[supplier] = [];
+            acc[supplier].push(invoice);
+            return acc;
+        }, {} as Record<string, ExtractedInvoice[]>);
+
+        const dataToExport = [];
+        
+        Object.entries(grouped)
+            .sort((a, b) => a[0].localeCompare(b[0]))
+            .forEach(([supplier, supplierInvoices]) => {
+                dataToExport.push({ 'Supplier': `--- ${supplier} ---` }); // Header row for supplier
+                supplierInvoices.forEach(inv => {
+                    dataToExport.push({
+                        'Supplier': inv.supplier,
+                        'Invoice Number': inv.invoiceNumber,
+                        'Invoice Date': inv.date,
+                        'Total': inv.invoiceTotal,
+                        'Reason for Rejection': inv.rejectionReason || 'No reason provided.',
+                    });
+                });
+                dataToExport.push({}); // Empty row
+            });
+
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Rejected Invoices');
+        XLSX.writeFile(workbook, `rejected_invoices_report_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
   return (
     <div className="space-y-8">
       <h1 className="text-3xl font-bold tracking-tight">Rejected Invoices</h1>
       <Card>
-        <CardHeader>
-          <CardTitle>Rejected Submissions</CardTitle>
-          <CardDescription>
-            These invoices were rejected during the review process.
-          </CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+          <div>
+              <CardTitle>Rejected Submissions</CardTitle>
+              <CardDescription>
+                These invoices were rejected during the review process.
+              </CardDescription>
+          </div>
+          <Button onClick={handleExport} disabled={invoices.length === 0 || isLoading}>
+              <Download className="mr-2 h-4 w-4" /> Export to Excel
+          </Button>
         </CardHeader>
         <CardContent>
             {isLoading ? (
