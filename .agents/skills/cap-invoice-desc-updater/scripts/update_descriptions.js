@@ -1,9 +1,27 @@
-import { NextResponse } from 'next/server';
-import { adminDb, adminStorage } from '@/lib/firebase-admin';
-import * as XLSX from 'xlsx';
+const fs = require('fs');
+const path = require('path');
+const XLSX = require('xlsx');
+const { initializeApp, cert } = require('firebase-admin/app');
+const { getFirestore } = require('firebase-admin/firestore');
+const { getStorage } = require('firebase-admin/storage');
+
+// Initialize Firebase Admin using service account from C:\CAP
+const serviceAccountPath = path.join(__dirname, '..', '..', '..', '..', 'firebase-service-account.json');
+if (!fs.existsSync(serviceAccountPath)) {
+    console.error("Error: firebase-service-account.json not found at:", serviceAccountPath);
+    process.exit(1);
+}
+const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+initializeApp({
+    credential: cert(serviceAccount),
+    storageBucket: 'studio-2604127518-57889.firebasestorage.app',
+    projectId: 'studio-2604127518-57889'
+});
+const adminDb = getFirestore();
+const adminStorage = getStorage();
 
 // Standard formatting patterns and rules for each account code
-const templates: { [key: string]: { name: string; format: string } } = {
+const templates = {
     "1012-01": {
         name: "Insert Producers",
         format: "IS[Comm#] - [Story] - Insert Producer - [Supplier] - [DD/MM/YYYY] @ R7100 x [duration] min"
@@ -62,7 +80,7 @@ const templates: { [key: string]: { name: string; format: string } } = {
     }
 };
 
-function formatDescription(invoice: any, item: any): string {
+function formatDescription(invoice, item) {
     const code = item.accountId;
     const desc = item.description || '';
     const comm = invoice.commissionNumber || '';
@@ -90,7 +108,7 @@ function formatDescription(invoice: any, item: any): string {
     else if (sLower.includes('flying fish')) supplier = 'Flying Fish Productions';
     
     // Helper to format/standardize date in description
-    const getCleanDate = (txt: string, defaultDate: string, formatYearTwoDigit = false) => {
+    const getCleanDate = (txt, defaultDate, formatYearTwoDigit = false) => {
         const match = txt.match(/(\d{1,2}(?:[\/\-\.]\d{1,2})*[\/\-\.]\d{2,4})/);
         if (match) {
             let dStr = match[1].replace(/\./g, '/').replace(/\-/g, '/');
@@ -114,11 +132,9 @@ function formatDescription(invoice: any, item: any): string {
     };
 
     if (code === '4103-01') {
-        // Editor: Inserts Freelance
         const dayMatch = desc.match(/(\d+(?:\.\d+)?)\s*day/i);
         const days = dayMatch ? dayMatch[1] : '1';
         const dayLabel = parseFloat(days) === 1 ? 'day' : 'days';
-        // Extract everything after 'Insert Edit - ' and before '@ R' or 'R4900' if possible
         let dateStr = '';
         const indexEditIndex = desc.indexOf('Insert Edit -');
         if (indexEditIndex !== -1) {
@@ -135,7 +151,6 @@ function formatDescription(invoice: any, item: any): string {
     }
     
     if (code === '4121-03') {
-        // AFM VO
         const hourMatch = desc.match(/(\d+(?:\.\d+)?)\s*hour/i);
         const hours = hourMatch ? hourMatch[1] : '1';
         const hourLabel = parseFloat(hours) === 1 ? 'hour' : 'hours';
@@ -144,7 +159,6 @@ function formatDescription(invoice: any, item: any): string {
     }
     
     if (code === '4121-04') {
-        // AFM Final Mix
         const hourMatch = desc.match(/(\d+(?:\.\d+)?)\s*hour/i);
         const hours = hourMatch ? hourMatch[1] : '1';
         const hourLabel = parseFloat(hours) === 1 ? 'hour' : 'hours';
@@ -153,7 +167,6 @@ function formatDescription(invoice: any, item: any): string {
     }
     
     if (code === '1012-01') {
-        // Insert Producers
         const durationMatch = desc.match(/(\d+)\s*(?:Minutes|min|mins)/i);
         const duration = durationMatch ? durationMatch[1] : '15';
         const dateStr = getCleanDate(desc, invoiceDate, false);
@@ -161,20 +174,17 @@ function formatDescription(invoice: any, item: any): string {
     }
     
     if (code === '2131-01') {
-        // Studio Director
         const dateStr = getCleanDate(desc, invoiceDate, false);
         return `Live Studio Director - Michael Schneider - ${dateStr} @ R6000 x 1 episode`;
     }
     
     if (code === '2138-01') {
-        // Autocue
         const episodesMatch = desc.match(/(\d+)\s*ep/i);
         const eps = episodesMatch ? episodesMatch[1] : '4';
         return `Studio Autocue Services - EasiQ - 05-12-19-26/07/2026 @ R2350 x ${eps} episodes`;
     }
     
     if (code === '2161-01') {
-        // ENG DOP
         let role = 'DOP';
         if (desc.toLowerCase().includes('gear') || desc.toLowerCase().includes('sony') || desc.toLowerCase().includes('sound kit')) {
             role = 'Cam Gear';
@@ -184,20 +194,17 @@ function formatDescription(invoice: any, item: any): string {
         const dayMatch = desc.match(/(\d+(?:\.\d+)?)\s*day/i);
         const days = dayMatch ? dayMatch[1] : '1';
         const dayLabel = parseFloat(days) === 1 ? 'day' : 'days';
-        // Recalculate rate based on exclusiveAmount to correct OCR/supplier typos
         const rate = Math.round(item.exclusiveAmount / parseFloat(days));
         const dateStr = getCleanDate(desc, invoiceDate, true);
         return `IS${comm} - ${story} - ${role} - ${supplier} - ${dateStr} @ R${rate} x ${days} ${dayLabel}`;
     }
     
     if (code === '3202-01') {
-        // Vehicle Rental
         const dateStr = getCleanDate(desc, invoiceDate, false);
         return `IS${comm} - ${story} - Vehicle Rental - ${supplier} - ${dateStr}`;
     }
     
     if (code === '3213-01') {
-        // Toll Fees
         const totalAmount = Math.round((item.exclusiveAmount + (item.vatAmount || 0)) * 100) / 100;
         let gate = 'Toll Gate';
         if (desc.toLowerCase().includes('carousel')) gate = 'Carousel Plaza';
@@ -210,7 +217,6 @@ function formatDescription(invoice: any, item: any): string {
     }
     
     if (code === '3216-01') {
-        // Mileage & Fuel
         const totalAmount = Math.round((item.exclusiveAmount + (item.vatAmount || 0)) * 100) / 100;
         if (desc.toLowerCase().includes('petrol') || desc.toLowerCase().includes('diesel') || desc.toLowerCase().includes('engen') || desc.toLowerCase().includes('sasol')) {
             const dateStr = getCleanDate(desc, invoiceDate, false);
@@ -222,7 +228,6 @@ function formatDescription(invoice: any, item: any): string {
     }
     
     if (code === '4105-01') {
-        // Transcription
         const pagesMatch = desc.match(/(\d+)\s*page/i);
         const pages = pagesMatch ? pagesMatch[1] : '1';
         const pageLabel = parseFloat(pages) === 1 ? 'page' : 'pages';
@@ -238,7 +243,6 @@ function formatDescription(invoice: any, item: any): string {
     }
     
     if (code === '1038-01') {
-        // R&D
         if (desc.toLowerCase().includes('phatu') || desc.toLowerCase().includes('sigama') || desc.toLowerCase().includes('sigma') || desc.toLowerCase().includes('research') || desc.toLowerCase().includes('translator')) {
             const isThreeDays = desc.includes('1 June') || desc.includes('23 June') || desc.includes('2 June');
             const days = isThreeDays ? '3' : '2';
@@ -253,71 +257,98 @@ function formatDescription(invoice: any, item: any): string {
     return desc;
 }
 
-export async function POST() {
+async function main() {
+    console.log("Starting CAP Supplier Invoices Description Updater...");
+    
+    console.log("Fetching reference General Ledger from Firebase Storage...");
+    const bucket = adminStorage.bucket();
+    const file = bucket.file('reference-files/general-ledger.xlsx');
+    
+    let buffer;
     try {
-        console.log("Next.js API: Starting description update process...");
-        
-        // Fetch reference General Ledger from Firebase Storage
-        console.log("Fetching General Ledger file from Firebase Storage...");
-        const bucket = adminStorage.bucket();
-        const file = bucket.file('reference-files/general-ledger.xlsx');
         const [exists] = await file.exists();
-        if (!exists) {
-            return NextResponse.json({ success: false, error: "General Ledger file 'reference-files/general-ledger.xlsx' not found in Firebase Storage." }, { status: 400 });
+        if (exists) {
+            const [downloadedBuffer] = await file.download();
+            buffer = downloadedBuffer;
+            console.log("Successfully downloaded GL workbook from Firebase Storage.");
         }
+    } catch (err) {
+        console.warn("Firebase Storage fetch failed, falling back to local file system...", err.message);
+    }
+    
+    if (!buffer) {
+        const downloadsDir = "C:\\Users\\kev\\Downloads";
+        let glPath = path.join(downloadsDir, "Carte Blanche S39_GL_JUNE_2026.xlsx");
         
-        const [buffer] = await file.download();
-        console.log("Successfully downloaded General Ledger file from Firebase Storage.");
-        
-        const workbook = XLSX.read(buffer, { type: 'buffer' });
-        const sheet = workbook.Sheets['General Ledger'];
-        if (!sheet) {
-            return NextResponse.json({ success: false, error: "Sheet 'General Ledger' not found in workbook." }, { status: 400 });
-        }
-        
-        const transactions = XLSX.utils.sheet_to_json(sheet);
-        console.log(`Loaded ${transactions.length} GL transactions for format matching.`);
-
-        // Fetch invoices pending 3rd review
-        const invoicesSnapshot = await adminDb.collection('extractedInvoices')
-                                               .where('status', '==', 'pending_third_review')
-                                               .get();
-        
-        if (invoicesSnapshot.empty) {
-            return NextResponse.json({ success: true, message: "No pending invoices found for 3rd review.", updatedCount: 0 });
-        }
-        
-        console.log(`Auditing ${invoicesSnapshot.size} pending invoices...`);
-        const batch = adminDb.batch();
-        let updatedCount = 0;
-        
-        for (const doc of invoicesSnapshot.docs) {
-            const invoice = doc.data();
-            let changed = false;
-            
-            const updatedLineItems = invoice.lineItems.map((item: any) => {
-                const formatted = formatDescription(invoice, item);
-                if (formatted && formatted !== item.ledgerDescription) {
-                    changed = true;
-                    return { ...item, ledgerDescription: formatted };
+        if (!fs.existsSync(glPath)) {
+            if (fs.existsSync(downloadsDir)) {
+                const files = fs.readdirSync(downloadsDir);
+                const glFiles = files.filter(f => f.toLowerCase().includes('carte blanche') && f.toLowerCase().includes('gl') && f.endsWith('.xlsx'))
+                                     .map(f => ({ name: f, time: fs.statSync(path.join(downloadsDir, f)).mtimeMs }));
+                if (glFiles.length > 0) {
+                    glFiles.sort((a, b) => b.time - a.time);
+                    glPath = path.join(downloadsDir, glFiles[0].name);
                 }
-                return item;
-            });
-            
-            if (changed) {
-                batch.update(doc.ref, { lineItems: updatedLineItems });
-                updatedCount++;
             }
         }
         
-        if (updatedCount > 0) {
-            await batch.commit();
-            console.log(`Successfully formatted and saved ${updatedCount} invoice descriptions in Firestore.`);
+        if (!fs.existsSync(glPath)) {
+            console.error("Error: Could not find General Ledger workbook in Firebase Storage or local downloads folder.");
+            process.exit(1);
         }
         
-        return NextResponse.json({ success: true, updatedCount });
-    } catch (error: any) {
-        console.error("API Description update error:", error);
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+        console.log("Using local General Ledger file:", glPath);
+        buffer = fs.readFileSync(glPath);
+    }
+    
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const sheet = workbook.Sheets['General Ledger'];
+    if (!sheet) {
+        console.error("Error: Sheet 'General Ledger' not found in workbook.");
+        process.exit(1);
+    }
+    
+    const transactions = XLSX.utils.sheet_to_json(sheet);
+    console.log(`Loaded ${transactions.length} GL transactions for format matching.`);
+
+    const invoicesSnapshot = await adminDb.collection('extractedInvoices')
+                                           .where('status', '==', 'pending_third_review')
+                                           .get();
+    
+    if (invoicesSnapshot.empty) {
+        console.log("No pending invoices found for 3rd review.");
+        process.exit(0);
+    }
+    
+    console.log(`Auditing ${invoicesSnapshot.size} pending invoices...`);
+    const batch = adminDb.batch();
+    let updatedCount = 0;
+    
+    for (const doc of invoicesSnapshot.docs) {
+        const invoice = doc.data();
+        let changed = false;
+        
+        const updatedLineItems = invoice.lineItems.map(item => {
+            const formatted = formatDescription(invoice, item);
+            if (formatted && formatted !== item.ledgerDescription) {
+                changed = true;
+                return { ...item, ledgerDescription: formatted };
+            }
+            return item;
+        });
+        
+        if (changed) {
+            batch.update(doc.ref, { lineItems: updatedLineItems });
+            updatedCount++;
+        }
+    }
+    
+    if (updatedCount > 0) {
+        await batch.commit();
+        console.log(`Successfully formatted and saved ${updatedCount} invoice descriptions in Firestore.`);
+    } else {
+        console.log("No formatting changes needed.");
     }
 }
+
+main().catch(console.error);
