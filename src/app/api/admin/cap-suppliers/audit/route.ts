@@ -44,7 +44,9 @@ const supplierMappings: { [key: string]: string } = {
     "kai d masterton": "KAI MASTERTON",
     "eaton de jongh": "EATON DE JONGH",
     "linthuri moonsamy": "LINTHURI MOONSAMY",
-    "greg govan": "GREG GOVAN"
+    "greg govan": "GREG GOVAN",
+    "moshka-vida": "MOSHKA-VIDA",
+    "moshka-vida (pty) ltd": "MOSHKA-VIDA"
 };
 
 const nonVatRegistered = [
@@ -60,7 +62,8 @@ const nonVatRegistered = [
     "KAI MASTERTON",
     "EATON DE JONGH",
     "LINTHURI MOONSAMY",
-    "GREG GOVAN"
+    "GREG GOVAN",
+    "MOSHKA-VIDA"
 ];
 
 const customLookup = (hostname: string, options: any, callback: any) => {
@@ -151,6 +154,14 @@ export async function POST() {
                         const extractedSupplier = fromMatch[1].trim();
                         normalizedSupplier = normalizeSupplier(extractedSupplier);
                         console.log(`Corrected supplier from client name to extracted supplier: ${normalizedSupplier}`);
+                    } else {
+                        // General fallback: match the line right after "Banking Details" or "Bank Details"
+                        const bankMatch = pdfText.match(/(?:Banking Details|Bank Details):[\s\r\n]+([^\n\r]+)/i);
+                        if (bankMatch && bankMatch[1]) {
+                            const extractedSupplier = bankMatch[1].trim();
+                            normalizedSupplier = normalizeSupplier(extractedSupplier);
+                            console.log(`Corrected supplier from client name to bank account holder: ${normalizedSupplier}`);
+                        }
                     }
                 }
             }
