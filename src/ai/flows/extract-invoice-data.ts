@@ -52,6 +52,7 @@ const prompt = ai.definePrompt({
 
 Your task is to analyze the provided invoice document and extract the following information with perfect accuracy:
 1.  **Supplier Name**: The name of the company that issued the invoice.
+    *   CRITICAL: The supplier is NEVER "Combined Artistic Productions (Pty) Ltd" or "CAP". That is the buyer/recipient. You must find the company that is billing Combined Artistic Productions.
 2.  **Invoice Number**: The unique invoice number, reference number, or document ID.
 3.  **Commission Number**: The commission number, if it is present on the invoice.
 4.  **Invoice Date**: The date the invoice was issued, formatted as DD/MM/YYYY.
@@ -69,13 +70,15 @@ Your task is to analyze the provided invoice document and extract the following 
 - **Illegible Text**: If a description, number, or word is blurry or illegible, do not guess or hallucinate. Keep the fields clean and omit or label them 'ILLEGIBLE'.
 
 ### Critical VAT Extraction Rules:
-- First, check if the invoice is a valid VAT invoice. A South African VAT invoice must contain a 10-digit VAT registration number (usually starting with '4') and charge VAT.
-- If the supplier is not a VAT vendor (e.g., no VAT registration number is listed, or the document is just a plain invoice/receipt without tax charges, or explicitly states VAT is 0%/exempt/no VAT), then NO VAT is being charged.
-  * In this case, you MUST extract \`vatAmount\` as \`0\` for all line items, and set \`exclusiveAmount\` to the full amount of the line item (so exclusiveAmount matches the total line item cost).
-- If the supplier IS a VAT vendor and VAT is charged on the invoice:
+- **Do not invent VAT**: If the invoice does not explicitly charge VAT, or if it explicitly states "No VAT" or "VAT Exempt", then the VAT amount is exactly 0 for all line items.
+- A valid South African VAT invoice usually contains a 10-digit VAT registration number (starting with '4'). However, even if they have a VAT number, if the total VAT charged on the invoice is 0, DO NOT extract VAT on the line items.
+- If the supplier is NOT a VAT vendor (no VAT registration number is listed, or no VAT is charged):
+  * You MUST extract \`vatAmount\` as \`0\` for all line items.
+  * Set \`exclusiveAmount\` to the full amount of the line item (so exclusiveAmount matches the total line item cost).
+- Only if VAT is explicitly charged on the invoice:
   * Check if the line items are inclusive or exclusive of VAT.
   * If the invoice does not explicitly separate exclusive and VAT amounts per line, but a VAT total is shown at the bottom, calculate the VAT portion for each line item as \`Line Total * (15 / 115)\` and the exclusive portion as \`Line Total * (100 / 115)\` assuming a standard South African VAT rate of 15%.
-  * If a line item is zero-rated or exempt from VAT, set its \`vatAmount\` to \`0\` and \`exclusiveAmount\` to the full line item cost.
+  * If a specific line item is zero-rated or exempt from VAT, set its \`vatAmount\` to \`0\` and \`exclusiveAmount\` to the full line item cost.
 
 Analyze the following invoice:
 {{media url=invoiceImage}}
