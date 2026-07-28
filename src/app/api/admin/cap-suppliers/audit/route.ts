@@ -186,6 +186,12 @@ export async function POST() {
             }
             
             let correctedCommNum = originalCommNum;
+            if (correctedCommNum) {
+                const cleanMatch = String(correctedCommNum).match(/\d+/);
+                if (cleanMatch) {
+                    correctedCommNum = cleanMatch[0];
+                }
+            }
             
             // Auto-null commission numbers for general services
             const isPresenterOrUber = data.lineItems && data.lineItems.some((item: any) => {
