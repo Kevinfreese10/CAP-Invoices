@@ -167,7 +167,7 @@ export async function POST() {
             }
 
             let hasSupplierVat = true;
-            if (pdfText) {
+            if (pdfText && pdfText.trim().replace(/[\s-]/g, '').length >= 50) {
                 // Match 10-digit numbers starting with 4, either as a single block or with standard 3-3-4 spacing/dashes,
                 // using word boundaries (\b) to avoid matching inside 13-digit ID numbers or longer account numbers.
                 const vatRegex = /\b4\d{2}[\s-]?\d{3}[\s-]?\d{4}\b|\b4\d{9}\b/g;
