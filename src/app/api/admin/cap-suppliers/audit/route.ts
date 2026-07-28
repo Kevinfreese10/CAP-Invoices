@@ -38,7 +38,13 @@ const supplierMappings: { [key: string]: string } = {
     "phathu sigama": "PHATHU SIGAMA",
     "scribe now": "SCRIBE NOW",
     "jan potgieter trading as slipdisk": "SLIPDISK PRODUCTIONS",
-    "slipdisk productions": "SLIPDISK PRODUCTIONS"
+    "slipdisk productions": "SLIPDISK PRODUCTIONS",
+    "annamarie bronkhorst": "ANNAMARIE BRONKHORST",
+    "kai masterton": "KAI MASTERTON",
+    "kai d masterton": "KAI MASTERTON",
+    "eaton de jongh": "EATON DE JONGH",
+    "linthuri moonsamy": "LINTHURI MOONSAMY",
+    "greg govan": "GREG GOVAN"
 };
 
 const nonVatRegistered = [
@@ -50,7 +56,11 @@ const nonVatRegistered = [
     "NELSON PRODUCTIONS",
     "PHATHU SIGAMA",
     "SCRIBE NOW",
-    "ANNAMARIE BRONKHORST"
+    "ANNAMARIE BRONKHORST",
+    "KAI MASTERTON",
+    "EATON DE JONGH",
+    "LINTHURI MOONSAMY",
+    "GREG GOVAN"
 ];
 
 const customLookup = (hostname: string, options: any, callback: any) => {
@@ -125,14 +135,23 @@ export async function POST() {
 
             let normalizedSupplier = normalizeSupplier(originalSupplier);
             
-            // If the supplier is erroneously set to our own company name (Combined Artistic Productions),
-            // extract the correct supplier from the PDF text (e.g. after 'From:')
-            if (normalizedSupplier.includes("COMBINED ARTISTIC PRODUCTIONS") && pdfText) {
-                const fromMatch = pdfText.match(/From:\s*([^\n\r]+)/i);
-                if (fromMatch && fromMatch[1]) {
-                    const extractedSupplier = fromMatch[1].trim();
-                    normalizedSupplier = normalizeSupplier(extractedSupplier);
-                    console.log(`Corrected supplier from client name to extracted supplier: ${normalizedSupplier}`);
+            // If the supplier is erroneously set to our own company name (Combined Artistic Productions or Combined Artists Productions),
+            // check the PDF text for any known supplier from our registry mapping keys first.
+            if ((normalizedSupplier.includes("COMBINED ARTISTIC PRODUCTIONS") || normalizedSupplier.includes("COMBINED ARTISTS PRODUCTIONS")) && pdfText) {
+                const lowerText = pdfText.toLowerCase();
+                const foundKey = Object.keys(supplierMappings).find(key => 
+                    lowerText.includes(key)
+                );
+                if (foundKey) {
+                    normalizedSupplier = supplierMappings[foundKey];
+                    console.log(`Corrected supplier from client name using registry mapping: ${normalizedSupplier}`);
+                } else {
+                    const fromMatch = pdfText.match(/From:\s*([^\n\r]+)/i);
+                    if (fromMatch && fromMatch[1]) {
+                        const extractedSupplier = fromMatch[1].trim();
+                        normalizedSupplier = normalizeSupplier(extractedSupplier);
+                        console.log(`Corrected supplier from client name to extracted supplier: ${normalizedSupplier}`);
+                    }
                 }
             }
 
