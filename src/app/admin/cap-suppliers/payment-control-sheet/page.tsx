@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { getFirestore, collection, getDocs, query, orderBy, where, doc, updateDoc, writeBatch, addDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, CheckCircle, MoreHorizontal, Edit, PlusCircle, FileCheck2, Eye, Shield, Paperclip, FileX2 } from 'lucide-react';
+import { Loader2, CheckCircle, MoreHorizontal, Edit, PlusCircle, FileCheck2, Eye, Shield, Paperclip, FileX2, RotateCcw } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ExtractedInvoice, User } from '@/lib/types';
@@ -139,6 +139,18 @@ export default function PaymentControlSheetPage() {
             toast({ title: 'Error', description: 'Could not reject the invoice or send notification.', variant: 'destructive'});
         }
     }
+
+    const handleReturnToThirdReview = async (id: string) => {
+        try {
+            const docRef = doc(db, 'extractedInvoices', id);
+            await updateDoc(docRef, { status: 'pending_third_review' });
+            toast({ title: 'Invoice Returned', description: 'The invoice has been returned to Third Review.' });
+            fetchInvoices();
+        } catch (error) {
+            console.error("Error returning invoice to third review:", error);
+            toast({ title: 'Error', description: 'Could not return the invoice.', variant: 'destructive'});
+        }
+    };
 
     const formatPrice = (price: number) => {
         return new Intl.NumberFormat('en-ZA', {
@@ -290,6 +302,9 @@ export default function PaymentControlSheetPage() {
                                                     <DropdownMenuContent>
                                                         <DropdownMenuItem onSelect={() => setEditingInvoice(invoice)}>
                                                             <Edit className="mr-2 h-4 w-4" /> Edit
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem onSelect={() => handleReturnToThirdReview(invoice.id)}>
+                                                            <RotateCcw className="mr-2 h-4 w-4" /> Return to Third Review
                                                         </DropdownMenuItem>
                                                         <DropdownMenuSeparator />
                                                         <AlertDialog>
