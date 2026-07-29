@@ -36,6 +36,23 @@ export default function SecondReviewPage() {
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const { toast } = useToast();
     const { user } = useAuth();
+    const [usersMap, setUsersMap] = useState<Record<string, User>>({});
+
+    useEffect(() => {
+        const fetchUsersMap = async () => {
+            try {
+                const usersSnapshot = await getDocs(collection(db, 'users'));
+                const map: Record<string, User> = {};
+                usersSnapshot.forEach(doc => {
+                    map[doc.id] = doc.data() as User;
+                });
+                setUsersMap(map);
+            } catch (error) {
+                console.error("Error fetching users for map:", error);
+            }
+        };
+        fetchUsersMap();
+    }, []);
 
     const fetchInvoices = async () => {
         setIsLoading(true);
@@ -223,6 +240,7 @@ export default function SecondReviewPage() {
                     <TableHeader>
                         <TableRow>
                             <TableHead>Status</TableHead>
+                            <TableHead>Approved By</TableHead>
                             <TableHead>Supplier</TableHead>
                             <TableHead>Invoice #</TableHead>
                             <TableHead>Payment Batch</TableHead>
@@ -262,6 +280,15 @@ export default function SecondReviewPage() {
                                 <TableRow key={invoice.id}>
                                     <TableCell>
                                         {getStatusBadge(invoice.status)}
+                                    </TableCell>
+                                    <TableCell>
+                                        <span className="text-sm text-muted-foreground">
+                                            {invoice.approvedBy && usersMap[invoice.approvedBy]?.name 
+                                                ? usersMap[invoice.approvedBy].name 
+                                                : invoice.approvedBy 
+                                                    ? 'Unknown' 
+                                                    : 'N/A'}
+                                        </span>
                                     </TableCell>
                                     <TableCell className="font-medium">
                                         <p>{invoice.supplier}</p>
