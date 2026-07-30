@@ -484,8 +484,8 @@ export default function PaymentBatchesPage() {
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
     const { user } = useAuth();
 
-    const fetchInvoices = async () => {
-        setIsLoading(true);
+    const fetchInvoices = async (showLoader = true) => {
+        if (showLoader) setIsLoading(true);
         try {
             const q = query(
                 collection(db, 'extractedInvoices'), 
@@ -497,7 +497,7 @@ export default function PaymentBatchesPage() {
             console.error("Error fetching batched invoices:", error);
             toast({ title: 'Error', description: 'Could not fetch batched invoices.', variant: 'destructive'});
         } finally {
-            setIsLoading(false);
+            if (showLoader) setIsLoading(false);
         }
     };
 
@@ -515,7 +515,7 @@ export default function PaymentBatchesPage() {
                 await updateDoc(docRef, { status: 'approved_for_payment' });
                 toast({ title: 'Invoice Returned', description: 'The invoice has been returned to the Payment Control Sheet.', variant: 'default'});
             }
-            fetchInvoices();
+            fetchInvoices(false);
         } catch (error) {
             toast({ title: 'Error', description: 'Could not remove the invoice from the batch.', variant: 'destructive'});
         }
@@ -534,7 +534,7 @@ export default function PaymentBatchesPage() {
             await updateDoc(docRef, dataToSave);
             toast({ title: 'Invoice Updated', description: 'Your changes have been saved.' });
             setEditingInvoice(null);
-            fetchInvoices();
+            fetchInvoices(false);
         } catch (error) {
             console.error("Error updating invoice:", error);
             toast({ title: 'Error', description: 'Could not save changes.', variant: 'destructive'});
@@ -566,7 +566,7 @@ export default function PaymentBatchesPage() {
             await batch.commit();
 
             toast({ title: 'Proof of Payment Uploaded!', description: `POP for ${supplierName} has been saved and invoices marked as paid.`});
-            fetchInvoices();
+            fetchInvoices(false);
 
         } catch (error) {
             console.error('Error uploading POP:', error);
@@ -595,7 +595,7 @@ export default function PaymentBatchesPage() {
             await batch.commit();
 
             toast({ title: 'Proof of Payment Removed', description: `POP for ${supplierName} has been removed and invoices are now ready for payment again.`});
-            fetchInvoices();
+            fetchInvoices(false);
 
         } catch (error) {
             console.error('Error removing POP:', error);
