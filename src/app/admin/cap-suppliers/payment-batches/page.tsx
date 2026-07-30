@@ -383,9 +383,9 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
                                                         <TableBody>
                                                             {group.invoices.map(invoice => {
                                                                 const invoiceHasPaye = invoice.lineItems.some(item => item.paye);
-                                                                // Calculate discrepancy for this specific invoice
-                                                                const lineTotalSum = invoice.lineItems.reduce((s, li) => s + li.exclusiveAmount + li.vatAmount, 0);
-                                                                const hasLineDiscrepancy = Math.abs(invoice.invoiceTotal - lineTotalSum) > 0.01;
+                                                                const lineTotalSum = invoice.lineItems.reduce((s, li) => s + (Number(li.exclusiveAmount) || 0) + (Number(li.vatAmount) || 0), 0);
+                                                                const safeInvoiceTotal = Number(invoice.invoiceTotal) || 0;
+                                                                const hasLineDiscrepancy = Math.abs(safeInvoiceTotal - lineTotalSum) > 0.01;
 
                                                                 return (
                                                                 <TableRow key={invoice.id} className="text-xs">
@@ -404,7 +404,7 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
                                                                                         <AlertCircle className="h-3 w-3 text-destructive" />
                                                                                     </TooltipTrigger>
                                                                                     <TooltipContent>
-                                                                                        <p>Invoice total (R{invoice.invoiceTotal.toFixed(2)}) doesn't match line items (R{lineTotalSum.toFixed(2)})</p>
+                                                                                        <p>Invoice total (R{safeInvoiceTotal.toFixed(2)}) doesn't match line items (R{lineTotalSum.toFixed(2)})</p>
                                                                                     </TooltipContent>
                                                                                 </Tooltip>
                                                                             </TooltipProvider>
