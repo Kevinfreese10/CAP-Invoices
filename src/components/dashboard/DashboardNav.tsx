@@ -60,6 +60,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
   };
   
   const capSupplierItems = [
+    { href: '/admin/cap-suppliers/overview', label: 'Supplier Overview', icon: Users, roles: ['admin', 'staff', 'cap_supervisor'] },
     { href: '/admin/cap-suppliers/inbox', label: 'Inbox', icon: Inbox, roles: ['admin', 'staff', 'cap_supervisor'] },
     { href: '/admin/cap-suppliers/processed', label: 'Processed', icon: Database, roles: ['admin', 'staff', 'cap_supervisor'] },
     { href: '/admin/cap-suppliers/review', label: 'Review', icon: ClipboardCheck, roles: ['admin', 'staff', 'cap_supervisor'] },
