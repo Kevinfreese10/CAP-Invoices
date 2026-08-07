@@ -14,15 +14,15 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   
   const hasAdminRole = user?.role === 'admin' || user?.role === 'staff' || user?.role === 'cap_staff' || user?.role === 'cap_supervisor';
-  const isMeinieAllowed = user?.email === 'meinie@carteblanche.co.za' && pathname === '/admin/cap-suppliers/private-payments';
+  const isPrivatePaymentsAllowed = (user?.email === 'meinie@carteblanche.co.za' || user?.email === 'rizma@myacc.co.za') && pathname === '/admin/cap-suppliers/private-payments';
 
   useEffect(() => {
-    if (isAuthenticated && !hasAdminRole && !isMeinieAllowed) {
+    if (isAuthenticated && !hasAdminRole && !isPrivatePaymentsAllowed) {
       router.push('/login');
     }
-  }, [isAuthenticated, hasAdminRole, isMeinieAllowed, router]);
+  }, [isAuthenticated, hasAdminRole, isPrivatePaymentsAllowed, router]);
   
-  if (isAuthenticated === undefined || (isAuthenticated && !hasAdminRole && !isMeinieAllowed)) {
+  if (isAuthenticated === undefined || (isAuthenticated && !hasAdminRole && !isPrivatePaymentsAllowed)) {
      return (
         <div className="flex min-h-screen">
             <Skeleton className="hidden md:block w-16 lg:w-64" />
