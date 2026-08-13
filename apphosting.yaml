@@ -29,9 +29,9 @@ env:
   - variable: IMAP_USER
     value: invoices2@myacc.co.za
   - variable: GEMINI_API_KEY
-    secret: gemini-api-key
+    secret: GEMINI_API_KEY
   - variable: GOOGLE_GENAI_API_KEY
-    secret: gemini-api-key
+    secret: GEMINI_API_KEY
   - variable: IMAP_PASSWORD
     secret: imap-password
   - variable: SYSTEM_SMTP_PASS
