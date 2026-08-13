@@ -392,7 +392,7 @@ export default function ReviewPage() {
     
     useEffect(() => {
         if(user) {
-            fetchInvoicesAndRules(false);
+            fetchInvoicesAndRules();
         }
     }, [user]);
 
