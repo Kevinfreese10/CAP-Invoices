@@ -97,8 +97,8 @@ export default function InboxPage() {
         }
     }, [toast]);
     
-    const fetchEmailsAndInvoices = useCallback(async () => {
-        setIsLoading(true);
+    const fetchEmailsAndInvoices = useCallback(async (showLoader = true) => {
+        if (showLoader) setIsLoading(true);
         setError(null);
         try {
             // Fetch Emails by syncing with Firestore
@@ -132,7 +132,7 @@ export default function InboxPage() {
             console.error("Error fetching data:", err);
             setError(err.message || 'An unknown error occurred.');
         } finally {
-            setIsLoading(false);
+            if (showLoader) setIsLoading(false);
         }
     }, []);
 
@@ -181,7 +181,7 @@ export default function InboxPage() {
            });
         }
         
-        fetchEmailsAndInvoices();
+        fetchEmailsAndInvoices(false);
         setSelectedUids(new Set()); 
     };
 
@@ -202,7 +202,7 @@ export default function InboxPage() {
             }
             
             toast({ title: 'Emails Deleted', description: `${selectedUids.size} email(s) have been deleted.` });
-            fetchEmailsAndInvoices();
+            fetchEmailsAndInvoices(false);
             setSelectedUids(new Set());
         } catch (error: any) {
             toast({ title: 'Error', description: error.message, variant: 'destructive'});
@@ -218,7 +218,7 @@ export default function InboxPage() {
         try {
             await handleProcessAttachments(email, true, filename);
             toast({ title: 'Reprocessing complete!', description: 'The attachment has been submitted for processing again.' });
-            fetchEmailsAndInvoices(); // Refresh all data
+            fetchEmailsAndInvoices(false); // Refresh all data
         } catch (err: any) {
              toast({
                 title: `Reprocessing Failed for ${filename}`,
@@ -387,7 +387,7 @@ export default function InboxPage() {
                         <Plug className={`mr-2 h-4 w-4 ${isTesting ? 'animate-pulse' : ''}`} />
                         Test Connection
                     </Button>
-                    <Button onClick={fetchEmailsAndInvoices} variant="outline" disabled={isLoading || isProcessing}>
+                    <Button onClick={() => fetchEmailsAndInvoices()} variant="outline" disabled={isLoading || isProcessing}>
                         <RefreshCw className={`mr-2 h-4 w-4 ${isLoading || isProcessing ? 'animate-spin' : ''}`} />
                         Refresh
                     </Button>

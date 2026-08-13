@@ -39,8 +39,8 @@ export default function PaymentControlSheetPage() {
     const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
     const { user } = useAuth();
 
-    const fetchInvoices = async () => {
-        setIsLoading(true);
+    const fetchInvoices = async (showLoader = true) => {
+        if (showLoader) setIsLoading(true);
         try {
             const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'approved_for_payment'), orderBy('createdAt', 'desc'));
             const querySnapshot = await getDocs(q);
@@ -49,7 +49,7 @@ export default function PaymentControlSheetPage() {
         } catch (error) {
             console.error("Error fetching approved for payment invoices:", error);
         } finally {
-            setIsLoading(false);
+            if (showLoader) setIsLoading(false);
         }
     };
 
@@ -76,7 +76,7 @@ export default function PaymentControlSheetPage() {
                 description: 'The selected invoices have been moved to the payment batches.',
             });
             setSelectedInvoices([]);
-            fetchInvoices();
+            fetchInvoices(false);
         } catch (error) {
             console.error("Error batching invoices:", error);
             toast({
@@ -100,7 +100,7 @@ export default function PaymentControlSheetPage() {
             await updateDoc(docRef, dataToSave);
             toast({ title: 'Invoice Updated', description: 'Your changes have been saved.' });
             setEditingInvoice(null);
-            fetchInvoices();
+            fetchInvoices(false);
         } catch (error) {
             console.error("Error updating invoice:", error);
             toast({ title: 'Error', description: 'Could not save changes.', variant: 'destructive'});
@@ -133,7 +133,7 @@ export default function PaymentControlSheetPage() {
             }
 
             toast({ title: 'Invoice Rejected', description: 'The invoice has been marked as rejected.' });
-            fetchInvoices();
+            fetchInvoices(false);
         } catch (error) {
             console.error("Error rejecting invoice:", error);
             toast({ title: 'Error', description: 'Could not reject the invoice or send notification.', variant: 'destructive'});
@@ -145,7 +145,7 @@ export default function PaymentControlSheetPage() {
             const docRef = doc(db, 'extractedInvoices', id);
             await updateDoc(docRef, { status: 'pending_third_review' });
             toast({ title: 'Invoice Returned', description: 'The invoice has been returned to Third Review.' });
-            fetchInvoices();
+            fetchInvoices(false);
         } catch (error) {
             console.error("Error returning invoice to third review:", error);
             toast({ title: 'Error', description: 'Could not return the invoice.', variant: 'destructive'});

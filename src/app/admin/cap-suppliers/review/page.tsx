@@ -363,8 +363,8 @@ export default function ReviewPage() {
 
 
 
-    const fetchInvoicesAndRules = async () => {
-        setIsLoading(true);
+    const fetchInvoicesAndRules = async (showLoader = true) => {
+        if (showLoader) setIsLoading(true);
         try {
             const rulesQuery = query(collection(db, "allocationRules"), orderBy("description"));
             const rulesSnapshot = await getDocs(rulesQuery);
@@ -386,13 +386,13 @@ export default function ReviewPage() {
             console.error("Error fetching invoices:", error);
             toast({ title: 'Error', description: 'Could not fetch invoices for review.', variant: 'destructive'});
         } finally {
-            setIsLoading(false);
+            if (showLoader) setIsLoading(false);
         }
     };
     
     useEffect(() => {
         if(user) {
-            fetchInvoicesAndRules();
+            fetchInvoicesAndRules(false);
         }
     }, [user]);
 
@@ -449,7 +449,7 @@ export default function ReviewPage() {
 
             toast({ title: 'Invoice Updated', description: 'Your changes have been saved.' });
             setEditingInvoice(null);
-            fetchInvoicesAndRules();
+            fetchInvoicesAndRules(false);
         } catch (error) {
             console.error("Error updating invoice:", error);
             toast({ title: 'Error', description: 'Could not save changes.', variant: 'destructive'});
@@ -462,7 +462,7 @@ export default function ReviewPage() {
             const docRef = doc(db, 'extractedInvoices', id);
             await updateDoc(docRef, { status: 'approved', approvedBy: user.uid });
             toast({ title: 'Invoice Approved', description: 'The invoice has been moved to 2nd Review.' });
-            fetchInvoicesAndRules();
+            fetchInvoicesAndRules(false);
         } catch (error) {
             toast({ title: 'Error', description: 'Could not approve the invoice.', variant: 'destructive'});
         }
@@ -491,7 +491,7 @@ export default function ReviewPage() {
             }
 
             toast({ title: 'Invoice Rejected', description: 'The invoice has been marked as rejected.' });
-            fetchInvoicesAndRules();
+            fetchInvoicesAndRules(false);
         } catch (error) {
             toast({ title: 'Error', description: 'Could not reject the invoice or send notification.', variant: 'destructive'});
         }
@@ -503,7 +503,7 @@ export default function ReviewPage() {
             const docRef = doc(db, 'extractedInvoices', id);
             await updateDoc(docRef, { status: 'archived', deletedBy: user.uid, deletedAt: serverTimestamp() });
             toast({ title: 'Invoice Deleted', description: 'The invoice has been moved to the deleted list.'});
-            fetchInvoicesAndRules();
+            fetchInvoicesAndRules(false);
         } catch (error) {
             toast({ title: 'Error', description: 'Could not delete the invoice.', variant: 'destructive'});
         }
@@ -520,7 +520,7 @@ export default function ReviewPage() {
             await batch.commit();
             toast({ title: 'Invoices Deleted', description: `${selectedInvoices.length} invoices have been moved to the deleted list.`, variant: 'default'});
             setSelectedInvoices([]);
-            fetchInvoicesAndRules();
+            fetchInvoicesAndRules(false);
         } catch (error) {
             toast({ title: 'Error', description: 'Could not delete the selected invoices.', variant: 'destructive'});
         }
@@ -532,7 +532,7 @@ export default function ReviewPage() {
         try {
             await reanalyzeInvoice(id);
             toast({ title: 'Reanalysis Complete', description: 'The invoice data has been refreshed.' });
-            fetchInvoicesAndRules();
+            fetchInvoicesAndRules(false);
         } catch (error) {
             console.error("Reanalysis error:", error);
             toast({ title: 'Reanalysis Failed', description: 'Could not reanalyze the invoice.', variant: 'destructive' });
@@ -560,7 +560,7 @@ export default function ReviewPage() {
             }
             toast({ title: 'Reanalysis Complete', description: `Successfully reanalyzed ${successCount} of ${selectedInvoices.length} invoice(s).` });
             setSelectedInvoices([]);
-            fetchInvoicesAndRules();
+            fetchInvoicesAndRules(false);
         } catch (error) {
             console.error("Bulk reanalysis error:", error);
             toast({ title: 'Reanalysis Failed', description: 'An error occurred during bulk reanalysis.', variant: 'destructive' });
@@ -681,7 +681,7 @@ export default function ReviewPage() {
                         open={isAnalyzeDialogOpen}
                         onOpenChange={setIsAnalyzeDialogOpen}
                         invoices={invoices.filter(i => selectedInvoices.includes(i.id))}
-                        onAnalyzeComplete={fetchInvoicesAndRules}
+                        onAnalyzeComplete={() => fetchInvoicesAndRules(false)}
                     />
                     <AlertDialog>
                         <AlertDialogTrigger asChild>

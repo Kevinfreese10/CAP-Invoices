@@ -54,8 +54,8 @@ export default function SecondReviewPage() {
         fetchUsersMap();
     }, []);
 
-    const fetchInvoices = async () => {
-        setIsLoading(true);
+    const fetchInvoices = async (showLoader = true) => {
+        if (showLoader) setIsLoading(true);
         try {
             const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'approved'), orderBy('createdAt', 'desc'));
             const querySnapshot = await getDocs(q);
@@ -67,7 +67,7 @@ export default function SecondReviewPage() {
             console.error("Error fetching invoices:", error);
             toast({ title: 'Error', description: 'Could not fetch approved invoices.', variant: 'destructive'});
         } finally {
-            setIsLoading(false);
+            if (showLoader) setIsLoading(false);
         }
     };
     
@@ -88,7 +88,7 @@ export default function SecondReviewPage() {
             await updateDoc(docRef, dataToSave);
             toast({ title: 'Invoice Updated', description: 'Your changes have been saved.' });
             setEditingInvoice(null);
-            fetchInvoices();
+            fetchInvoices(false);
         } catch (error) {
             console.error("Error updating invoice:", error);
             toast({ title: 'Error', description: 'Could not save changes.', variant: 'destructive'});
@@ -117,7 +117,7 @@ export default function SecondReviewPage() {
 
             toast({ title: 'Saved & Approved', description: 'The invoice has been updated and sent to Account Review.' });
             setEditingInvoice(null);
-            fetchInvoices();
+            fetchInvoices(false);
         } catch (error) {
             console.error("Error saving and approving:", error);
             toast({ title: 'Error', description: 'Could not save and approve the invoice.', variant: 'destructive' });
@@ -133,7 +133,7 @@ export default function SecondReviewPage() {
                 approvedBy: user.uid 
             });
             toast({ title: 'Invoice Approved for Account Review', description: 'The invoice has been moved to the next review step.' });
-            fetchInvoices();
+            fetchInvoices(false);
         } catch (error) {
             toast({ title: 'Error', description: 'Could not approve for account review.', variant: 'destructive'});
         }
@@ -164,7 +164,7 @@ export default function SecondReviewPage() {
             }
 
             toast({ title: 'Invoice Rejected', description: 'The invoice has been marked as rejected.' });
-            fetchInvoices();
+            fetchInvoices(false);
         } catch (error) {
             toast({ title: 'Error', description: 'Could not reject the invoice or send notification.', variant: 'destructive'});
         }
@@ -174,7 +174,7 @@ export default function SecondReviewPage() {
          try {
             await deleteDoc(doc(db, 'extractedInvoices', id));
             toast({ title: 'Invoice Deleted', description: 'The invoice has been removed.', variant: 'destructive'});
-            fetchInvoices();
+            fetchInvoices(false);
         } catch (error) {
             toast({ title: 'Error', description: 'Could not delete the invoice.', variant: 'destructive'});
         }

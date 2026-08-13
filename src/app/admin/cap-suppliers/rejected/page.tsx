@@ -104,8 +104,8 @@ export default function RejectedInvoicesPage() {
     const { toast } = useToast();
     const { user } = useAuth();
 
-    const fetchInvoices = async () => {
-        setIsLoading(true);
+    const fetchInvoices = async (showLoader = true) => {
+        if (showLoader) setIsLoading(true);
         try {
             const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'rejected'), orderBy('createdAt', 'desc'));
             const querySnapshot = await getDocs(q);
@@ -115,7 +115,7 @@ export default function RejectedInvoicesPage() {
             console.error("Error fetching rejected invoices:", error);
             toast({ title: 'Error', description: 'Could not fetch rejected invoices.', variant: 'destructive'});
         } finally {
-            setIsLoading(false);
+            if (showLoader) setIsLoading(false);
         }
     };
     
@@ -128,7 +128,7 @@ export default function RejectedInvoicesPage() {
             const docRef = doc(db, 'extractedInvoices', id);
             await updateDoc(docRef, { status: 'pending_review', rejectionReason: '' });
             toast({ title: 'Invoice Sent for Review', description: 'The invoice has been moved back to the review queue.' });
-            fetchInvoices();
+            fetchInvoices(false);
         } catch (error) {
             toast({ title: 'Error', description: 'Could not move the invoice.', variant: 'destructive'});
         }
@@ -138,7 +138,7 @@ export default function RejectedInvoicesPage() {
          try {
             await deleteDoc(doc(db, 'extractedInvoices', id));
             toast({ title: 'Invoice Deleted', description: 'The invoice has been permanently removed.', variant: 'destructive'});
-            fetchInvoices();
+            fetchInvoices(false);
         } catch (error) {
             toast({ title: 'Error', description: 'Could not delete the invoice.', variant: 'destructive'});
         }

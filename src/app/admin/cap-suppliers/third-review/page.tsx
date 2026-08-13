@@ -202,8 +202,8 @@ export default function ThirdReviewPage() {
     const [isAnalyzingDescriptions, setIsAnalyzingDescriptions] = useState<{ [key: string]: boolean }>({});
 
 
-    const fetchInvoices = async () => {
-        setIsLoading(true);
+    const fetchInvoices = async (showLoader = true) => {
+        if (showLoader) setIsLoading(true);
         try {
             const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'pending_third_review'), orderBy('createdAt', 'desc'));
             const querySnapshot = await getDocs(q);
@@ -213,7 +213,7 @@ export default function ThirdReviewPage() {
         } catch (error) {
             console.error("Error fetching invoices for 3rd review:", error);
         } finally {
-            setIsLoading(false);
+            if (showLoader) setIsLoading(false);
         }
     };
 
@@ -229,7 +229,7 @@ export default function ThirdReviewPage() {
                 title: 'Invoice Approved for Payment',
                 description: 'The invoice has been moved to the Payment Control Sheet.',
             });
-            fetchInvoices(); // Re-fetch to update the list
+            fetchInvoices(false); // Re-fetch to update the list
         } catch (error) {
             console.error("Error approving invoice:", error);
             toast({
@@ -259,7 +259,7 @@ export default function ThirdReviewPage() {
                 description: 'The selected invoices have been moved to the payment control sheet.',
             });
             setSelectedInvoices([]);
-            fetchInvoices();
+            fetchInvoices(false);
         } catch (error) {
             console.error("Error batch approving invoices:", error);
             toast({ title: 'Batch Approval Failed', variant: 'destructive' });
@@ -279,7 +279,7 @@ export default function ThirdReviewPage() {
             await updateDoc(docRef, dataToSave);
             toast({ title: 'Invoice Updated', description: 'Your changes have been saved.' });
             setEditingInvoice(null);
-            fetchInvoices();
+            fetchInvoices(false);
         } catch (error) {
             console.error("Error updating invoice:", error);
             toast({ title: 'Error', description: 'Could not save changes.', variant: 'destructive'});
@@ -363,7 +363,7 @@ export default function ThirdReviewPage() {
             if (changesFound > 0) {
                 await batch.commit();
                 toast({ title: 'Saved!', description: `${changesFound} invoice(s) have been updated.`});
-                fetchInvoices(); 
+                fetchInvoices(false); 
             } else {
                 toast({ title: 'No Changes', description: 'There were no new ledger descriptions to save.'});
             }
@@ -381,7 +381,7 @@ export default function ThirdReviewPage() {
             const docRef = doc(db, 'extractedInvoices', id);
             await updateDoc(docRef, { status: 'archived', deletedBy: user.uid, deletedAt: serverTimestamp() });
             toast({ title: 'Invoice Deleted', description: 'The invoice has been moved to the deleted list.'});
-            fetchInvoices();
+            fetchInvoices(false);
         } catch (error) {
             toast({ title: 'Error', description: 'Could not delete the invoice.', variant: 'destructive'});
         }
@@ -398,7 +398,7 @@ export default function ThirdReviewPage() {
             await batch.commit();
             toast({ title: 'Invoices Deleted', description: selectedInvoices.length + ' invoices have been moved to the deleted list.', variant: 'default'});
             setSelectedInvoices([]);
-            fetchInvoices();
+            fetchInvoices(false);
         } catch (error) {
             toast({ title: 'Error', description: 'Could not delete selected invoices.', variant: 'destructive'});
         }
