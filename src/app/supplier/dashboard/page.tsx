@@ -365,7 +365,7 @@ export default function SupplierDashboardPage() {
 
     } catch (error) {
       console.error("Invoice upload error:", error);
-      toast({ title: 'Upload Failed', description: 'Could not process the invoice.', variant: 'destructive' });
+      toast({ title: 'Upload Failed', description: `Could not process the invoice. ${error?.message || ''}`, variant: 'destructive' });
     } finally {
       setIsUploading(false);
     }
