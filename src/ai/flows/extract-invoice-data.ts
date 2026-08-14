@@ -113,8 +113,7 @@ Analyze the following invoice:
   `,
   });
 
-  const { output } = await prompt.generate({
-    input,
+  const { output } = await prompt(input, {
     config: { temperature: 0.0 }
   });
 
