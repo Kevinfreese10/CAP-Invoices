@@ -10,7 +10,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { getFirestore, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, updateDoc, addDoc, collection } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 
 const ExtractInvoiceDataInputSchema = z.object({
@@ -45,6 +45,24 @@ export async function extractInvoiceData(
     return await extractInvoiceDataFlow(input);
   } catch (error: any) {
     console.error("extractInvoiceData error:", error);
+    
+    // DEBUG LOGGING TO FIRESTORE
+    try {
+      const db = getFirestore(firebaseApp);
+      const key = process.env.GEMINI_API_KEY || '';
+      const genaiKey = process.env.GOOGLE_GENAI_API_KEY || '';
+      await addDoc(collection(db, 'debugLogs'), {
+        timestamp: new Date().toISOString(),
+        error: error.message || error.toString(),
+        keyLength: key.length,
+        keyPrefix: key.substring(0, 5),
+        genaiKeyLength: genaiKey.length,
+        genaiKeyPrefix: genaiKey.substring(0, 5)
+      });
+    } catch (e) {
+      console.error("Failed to write debug log", e);
+    }
+    
     return { _error: error.message || error.toString() } as any;
   }
 }
