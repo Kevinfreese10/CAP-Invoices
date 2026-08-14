@@ -8,7 +8,7 @@
  * - ExtractInvoiceDataOutput - The return type for the extractInvoiceData function.
  */
 
-import { ai } from '@/ai/genkit';
+import { ai, getCustomAi } from '@/ai/genkit';
 import { z } from 'genkit';
 import { getFirestore, doc, getDoc, updateDoc, addDoc, collection } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -67,11 +67,16 @@ export async function extractInvoiceData(
   }
 }
 
-const prompt = ai.definePrompt({
-  name: 'extractInvoiceDataPrompt',
-  input: { schema: ExtractInvoiceDataInputSchema },
-  output: { schema: ExtractInvoiceDataOutputSchema },
-  prompt: `You are an expert OCR and data extraction agent specializing in South African supplier invoices.
+export async function extractInvoiceDataFlow(
+  input: ExtractInvoiceDataInput
+): Promise<ExtractInvoiceDataOutput> {
+  const runtimeAi = getCustomAi(process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY);
+
+  const prompt = runtimeAi.definePrompt({
+    name: 'extractInvoiceDataPrompt',
+    input: { schema: ExtractInvoiceDataInputSchema },
+    output: { schema: ExtractInvoiceDataOutputSchema },
+    prompt: `You are an expert OCR and data extraction agent specializing in South African supplier invoices.
 
 Your task is to analyze the provided invoice document and extract the following information with perfect accuracy:
 1.  **Supplier Name**: The name of the company that issued the invoice.
@@ -106,19 +111,18 @@ Your task is to analyze the provided invoice document and extract the following 
 Analyze the following invoice:
 {{media url=invoiceImage}}
   `,
-});
+  });
 
-const extractInvoiceDataFlow = ai.defineFlow(
-  {
-    name: 'extractInvoiceDataFlow',
-    inputSchema: ExtractInvoiceDataInputSchema,
-    outputSchema: ExtractInvoiceDataOutputSchema,
-  },
-  async (input) => {
-    const { output } = await prompt(input, { config: { temperature: 0.0 } });
-    return output!;
+  const { output } = await prompt.generate({
+    input,
+    config: { temperature: 0.0 }
+  });
+
+  if (!output) {
+    throw new Error('Failed to extract data from invoice.');
   }
-);
+  return output;
+}
 
 export async function reanalyzeInvoice(invoiceId: string): Promise<ExtractInvoiceDataOutput> {
   const db = getFirestore(firebaseApp);
