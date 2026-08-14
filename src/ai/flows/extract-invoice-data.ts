@@ -70,11 +70,7 @@ export async function extractInvoiceData(
 export async function extractInvoiceDataFlow(
   input: ExtractInvoiceDataInput
 ): Promise<ExtractInvoiceDataOutput> {
-  const p1 = 'AQ.Ab8RN6K';
-  const p2 = 'D3mRJGFL4aURIJHaa';
-  const p3 = 'oscX2abBbEvvzO3zGpFoDtP70A';
-  const fallbackKey = p1 + p2 + p3;
-  const runtimeAi = getCustomAi(process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || fallbackKey);
+  const runtimeAi = getCustomAi(process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY);
 
   const prompt = runtimeAi.definePrompt({
     name: 'extractInvoiceDataPrompt',
