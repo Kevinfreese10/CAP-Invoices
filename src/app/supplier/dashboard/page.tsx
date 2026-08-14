@@ -323,7 +323,18 @@ export default function SupplierDashboardPage() {
       const uploadResult = await uploadBytes(storageRef, file);
       const downloadURL = await getDownloadURL(uploadResult.ref);
 
-      const result = await extractInvoiceData({ invoiceImage: dataUrl });
+      const result = await extractInvoiceData({ invoiceImage: dataUrl }) as any;
+
+      if (result?._error) {
+        toast({
+            title: 'AI Extraction Error',
+            description: result._error,
+            variant: 'destructive',
+            duration: 9000,
+        });
+        setIsUploading(false);
+        return;
+      }
 
       if (!result || !result.supplier) {
         toast({

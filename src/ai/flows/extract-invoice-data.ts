@@ -40,8 +40,13 @@ export type ExtractInvoiceDataOutput = z.infer<typeof ExtractInvoiceDataOutputSc
 
 export async function extractInvoiceData(
   input: ExtractInvoiceDataInput
-): Promise<ExtractInvoiceDataOutput> {
-  return extractInvoiceDataFlow(input);
+): Promise<ExtractInvoiceDataOutput | { _error: string }> {
+  try {
+    return await extractInvoiceDataFlow(input);
+  } catch (error: any) {
+    console.error("extractInvoiceData error:", error);
+    return { _error: error.message || error.toString() } as any;
+  }
 }
 
 const prompt = ai.definePrompt({
