@@ -74,6 +74,7 @@ const approvalAllocations = [
     { label: "Insert Producers (Per Minute Rate)", email: "rudi@combinedartists.co.za" },
     { label: "Editorial Assistant", email: "rudi@combinedartists.co.za" },
     { label: "Viewer Panel Consultant", email: "rudi@combinedartists.co.za" },
+    { label: "Audience Panel", email: "rudi@combinedartists.co.za" },
     { label: "Research & Development", email: "rudi@combinedartists.co.za" },
     { label: "Investigative", email: "rudi@combinedartists.co.za" },
     { label: "Operational Manager", email: "rudi@combinedartists.co.za" },
@@ -249,6 +250,13 @@ export default function SupplierDashboardPage() {
     const commsQuery = query(commsRef, orderBy('commissionNumber', 'asc'));
     getDocs(commsQuery).then(commsSnapshot => {
         const fetchedCommissions = commsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Commission));
+        if (!fetchedCommissions.some(c => c.commissionNumber === 'APCAP')) {
+            fetchedCommissions.push({
+                id: 'APCAP',
+                commissionNumber: 'APCAP',
+                storyName: 'Audience Panel',
+            } as Commission);
+        }
         setCommissions(fetchedCommissions);
         setIsCommissionsLoading(false);
     }).catch(async (serverError) => {
@@ -323,18 +331,7 @@ export default function SupplierDashboardPage() {
       const uploadResult = await uploadBytes(storageRef, file);
       const downloadURL = await getDownloadURL(uploadResult.ref);
 
-      const result = await extractInvoiceData({ invoiceImage: dataUrl }) as any;
-
-      if (result?._error) {
-        toast({
-            title: 'AI Extraction Error',
-            description: result._error,
-            variant: 'destructive',
-            duration: 9000,
-        });
-        setIsUploading(false);
-        return;
-      }
+      const result = await extractInvoiceData({ invoiceImage: dataUrl });
 
       if (!result || !result.supplier) {
         toast({
@@ -376,7 +373,7 @@ export default function SupplierDashboardPage() {
 
     } catch (error) {
       console.error("Invoice upload error:", error);
-      toast({ title: 'Upload Failed', description: `Could not process the invoice. ${error?.message || ''}`, variant: 'destructive' });
+      toast({ title: 'Upload Failed', description: 'Could not process the invoice.', variant: 'destructive' });
     } finally {
       setIsUploading(false);
     }
@@ -537,6 +534,9 @@ export default function SupplierDashboardPage() {
                                                     key={acc.label}
                                                     onSelect={() => {
                                                         form.setValue("approvalAllocation", acc.label);
+                                                        if (acc.label === "Audience Panel") {
+                                                            form.setValue("commissionNumber", "APCAP", { shouldValidate: true });
+                                                        }
                                                         setIsApproverPopoverOpen(false);
                                                     }}
                                                 >
