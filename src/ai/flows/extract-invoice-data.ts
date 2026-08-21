@@ -8,9 +8,9 @@
  * - ExtractInvoiceDataOutput - The return type for the extractInvoiceData function.
  */
 
-import { ai, getCustomAi } from '@/ai/genkit';
+import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { getFirestore, doc, getDoc, updateDoc, addDoc, collection } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 
 const ExtractInvoiceDataInputSchema = z.object({
@@ -40,43 +40,15 @@ export type ExtractInvoiceDataOutput = z.infer<typeof ExtractInvoiceDataOutputSc
 
 export async function extractInvoiceData(
   input: ExtractInvoiceDataInput
-): Promise<ExtractInvoiceDataOutput | { _error: string }> {
-  try {
-    return await extractInvoiceDataFlow(input);
-  } catch (error: any) {
-    console.error("extractInvoiceData error:", error);
-    
-    // DEBUG LOGGING TO FIRESTORE
-    try {
-      const db = getFirestore(firebaseApp);
-      const key = process.env.GEMINI_API_KEY || '';
-      const genaiKey = process.env.GOOGLE_GENAI_API_KEY || '';
-      await addDoc(collection(db, 'debugLogs'), {
-        timestamp: new Date().toISOString(),
-        error: error.message || error.toString(),
-        keyLength: key.length,
-        keyPrefix: key.substring(0, 5),
-        genaiKeyLength: genaiKey.length,
-        genaiKeyPrefix: genaiKey.substring(0, 5)
-      });
-    } catch (e) {
-      console.error("Failed to write debug log", e);
-    }
-    
-    return { _error: error.message || error.toString() } as any;
-  }
+): Promise<ExtractInvoiceDataOutput> {
+  return extractInvoiceDataFlow(input);
 }
 
-export async function extractInvoiceDataFlow(
-  input: ExtractInvoiceDataInput
-): Promise<ExtractInvoiceDataOutput> {
-  const runtimeAi = getCustomAi(process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY);
-
-  const prompt = runtimeAi.definePrompt({
-    name: 'extractInvoiceDataPrompt',
-    input: { schema: ExtractInvoiceDataInputSchema },
-    output: { schema: ExtractInvoiceDataOutputSchema },
-    prompt: `You are an expert OCR and data extraction agent specializing in South African supplier invoices.
+const prompt = ai.definePrompt({
+  name: 'extractInvoiceDataPrompt',
+  input: { schema: ExtractInvoiceDataInputSchema },
+  output: { schema: ExtractInvoiceDataOutputSchema },
+  prompt: `You are an expert OCR and data extraction agent specializing in South African supplier invoices.
 
 Your task is to analyze the provided invoice document and extract the following information with perfect accuracy:
 1.  **Supplier Name**: The name of the company that issued the invoice.
@@ -111,17 +83,19 @@ Your task is to analyze the provided invoice document and extract the following 
 Analyze the following invoice:
 {{media url=invoiceImage}}
   `,
-  });
+});
 
-  const { output } = await prompt(input, {
-    config: { temperature: 0.0 }
-  });
-
-  if (!output) {
-    throw new Error('Failed to extract data from invoice.');
+const extractInvoiceDataFlow = ai.defineFlow(
+  {
+    name: 'extractInvoiceDataFlow',
+    inputSchema: ExtractInvoiceDataInputSchema,
+    outputSchema: ExtractInvoiceDataOutputSchema,
+  },
+  async (input) => {
+    const { output } = await prompt(input, { config: { temperature: 0.0 } });
+    return output!;
   }
-  return output;
-}
+);
 
 export async function reanalyzeInvoice(invoiceId: string): Promise<ExtractInvoiceDataOutput> {
   const db = getFirestore(firebaseApp);

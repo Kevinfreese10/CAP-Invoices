@@ -55,7 +55,7 @@ const getInvoiceStatusBadge = (status: ExtractedInvoice['status']) => {
         case 'pending_account_review': return <Badge variant={'warning'}><Hourglass className="mr-1 h-3 w-3" />Pending Account Review</Badge>;
         case 'pending_third_review': return <Badge variant={'third_review'}><Hourglass className="mr-1 h-3 w-3" />Pending 3rd Review</Badge>;
         case 'archived': return <Badge variant={'secondary'}><XCircle className="mr-1 h-3 w-3" />Archived</Badge>;
-        default: return <Badge>{status.replace(/_/g, ' ')}</Badge>;
+        default: return <Badge>{(status as string).replace(/_/g, ' ')}</Badge>;
     }
 }
 

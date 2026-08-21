@@ -20,7 +20,7 @@ type EmailPayload = {
 
 export async function sendEmail({ to, subject, html, from, bcc, resellerId, attachments, replyTo }: EmailPayload) {
   
-  let fromAddress: string;
+  let fromAddress: string = '';
   let transportConfig: any;
 
   if (resellerId) {

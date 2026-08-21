@@ -176,7 +176,7 @@ export default function RejectedInvoicesPage() {
             return acc;
         }, {} as Record<string, ExtractedInvoice[]>);
 
-        const dataToExport = [];
+        const dataToExport: any[] = [];
         
         Object.entries(grouped)
             .sort((a, b) => a[0].localeCompare(b[0]))

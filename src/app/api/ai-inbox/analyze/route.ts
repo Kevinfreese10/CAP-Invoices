@@ -1,51 +1,50 @@
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
-import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { categorizeSupportRequest } from '@/ai/flows/categorize-support-requests';
-import imaps from 'imap-simple';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import ImapSimple from 'imap-simple';
 import { simpleParser } from 'mailparser';
 
-async function connectToImap() {
-    const config = {
-      imap: {
-        user: process.env.IMAP_USER || '',
-        password: (process.env.IMAP_PASSWORD || '').trim(),
-        host: process.env.IMAP_HOST || '',
-        port: Number(process.env.IMAP_PORT) || 993,
-        tls: true,
-        authTimeout: 30000,
-        tlsOptions: { rejectUnauthorized: false } 
-      },
-    };
-    return await imaps.connect(config);
-}
-
 async function fetchEmailBodyText(uid: number): Promise<string> {
-    let connection;
+    const imapConfig = {
+        imap: {
+            user: process.env.IMAP_USER || '',
+            password: (process.env.IMAP_PASSWORD || '').trim(),
+            host: process.env.IMAP_HOST || '',
+            port: Number(process.env.IMAP_PORT) || 993,
+            tls: true,
+            authTimeout: 10000,
+            tlsOptions: { rejectUnauthorized: false }
+        }
+    };
+
+    let connection: ImapSimple | null = null;
     try {
-        connection = await connectToImap();
+        connection = await ImapSimple.connect(imapConfig);
         await connection.openBox('INBOX');
-        const messages = await connection.search([['UID', uid]], { bodies: [''] });
-        if (messages.length === 0) {
-            throw new Error(`Email with UID ${uid} not found on server.`);
+        const results = await connection.search([['UID', uid]], { bodies: [''], struct: true });
+
+        if (!results || results.length === 0) {
+            throw new Error(`Email with UID ${uid} not found on IMAP server.`);
         }
-        const item = messages[0];
-        const all = item.parts.find((part) => part.which === '');
-        const mail = await simpleParser(all?.body || '');
+
+        const message = results[0];
+        const all = message.parts.find(part => part.which === '');
+        if (!all) throw new Error("Body part not found");
         
-        // Return plain text if available, fallback to html (stripped of tags), fallback to empty string
-        if (mail.text) {
-            return mail.text;
-        } else if (mail.html) {
-            return mail.html.replace(/<[^>]*>?/gm, ' ');
-        }
-        return '';
-    } catch (error: any) {
-        console.error(`Error fetching email body for UID ${uid}:`, error);
-        throw error;
+        const parsed = await simpleParser(all.body);
+        return parsed.text || parsed.html || 'No body text found.';
+
+    } catch (err: any) {
+        console.error(`IMAP fetch failed for UID ${uid}:`, err);
+        throw err;
     } finally {
         if (connection) {
-            connection.end();
+            try {
+                await connection.end();
+            } catch (e) {
+                // Ignore disconnect errors
+            }
         }
     }
 }
@@ -63,58 +62,57 @@ export async function POST(req: Request) {
             const docRef = adminDb.collection('inboxEmails').doc(String(uid));
             const docSnap = await docRef.get();
 
-            if (docSnap.exists()) {
+            if (docSnap.exists) {
                 const email = docSnap.data();
-                
-                try {
-                    // Fetch the full email body text directly from IMAP server on-demand
-                    const emailBodyText = await fetchEmailBodyText(uid);
-                    const requestText = `Subject: ${email.subject}\n\nBody: ${emailBodyText}`;
-                    const clientName = email.from.split('<')[0].trim();
-                    
-                    const analysis = await categorizeSupportRequest({ 
-                        request: requestText, 
-                        clientName,
-                        attachments: email.attachments || [],
-                    });
-                    
-                    const updateData: any = {
-                        summary: analysis.summary || null,
-                        category: analysis.category || null,
-                        priority: analysis.priority || null,
-                        sla: analysis.sla || null,
-                        suggestedAction: analysis.suggestedAction || 'none',
-                        draftReply: analysis.draftReply || null,
-                    };
-                    
-                    if (analysis.task?.shouldCreate && analysis.task.title) {
-                        const dueDate = new Date();
-                        dueDate.setHours(dueDate.getHours() + (analysis.sla || 48));
+                if (email) {
+                    try {
+                        const emailBodyText = await fetchEmailBodyText(uid);
+                        const requestText = `Subject: ${email.subject || ''}\n\nBody: ${emailBodyText}`;
+                        const clientName = email.from ? email.from.split('<')[0].trim() : 'Client';
                         
-                        await adminDb.collection('tasks').add({
-                            title: analysis.task.title,
-                            description: analysis.task.description || 'Generated from email.',
-                            status: 'To-Do',
-                            priority: analysis.priority,
-                            dueDate: Timestamp.fromDate(dueDate),
-                            createdAt: FieldValue.serverTimestamp(),
-                            createdBy: 'ai_system',
-                            assignedTo: [], // Needs manual assignment
+                        const analysis = await categorizeSupportRequest({ 
+                            request: requestText, 
+                            clientName,
+                            attachments: email.attachments || [],
                         });
-                        updateData.isProcessed = true;
-                        updateData.processedAction = 'processed';
-                    }
+                        
+                        const updateData: any = {
+                            summary: analysis.summary || null,
+                            category: analysis.category || null,
+                            priority: analysis.priority || null,
+                            sla: analysis.sla || null,
+                            suggestedAction: analysis.suggestedAction || 'none',
+                            draftReply: analysis.draftReply || null,
+                        };
+                        
+                        if (analysis.task?.shouldCreate && analysis.task.title) {
+                            const dueDate = new Date();
+                            dueDate.setHours(dueDate.getHours() + (analysis.sla || 48));
+                            
+                            await adminDb.collection('tasks').add({
+                                title: analysis.task.title,
+                                description: analysis.task.description || 'Generated from email.',
+                                status: 'To-Do',
+                                priority: analysis.priority,
+                                dueDate: Timestamp.fromDate(dueDate),
+                                createdAt: FieldValue.serverTimestamp(),
+                                createdBy: 'ai_system',
+                                assignedTo: [],
+                            });
+                            updateData.isProcessed = true;
+                            updateData.processedAction = 'processed';
+                        }
 
-                    await docRef.update(updateData);
-                    successCount++;
-                } catch (aiError) {
-                     console.error(`AI analysis failed for email UID ${uid}:`, aiError);
-                    // Continue to next email even if one fails
+                        await docRef.update(updateData);
+                        successCount++;
+                    } catch (aiError) {
+                         console.error(`AI analysis failed for email UID ${uid}:`, aiError);
+                    }
                 }
             }
         }
         
-        if(successCount === 0) {
+        if (successCount === 0) {
             throw new Error("AI analysis failed for all selected emails.");
         }
 

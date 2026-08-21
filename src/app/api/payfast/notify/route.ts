@@ -1,1 +1,5 @@
-// This file is intentionally left blank as PayFast integration has been removed.
+import { NextResponse } from 'next/server';
+
+export async function POST() {
+  return NextResponse.json({ message: 'PayFast notification disabled' });
+}

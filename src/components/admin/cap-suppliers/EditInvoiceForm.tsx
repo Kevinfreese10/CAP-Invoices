@@ -90,7 +90,7 @@ function getUpcomingFridays(): { value: string; label: string }[] {
             const isMonthEndFriday = isLastDayOfMonth(today) || getMonth(addDays(today, 7)) !== getMonth(today);
             fridays.unshift({
                 value: format(today, 'yyyy-MM-dd'),
-                label: `${format(day, 'dd MMMM yyyy')}${isMonthEndFriday ? ' (Month End)' : ''}`,
+                label: `${format(today, 'dd MMMM yyyy')}${isMonthEndFriday ? ' (Month End)' : ''}`,
             });
         }
     }
