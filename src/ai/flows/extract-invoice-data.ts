@@ -92,7 +92,22 @@ const extractInvoiceDataFlow = ai.defineFlow(
     outputSchema: ExtractInvoiceDataOutputSchema,
   },
   async (input) => {
-    const { output } = await prompt(input, { config: { temperature: 0.0 } });
+    let formattedImage = input.invoiceImage;
+    if (formattedImage.startsWith('http://') || formattedImage.startsWith('https://')) {
+      try {
+        const res = await fetch(formattedImage);
+        if (res.ok) {
+          const arrayBuffer = await res.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          const contentType = res.headers.get('content-type') || 'application/pdf';
+          formattedImage = `data:${contentType};base64,${buffer.toString('base64')}`;
+        }
+      } catch (e) {
+        console.warn('Could not pre-fetch invoice URL, passing directly to prompt:', e);
+      }
+    }
+
+    const { output } = await prompt({ invoiceImage: formattedImage }, { config: { temperature: 0.0 } });
     return output!;
   }
 );

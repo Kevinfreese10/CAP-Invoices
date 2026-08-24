@@ -398,12 +398,10 @@ export default function SupplierDashboardPage() {
       });
       reader.readAsDataURL(file);
       const dataUrl = await dataUrlPromise;
-      
       const storageRef = ref(storage, `uploads/${user.uid}/invoices/${Date.now()}-${file.name}`);
       const uploadResult = await uploadBytes(storageRef, file);
       const downloadURL = await getDownloadURL(uploadResult.ref);
-
-      const result = await extractInvoiceData({ invoiceImage: downloadURL });
+      const result = await extractInvoiceData({ invoiceImage: dataUrl });
 
       if (!result || !result.supplier) {
         toast({
