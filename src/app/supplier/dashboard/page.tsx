@@ -441,9 +441,9 @@ export default function SupplierDashboardPage() {
           errorEmitter.emit('permission-error', permissionError);
       });
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Invoice upload error:", error);
-      toast({ title: 'Upload Failed', description: 'Could not process the invoice.', variant: 'destructive' });
+      toast({ title: 'Upload Failed', description: error?.message || 'Could not process the invoice.', variant: 'destructive', duration: 10000 });
     } finally {
       setIsUploading(false);
     }
