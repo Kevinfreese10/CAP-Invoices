@@ -3,9 +3,12 @@ import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  serverActions: {
+    bodySizeLimit: '50mb',
+  },
   experimental: {
     serverActions: {
-      bodySizeLimit: '20mb',
+      bodySizeLimit: '50mb',
     },
   },
   /* config options here */

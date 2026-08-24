@@ -401,7 +401,7 @@ export default function SupplierDashboardPage() {
       const storageRef = ref(storage, `uploads/${user.uid}/invoices/${Date.now()}-${file.name}`);
       const uploadResult = await uploadBytes(storageRef, file);
       const downloadURL = await getDownloadURL(uploadResult.ref);
-      const result = await extractInvoiceData({ invoiceImage: dataUrl });
+      const result = await extractInvoiceData({ invoiceImage: downloadURL });
 
       if (!result || !result.supplier) {
         toast({
