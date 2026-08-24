@@ -67,47 +67,6 @@ export async function extractInvoiceData(
   };
 }
 
-const prompt = ai.definePrompt({
-  name: 'extractInvoiceDataPrompt',
-  input: { schema: ExtractInvoiceDataInputSchema },
-  output: { schema: ExtractInvoiceDataOutputSchema },
-  prompt: `You are an expert OCR and data extraction agent specializing in South African supplier invoices.
-
-Your task is to analyze the provided invoice document and extract the following information with perfect accuracy:
-1.  **Supplier Name**: The name of the company that issued the invoice.
-    *   CRITICAL: The supplier is NEVER "Combined Artistic Productions (Pty) Ltd" or "CAP". That is the buyer/recipient. You must find the company that is billing Combined Artistic Productions.
-2.  **Invoice Number**: The unique invoice number, reference number, or document ID.
-3.  **Commission Number**: The commission number, if it is present on the invoice.
-4.  **Invoice Date**: The date the invoice was issued, formatted as DD/MM/YYYY.
-5.  **Line Items**: For each distinct item or service on the invoice, extract:
-    *   The full line item description.
-    *   The amount excluding VAT (exclusiveAmount).
-    *   The VAT amount for that specific line item.
-6.  **Invoice Total**: The final, grand total amount due on the invoice.
-7.  **Supplier VAT Number**: The supplier's 10-digit VAT registration number, if present.
-8.  **Document Type**: The type of document identified (e.g. Tax Invoice, Proforma Invoice, Quote, Credit Note, Statement, Receipt, Other).
-
-### Critical Extraction Instructions:
-- **Multi-Page Invoices**: If the invoice spans multiple pages, you MUST analyze all pages and extract all line items across the entire document without omission.
-- **Ambiguous Dates**: Normalize the date format strictly to 'DD/MM/YYYY'. If a date like '02/03/2026' is ambiguous, look at the rest of the invoice or nearby dates to determine whether it means 2 March 2026 or 3 February 2026.
-- **Illegible Text**: If a description, number, or word is blurry or illegible, do not guess or hallucinate. Keep the fields clean and omit or label them 'ILLEGIBLE'.
-
-### Critical VAT Extraction Rules:
-- **Do not invent VAT**: If the invoice does not explicitly charge VAT, or if it explicitly states "No VAT" or "VAT Exempt", then the VAT amount is exactly 0 for all line items.
-- A valid South African VAT invoice usually contains a 10-digit VAT registration number (starting with '4'). However, even if they have a VAT number, if the total VAT charged on the invoice is 0, DO NOT extract VAT on the line items.
-- If the supplier is NOT a VAT vendor (no VAT registration number is listed, or no VAT is charged):
-  * You MUST extract \`vatAmount\` as \`0\` for all line items.
-  * Set \`exclusiveAmount\` to the full amount of the line item (so exclusiveAmount matches the total line item cost).
-- Only if VAT is explicitly charged on the invoice:
-  * Check if the line items are inclusive or exclusive of VAT.
-  * If the invoice does not explicitly separate exclusive and VAT amounts per line, but a VAT total is shown at the bottom, calculate the VAT portion for each line item as \`Line Total * (15 / 115)\` and the exclusive portion as \`Line Total * (100 / 115)\` assuming a standard South African VAT rate of 15%.
-  * If a specific line item is zero-rated or exempt from VAT, set its \`vatAmount\` to \`0\` and \`exclusiveAmount\` to the full line item cost.
-
-Analyze the following invoice:
-{{media url=invoiceImage}}
-  `,
-});
-
 const extractInvoiceDataFlow = ai.defineFlow(
   {
     name: 'extractInvoiceDataFlow',
@@ -116,22 +75,64 @@ const extractInvoiceDataFlow = ai.defineFlow(
   },
   async (input) => {
     let formattedImage = input.invoiceImage;
+    let mimeType = 'application/pdf';
+
     if (formattedImage.startsWith('http://') || formattedImage.startsWith('https://')) {
       try {
         const res = await fetch(formattedImage);
         if (res.ok) {
           const arrayBuffer = await res.arrayBuffer();
           const buffer = Buffer.from(arrayBuffer);
-          const contentType = res.headers.get('content-type') || 'application/pdf';
-          formattedImage = `data:${contentType};base64,${buffer.toString('base64')}`;
+          mimeType = res.headers.get('content-type') || 'application/pdf';
+          formattedImage = `data:${mimeType};base64,${buffer.toString('base64')}`;
         }
       } catch (e) {
-        console.warn('Could not pre-fetch invoice URL, passing directly to prompt:', e);
+        console.warn('Could not pre-fetch invoice URL, passing directly:', e);
+      }
+    } else if (formattedImage.startsWith('data:')) {
+      const match = formattedImage.match(/^data:([^;]+);base64,/);
+      if (match) {
+        mimeType = match[1];
       }
     }
 
-    const { output } = await prompt({ invoiceImage: formattedImage }, { config: { temperature: 0.0 } });
-    return output!;
+    const response = await ai.generate({
+      system: `You are an expert OCR and data extraction agent specializing in South African supplier invoices.
+
+Your task is to analyze the provided invoice document and extract the following information with perfect accuracy:
+1. Supplier Name: The name of the company that issued the invoice.
+   * CRITICAL: The supplier is NEVER "Combined Artistic Productions (Pty) Ltd" or "CAP". That is the buyer/recipient. You must find the company that is billing Combined Artistic Productions.
+2. Invoice Number: The unique invoice number, reference number, or document ID.
+3. Commission Number: The commission number, if present on the invoice.
+4. Invoice Date: The date the invoice was issued, formatted strictly as DD/MM/YYYY.
+5. Line Items: For each distinct item or service on the invoice, extract:
+   * The full line item description.
+   * The amount excluding VAT (exclusiveAmount).
+   * The VAT amount for that specific line item.
+6. Invoice Total: The final, grand total amount due on the invoice.
+7. Supplier VAT Number: The supplier's 10-digit VAT registration number, if present.
+8. Document Type: Tax Invoice, Proforma Invoice, Quote, Credit Note, Statement, Receipt, or Other.
+
+### Critical Extraction Instructions:
+- Multi-Page Invoices: Analyze all pages and extract all line items.
+- Ambiguous Dates: Normalize strictly to DD/MM/YYYY.
+- VAT Rules: If no VAT is charged, set vatAmount to 0 and exclusiveAmount to full line total. If VAT is charged at 15%, compute exact vatAmount and exclusiveAmount portions.`,
+      prompt: [
+        { text: 'Extract all invoice fields according to the schema from this document:' },
+        { media: { url: formattedImage, contentType: mimeType } }
+      ],
+      output: {
+        schema: ExtractInvoiceDataOutputSchema,
+      },
+      config: {
+        temperature: 0.0,
+      }
+    });
+
+    if (!response.output) {
+      throw new Error('AI did not return structured output');
+    }
+    return response.output;
   }
 );
 
