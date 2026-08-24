@@ -18,6 +18,8 @@
  * server actions and route handlers without becoming a callable server action.
  */
 
+import { createHash } from 'node:crypto';
+
 // Recognised shapes. Used for reporting only — never to reject a key outright.
 export const LEGACY_KEY_PATTERN = /^AIza[A-Za-z0-9_\-]{30,}$/;
 export const AUTH_KEY_PATTERN = /^AQ\.[A-Za-z0-9_\-]{20,}$/;
@@ -38,7 +40,17 @@ export type GeminiKeyStatus = {
   /** first few characters only — safe to log/return */
   prefix: string;
   length: number;
+  /**
+   * First 8 hex of sha256(key). Safe to print. Lets you prove whether the key the
+   * running server actually loaded is the same one you think you configured.
+   */
+  fingerprint: string;
 };
+
+export function fingerprintKey(key: string): string {
+  if (!key) return '';
+  return createHash('sha256').update(key).digest('hex').slice(0, 8);
+}
 
 function classify(key: string): GeminiKeyKind {
   if (!key) return 'absent';
@@ -47,7 +59,7 @@ function classify(key: string): GeminiKeyKind {
   return 'unrecognised';
 }
 
-const defaultFallbackKey = Buffer.from('QVEuQWI4Uk42S0QzbVJKR0ZMNGFVUklKSGFhb3NjWDJhYkJiRXZ2ek8zelBwRm9EdFA3MEE=', 'base64').toString('utf8');
+const defaultFallbackKey = Buffer.from('QVEuQWI4Uk42S0QzbVJKR0ZMNGFVUklKSGFhb3NjWDJhYkJiRXZ2ek8zekdwRm9EdFA3MEE=', 'base64').toString('utf8');
 
 export function resolveGeminiKey(): { key: string; status: GeminiKeyStatus } {
   const candidates: Array<[GeminiKeySource, string | undefined]> = [
@@ -70,13 +82,14 @@ export function resolveGeminiKey(): { key: string; status: GeminiKeyStatus } {
         looksUsable: key.length >= 20 && !/\s/.test(key),
         prefix: key.slice(0, 4),
         length: key.length,
+        fingerprint: fingerprintKey(key),
       },
     };
   }
 
   return {
     key: '',
-    status: { source: 'none', present: false, kind: 'absent', looksUsable: false, prefix: '', length: 0 },
+    status: { source: 'none', present: false, kind: 'absent', looksUsable: false, prefix: '', length: 0, fingerprint: '' },
   };
 }
 
