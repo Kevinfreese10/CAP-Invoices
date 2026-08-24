@@ -184,11 +184,13 @@ service cloud.firestore {
 
     // --- Commissions & Data (CAP) ---
     match /commissionData/{docId} {
-      allow read, write: if isAuthenticated();
+      allow read: if true;
+      allow write: if isAuthenticated();
     }
 
     match /commissions/{commissionId} {
-      allow read, write: if isAuthenticated();
+      allow read: if true;
+      allow write: if isAuthenticated();
     }
 
     // --- SEO, Media, Knowledgebase ---

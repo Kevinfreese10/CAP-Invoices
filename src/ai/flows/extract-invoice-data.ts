@@ -15,7 +15,7 @@ import { firebaseApp } from '@/lib/firebase';
 
 const ExtractInvoiceDataInputSchema = z.object({
   invoiceImage: z.string().describe(
-    "A document of an invoice (image or PDF), as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
+    "A document of an invoice (image or PDF), provided as a data URI or HTTP/HTTPS URL."
   ),
 });
 export type ExtractInvoiceDataInput = z.infer<typeof ExtractInvoiceDataInputSchema>;

@@ -54,15 +54,14 @@ service firebase.storage {
       );
     }
 
-    // Supporting documents: Accessible by any authenticated user (used in CAP)
-    match /supporting-documents/{invoiceId}/{allPaths=**} {
-      allow read, write: if request.auth != null;
+    // Supporting documents: Accessible by anyone (used in CAP)
+    match /supporting-documents/{allPaths=**} {
+      allow read, write: if true;
     }
 
-    // Invoices path: Accessible by anyone for get/write (needed for server-side email/manual uploads and download URL generation), list restricted to authenticated users
+    // Invoices path: Accessible by anyone for read/write (needed for supplier uploads and download URL generation)
     match /invoices/{allPaths=**} {
-      allow get, write: if true;
-      allow list: if request.auth != null;
+      allow read, write: if true;
     }
   }
 }

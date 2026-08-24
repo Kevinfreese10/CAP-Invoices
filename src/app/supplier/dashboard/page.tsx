@@ -4,13 +4,14 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
-import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, orderBy, doc, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, orderBy, doc, getDoc, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
 import { ExtractedInvoice, Commission, User } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
+import { commissionList as fallbackCommissionText } from '@/lib/commission-list';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -110,7 +111,7 @@ function SupportingDocumentsDialog({ invoice, onUploadComplete }: { invoice: Ext
         if (!file || !user) return;
         setIsUploading(true);
         const uniqueFileName = `${Date.now()}-${file.name}`;
-        const storageRef = ref(storage, `supporting-documents/${invoice.id}/${uniqueFileName}`);
+        const storageRef = ref(storage, `uploads/${user.uid}/supporting-documents/${invoice.id}/${uniqueFileName}`);
         
         try {
             const uploadResult = await uploadBytes(storageRef, file);
@@ -201,7 +202,7 @@ export default function SupplierDashboardPage() {
   const [isAdminsLoading, setIsAdminsLoading] = useState(true);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
 
   const [isCommissionPopoverOpen, setIsCommissionPopoverOpen] = useState(false);
   const [isApproverPopoverOpen, setIsApproverPopoverOpen] = useState(false);
@@ -239,32 +240,78 @@ export default function SupplierDashboardPage() {
     return admins.find(admin => admin.email === allocation.email);
   }, [approvalAllocationValue, admins]);
   
+  const parseCommissionText = useCallback((text: string): Commission[] => {
+      if (!text) return [];
+      return text.split('\n').map(line => {
+          const trimmed = line.trim();
+          if (!trimmed) return null;
+          const parts = trimmed.split('\t');
+          let number = parts[0]?.trim();
+          let name = parts.slice(1).join(' ').trim();
+          if (!name && number.includes(' ')) {
+              const spaceIdx = number.indexOf(' ');
+              name = number.substring(spaceIdx + 1).trim();
+              number = number.substring(0, spaceIdx).trim();
+          }
+          if (!number || !name) return null;
+          return {
+              id: number,
+              commissionNumber: number,
+              storyName: name,
+          } as Commission;
+      }).filter(Boolean) as Commission[];
+  }, []);
+
   const fetchDashboardData = useCallback(async () => {
-    if (!user) return;
+    if (!user || isAuthenticated !== true) return;
     setIsLoadingHistory(true);
     setIsCommissionsLoading(true);
     setIsAdminsLoading(true);
     
-    // Fetch commissions
-    const commsRef = collection(db, 'commissions');
-    const commsQuery = query(commsRef, orderBy('commissionNumber', 'asc'));
-    getDocs(commsQuery).then(commsSnapshot => {
-        const fetchedCommissions = commsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Commission));
-        if (!fetchedCommissions.some(c => c.commissionNumber === 'APCAP')) {
-            fetchedCommissions.push({
+    // Fetch commissions from commissionData/list and commissions collection, with fallback to commissionList
+    const commTextRef = doc(db, 'commissionData', 'list');
+    const commsCollectionRef = collection(db, 'commissions');
+
+    Promise.all([
+        getDoc(commTextRef).catch(() => null),
+        getDocs(commsCollectionRef).catch(() => null)
+    ]).then(([textSnap, docsSnap]) => {
+        const textContent = textSnap && textSnap.exists() ? textSnap.data().content : fallbackCommissionText;
+        const parsedFromText = parseCommissionText(textContent || fallbackCommissionText);
+
+        const commsMap = new Map<string, Commission>();
+        parsedFromText.forEach(c => commsMap.set(c.commissionNumber, c));
+
+        if (docsSnap && !docsSnap.empty) {
+            docsSnap.docs.forEach(docSnap => {
+                const data = docSnap.data() as Commission;
+                if (data.commissionNumber) {
+                    commsMap.set(data.commissionNumber, {
+                        ...data,
+                        id: docSnap.id,
+                        storyName: data.storyName || commsMap.get(data.commissionNumber)?.storyName || 'No Story'
+                    });
+                }
+            });
+        }
+
+        if (!commsMap.has('APCAP')) {
+            commsMap.set('APCAP', {
                 id: 'APCAP',
                 commissionNumber: 'APCAP',
                 storyName: 'Audience Panel',
             } as Commission);
         }
-        setCommissions(fetchedCommissions);
+
+        const mergedCommissions = Array.from(commsMap.values()).sort((a, b) => 
+            a.commissionNumber.localeCompare(b.commissionNumber, undefined, { numeric: true })
+        );
+
+        setCommissions(mergedCommissions);
         setIsCommissionsLoading(false);
     }).catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: commsRef.path,
-            operation: 'list',
-        } satisfies SecurityRuleContext);
-        errorEmitter.emit('permission-error', permissionError);
+        console.warn("Could not fetch commissions:", serverError);
+        setCommissions(parseCommissionText(fallbackCommissionText));
         setIsCommissionsLoading(false);
     });
 
@@ -276,11 +323,7 @@ export default function SupplierDashboardPage() {
         setInvoices(fetchedInvoices);
         setIsLoadingHistory(false);
     }).catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: historyRef.path,
-            operation: 'list',
-        } satisfies SecurityRuleContext);
-        errorEmitter.emit('permission-error', permissionError);
+        console.warn("Could not fetch invoice history:", serverError);
         setIsLoadingHistory(false);
     });
     
@@ -292,14 +335,10 @@ export default function SupplierDashboardPage() {
         setAdmins(fetchedAdmins);
         setIsAdminsLoading(false);
     }).catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: usersRef.path,
-            operation: 'list',
-        } satisfies SecurityRuleContext);
-        errorEmitter.emit('permission-error', permissionError);
+        console.warn("Could not fetch admin user list:", serverError);
         setIsAdminsLoading(false);
     });
-  }, [user]);
+  }, [user, isAuthenticated, parseCommissionText]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -327,11 +366,11 @@ export default function SupplierDashboardPage() {
       reader.readAsDataURL(file);
       const dataUrl = await dataUrlPromise;
       
-      const storageRef = ref(storage, `invoices/supplier-uploads/${user.uid}/${Date.now()}-${file.name}`);
+      const storageRef = ref(storage, `uploads/${user.uid}/invoices/${Date.now()}-${file.name}`);
       const uploadResult = await uploadBytes(storageRef, file);
       const downloadURL = await getDownloadURL(uploadResult.ref);
 
-      const result = await extractInvoiceData({ invoiceImage: dataUrl });
+      const result = await extractInvoiceData({ invoiceImage: downloadURL });
 
       if (!result || !result.supplier) {
         toast({

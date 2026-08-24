@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, deleteDoc, where, addDoc, writeBatch, getDoc, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, MoreHorizontal, Edit, Trash2, FileCheck2, Hourglass, CheckCircle2, Eye, Download, Sparkles, Brain, AlertTriangle, AlertCircle, Mail, Archive, Paperclip, RefreshCw, Play } from 'lucide-react';
+import { Loader2, MoreHorizontal, Edit, Trash2, FileCheck2, Hourglass, CheckCircle2, Eye, Download, Sparkles, Brain, AlertTriangle, AlertCircle, Mail, Archive, Paperclip, RefreshCw, Play, Lock, User as UserIcon, Upload } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
@@ -25,6 +25,7 @@ import * as XLSX from 'xlsx';
 import { AllocationRule, ExtractedInvoice, FindStoryNameInput, FindStoryNameInputSchema, FindStoryNameOutput, FindStoryNameOutputSchema, User, Commission, VatType } from '@/lib/types';
 import { reanalyzeInvoice } from '@/ai/flows/extract-invoice-data';
 import { allVatTypes } from '@/lib/vat-types';
+import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
@@ -359,18 +360,111 @@ export default function ReviewPage() {
     const [isReanalyzing, setIsReanalyzing] = useState(false);
     const { toast } = useToast();
     const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
+    const [usersMap, setUsersMap] = useState<Record<string, User>>({});
     const { user } = useAuth();
 
+    const getInvoiceOriginText = (invoice: ExtractedInvoice, uMap: Record<string, User>) => {
+        if (invoice.isPrivate || invoice.paymentBatch === 'private' || invoice.uploadedBy === 'manual_ai_upload' || invoice.uploadedBy === 'manual_upload') {
+            return 'Private upload';
+        }
+        if (invoice.uploadedBy === 'email_inbox' || (invoice.sourceEmailUid !== undefined && invoice.sourceEmailUid !== null)) {
+            return 'Email';
+        }
+        const uploader = invoice.uploadedBy ? uMap[invoice.uploadedBy] : undefined;
+        if (uploader) {
+            if (uploader.role === 'supplier') {
+                return 'Supplier upload';
+            } else if (['admin', 'staff', 'cap_staff', 'cap_supervisor'].includes(uploader.role)) {
+                return 'Admin upload';
+            }
+        }
+        return 'Supplier upload';
+    };
 
+    const renderInvoiceOriginBadge = (invoice: ExtractedInvoice, uMap: Record<string, User>) => {
+        const isPrivate = invoice.isPrivate || invoice.paymentBatch === 'private' || invoice.uploadedBy === 'manual_ai_upload' || invoice.uploadedBy === 'manual_upload';
+        const isEmail = invoice.uploadedBy === 'email_inbox' || (invoice.sourceEmailUid !== undefined && invoice.sourceEmailUid !== null);
+        const uploader = invoice.uploadedBy ? uMap[invoice.uploadedBy] : undefined;
+
+        if (isPrivate) {
+            return (
+                <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 flex items-center gap-1 w-fit font-normal">
+                    <Lock className="h-3 w-3" />
+                    Private upload
+                </Badge>
+            );
+        }
+
+        if (isEmail) {
+            return (
+                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 flex items-center gap-1 w-fit font-normal">
+                    <Mail className="h-3 w-3" />
+                    Email
+                </Badge>
+            );
+        }
+
+        if (uploader) {
+            const uploaderName = uploader.name || uploader.email || 'User';
+            if (uploader.role === 'supplier') {
+                return (
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 flex items-center gap-1 w-fit font-normal cursor-help">
+                                    <UserIcon className="h-3 w-3" />
+                                    Supplier upload
+                                </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Uploaded by {uploaderName}</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                );
+            } else if (['admin', 'staff', 'cap_staff', 'cap_supervisor'].includes(uploader.role)) {
+                return (
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Badge variant="outline" className="bg-slate-100 text-slate-700 border-slate-200 flex items-center gap-1 w-fit font-normal cursor-help">
+                                    <Upload className="h-3 w-3" />
+                                    Admin upload
+                                </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Uploaded by {uploaderName}</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                );
+            }
+        }
+
+        return (
+            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 flex items-center gap-1 w-fit font-normal">
+                <UserIcon className="h-3 w-3" />
+                Supplier upload
+            </Badge>
+        );
+    };
 
     const fetchInvoicesAndRules = async (showLoader = true) => {
         if (showLoader) setIsLoading(true);
         try {
-            const rulesQuery = query(collection(db, "allocationRules"), orderBy("description"));
-            const rulesSnapshot = await getDocs(rulesQuery);
+            const [rulesSnapshot, usersSnapshot] = await Promise.all([
+                getDocs(query(collection(db, "allocationRules"), orderBy("description"))),
+                getDocs(collection(db, "users")),
+            ]);
             const fetchedRules = rulesSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as AllocationRule));
             setGlobalRules(fetchedRules);
-            
+
+            const uMap: Record<string, User> = {};
+            usersSnapshot.docs.forEach(doc => {
+                uMap[doc.id] = { ...doc.data(), id: doc.id, uid: doc.id } as User;
+            });
+            setUsersMap(uMap);
+
             let invoicesQuery = query(collection(db, 'extractedInvoices'), where('status', 'in', ['pending_review', 'duplicate']), orderBy('createdAt', 'desc'));
 
             const querySnapshot = await getDocs(invoicesQuery);
@@ -612,12 +706,14 @@ export default function ReviewPage() {
         let dataToExport: any[] = [];
         
         sortedInvoices.forEach(invoice => {
+            const originStr = getInvoiceOriginText(invoice, usersMap);
             if (invoice.lineItems.length > 0) {
                 invoice.lineItems.forEach((item, index) => {
                     dataToExport.push({
                         'Invoice Date': index === 0 ? invoice.date : '',
                         'Invoice Number': index === 0 ? invoice.invoiceNumber : '',
                         'Supplier': index === 0 ? invoice.supplier : '',
+                        'Origin': index === 0 ? originStr : '',
                         'Commission #': index === 0 ? invoice.commissionNumber : '',
                         'Line Description': item.description,
                         'Exclusive Amount': item.exclusiveAmount,
@@ -630,6 +726,7 @@ export default function ReviewPage() {
                     'Invoice Date': invoice.date,
                     'Invoice Number': invoice.invoiceNumber,
                     'Supplier': invoice.supplier,
+                    'Origin': originStr,
                     'Commission #': invoice.commissionNumber,
                     'Line Description': '',
                     'Exclusive Amount': 0,
@@ -743,6 +840,7 @@ export default function ReviewPage() {
                                 />
                             </TableHead>
                             <TableHead>Status</TableHead>
+                            <TableHead>Origin</TableHead>
                             <TableHead>Supplier</TableHead>
                             <TableHead>Invoice #</TableHead>
                             <TableHead>Commission #</TableHead>
@@ -784,6 +882,9 @@ export default function ReviewPage() {
                                                 </Badge>
                                             )}
                                         </div>
+                                    </TableCell>
+                                    <TableCell>
+                                        {renderInvoiceOriginBadge(invoice, usersMap)}
                                     </TableCell>
                                     <TableCell className="font-medium">{invoice.supplier}</TableCell>
                                     <TableCell>{invoice.invoiceNumber}</TableCell>
