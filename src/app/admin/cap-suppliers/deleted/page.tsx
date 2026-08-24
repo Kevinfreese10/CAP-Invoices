@@ -31,9 +31,15 @@ export default function DeletedInvoicesPage() {
             const fetchedUsers = usersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as AppUser));
             setUsers(fetchedUsers);
             
-            const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'archived'), orderBy('deletedAt', 'desc'));
+            const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'archived'));
             const querySnapshot = await getDocs(q);
-            const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
+            const fetchedInvoices = querySnapshot.docs
+                .map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice))
+                .sort((a, b) => {
+                    const timeA = (a as any).deletedAt?.toMillis?.() || ((a as any).deletedAt?.seconds ? (a as any).deletedAt.seconds * 1000 : 0) || (a.deletedAt ? new Date(a.deletedAt as any).getTime() : 0);
+                    const timeB = (b as any).deletedAt?.toMillis?.() || ((b as any).deletedAt?.seconds ? (b as any).deletedAt.seconds * 1000 : 0) || (b.deletedAt ? new Date(b.deletedAt as any).getTime() : 0);
+                    return timeB - timeA;
+                });
             setInvoices(fetchedInvoices);
         } catch (error) {
             console.error("Error fetching deleted invoices:", error);

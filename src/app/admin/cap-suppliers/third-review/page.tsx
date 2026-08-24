@@ -205,9 +205,15 @@ export default function ThirdReviewPage() {
     const fetchInvoices = async (showLoader = true) => {
         if (showLoader) setIsLoading(true);
         try {
-            const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'pending_third_review'), orderBy('createdAt', 'desc'));
+            const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'pending_third_review'));
             const querySnapshot = await getDocs(q);
-            const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
+            const fetchedInvoices = querySnapshot.docs
+                .map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice))
+                .sort((a, b) => {
+                    const timeA = (a as any).createdAt?.toMillis?.() || ((a as any).createdAt?.seconds ? (a as any).createdAt.seconds * 1000 : 0) || (a.createdAt ? new Date(a.createdAt as any).getTime() : 0);
+                    const timeB = (b as any).createdAt?.toMillis?.() || ((b as any).createdAt?.seconds ? (b as any).createdAt.seconds * 1000 : 0) || (b.createdAt ? new Date(b.createdAt as any).getTime() : 0);
+                    return timeB - timeA;
+                });
             setInvoices(fetchedInvoices);
             setLocalInvoiceData(fetchedInvoices); // Initialize local state
         } catch (error) {

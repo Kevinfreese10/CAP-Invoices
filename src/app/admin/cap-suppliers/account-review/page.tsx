@@ -220,9 +220,15 @@ export default function AccountReviewPage() {
             const fetchedUsers = usersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, uid: doc.id } as User));
             setUsers(fetchedUsers);
 
-            const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'pending_account_review'), orderBy('createdAt', 'desc'));
+            const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'pending_account_review'));
             const querySnapshot = await getDocs(q);
-            const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
+            const fetchedInvoices = querySnapshot.docs
+                .map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice))
+                .sort((a, b) => {
+                    const timeA = (a as any).createdAt?.toMillis?.() || ((a as any).createdAt?.seconds ? (a as any).createdAt.seconds * 1000 : 0) || (a.createdAt ? new Date(a.createdAt as any).getTime() : 0);
+                    const timeB = (b as any).createdAt?.toMillis?.() || ((b as any).createdAt?.seconds ? (b as any).createdAt.seconds * 1000 : 0) || (b.createdAt ? new Date(b.createdAt as any).getTime() : 0);
+                    return timeB - timeA;
+                });
             setInvoices(fetchedInvoices);
         } catch (error) {
             console.error("Error fetching invoices for account review:", error);

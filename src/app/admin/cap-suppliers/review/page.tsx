@@ -465,10 +465,16 @@ export default function ReviewPage() {
             });
             setUsersMap(uMap);
 
-            let invoicesQuery = query(collection(db, 'extractedInvoices'), where('status', 'in', ['pending_review', 'duplicate']), orderBy('createdAt', 'desc'));
+            let invoicesQuery = query(collection(db, 'extractedInvoices'), where('status', 'in', ['pending_review', 'duplicate']));
 
             const querySnapshot = await getDocs(invoicesQuery);
-            let fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
+            let fetchedInvoices = querySnapshot.docs
+                .map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice))
+                .sort((a, b) => {
+                    const timeA = (a as any).createdAt?.toMillis?.() || ((a as any).createdAt?.seconds ? (a as any).createdAt.seconds * 1000 : 0) || (a.createdAt ? new Date(a.createdAt as any).getTime() : 0);
+                    const timeB = (b as any).createdAt?.toMillis?.() || ((b as any).createdAt?.seconds ? (b as any).createdAt.seconds * 1000 : 0) || (b.createdAt ? new Date(b.createdAt as any).getTime() : 0);
+                    return timeB - timeA;
+                });
 
             if (user && user.role === 'cap_staff') {
                 fetchedInvoices = fetchedInvoices.filter(inv => inv.assignedToEmail === user.email || !inv.assignedToEmail);
