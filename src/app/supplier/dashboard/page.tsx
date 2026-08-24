@@ -315,15 +315,40 @@ export default function SupplierDashboardPage() {
         setIsCommissionsLoading(false);
     });
 
-    // Fetch invoice history
+    // Fetch invoice history (querying by UID and email without requiring a composite index)
     const historyRef = collection(db, 'extractedInvoices');
-    const historyQuery = query(historyRef, where('uploadedBy', '==', user.uid), orderBy('createdAt', 'desc'));
-    getDocs(historyQuery).then(querySnapshot => {
-        const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
+    const queries = [
+        getDocs(query(historyRef, where('uploadedBy', '==', user.uid))).catch(() => null)
+    ];
+    if (user.email) {
+        queries.push(getDocs(query(historyRef, where('uploadedBy', '==', user.email))).catch(() => null));
+    }
+    
+    Promise.all(queries).then(snapshots => {
+        const invoiceMap = new Map<string, ExtractedInvoice>();
+        snapshots.forEach(snap => {
+            if (snap && !snap.empty) {
+                snap.docs.forEach(docSnap => {
+                    invoiceMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() } as ExtractedInvoice);
+                });
+            }
+        });
+        const fetchedInvoices = Array.from(invoiceMap.values());
+        fetchedInvoices.sort((a, b) => {
+            const getTimestamp = (val: any) => {
+                if (!val) return 0;
+                if (typeof val.toMillis === 'function') return val.toMillis();
+                if (typeof val.seconds === 'number') return val.seconds * 1000;
+                if (val instanceof Date) return val.getTime();
+                if (typeof val === 'string') return new Date(val).getTime() || 0;
+                return 0;
+            };
+            return getTimestamp(b.createdAt) - getTimestamp(a.createdAt);
+        });
         setInvoices(fetchedInvoices);
         setIsLoadingHistory(false);
-    }).catch(async (serverError) => {
-        console.warn("Could not fetch invoice history:", serverError);
+    }).catch(err => {
+        console.warn("Could not fetch invoice history:", err);
         setIsLoadingHistory(false);
     });
     
