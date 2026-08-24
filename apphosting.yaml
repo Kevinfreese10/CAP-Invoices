@@ -9,10 +9,15 @@ runConfig:
   cpu: 1
   memoryMiB: 512
 
-# Environment variables and secrets
+# Environment variables
 env:
   - variable: STORAGE_BUCKET
     value: cap-invoices-79739504-a3754.firebasestorage.app
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_APP_URL
+    value: https://www.cap.myacc.co.za
     availability:
       - BUILD
       - RUNTIME
@@ -20,19 +25,18 @@ env:
     value: mail.myacc.co.za
   - variable: IMAP_PORT
     value: "993"
+  - variable: IMAP_USER
+    value: invoices2@myacc.co.za
   - variable: SYSTEM_SMTP_HOST
     value: mail.myacc.co.za
   - variable: SYSTEM_SMTP_PORT
     value: "465"
   - variable: SYSTEM_SMTP_USER
     value: no_reply@myacc.co.za
-  - variable: IMAP_USER
-    value: invoices2@myacc.co.za
-  - variable: GEMINI_API_KEY
-    secret: gemini-api-key
-  - variable: GOOGLE_GENAI_API_KEY
-    secret: gemini-api-key
-  - variable: IMAP_PASSWORD
-    secret: imap-password
-  - variable: SYSTEM_SMTP_PASS
-    secret: system-smtp-pass
+  - variable: INFO_SMTP_HOST
+    value: mail.myacc.co.za
+  - variable: INFO_SMTP_PORT
+    value: "465"
+  - variable: INFO_SMTP_USER
+    value: info@myacc.co.za
+
