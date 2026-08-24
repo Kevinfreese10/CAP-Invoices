@@ -4,12 +4,12 @@ import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore, enableIndexedDbPersistence, memoryLocalCache } from 'firebase/firestore';
 
 export const firebaseConfig = {
-  "projectId": "studio-2604127518-57889",
-  "appId": "1:248831476160:web:4ad085282b5fd36518c825",
-  "storageBucket": "studio-2604127518-57889.firebasestorage.app",
-  "apiKey": "AIzaSyD6-yfkYDj_ONK_tZdHhQy3RITU8F9zrU8",
-  "authDomain": "studio-2604127518-57889.firebaseapp.com",
-  "messagingSenderId": "248831476160"
+  "projectId": "cap-invoices-79739504-a3754",
+  "appId": "1:1001680842181:web:5f88ec86f83f746cb92fac",
+  "storageBucket": "cap-invoices-79739504-a3754.firebasestorage.app",
+  "apiKey": "AIzaSyCKM_sO27EfHTIQ46dllQxhJ40wkMJs2uQ",
+  "authDomain": "cap-invoices-79739504-a3754.firebaseapp.com",
+  "messagingSenderId": "1001680842181"
 };
 
 type FirebaseServices = {
