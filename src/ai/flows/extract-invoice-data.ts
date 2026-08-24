@@ -12,6 +12,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { getFirestore, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
+import { resolveGeminiKey, describeGeminiKeyProblem } from '@/ai/gemini-key';
 
 const ExtractInvoiceDataInputSchema = z.object({
   invoiceImage: z.string().describe(
@@ -38,8 +39,6 @@ const ExtractInvoiceDataOutputSchema = z.object({
 });
 export type ExtractInvoiceDataOutput = z.infer<typeof ExtractInvoiceDataOutputSchema>;
 
-const defaultKey = Buffer.from('QVEuQWI4Uk42S0QzbVJKR0ZMNGFVUklKSGFhb3NjWDJhYkJiRXZ2ek8zelBwRm9EdFA3MEE=', 'base64').toString('utf8');
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || defaultKey;
 
 const systemInstructionText = `You are an expert OCR and data extraction agent specializing in South African supplier invoices.
 
@@ -105,13 +104,21 @@ const geminiResponseSchema = {
 export async function extractInvoiceData(
   input: ExtractInvoiceDataInput
 ): Promise<ExtractInvoiceDataOutput> {
+  // Fail fast with an actionable message rather than letting the API reject us later.
+  const { key: GEMINI_API_KEY, status: keyStatus } = resolveGeminiKey();
+  const keyProblem = describeGeminiKeyProblem(keyStatus);
+  if (keyProblem) {
+    console.error('[extractInvoiceData] Gemini key problem:', keyProblem);
+    throw new Error(keyProblem);
+  }
+
   let base64Data = '';
   let mimeType = 'application/pdf';
 
   if (input.invoiceImage.startsWith('http://') || input.invoiceImage.startsWith('https://')) {
     const res = await fetch(input.invoiceImage);
     if (!res.ok) {
-      throw new Error(`Failed to download invoice image: ${res.statusText}`);
+      throw new Error(`Failed to download invoice file from storage (HTTP ${res.status} ${res.statusText}). Check the Storage download URL and CORS/rules.`);
     }
     const buffer = Buffer.from(await res.arrayBuffer());
     mimeType = res.headers.get('content-type') || 'application/pdf';
@@ -152,16 +159,33 @@ export async function extractInvoiceData(
     }
   };
 
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+  // Send the key in the x-goog-api-key header, NOT as a ?key= query parameter.
+  // AI Studio now issues "Authentication Keys" (AQ....) rather than legacy "AIza"
+  // traffic keys, and the query-parameter form fails for them with API_KEY_INVALID /
+  // ACCESS_TOKEN_TYPE_UNSUPPORTED. The header works for both key formats.
+  const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': GEMINI_API_KEY,
+    },
     body: JSON.stringify(payload)
   });
 
   if (!response.ok) {
     const errText = await response.text();
     console.error(`Gemini API error [${response.status}]:`, errText);
-    throw new Error(`Gemini API Error: ${response.statusText} (${errText})`);
+    let detail = errText.slice(0, 400);
+    try {
+      const parsed = JSON.parse(errText);
+      detail = `${parsed?.error?.status || response.status}: ${parsed?.error?.message || detail}`;
+    } catch {
+      /* keep raw text */
+    }
+    throw new Error(
+      `Gemini API rejected the request (HTTP ${response.status}). ${detail} ` +
+      `[key source: ${keyStatus.source}, kind: ${keyStatus.kind}, auth: x-goog-api-key header]`
+    );
   }
 
   const jsonResult = await response.json();
@@ -170,8 +194,39 @@ export async function extractInvoiceData(
     throw new Error("Gemini returned empty content");
   }
 
-  const parsed = JSON.parse(textOutput) as ExtractInvoiceDataOutput;
+  let parsed: ExtractInvoiceDataOutput;
+  try {
+    parsed = JSON.parse(textOutput) as ExtractInvoiceDataOutput;
+  } catch (err: any) {
+    console.error('[extractInvoiceData] Gemini returned non-JSON output:', textOutput?.slice(0, 500));
+    throw new Error(`Gemini returned output that is not valid JSON: ${err?.message || 'parse error'}`);
+  }
   return parsed;
+}
+
+export type ExtractInvoiceDataResult =
+  | { ok: true; data: ExtractInvoiceDataOutput }
+  | { ok: false; error: string };
+
+/**
+ * Server-action-safe wrapper.
+ *
+ * Next.js masks any error thrown inside a Server Action in a production build with
+ * "An error occurred in the Server Components render...". That hides the real cause
+ * from the browser. This variant returns the failure as data instead, so the caller
+ * can throw it client-side and show the true reason in the toast.
+ */
+export async function extractInvoiceDataSafe(
+  input: ExtractInvoiceDataInput
+): Promise<ExtractInvoiceDataResult> {
+  try {
+    const data = await extractInvoiceData(input);
+    return { ok: true, data };
+  } catch (err: any) {
+    const error = err?.message ? String(err.message) : 'Unknown extraction error';
+    console.error('[extractInvoiceDataSafe] extraction failed:', error);
+    return { ok: false, error };
+  }
 }
 
 export async function reanalyzeInvoice(invoiceId: string): Promise<ExtractInvoiceDataOutput> {

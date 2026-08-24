@@ -1,8 +1,15 @@
 import {genkit} from 'genkit';
 import {googleAI} from '@genkit-ai/google-genai';
+import {resolveGeminiKey, describeGeminiKeyProblem} from '@/ai/gemini-key';
 
-const defaultKey = Buffer.from('QVEuQWI4Uk42S0QzbVJKR0ZMNGFVUklKSGFhb3NjWDJhYkJiRXZ2ek8zelBwRm9EdFA3MEE=', 'base64').toString('utf8');
-const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || defaultKey;
+const {key: apiKey, status} = resolveGeminiKey();
+
+// Warn loudly at boot so a misconfigured key is obvious in the server logs
+// instead of only surfacing as a masked Server Action error in the browser.
+const problem = describeGeminiKeyProblem(status);
+if (problem) {
+  console.error('[genkit] ' + problem);
+}
 
 export const ai = genkit({
   plugins: [googleAI({ apiKey })],

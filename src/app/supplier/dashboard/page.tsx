@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
+import { extractInvoiceDataSafe } from '@/ai/flows/extract-invoice-data';
 import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, orderBy, doc, getDoc, updateDoc, arrayUnion, Timestamp, limit } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
@@ -391,17 +391,17 @@ export default function SupplierDashboardPage() {
     setIsUploading(true);
 
     try {
-      const reader = new FileReader();
-      const dataUrlPromise = new Promise<string>((resolve, reject) => {
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-      });
-      reader.readAsDataURL(file);
-      const dataUrl = await dataUrlPromise;
+      // NOTE: the file is sent to the AI by its Storage download URL, so there is no
+      // need to also base64-encode it in the browser (that doubled memory use on large PDFs).
       const storageRef = ref(storage, `uploads/${user.uid}/invoices/${Date.now()}-${file.name}`);
       const uploadResult = await uploadBytes(storageRef, file);
       const downloadURL = await getDownloadURL(uploadResult.ref);
-      const result = await extractInvoiceData({ invoiceImage: downloadURL });
+      const extraction = await extractInvoiceDataSafe({ invoiceImage: downloadURL });
+      if (!extraction.ok) {
+        // Thrown client-side so the real reason survives (Next.js masks Server Action throws).
+        throw new Error(extraction.error);
+      }
+      const result = extraction.data;
 
       if (!result || !result.supplier) {
         toast({

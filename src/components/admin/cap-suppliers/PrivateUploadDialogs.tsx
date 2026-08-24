@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
-import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
+import { extractInvoiceDataSafe } from '@/ai/flows/extract-invoice-data';
 import ManualInvoiceForm from '@/components/admin/cap-suppliers/ManualInvoiceForm';
 import { Loader2, PlusCircle } from 'lucide-react';
 
@@ -54,7 +54,11 @@ export function AIExtractPrivateUploadDialog({ onUploadComplete }: { onUploadCom
             const dataUrl = await dataUrlPromise;
 
             // 3. Extract data using AI
-            const result = await extractInvoiceData({ invoiceImage: dataUrl });
+            const extraction = await extractInvoiceDataSafe({ invoiceImage: dataUrl });
+            if (!extraction.ok) {
+                throw new Error(extraction.error);
+            }
+            const result = extraction.data;
 
              if (!result || !result.supplier || !result.invoiceNumber) {
                 toast({

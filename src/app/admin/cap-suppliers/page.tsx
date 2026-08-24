@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Upload, Sparkles, FileText, X } from 'lucide-react';
-import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
+import { extractInvoiceDataSafe } from '@/ai/flows/extract-invoice-data';
 import { getAuth } from 'firebase/auth';
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -116,7 +116,11 @@ export default function CAPSuppliersPage() {
             const downloadURL = await getDownloadURL(uploadResult.ref);
 
             // 2. Extract data using AI
-            const result = await extractInvoiceData({ invoiceImage: preview });
+            const extraction = await extractInvoiceDataSafe({ invoiceImage: preview });
+            if (!extraction.ok) {
+                throw new Error(extraction.error);
+            }
+            const result = extraction.data;
 
             if (!result || !result.supplier) {
                  toast({ title: `Extraction Failed for ${file.name}`, description: 'AI could not extract valid data. Skipping this file.', variant: 'destructive' });

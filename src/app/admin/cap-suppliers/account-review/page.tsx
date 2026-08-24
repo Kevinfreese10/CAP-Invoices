@@ -17,7 +17,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import EditInvoiceForm from '@/components/admin/cap-suppliers/EditInvoiceForm';
 import ManualInvoiceForm from '@/components/admin/cap-suppliers/ManualInvoiceForm';
-import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
+import { extractInvoiceDataSafe } from '@/ai/flows/extract-invoice-data';
 import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -70,7 +70,11 @@ function AIExtractUploadDialog({ onUploadComplete }: { onUploadComplete: () => v
             const dataUrl = await dataUrlPromise;
 
             // 3. Extract data using AI
-            const result = await extractInvoiceData({ invoiceImage: dataUrl });
+            const extraction = await extractInvoiceDataSafe({ invoiceImage: dataUrl });
+            if (!extraction.ok) {
+                throw new Error(extraction.error);
+            }
+            const result = extraction.data;
 
              if (!result || !result.supplier || !result.invoiceNumber) {
                 toast({
