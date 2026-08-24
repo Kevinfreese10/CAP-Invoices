@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { extractInvoiceData } from '@/ai/flows/extract-invoice-data';
-import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, orderBy, doc, getDoc, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, orderBy, doc, getDoc, updateDoc, arrayUnion, Timestamp, limit } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
 import { ExtractedInvoice, Commission, User } from '@/lib/types';
@@ -315,20 +315,28 @@ export default function SupplierDashboardPage() {
         setIsCommissionsLoading(false);
     });
 
-    // Fetch invoice history (querying by UID and email without requiring a composite index)
+    // Fetch invoice history
     const historyRef = collection(db, 'extractedInvoices');
-    const queries = [
-        getDocs(query(historyRef, where('uploadedBy', '==', user.uid))).catch(() => null)
-    ];
-    if (user.email) {
-        queries.push(getDocs(query(historyRef, where('uploadedBy', '==', user.email))).catch(() => null));
+    let historyPromise: Promise<any>;
+
+    if (user.role === 'admin' || user.role === 'staff') {
+        // Admins/staff testing the supplier dashboard can see recent invoices
+        historyPromise = getDocs(query(historyRef, limit(100))).then(snap => [snap]);
+    } else {
+        const queries = [
+            getDocs(query(historyRef, where('uploadedBy', '==', user.uid))).catch(() => null)
+        ];
+        if (user.email) {
+            queries.push(getDocs(query(historyRef, where('uploadedBy', '==', user.email))).catch(() => null));
+        }
+        historyPromise = Promise.all(queries);
     }
     
-    Promise.all(queries).then(snapshots => {
+    historyPromise.then(snapshots => {
         const invoiceMap = new Map<string, ExtractedInvoice>();
-        snapshots.forEach(snap => {
+        snapshots.forEach((snap: any) => {
             if (snap && !snap.empty) {
-                snap.docs.forEach(docSnap => {
+                snap.docs.forEach((docSnap: any) => {
                     invoiceMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() } as ExtractedInvoice);
                 });
             }
