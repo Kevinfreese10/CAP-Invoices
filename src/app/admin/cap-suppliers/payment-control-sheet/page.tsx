@@ -42,12 +42,18 @@ export default function PaymentControlSheetPage() {
     const fetchInvoices = async (showLoader = true) => {
         if (showLoader) setIsLoading(true);
         try {
-            const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'approved_for_payment'), orderBy('createdAt', 'desc'));
+            const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'approved_for_payment'));
             const querySnapshot = await getDocs(q);
             const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
+            fetchedInvoices.sort((a, b) => {
+                const aTime = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+                const bTime = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
+                return bTime - aTime;
+            });
             setInvoices(fetchedInvoices);
         } catch (error) {
             console.error("Error fetching approved for payment invoices:", error);
+            toast({ title: 'Error', description: 'Could not load payment control sheet.', variant: 'destructive' });
         } finally {
             if (showLoader) setIsLoading(false);
         }
