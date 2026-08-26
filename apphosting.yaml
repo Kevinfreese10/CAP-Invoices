@@ -21,6 +21,10 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  - variable: NODE_OPTIONS
+    value: "--max-old-space-size=4096"
+    availability:
+      - BUILD
   - variable: IMAP_HOST
     value: mail.myacc.co.za
   - variable: IMAP_PORT
