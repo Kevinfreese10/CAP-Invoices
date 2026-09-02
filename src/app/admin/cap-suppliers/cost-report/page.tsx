@@ -4,14 +4,14 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, where, doc, updateDoc } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Check, ChevronsUpDown, ChevronDown, Download, Calculator, Banknote, Filter, X, ArrowRight, Layers, Hash } from 'lucide-react';
+import { Loader2, Check, ChevronsUpDown, ChevronDown, Download, Calculator, Banknote, Filter, X, ArrowRight, Layers, Hash, FileSpreadsheet } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { ExtractedInvoice, Commission } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import * as XLSX from 'xlsx';
 import { format, parse } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Command, CommandEmpty, CommandInput, CommandList } from '@/components/ui/command';
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -619,6 +619,48 @@ export default function CostReportPage() {
         }
     };
 
+    // Export specifically the Report Summary in Excel
+    const handleExportSummaryOnly = () => {
+        if (!perCommissionBreakdown.length) return;
+
+        const workbook = XLSX.utils.book_new();
+
+        const summarySheetData = perCommissionBreakdown.map(item => ({
+            'Commission Number': item.commissionNumber,
+            'Story / Short Name': item.shortName || 'N/A',
+            'Invoices Count': item.invoiceCount,
+            'Total Exclusive Cost (ZAR)': item.exclusiveAmount,
+            'Total VAT (ZAR)': item.vatAmount,
+            'Total Inclusive (ZAR)': item.inclusiveAmount,
+        }));
+
+        // Add Grand Total row to summary sheet
+        summarySheetData.push({
+            'Commission Number': `GRAND TOTAL (${selectedCommissions.length} Commissions)`,
+            'Story / Short Name': '',
+            'Invoices Count': filteredInvoices.length,
+            'Total Exclusive Cost (ZAR)': reportTotals.exclusive,
+            'Total VAT (ZAR)': reportTotals.vat,
+            'Total Inclusive (ZAR)': reportTotals.inclusive,
+        });
+
+        const summaryWorksheet = XLSX.utils.json_to_sheet(summarySheetData);
+        summaryWorksheet['!cols'] = [
+            { wch: 20 }, { wch: 30 }, { wch: 16 }, { wch: 24 }, { wch: 20 }, { wch: 24 }
+        ];
+        XLSX.utils.book_append_sheet(workbook, summaryWorksheet, 'Report Summary');
+
+        const commTitle = selectedCommissions.length === 1 
+            ? selectedCommissions[0] 
+            : selectedCommissions.length <= 4 
+            ? selectedCommissions.join('_') 
+            : `${selectedCommissions[0]}_to_${selectedCommissions[selectedCommissions.length - 1]}_(${selectedCommissions.length}_commissions)`;
+
+        XLSX.writeFile(workbook, `Report_Summary_Comm_${commTitle}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+        toast({ title: 'Summary Exported', description: 'Report Summary exported to Excel successfully.' });
+    };
+
+    // Full Report Export (Summary sheet + Consolidated Line Items sheet)
     const handleExport = () => {
         if (!groupedBySupplier.length) return;
 
@@ -629,23 +671,23 @@ export default function CostReportPage() {
             'Commission Number': item.commissionNumber,
             'Story / Short Name': item.shortName || 'N/A',
             'Invoices Count': item.invoiceCount,
-            'Total Exclusive Cost': item.exclusiveAmount,
-            'Total VAT': item.vatAmount,
-            'Total (Incl. VAT)': item.inclusiveAmount,
+            'Total Exclusive Cost (ZAR)': item.exclusiveAmount,
+            'Total VAT (ZAR)': item.vatAmount,
+            'Total Inclusive (ZAR)': item.inclusiveAmount,
         }));
         // Add Grand Total row to summary sheet
         summarySheetData.push({
-            'Commission Number': `TOTAL (${selectedCommissions.length} Commissions)`,
+            'Commission Number': `GRAND TOTAL (${selectedCommissions.length} Commissions)`,
             'Story / Short Name': '',
             'Invoices Count': filteredInvoices.length,
-            'Total Exclusive Cost': reportTotals.exclusive,
-            'Total VAT': reportTotals.vat,
-            'Total (Incl. VAT)': reportTotals.inclusive,
+            'Total Exclusive Cost (ZAR)': reportTotals.exclusive,
+            'Total VAT (ZAR)': reportTotals.vat,
+            'Total Inclusive (ZAR)': reportTotals.inclusive,
         });
 
         const summaryWorksheet = XLSX.utils.json_to_sheet(summarySheetData);
         summaryWorksheet['!cols'] = [
-            { wch: 20 }, { wch: 30 }, { wch: 15 }, { wch: 22 }, { wch: 18 }, { wch: 22 }
+            { wch: 20 }, { wch: 30 }, { wch: 16 }, { wch: 24 }, { wch: 20 }, { wch: 24 }
         ];
         XLSX.utils.book_append_sheet(workbook, summaryWorksheet, 'Commissions Summary');
 
@@ -691,6 +733,7 @@ export default function CostReportPage() {
             : `${selectedCommissions[0]}_to_${selectedCommissions[selectedCommissions.length - 1]}_(${selectedCommissions.length}_commissions)`;
 
         XLSX.writeFile(workbook, `Cost_Report_Comm_${commTitle}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+        toast({ title: 'Full Report Exported', description: 'Full report exported to Excel successfully.' });
     };
 
     return (
@@ -712,29 +755,43 @@ export default function CostReportPage() {
                         Select individual commission numbers or specify a numeric range (e.g. 6911 to 6932) to generate consolidated totals.
                     </CardDescription>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 items-end">
-                        <CommissionMultiSelect
-                            options={commissionNumbers}
-                            commissionsMap={commissionsMap}
-                            selectedValues={selectedCommissions}
-                            setSelectedValues={setSelectedCommissions}
-                        />
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 items-end">
+                        <div className="md:col-span-2">
+                            <CommissionMultiSelect
+                                options={commissionNumbers}
+                                commissionsMap={commissionsMap}
+                                selectedValues={selectedCommissions}
+                                setSelectedValues={setSelectedCommissions}
+                            />
+                        </div>
 
-                        <PaymentBatchFilter
-                            title="Payment Batches"
-                            options={paymentBatches.map(b => format(new Date(b), 'dd MMMM yyyy'))}
-                            selectedValues={selectedBatches}
-                            setSelectedValues={setSelectedBatches}
-                        />
-                        
                         <div>
+                            <PaymentBatchFilter
+                                title="Payment Batches"
+                                options={paymentBatches.map(b => format(new Date(b), 'dd MMMM yyyy'))}
+                                selectedValues={selectedBatches}
+                                setSelectedValues={setSelectedBatches}
+                            />
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
                             <Button
                                 onClick={handleExport}
                                 disabled={groupedBySupplier.length === 0}
-                                className="w-full h-10 shadow-sm"
+                                className="flex-1 h-10 shadow-sm text-xs"
                             >
-                                <Download className="mr-2 h-4 w-4" />
-                                Export Excel Report
+                                <Download className="mr-1.5 h-3.5 w-3.5" />
+                                Full Report (Excel)
+                            </Button>
+                            <Button
+                                variant="outline"
+                                onClick={handleExportSummaryOnly}
+                                disabled={selectedCommissions.length === 0}
+                                className="h-10 shadow-sm text-xs bg-background"
+                                title="Download Report Summary Only in Excel"
+                            >
+                                <FileSpreadsheet className="mr-1.5 h-3.5 w-3.5" />
+                                Summary
                             </Button>
                         </div>
                     </div>
@@ -793,18 +850,31 @@ export default function CostReportPage() {
                             {/* ENHANCED REPORT SUMMARY */}
                             <Card className="bg-primary/5 border-primary/20 overflow-hidden shadow-sm">
                                 <CardHeader className="py-4 border-b bg-primary/10">
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                         <div className="flex items-center gap-2">
                                             <Calculator className="h-5 w-5 text-primary" />
-                                            <CardTitle className="text-lg">Report Summary</CardTitle>
+                                            <div>
+                                                <CardTitle className="text-lg">Report Summary</CardTitle>
+                                                <CardDescription className="text-xs">
+                                                    Totals for the selected range and individual commission breakdown
+                                                </CardDescription>
+                                            </div>
                                         </div>
-                                        <Badge variant="outline" className="bg-background text-xs font-normal">
-                                            {selectedCommissions.length} Commission(s) | {filteredInvoices.length} Invoices
-                                        </Badge>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <Badge variant="outline" className="bg-background text-xs font-normal h-8">
+                                                {selectedCommissions.length} Commission(s) | {filteredInvoices.length} Invoices
+                                            </Badge>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={handleExportSummaryOnly}
+                                                className="h-8 text-xs bg-background shadow-xs hover:bg-muted font-medium border-primary/30"
+                                            >
+                                                <Download className="mr-1.5 h-3.5 w-3.5 text-primary" />
+                                                Download Summary (Excel)
+                                            </Button>
+                                        </div>
                                     </div>
-                                    <CardDescription>
-                                        Consolidated totals for the selected range and individual commission breakdown
-                                    </CardDescription>
                                 </CardHeader>
                                 
                                 <CardContent className="p-6 space-y-6">
@@ -831,9 +901,18 @@ export default function CostReportPage() {
 
                                     {/* 2. Per-Commission Breakdown Table */}
                                     <div className="space-y-2">
-                                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                                            <Hash className="h-4 w-4" /> Per-Commission Breakdown
-                                        </p>
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                                <Hash className="h-4 w-4" /> Per-Commission Breakdown ({perCommissionBreakdown.length})
+                                            </p>
+                                            <button
+                                                type="button"
+                                                onClick={handleExportSummaryOnly}
+                                                className="text-xs text-primary hover:underline flex items-center gap-1 font-medium"
+                                            >
+                                                <FileSpreadsheet className="h-3.5 w-3.5" /> Export Summary
+                                            </button>
+                                        </div>
                                         <div className="rounded-md border bg-background overflow-hidden">
                                             <Table>
                                                 <TableHeader>
