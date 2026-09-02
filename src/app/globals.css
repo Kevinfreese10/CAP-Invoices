@@ -63,11 +63,23 @@
   * {
     @apply border-border;
   }
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
   body {
     @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100dvh;
+    overflow-x: hidden;
   }
   .prose strong {
     @apply font-bold;
+  }
+  /* Improve tap targets & remove 300ms mobile tap delay */
+  button, a, input, select, textarea, [role="button"] {
+    touch-action: manipulation;
   }
 }
 
@@ -80,5 +92,22 @@
   }
   .bg-gradient {
     background-image: linear-gradient(to right, #D9006C, #8F00B3);
+  }
+  /* Safe area helpers for notched phones and tablets */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .pl-safe {
+    padding-left: env(safe-area-inset-left, 0px);
+  }
+  .pr-safe {
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+  /* Smooth touch scrolling on mobile WebKit */
+  .touch-scroll {
+    -webkit-overflow-scrolling: touch;
   }
 }

@@ -1,5 +1,5 @@
 
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import AppShell from '@/components/layout/AppShell';
@@ -7,6 +7,17 @@ import ClientProviders from '@/contexts/ClientProviders';
 import { bodyFont, headlineFont } from '@/app/fonts';
 import { cn } from '@/lib/utils';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#09090b' },
+  ],
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://www.myacc.co.za'),

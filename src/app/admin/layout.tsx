@@ -8,6 +8,8 @@ import DashboardNav from '@/components/dashboard/DashboardNav';
 import { Skeleton } from '@/components/ui/skeleton';
 import { usePathname, useRouter } from 'next/navigation';
 
+import MobileHeader from '@/components/layout/MobileHeader';
+
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const { user, isAuthenticated } = useAuth();
   const pathname = usePathname();
@@ -26,7 +28,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
      return (
         <div className="flex min-h-screen">
             <Skeleton className="hidden md:block w-16 lg:w-64" />
-            <div className="flex-1 p-4 sm:p-6 lg:p-8 space-y-4">
+            <div className="flex-1 p-3 sm:p-6 lg:p-8 space-y-4">
                 <Skeleton className="h-12 w-1/3" />
                 <Skeleton className="h-[60vh] w-full" />
             </div>
@@ -37,19 +39,17 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
     <ProtectedRoute>
       <SidebarProvider>
-        <div className="flex min-h-screen bg-white">
+        <div className="flex min-h-screen bg-background w-full">
           {user && (
             <Sidebar collapsible="icon" className="border-r">
               <DashboardNav user={user} />
             </Sidebar>
           )}
-          <SidebarInset>
-              <div className="p-4 sm:p-6 lg:p-8">
-                <div className="flex items-center gap-4 mb-4">
-                    <SidebarTrigger className="md:hidden" />
-                </div>
-                {children}
-              </div>
+          <SidebarInset className="flex-1 min-w-0">
+            <MobileHeader title="CAP Suppliers" />
+            <div className="p-3 sm:p-6 lg:p-8 max-w-full overflow-x-hidden pb-safe">
+              {children}
+            </div>
           </SidebarInset>
         </div>
       </SidebarProvider>

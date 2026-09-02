@@ -49,12 +49,21 @@ export default function DashboardNav({ user }: { user: UserType }) {
   const pathname = usePathname();
   const router = useRouter();
   const { logout } = useAuth();
-  const { state, toggleSidebar } = useSidebar();
+  const { state, toggleSidebar, isMobile, setOpenMobile } = useSidebar();
   const [isCapSuppliersOpen, setIsCapSuppliersOpen] = useState(pathname.startsWith('/admin/cap-suppliers'));
 
   const isPrivatePaymentsAllowed = user?.email === 'meinie@carteblanche.co.za' || user?.email === 'rizma@myacc.co.za';
 
+  const handleLinkClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
+
   const handleLogout = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
     logout();
     router.push('/');
   };
@@ -76,7 +85,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/cap-suppliers/cost-report', label: 'Cost Report', icon: FileSpreadsheet, roles: ['admin', 'staff', 'cap_supervisor'] },
     { href: '/admin/cap-suppliers/chart-of-accounts', label: 'Chart of Accounts', icon: Book, roles: ['admin', 'staff', 'cap_supervisor'] },
     { href: '/admin/cap-suppliers/commission', label: 'Commission', icon: HandCoins, roles: ['admin', 'staff', 'cap_supervisor'] },
-  ]
+  ];
 
   return (
     <>
@@ -89,7 +98,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
              <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8"
+                className="h-9 w-9 touch-manipulation"
                 onClick={toggleSidebar}
             >
                 <PanelLeft className={cn("transition-transform", state === 'collapsed' && 'rotate-180')} />
@@ -105,7 +114,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
                 <Collapsible open={isCapSuppliersOpen} onOpenChange={setIsCapSuppliersOpen}>
                 <SidebarMenuItem>
                     <CollapsibleTrigger asChild>
-                    <SidebarMenuButton isActive={pathname.startsWith('/admin/cap-suppliers')} tooltip="CAP Suppliers">
+                    <SidebarMenuButton isActive={pathname.startsWith('/admin/cap-suppliers')} tooltip="CAP Suppliers" className="min-h-[40px]">
                         <FileText />
                         <span>CAP Suppliers</span>
                         <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200 group-[[data-state=open]]:rotate-180" />
@@ -116,8 +125,8 @@ export default function DashboardNav({ user }: { user: UserType }) {
                     <SidebarMenu className="pl-4">
                     {capSupplierItems.filter(item => item.roles.includes(user.role) || (isPrivatePaymentsAllowed && item.label === 'Private Payments')).map(item => (
                         <SidebarMenuItem key={item.href}>
-                        <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label} className="h-8">
-                            <Link href={item.href}>
+                        <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label} className="min-h-[38px]">
+                            <Link href={item.href} onClick={handleLinkClick}>
                             <item.icon />
                             <span>{item.label}</span>
                             </Link>
@@ -131,8 +140,8 @@ export default function DashboardNav({ user }: { user: UserType }) {
             
             {user.role === 'admin' && (
                 <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname.startsWith('/admin/users')} tooltip="Manage Users">
-                        <Link href="/admin/users">
+                    <SidebarMenuButton asChild isActive={pathname.startsWith('/admin/users')} tooltip="Manage Users" className="min-h-[40px]">
+                        <Link href="/admin/users" onClick={handleLinkClick}>
                             <Users />
                             <span>Manage Users</span>
                         </Link>
@@ -143,16 +152,16 @@ export default function DashboardNav({ user }: { user: UserType }) {
             {user.role === 'supplier' && (
                 <>
                     <SidebarMenuItem>
-                        <SidebarMenuButton asChild isActive={pathname === '/supplier/dashboard'} tooltip="Dashboard">
-                            <Link href="/supplier/dashboard">
+                        <SidebarMenuButton asChild isActive={pathname === '/supplier/dashboard'} tooltip="Dashboard" className="min-h-[40px]">
+                            <Link href="/supplier/dashboard" onClick={handleLinkClick}>
                                 <LayoutDashboard />
                                 <span>Dashboard</span>
                             </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
-                        <SidebarMenuButton asChild isActive={pathname === '/supplier/profile'} tooltip="Profile">
-                            <Link href="/supplier/profile">
+                        <SidebarMenuButton asChild isActive={pathname === '/supplier/profile'} tooltip="Profile" className="min-h-[40px]">
+                            <Link href="/supplier/profile" onClick={handleLinkClick}>
                                 <User />
                                 <span>Profile</span>
                             </Link>
@@ -167,7 +176,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={handleLogout} tooltip="Log Out">
+            <SidebarMenuButton onClick={handleLogout} tooltip="Log Out" className="min-h-[40px]">
               <LogOut />
               <span>Log Out</span>
             </SidebarMenuButton>
