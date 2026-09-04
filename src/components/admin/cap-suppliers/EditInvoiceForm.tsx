@@ -209,13 +209,21 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel, onSaveAndAp
     }, [controlTotal, invoiceTotal]);
 
 
+    const toCleanNum = (val: any): number => {
+        if (typeof val === 'number') return isNaN(val) ? 0 : val;
+        if (!val) return 0;
+        const clean = String(val).replace(/[^0-9.-]+/g, '');
+        const num = parseFloat(clean);
+        return isNaN(num) ? 0 : num;
+    };
+
     const onSubmit = (data: z.infer<typeof formSchema>) => {
         if (invoice) {
-            // Sanitize line items to ensure no `undefined` values are sent to Firestore.
+            // Sanitize line items to ensure no `undefined` or string values are sent to Firestore.
             const sanitizedLineItems = data.lineItems.map(item => ({
                 description: item.description,
-                exclusiveAmount: item.exclusiveAmount,
-                vatAmount: item.vatAmount,
+                exclusiveAmount: toCleanNum(item.exclusiveAmount),
+                vatAmount: toCleanNum(item.vatAmount),
                 accountId: item.accountId || null,
                 paye: item.paye || false,
                 ledgerDescription: item.description,
@@ -223,6 +231,7 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel, onSaveAndAp
 
             const dataToSave = {
                 ...data,
+                invoiceTotal: toCleanNum(data.invoiceTotal),
                 lineItems: sanitizedLineItems,
             };
             onSave(invoice.id, dataToSave);
@@ -235,8 +244,8 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel, onSaveAndAp
             const data = form.getValues();
             const sanitizedLineItems = data.lineItems.map(item => ({
                 description: item.description,
-                exclusiveAmount: item.exclusiveAmount,
-                vatAmount: item.vatAmount,
+                exclusiveAmount: toCleanNum(item.exclusiveAmount),
+                vatAmount: toCleanNum(item.vatAmount),
                 accountId: item.accountId || null,
                 paye: item.paye || false,
                 ledgerDescription: item.description,
@@ -244,6 +253,7 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel, onSaveAndAp
 
             const dataToSave = {
                 ...data,
+                invoiceTotal: toCleanNum(data.invoiceTotal),
                 lineItems: sanitizedLineItems,
             };
             onSaveAndApprove(invoice.id, dataToSave);

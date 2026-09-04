@@ -498,6 +498,14 @@ export default function CostReportPage() {
         });
     }, [invoices, selectedCommissions, selectedBatches]);
 
+    const toNum = (val: any): number => {
+        if (typeof val === 'number') return isNaN(val) ? 0 : val;
+        if (!val) return 0;
+        const clean = String(val).replace(/[^0-9.-]+/g, '');
+        const num = parseFloat(clean);
+        return isNaN(num) ? 0 : num;
+    };
+
     // Per-Commission Breakdown calculation
     const perCommissionBreakdown = useMemo(() => {
         const map: Record<string, {
@@ -526,8 +534,8 @@ export default function CostReportPage() {
             if (!commNum || !map[commNum]) return;
             map[commNum].invoiceCount += 1;
             inv.lineItems?.forEach(item => {
-                const excl = item.exclusiveAmount || 0;
-                const vat = item.vatAmount || 0;
+                const excl = toNum(item.exclusiveAmount);
+                const vat = toNum(item.vatAmount);
                 map[commNum].exclusiveAmount += excl;
                 map[commNum].vatAmount += vat;
                 map[commNum].inclusiveAmount += (excl + vat);
@@ -552,11 +560,15 @@ export default function CostReportPage() {
             if (!groups[supplierName]) {
                 groups[supplierName] = { totalInclusive: 0, totalExclusive: 0, items: [] };
             }
-            inv.lineItems.forEach(item => {
-                groups[supplierName].totalExclusive += item.exclusiveAmount;
-                groups[supplierName].totalInclusive += (item.exclusiveAmount + item.vatAmount);
+            inv.lineItems?.forEach(item => {
+                const excl = toNum(item.exclusiveAmount);
+                const vat = toNum(item.vatAmount);
+                groups[supplierName].totalExclusive += excl;
+                groups[supplierName].totalInclusive += (excl + vat);
                 groups[supplierName].items.push({
                     ...item,
+                    exclusiveAmount: excl,
+                    vatAmount: vat,
                     invoiceId: inv.id,
                     supplier: inv.supplier,
                     invoiceDate: inv.date,
@@ -587,16 +599,19 @@ export default function CostReportPage() {
     const reportTotals = useMemo(() => {
         return filteredInvoices.reduce((acc, inv) => {
             inv.lineItems?.forEach(item => {
-                acc.exclusive += (item.exclusiveAmount || 0);
-                acc.vat += (item.vatAmount || 0);
-                acc.inclusive += ((item.exclusiveAmount || 0) + (item.vatAmount || 0));
+                const excl = toNum(item.exclusiveAmount);
+                const vat = toNum(item.vatAmount);
+                acc.exclusive += excl;
+                acc.vat += vat;
+                acc.inclusive += (excl + vat);
             });
             return acc;
         }, { exclusive: 0, vat: 0, inclusive: 0 });
     }, [filteredInvoices]);
 
-    const formatPrice = (price: number) => {
-        return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(price);
+    const formatPrice = (price: any) => {
+        const num = toNum(price);
+        return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(num);
     };
 
     const handleEditClick = (invoiceId: string) => {
