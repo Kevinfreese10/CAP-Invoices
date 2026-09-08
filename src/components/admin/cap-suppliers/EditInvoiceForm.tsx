@@ -47,11 +47,45 @@ const formSchema = z.object({
   isPrivate: z.boolean().optional(),
 });
 
-function getUpcomingFridays(): { value: string; label: string }[] {
-    const fridays = [];
+function getUpcomingFridays(currentBatch?: string): { value: string; label: string }[] {
+    const fridays: { value: string; label: string }[] = [];
     const today = new Date();
     const currentYear = getYear(today);
     
+    // Always include today's date first as an option (Special Batch / Today)
+    const todayFormatted = format(today, 'yyyy-MM-dd');
+    const todayLabel = isFriday(today) 
+        ? `${format(today, 'dd MMMM yyyy')}${isLastDayOfMonth(today) ? ' (Month End)' : ' (Today)'}`
+        : `${format(today, 'dd MMMM yyyy')} (Special Batch / Today)`;
+    
+    fridays.push({
+        value: todayFormatted,
+        label: todayLabel,
+    });
+
+    // If current invoice has a custom batch that is not today, ensure it's in the list
+    if (currentBatch && currentBatch !== todayFormatted) {
+        try {
+            const parsed = parseISO(currentBatch);
+            if (!isNaN(parsed.getTime())) {
+                fridays.push({
+                    value: currentBatch,
+                    label: `${format(parsed, 'dd MMMM yyyy')} (Special Batch)`,
+                });
+            } else {
+                fridays.push({
+                    value: currentBatch,
+                    label: `${currentBatch} (Custom Batch)`,
+                });
+            }
+        } catch (e) {
+            fridays.push({
+                value: currentBatch,
+                label: `${currentBatch} (Custom Batch)`,
+            });
+        }
+    }
+
     // Determine the target year for January. If we are already past January, it's next year.
     const targetYear = getMonth(today) > 0 ? currentYear + 1 : currentYear;
     const endOfJanuaryNextYear = endOfMonth(new Date(targetYear, 0)); // January is month 0
@@ -63,35 +97,26 @@ function getUpcomingFridays(): { value: string; label: string }[] {
     
     for (const day of days) {
         const dayYear = getYear(day);
-        const blackoutStart = new Date(dayYear, 11, 19); // Dec 19 of the day's year
-        const blackoutEnd = new Date(dayYear + 1, 0, 16);   // Jan 16 of the next year
+        const dayFormatted = format(day, 'yyyy-MM-dd');
+
+        if (dayFormatted === todayFormatted) continue;
 
         if (isFriday(day)) {
-             // Exclude dates within the blackout period
+            // Exclude dates within the blackout period
             if (day >= new Date(day.getFullYear(), 11, 19) && day <= new Date(day.getFullYear(), 11, 31)) {
                 continue; // In December blackout
             }
-             if (day >= new Date(day.getFullYear(), 0, 1) && day <= new Date(day.getFullYear(), 0, 16)) {
+            if (day >= new Date(day.getFullYear(), 0, 1) && day <= new Date(day.getFullYear(), 0, 16)) {
                 continue; // In January blackout
             }
 
             const isMonthEndFriday = isLastDayOfMonth(day) || getMonth(addDays(day, 7)) !== getMonth(day);
-            fridays.push({
-                value: format(day, 'yyyy-MM-dd'),
-                label: `${format(day, 'dd MMMM yyyy')}${isMonthEndFriday ? ' (Month End)' : ''}`,
-            });
-        }
-    }
-
-    // Ensure today is included if it's a Friday but was missed by the interval start
-    if (isFriday(today) && !fridays.some(f => f.value === format(today, 'yyyy-MM-dd'))) {
-        const isBlackout = (today >= new Date(today.getFullYear(), 11, 19)) || (today <= new Date(today.getFullYear(), 0, 16));
-        if (!isBlackout) {
-            const isMonthEndFriday = isLastDayOfMonth(today) || getMonth(addDays(today, 7)) !== getMonth(today);
-            fridays.unshift({
-                value: format(today, 'yyyy-MM-dd'),
-                label: `${format(today, 'dd MMMM yyyy')}${isMonthEndFriday ? ' (Month End)' : ''}`,
-            });
+            if (!fridays.some(f => f.value === dayFormatted)) {
+                fridays.push({
+                    value: dayFormatted,
+                    label: `${format(day, 'dd MMMM yyyy')}${isMonthEndFriday ? ' (Month End)' : ''}`,
+                });
+            }
         }
     }
 
@@ -106,7 +131,7 @@ interface EditInvoiceFormProps {
 }
 
 export default function EditInvoiceForm({ invoice, onSave, onCancel, onSaveAndApprove }: EditInvoiceFormProps) {
-    const upcomingFridays = getUpcomingFridays();
+    const upcomingFridays = useMemo(() => getUpcomingFridays(invoice?.paymentBatch), [invoice?.paymentBatch]);
     const [openPopover, setOpenPopover] = useState<number | null>(null);
     const [commissions, setCommissions] = useState<Commission[]>([]);
     const [isCommissionsLoading, setIsCommissionsLoading] = useState(true);

@@ -63,7 +63,7 @@ export default function PaymentControlSheetPage() {
         fetchInvoices();
     }, []);
 
-    const handleBatchApproval = async () => {
+    const handleBatchApproval = async (overrideBatchDate?: string) => {
         if (selectedInvoices.length === 0) {
             toast({ title: "No invoices selected", variant: "destructive" });
             return;
@@ -73,13 +73,19 @@ export default function PaymentControlSheetPage() {
             const batch = writeBatch(db);
             selectedInvoices.forEach(id => {
                 const docRef = doc(db, 'extractedInvoices', id);
-                batch.update(docRef, { status: 'batched_for_payment' });
+                const updates: any = { status: 'batched_for_payment' };
+                if (overrideBatchDate) {
+                    updates.paymentBatch = overrideBatchDate;
+                }
+                batch.update(docRef, updates);
             });
             await batch.commit();
 
             toast({
                 title: `${selectedInvoices.length} Invoice(s) Batched`,
-                description: 'The selected invoices have been moved to the payment batches.',
+                description: overrideBatchDate
+                    ? `The selected invoices have been moved to the ${overrideBatchDate} special batch.`
+                    : 'The selected invoices have been moved to the payment batches.',
             });
             setSelectedInvoices([]);
             fetchInvoices(false);
@@ -195,7 +201,30 @@ export default function PaymentControlSheetPage() {
         <div className="space-y-8">
             <div className="flex items-center justify-between">
                 <h1 className="text-3xl font-bold tracking-tight">Payment Control Sheet</h1>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="outline" disabled={selectedInvoices.length === 0} className="border-primary/40 hover:bg-primary/10">
+                                <FileCheck2 className="mr-2 h-4 w-4 text-primary"/>
+                                Special Batch: Today ({format(new Date(), 'dd MMM')})
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Batch for Today ({format(new Date(), 'dd MMMM yyyy')})</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This will assign {selectedInvoices.length} selected invoice(s) to today&apos;s special payment batch (<strong>{format(new Date(), 'yyyy-MM-dd')}</strong>) and move them to Payment Batches.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleBatchApproval(format(new Date(), 'yyyy-MM-dd'))}>
+                                    Confirm Special Batch
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
                              <Button disabled={selectedInvoices.length === 0}>
@@ -207,12 +236,12 @@ export default function PaymentControlSheetPage() {
                             <AlertDialogHeader>
                                 <AlertDialogTitle>Confirm Batching</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                    This will move {selectedInvoices.length} invoice(s) to the final payment batches. Are you sure?
+                                    This will move {selectedInvoices.length} invoice(s) to the final payment batches using their assigned dates. Are you sure?
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleBatchApproval}>
+                                <AlertDialogAction onClick={() => handleBatchApproval()}>
                                     Yes, Batch
                                 </AlertDialogAction>
                             </AlertDialogFooter>
