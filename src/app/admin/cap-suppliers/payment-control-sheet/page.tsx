@@ -37,7 +37,32 @@ export default function PaymentControlSheetPage() {
     const { toast } = useToast();
     const [editingInvoice, setEditingInvoice] = useState<ExtractedInvoice | null>(null);
     const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
+    const [isMounted, setIsMounted] = useState(false);
     const { user } = useAuth();
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
+    const getTime = (val: any): number => {
+        if (!val) return 0;
+        if (typeof val.toMillis === 'function') return val.toMillis();
+        if (typeof val.toDate === 'function') return val.toDate().getTime();
+        if (val.seconds) return val.seconds * 1000;
+        if (typeof val === 'string' || typeof val === 'number') {
+            const d = new Date(val).getTime();
+            return isNaN(d) ? 0 : d;
+        }
+        return 0;
+    };
+
+    const toNum = (val: any): number => {
+        if (typeof val === 'number') return isNaN(val) ? 0 : val;
+        if (!val) return 0;
+        const clean = String(val).replace(/[^0-9.-]+/g, '');
+        const num = parseFloat(clean);
+        return isNaN(num) ? 0 : num;
+    };
 
     const fetchInvoices = async (showLoader = true) => {
         if (showLoader) setIsLoading(true);
@@ -45,11 +70,7 @@ export default function PaymentControlSheetPage() {
             const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'approved_for_payment'));
             const querySnapshot = await getDocs(q);
             const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
-            fetchedInvoices.sort((a, b) => {
-                const aTime = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
-                const bTime = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
-                return bTime - aTime;
-            });
+            fetchedInvoices.sort((a, b) => getTime(b.createdAt) - getTime(a.createdAt));
             setInvoices(fetchedInvoices);
         } catch (error) {
             console.error("Error fetching approved for payment invoices:", error);
@@ -164,11 +185,12 @@ export default function PaymentControlSheetPage() {
         }
     };
 
-    const formatPrice = (price: number) => {
+    const formatPrice = (price: any) => {
+        const num = toNum(price);
         return new Intl.NumberFormat('en-ZA', {
           style: 'currency',
           currency: 'ZAR',
-        }).format(price);
+        }).format(num);
     };
 
     const getAccountDescription = (accountId?: string, expenseType?: 'CAP' | 'S38' | 'S39' | 'GO') => {
@@ -187,7 +209,7 @@ export default function PaymentControlSheetPage() {
 
     const filteredInvoices = useMemo(() => {
         return invoices.filter(invoice =>
-            invoice.supplier.toLowerCase().includes(supplierFilter.toLowerCase())
+            (invoice.supplier || '').toLowerCase().includes(supplierFilter.toLowerCase())
         );
     }, [invoices, supplierFilter]);
 
@@ -196,6 +218,10 @@ export default function PaymentControlSheetPage() {
             checked ? [...prev, id] : prev.filter(i => i !== id)
         );
     }
+
+    const todayString = isMounted ? format(new Date(), 'yyyy-MM-dd') : '';
+    const todayFormatted = isMounted ? format(new Date(), 'dd MMM') : '';
+    const todayFullFormatted = isMounted ? format(new Date(), 'dd MMMM yyyy') : '';
 
     return (
         <div className="space-y-8">
@@ -206,19 +232,19 @@ export default function PaymentControlSheetPage() {
                         <AlertDialogTrigger asChild>
                             <Button variant="outline" disabled={selectedInvoices.length === 0} className="border-primary/40 hover:bg-primary/10">
                                 <FileCheck2 className="mr-2 h-4 w-4 text-primary"/>
-                                Special Batch: Today ({format(new Date(), 'dd MMM')})
+                                Special Batch: Today ({todayFormatted || 'Today'})
                             </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
-                                <AlertDialogTitle>Batch for Today ({format(new Date(), 'dd MMMM yyyy')})</AlertDialogTitle>
+                                <AlertDialogTitle>Batch for Today ({todayFullFormatted || 'Today'})</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                    This will assign {selectedInvoices.length} selected invoice(s) to today&apos;s special payment batch (<strong>{format(new Date(), 'yyyy-MM-dd')}</strong>) and move them to Payment Batches.
+                                    This will assign {selectedInvoices.length} selected invoice(s) to today&apos;s special payment batch (<strong>{todayString || 'Today'}</strong>) and move them to Payment Batches.
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleBatchApproval(format(new Date(), 'yyyy-MM-dd'))}>
+                                <AlertDialogAction onClick={() => handleBatchApproval(todayString || format(new Date(), 'yyyy-MM-dd'))}>
                                     Confirm Special Batch
                                 </AlertDialogAction>
                             </AlertDialogFooter>
@@ -305,7 +331,15 @@ export default function PaymentControlSheetPage() {
                                             <div className="flex items-center gap-2">
                                                 <div className="text-right">
                                                     <p className="text-sm text-muted-foreground">Amount Payable</p>
-                                                    <p className="font-bold text-lg">{formatPrice(invoice.lineItems.reduce((acc, item) => acc + (item.exclusiveAmount + item.vatAmount - ((item.paye ? (item.exclusiveAmount + item.vatAmount) * 0.25 : 0))), 0))}</p>
+                                                    <p className="font-bold text-lg">
+                                                        {formatPrice((invoice.lineItems || []).reduce((acc, item) => {
+                                                            const excl = toNum(item?.exclusiveAmount);
+                                                            const vat = toNum(item?.vatAmount);
+                                                            const total = excl + vat;
+                                                            const payeDed = item?.paye ? total * 0.25 : 0;
+                                                            return acc + (total - payeDed);
+                                                        }, 0))}
+                                                    </p>
                                                 </div>
                                                  <Button asChild variant="outline" size="icon">
                                                     <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer">
@@ -362,8 +396,8 @@ export default function PaymentControlSheetPage() {
                                                                         else toast({title: 'Reason Required', description: 'Please provide a reason for rejection.', variant: 'destructive'});
                                                                     }}>Reject</AlertDialogAction>
                                                                 </AlertDialogFooter>
-                                                            </AlertDialogContent>
-                                                        </AlertDialog>
+                                                             </AlertDialogContent>
+                                                         </AlertDialog>
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
                                             </div>
@@ -380,19 +414,19 @@ export default function PaymentControlSheetPage() {
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
-                                                {invoice.lineItems.map((item, index) => {
-                                                    const account = getAccountDescription(item.accountId, invoice.expenseType);
+                                                {(invoice.lineItems || []).map((item, index) => {
+                                                    const account = getAccountDescription(item?.accountId, invoice.expenseType);
                                                     return (
                                                     <TableRow key={index}>
-                                                        <TableCell className="font-semibold">{item.ledgerDescription || item.description}</TableCell>
+                                                        <TableCell className="font-semibold">{item?.ledgerDescription || item?.description || '-'}</TableCell>
                                                         <TableCell>
                                                             <p className="font-semibold">{account.description}</p>
-                                                            <p className="text-xs text-muted-foreground">({account.number} - {invoice.expenseType})</p>
+                                                            <p className="text-xs text-muted-foreground">({account.number} - {invoice.expenseType || 'CAP'})</p>
                                                         </TableCell>
                                                         <TableCell>
-                                                            <Badge variant="outline">{invoice.paymentBatch ? invoice.paymentBatch.replace(/_/g, ' ') : 'N/A'}</Badge>
+                                                            <Badge variant="outline">{invoice.paymentBatch ? String(invoice.paymentBatch).replace(/_/g, ' ') : 'N/A'}</Badge>
                                                         </TableCell>
-                                                        <TableCell className="text-right font-mono">{formatPrice(item.exclusiveAmount)}</TableCell>
+                                                        <TableCell className="text-right font-mono">{formatPrice(item?.exclusiveAmount)}</TableCell>
                                                     </TableRow>
                                                 )})}
                                             </TableBody>
