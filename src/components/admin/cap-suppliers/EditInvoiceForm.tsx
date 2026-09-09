@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Trash2, ChevronsUpDown, Loader2, CheckCircle2, AlertCircle, Check, Search } from 'lucide-react';
 import { s38ChartOfAccounts, capChartOfAccounts, s39ChartOfAccounts, goChartOfAccounts } from '@/lib/cap-chart-of-accounts';
 import { ExtractedInvoice, Commission } from '@/lib/types';
-import { format, addDays, eachDayOfInterval, endOfMonth, isFriday, getMonth, isLastDayOfMonth, addMonths, endOfYear, startOfYear, getYear } from 'date-fns';
+import { format, parseISO, addDays, eachDayOfInterval, endOfMonth, isFriday, getMonth, isLastDayOfMonth, addMonths, endOfYear, startOfYear, getYear } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command';

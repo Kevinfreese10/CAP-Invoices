@@ -24,6 +24,7 @@ import { sendEmail } from '@/lib/email';
 import { render } from '@react-email/components';
 import InvoiceRejectionEmail from '@/components/emails/InvoiceRejectionEmail';
 import { Textarea } from '@/components/ui/textarea';
+import { format } from 'date-fns';
 
 
 const db = getFirestore(firebaseApp);
