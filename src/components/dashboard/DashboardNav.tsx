@@ -24,6 +24,7 @@ import {
   Trash2,
   Database,
   Shield,
+  BookOpen,
 } from 'lucide-react';
 
 import {
@@ -78,6 +79,7 @@ export default function DashboardNav({ user }: { user: UserType }) {
     { href: '/admin/cap-suppliers/third-review', label: '3rd Review', icon: FileCheck, roles: ['admin', 'staff', 'cap_supervisor'] },
     { href: '/admin/cap-suppliers/payment-control-sheet', label: 'Payment Control Sheet', icon: FileSpreadsheet, roles: ['admin', 'staff', 'cap_supervisor'] },
     { href: '/admin/cap-suppliers/payment-batches', label: 'Payment Batches', icon: Banknote, roles: ['admin', 'staff', 'cap_supervisor', 'cap_staff'] },
+    { href: '/admin/cap-suppliers/journals', label: 'Journals', icon: BookOpen, roles: ['admin', 'staff', 'cap_supervisor'] },
     { href: '/admin/cap-suppliers/private-payments', label: 'Private Payments', icon: Shield, roles: ['admin', 'cap_supervisor'] },
     { href: '/admin/cap-suppliers/cost-ledger', label: 'Cost Ledger', icon: FileSpreadsheet, roles: ['admin', 'staff', 'cap_supervisor'] },
     { href: '/admin/cap-suppliers/rejected', label: 'Rejected', icon: FileX2, roles: ['admin', 'staff', 'cap_supervisor'] },
