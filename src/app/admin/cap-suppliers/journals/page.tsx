@@ -15,6 +15,7 @@ import {
     Layers,
     ArrowUpRight,
     ArrowDownLeft,
+    Tag,
 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -23,16 +24,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { format, parseISO, startOfMonth, endOfMonth, isBefore, isAfter, isValid, parse } from 'date-fns';
-import { capChartOfAccounts, s38ChartOfAccounts, s39ChartOfAccounts, goChartOfAccounts } from '@/lib/cap-chart-of-accounts';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Papa from 'papaparse';
 
 const db = getFirestore(firebaseApp);
-const allAccounts = [...capChartOfAccounts, ...s38ChartOfAccounts, ...s39ChartOfAccounts, ...goChartOfAccounts];
 
 export interface JournalRow {
     id: string;
     invoiceId: string;
     paymentBatch: string;
+    expenseType: string;
     date: string; // DD/MM/YYYY
     rawDate: Date;
     effect: 'Debit' | 'Credit';
@@ -48,7 +49,9 @@ export interface JournalRow {
 }
 
 export interface BatchGroup {
-    batchKey: string;
+    batchId: string; // e.g. "CAP_2026-09-18"
+    batchDate: string; // e.g. "2026-09-18"
+    expenseType: 'CAP' | 'S39' | 'GO' | 'S38';
     batchDateLabel: string;
     invoicesCount: number;
     totalAmount: number;
@@ -59,7 +62,8 @@ export interface BatchGroup {
 export default function JournalsPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [selectedBatches, setSelectedBatches] = useState<string[]>([]);
+    const [selectedBatchIds, setSelectedBatchIds] = useState<string[]>([]);
+    const [activeExpenseTab, setActiveExpenseTab] = useState<string>('ALL');
     const [searchQuery, setSearchQuery] = useState('');
     const [effectFilter, setEffectFilter] = useState<'ALL' | 'Credit' | 'Debit'>('ALL');
     const { toast } = useToast();
@@ -78,12 +82,6 @@ export default function JournalsPage() {
                 .filter(inv => !!inv.paymentBatch);
 
             setInvoices(fetched);
-
-            // By default, select the most recent batch if available
-            const uniqueBatches = Array.from(new Set(fetched.map(i => i.paymentBatch!))).sort((a, b) => b.localeCompare(a));
-            if (uniqueBatches.length > 0 && selectedBatches.length === 0) {
-                setSelectedBatches([uniqueBatches[0]]);
-            }
         } catch (error) {
             console.error('Error fetching invoices for journals:', error);
             toast({
@@ -116,19 +114,15 @@ export default function JournalsPage() {
         if (dateStr?.toDate && typeof dateStr.toDate === 'function') return dateStr.toDate();
 
         const s = String(dateStr).trim();
-        // Try ISO YYYY-MM-DD
         let parsed = parseISO(s);
         if (isValid(parsed)) return parsed;
 
-        // Try DD/MM/YYYY
         parsed = parse(s, 'dd/MM/yyyy', new Date());
         if (isValid(parsed)) return parsed;
 
-        // Try DD-MM-YYYY
         parsed = parse(s, 'dd-MM-yyyy', new Date());
         if (isValid(parsed)) return parsed;
 
-        // Try YYYY/MM/DD
         parsed = parse(s, 'yyyy/MM/dd', new Date());
         if (isValid(parsed)) return parsed;
 
@@ -138,25 +132,30 @@ export default function JournalsPage() {
         return fallbackDate;
     };
 
-    // Group available batches
-    const batchGroups = useMemo(() => {
+    // Group available batches separated by Expense Type and Batch Date
+    const allBatchGroups = useMemo(() => {
         const groups: { [key: string]: BatchGroup } = {};
 
         invoices.forEach(inv => {
-            const batchKey = inv.paymentBatch || 'Unassigned';
-            if (!groups[batchKey]) {
-                let label = batchKey;
+            const rawExpenseType = (inv.expenseType as 'CAP' | 'S39' | 'GO' | 'S38') || 'CAP';
+            const rawBatchDate = inv.paymentBatch || 'Unassigned';
+            const batchId = `${rawExpenseType}_${rawBatchDate}`;
+
+            if (!groups[batchId]) {
+                let label = rawBatchDate;
                 try {
-                    const parsed = parseISO(batchKey);
+                    const parsed = parseISO(rawBatchDate);
                     if (isValid(parsed)) {
                         label = format(parsed, 'dd MMMM yyyy');
                     }
                 } catch {
-                    label = batchKey;
+                    label = rawBatchDate;
                 }
 
-                groups[batchKey] = {
-                    batchKey,
+                groups[batchId] = {
+                    batchId,
+                    batchDate: rawBatchDate,
+                    expenseType: rawExpenseType,
                     batchDateLabel: label,
                     invoicesCount: 0,
                     totalAmount: 0,
@@ -165,8 +164,8 @@ export default function JournalsPage() {
                 };
             }
 
-            groups[batchKey].invoicesCount += 1;
-            groups[batchKey].invoices.push(inv);
+            groups[batchId].invoicesCount += 1;
+            groups[batchId].invoices.push(inv);
 
             // Calculate invoice total & paye
             (inv.lineItems || []).forEach(item => {
@@ -174,122 +173,155 @@ export default function JournalsPage() {
                 const vat = toNum(item.vatAmount);
                 const total = excl + vat;
                 const paye = item.paye ? total * 0.25 : 0;
-                groups[batchKey].totalAmount += total;
-                groups[batchKey].totalPaye += paye;
+                groups[batchId].totalAmount += total;
+                groups[batchId].totalPaye += paye;
             });
         });
 
-        return Object.values(groups).sort((a, b) => b.batchKey.localeCompare(a.batchKey));
+        return Object.values(groups).sort((a, b) => b.batchDate.localeCompare(a.batchDate));
     }, [invoices]);
 
+    // Filter batch groups according to the active Expense Type Tab
+    const visibleBatchGroups = useMemo(() => {
+        if (activeExpenseTab === 'ALL') {
+            return allBatchGroups;
+        }
+        return allBatchGroups.filter(g => g.expenseType === activeExpenseTab);
+    }, [allBatchGroups, activeExpenseTab]);
+
+    // Automatically select the most recent batch for the active tab if none selected
+    useEffect(() => {
+        if (visibleBatchGroups.length > 0 && selectedBatchIds.length === 0) {
+            setSelectedBatchIds([visibleBatchGroups[0].batchId]);
+        }
+    }, [visibleBatchGroups, selectedBatchIds.length]);
+
+    // Handle switching tabs
+    const handleTabChange = (newTab: string) => {
+        setActiveExpenseTab(newTab);
+        const groupsForTab = newTab === 'ALL'
+            ? allBatchGroups
+            : allBatchGroups.filter(g => g.expenseType === newTab);
+        if (groupsForTab.length > 0) {
+            setSelectedBatchIds([groupsForTab[0].batchId]);
+        } else {
+            setSelectedBatchIds([]);
+        }
+    };
+
     // Toggle single batch
-    const handleToggleBatch = (batchKey: string) => {
-        setSelectedBatches(prev =>
-            prev.includes(batchKey) ? prev.filter(k => k !== batchKey) : [...prev, batchKey]
+    const handleToggleBatch = (batchId: string) => {
+        setSelectedBatchIds(prev =>
+            prev.includes(batchId) ? prev.filter(k => k !== batchId) : [...prev, batchId]
         );
     };
 
-    // Select all batches
-    const handleSelectAllBatches = () => {
-        if (selectedBatches.length === batchGroups.length) {
-            setSelectedBatches([]);
+    // Select all visible batches
+    const handleSelectAllVisibleBatches = () => {
+        const visibleIds = visibleBatchGroups.map(b => b.batchId);
+        const allVisibleSelected = visibleIds.every(id => selectedBatchIds.includes(id));
+
+        if (allVisibleSelected) {
+            setSelectedBatchIds(prev => prev.filter(id => !visibleIds.includes(id)));
         } else {
-            setSelectedBatches(batchGroups.map(b => b.batchKey));
+            setSelectedBatchIds(prev => Array.from(new Set([...prev, ...visibleIds])));
         }
     };
 
     // Generate Journal Rows based on selected batches
     const generatedJournalRows = useMemo(() => {
         const rows: JournalRow[] = [];
-        if (selectedBatches.length === 0) return rows;
+        if (selectedBatchIds.length === 0) return rows;
 
-        const targetInvoices = invoices.filter(inv => inv.paymentBatch && selectedBatches.includes(inv.paymentBatch));
+        const selectedGroups = allBatchGroups.filter(g => selectedBatchIds.includes(g.batchId));
 
-        targetInvoices.forEach(inv => {
-            const batchKey = inv.paymentBatch!;
-            const batchDate = parseInvoiceDate(batchKey, new Date());
+        selectedGroups.forEach(group => {
+            const batchDate = parseInvoiceDate(group.batchDate, new Date());
             const periodStart = startOfMonth(batchDate);
             const periodEnd = endOfMonth(batchDate);
 
-            // Parse invoice date & clamp to current batch month period
-            const rawInvDate = parseInvoiceDate(inv.date, batchDate);
-            let clampedDate = rawInvDate;
-            if (isBefore(clampedDate, periodStart)) {
-                clampedDate = periodStart;
-            } else if (isAfter(clampedDate, periodEnd)) {
-                clampedDate = periodEnd;
-            }
-
-            const formattedDate = format(clampedDate, 'dd/MM/yyyy');
-            const supplierName = inv.supplier || 'Unknown Supplier';
-
-            const lineItems = (inv.lineItems && inv.lineItems.length > 0)
-                ? inv.lineItems
-                : [{
-                    description: inv.invoiceNumber ? `Invoice #${inv.invoiceNumber}` : 'Invoice',
-                    exclusiveAmount: toNum(inv.invoiceTotal),
-                    vatAmount: 0,
-                    accountId: inv.expenseType || 'CAP',
-                    paye: false,
-                    ledgerDescription: inv.invoiceNumber ? `Invoice #${inv.invoiceNumber}` : 'Invoice',
-                }];
-
-            lineItems.forEach((item, itemIdx) => {
-                const excl = toNum(item.exclusiveAmount);
-                const vat = toNum(item.vatAmount);
-                const incl = excl + vat;
-                const vatType = vat > 0 ? 'Standard-rated purchases (15%)' : 'No VAT';
-
-                const refDesc = (item.ledgerDescription || item.description || inv.invoiceNumber || 'Purchase').trim();
-                const accountNum = item.accountId || '';
-
-                // 1. Credit Row (Increases supplier liability / Expense)
-                rows.push({
-                    id: `${inv.id}-credit-${itemIdx}`,
-                    invoiceId: inv.id,
-                    paymentBatch: batchKey,
-                    date: formattedDate,
-                    rawDate: clampedDate,
-                    effect: 'Credit',
-                    recipientName: supplierName,
-                    reference: refDesc,
-                    description: refDesc,
-                    vatType: vatType,
-                    amountExcl: excl,
-                    vatAmount: vat,
-                    amountIncl: incl,
-                    affectingAccountNumber: accountNum,
-                    isPaye: false,
-                });
-
-                // 2. Debit Row (Decreases supplier liability for PAYE deduction)
-                if (item.paye) {
-                    const payeAmount = incl * 0.25;
-                    if (payeAmount > 0) {
-                        rows.push({
-                            id: `${inv.id}-debit-paye-${itemIdx}`,
-                            invoiceId: inv.id,
-                            paymentBatch: batchKey,
-                            date: formattedDate,
-                            rawDate: clampedDate,
-                            effect: 'Debit',
-                            recipientName: supplierName,
-                            reference: refDesc,
-                            description: refDesc,
-                            vatType: 'No VAT',
-                            amountExcl: payeAmount,
-                            vatAmount: 0,
-                            amountIncl: payeAmount,
-                            affectingAccountNumber: '9500-007',
-                            isPaye: true,
-                        });
-                    }
+            group.invoices.forEach(inv => {
+                const rawInvDate = parseInvoiceDate(inv.date, batchDate);
+                let clampedDate = rawInvDate;
+                if (isBefore(clampedDate, periodStart)) {
+                    clampedDate = periodStart;
+                } else if (isAfter(clampedDate, periodEnd)) {
+                    clampedDate = periodEnd;
                 }
+
+                const formattedDate = format(clampedDate, 'dd/MM/yyyy');
+                const supplierName = inv.supplier || 'Unknown Supplier';
+
+                const lineItems = (inv.lineItems && inv.lineItems.length > 0)
+                    ? inv.lineItems
+                    : [{
+                        description: inv.invoiceNumber ? `Invoice #${inv.invoiceNumber}` : 'Invoice',
+                        exclusiveAmount: toNum(inv.invoiceTotal),
+                        vatAmount: 0,
+                        accountId: inv.expenseType || 'CAP',
+                        paye: false,
+                        ledgerDescription: inv.invoiceNumber ? `Invoice #${inv.invoiceNumber}` : 'Invoice',
+                    }];
+
+                lineItems.forEach((item, itemIdx) => {
+                    const excl = toNum(item.exclusiveAmount);
+                    const vat = toNum(item.vatAmount);
+                    const incl = excl + vat;
+                    const vatType = vat > 0 ? 'Standard-rated purchases (15%)' : 'No VAT';
+
+                    const refDesc = (item.ledgerDescription || item.description || inv.invoiceNumber || 'Purchase').trim();
+                    const accountNum = item.accountId || '';
+
+                    // 1. Credit Row (Increases supplier liability / Expense)
+                    rows.push({
+                        id: `${inv.id}-credit-${itemIdx}`,
+                        invoiceId: inv.id,
+                        paymentBatch: group.batchDate,
+                        expenseType: group.expenseType,
+                        date: formattedDate,
+                        rawDate: clampedDate,
+                        effect: 'Credit',
+                        recipientName: supplierName,
+                        reference: refDesc,
+                        description: refDesc,
+                        vatType: vatType,
+                        amountExcl: excl,
+                        vatAmount: vat,
+                        amountIncl: incl,
+                        affectingAccountNumber: accountNum,
+                        isPaye: false,
+                    });
+
+                    // 2. Debit Row (Decreases supplier liability for PAYE deduction)
+                    if (item.paye) {
+                        const payeAmount = incl * 0.25;
+                        if (payeAmount > 0) {
+                            rows.push({
+                                id: `${inv.id}-debit-paye-${itemIdx}`,
+                                invoiceId: inv.id,
+                                paymentBatch: group.batchDate,
+                                expenseType: group.expenseType,
+                                date: formattedDate,
+                                rawDate: clampedDate,
+                                effect: 'Debit',
+                                recipientName: supplierName,
+                                reference: refDesc,
+                                description: refDesc,
+                                vatType: 'No VAT',
+                                amountExcl: payeAmount,
+                                vatAmount: 0,
+                                amountIncl: payeAmount,
+                                affectingAccountNumber: '9500-007',
+                                isPaye: true,
+                            });
+                        }
+                    }
+                });
             });
         });
 
         return rows;
-    }, [invoices, selectedBatches]);
+    }, [allBatchGroups, selectedBatchIds]);
 
     // Filter rows for search query and effect filter
     const filteredRows = useMemo(() => {
@@ -304,6 +336,7 @@ export default function JournalsPage() {
                 row.reference.toLowerCase().includes(queryLower) ||
                 row.description.toLowerCase().includes(queryLower) ||
                 row.affectingAccountNumber.toLowerCase().includes(queryLower) ||
+                row.expenseType.toLowerCase().includes(queryLower) ||
                 row.vatType.toLowerCase().includes(queryLower)
             );
         });
@@ -345,6 +378,21 @@ export default function JournalsPage() {
         }).format(price);
     };
 
+    const getExpenseTypeBadge = (type: string) => {
+        switch (type) {
+            case 'CAP':
+                return <Badge variant="default" className="bg-blue-600 hover:bg-blue-600/90 text-white text-[11px] font-bold">CAP</Badge>;
+            case 'S39':
+                return <Badge variant="default" className="bg-purple-600 hover:bg-purple-600/90 text-white text-[11px] font-bold">S39</Badge>;
+            case 'GO':
+                return <Badge variant="default" className="bg-amber-600 hover:bg-amber-600/90 text-white text-[11px] font-bold">GO</Badge>;
+            case 'S38':
+                return <Badge variant="secondary" className="bg-slate-600 hover:bg-slate-600/90 text-white text-[11px] font-bold">S38</Badge>;
+            default:
+                return <Badge variant="outline" className="text-[11px] font-bold">{type}</Badge>;
+        }
+    };
+
     // Export CSV matching exact template:
     // Date (DD/MM/YYYY),Effect (Debit/Credit),Recipient Name,Reference,Description,VAT Type,Amount (Excl),VAT Amount,Amount (Incl),Affecting Account Number
     const handleDownloadCSV = () => {
@@ -379,10 +427,8 @@ export default function JournalsPage() {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
 
-        const batchFilePart = selectedBatches.length === 1
-            ? selectedBatches[0]
-            : `${selectedBatches.length}_Batches`;
-        const fileName = `Supplier_Journal_${batchFilePart}_${format(new Date(), 'yyyyMMdd_HHmm')}.csv`;
+        const selectedExpenseTypes = Array.from(new Set(generatedJournalRows.map(r => r.expenseType))).join('_');
+        const fileName = `Supplier_Journal_${selectedExpenseTypes || 'All'}_${format(new Date(), 'yyyyMMdd_HHmm')}.csv`;
 
         link.setAttribute('href', url);
         link.setAttribute('download', fileName);
@@ -396,6 +442,8 @@ export default function JournalsPage() {
         });
     };
 
+    const isAllVisibleSelected = visibleBatchGroups.length > 0 && visibleBatchGroups.every(g => selectedBatchIds.includes(g.batchId));
+
     return (
         <div className="space-y-6">
             {/* Header */}
@@ -406,7 +454,7 @@ export default function JournalsPage() {
                         Supplier Journals
                     </h1>
                     <p className="text-muted-foreground text-sm mt-1">
-                        Generate and export accounting journals by selecting one or more payment batches.
+                        Generate and export accounting journals separated by Expense Type (CAP, S39, GO) and Payment Batches.
                     </p>
                 </div>
                 <Button
@@ -423,35 +471,58 @@ export default function JournalsPage() {
             {/* Batch Selector Card */}
             <Card className="border-border">
                 <CardHeader className="pb-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="flex items-center gap-2 flex-wrap">
                             <Layers className="h-5 w-5 text-primary" />
                             <CardTitle className="text-lg">Select Payment Batches</CardTitle>
-                            <Badge variant="secondary" className="ml-2 font-semibold">
-                                {selectedBatches.length} of {batchGroups.length} Selected
+                            <Badge variant="secondary" className="font-semibold">
+                                {selectedBatchIds.length} Selected
                             </Badge>
                         </div>
+
+                        {/* Expense Type Tabs */}
+                        <Tabs value={activeExpenseTab} onValueChange={handleTabChange} className="w-auto">
+                            <TabsList className="grid grid-cols-5 h-9 bg-muted/70 p-1">
+                                <TabsTrigger value="ALL" className="text-xs font-semibold px-3">
+                                    All
+                                </TabsTrigger>
+                                <TabsTrigger value="CAP" className="text-xs font-semibold px-3 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                                    CAP
+                                </TabsTrigger>
+                                <TabsTrigger value="S39" className="text-xs font-semibold px-3 data-[state=active]:bg-purple-600 data-[state=active]:text-white">
+                                    S39
+                                </TabsTrigger>
+                                <TabsTrigger value="GO" className="text-xs font-semibold px-3 data-[state=active]:bg-amber-600 data-[state=active]:text-white">
+                                    GO
+                                </TabsTrigger>
+                                <TabsTrigger value="S38" className="text-xs font-semibold px-3 data-[state=active]:bg-slate-700 data-[state=active]:text-white">
+                                    S38
+                                </TabsTrigger>
+                            </TabsList>
+                        </Tabs>
+                    </div>
+                    <div className="flex items-center justify-between pt-1">
+                        <CardDescription>
+                            Showing batches for {activeExpenseTab === 'ALL' ? 'all expense types' : activeExpenseTab}. Select one or more batches to combine into a journal.
+                        </CardDescription>
                         <Button
                             variant="outline"
                             size="sm"
-                            onClick={handleSelectAllBatches}
-                            className="gap-1.5 h-8 text-xs"
-                            disabled={batchGroups.length === 0}
+                            onClick={handleSelectAllVisibleBatches}
+                            className="gap-1.5 h-8 text-xs shrink-0"
+                            disabled={visibleBatchGroups.length === 0}
                         >
-                            {selectedBatches.length === batchGroups.length ? (
+                            {isAllVisibleSelected ? (
                                 <>
-                                    <Square className="h-3.5 w-3.5" /> Deselect All
+                                    <Square className="h-3.5 w-3.5" /> Deselect Visible
                                 </>
                             ) : (
                                 <>
-                                    <CheckSquare className="h-3.5 w-3.5" /> Select All
+                                    <CheckSquare className="h-3.5 w-3.5" /> Select All Visible
                                 </>
                             )}
                         </Button>
                     </div>
-                    <CardDescription>
-                        Choose the payment batches to include in the journal. Dates are automatically clamped to each batch&apos;s month.
-                    </CardDescription>
                 </CardHeader>
                 <CardContent>
                     {isLoading ? (
@@ -459,21 +530,21 @@ export default function JournalsPage() {
                             <Loader2 className="h-6 w-6 animate-spin text-primary mr-2" />
                             <span className="text-sm text-muted-foreground">Loading payment batches...</span>
                         </div>
-                    ) : batchGroups.length === 0 ? (
-                        <p className="text-sm text-muted-foreground py-4 text-center">
-                            No batched or processed invoices found.
+                    ) : visibleBatchGroups.length === 0 ? (
+                        <p className="text-sm text-muted-foreground py-6 text-center">
+                            No batches found for {activeExpenseTab === 'ALL' ? 'the selected filter' : activeExpenseTab}.
                         </p>
                     ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 max-h-56 overflow-y-auto pr-1">
-                            {batchGroups.map(group => {
-                                const isSelected = selectedBatches.includes(group.batchKey);
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 max-h-60 overflow-y-auto pr-1">
+                            {visibleBatchGroups.map(group => {
+                                const isSelected = selectedBatchIds.includes(group.batchId);
                                 return (
                                     <div
-                                        key={group.batchKey}
-                                        onClick={() => handleToggleBatch(group.batchKey)}
+                                        key={group.batchId}
+                                        onClick={() => handleToggleBatch(group.batchId)}
                                         className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
                                             isSelected
-                                                ? 'border-primary bg-primary/5 shadow-sm'
+                                                ? 'border-primary bg-primary/5 shadow-sm ring-1 ring-primary/30'
                                                 : 'border-border/60 hover:border-border hover:bg-muted/30'
                                         }`}
                                     >
@@ -486,11 +557,17 @@ export default function JournalsPage() {
                                             />
                                         </div>
                                         <div className="flex-1 min-w-0">
+                                            <div className="flex items-center justify-between gap-1.5 mb-1">
+                                                {getExpenseTypeBadge(group.expenseType)}
+                                                <span className="text-xs text-muted-foreground font-mono">
+                                                    {group.invoicesCount} inv
+                                                </span>
+                                            </div>
                                             <p className="font-semibold text-sm truncate text-foreground">
                                                 {group.batchDateLabel}
                                             </p>
                                             <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
-                                                <span>{group.invoicesCount} invoice(s)</span>
+                                                <span>Net:</span>
                                                 <span className="font-mono font-medium text-foreground">
                                                     {formatPrice(group.totalAmount - group.totalPaye)}
                                                 </span>
@@ -518,7 +595,7 @@ export default function JournalsPage() {
                     </CardHeader>
                     <CardContent className="p-4 pt-0">
                         <p className="text-xs text-muted-foreground">
-                            {selectedBatches.length} batch(es) selected
+                            {selectedBatchIds.length} batch(es) selected
                         </p>
                     </CardContent>
                 </Card>
@@ -630,6 +707,7 @@ export default function JournalsPage() {
                             <TableHeader>
                                 <TableRow className="bg-muted/50 hover:bg-muted/50">
                                     <TableHead className="w-[110px] font-semibold">Date (DD/MM/YYYY)</TableHead>
+                                    <TableHead className="w-[80px] font-semibold">Type</TableHead>
                                     <TableHead className="w-[90px] font-semibold">Effect</TableHead>
                                     <TableHead className="font-semibold">Recipient Name</TableHead>
                                     <TableHead className="font-semibold">Reference</TableHead>
@@ -644,8 +722,8 @@ export default function JournalsPage() {
                             <TableBody>
                                 {filteredRows.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={10} className="text-center py-10 text-muted-foreground">
-                                            {selectedBatches.length === 0
+                                        <TableCell colSpan={11} className="text-center py-10 text-muted-foreground">
+                                            {selectedBatchIds.length === 0
                                                 ? 'Please select at least one batch above to generate journal entries.'
                                                 : searchQuery
                                                 ? 'No journal rows match your search query.'
@@ -656,6 +734,7 @@ export default function JournalsPage() {
                                     filteredRows.map(row => (
                                         <TableRow key={row.id} className="text-xs hover:bg-muted/40 transition-colors">
                                             <TableCell className="font-mono">{row.date}</TableCell>
+                                            <TableCell>{getExpenseTypeBadge(row.expenseType)}</TableCell>
                                             <TableCell>
                                                 <Badge
                                                     variant="outline"
