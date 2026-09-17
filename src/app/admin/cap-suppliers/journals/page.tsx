@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, where } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -15,7 +15,11 @@ import {
     Layers,
     ArrowUpRight,
     ArrowDownLeft,
-    Tag,
+    Upload,
+    CheckCircle2,
+    AlertCircle,
+    X,
+    ChevronDown,
 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -25,7 +29,10 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { format, parseISO, startOfMonth, endOfMonth, isBefore, isAfter, isValid, parse } from 'date-fns';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 
 const db = getFirestore(firebaseApp);
 
@@ -38,6 +45,8 @@ export interface JournalRow {
     rawDate: Date;
     effect: 'Debit' | 'Credit';
     recipientName: string;
+    originalSupplierName: string;
+    isSupplierMatched: boolean;
     reference: string;
     description: string;
     vatType: string;
@@ -66,7 +75,41 @@ export default function JournalsPage() {
     const [activeExpenseTab, setActiveExpenseTab] = useState<string>('ALL');
     const [searchQuery, setSearchQuery] = useState('');
     const [effectFilter, setEffectFilter] = useState<'ALL' | 'Credit' | 'Debit'>('ALL');
+    
+    // Supplier validation list & custom mapping state
+    const [uploadedSuppliers, setUploadedSuppliers] = useState<string[]>([]);
+    const [uploadedFileName, setUploadedFileName] = useState<string>('');
+    const [customMappings, setCustomMappings] = useState<Record<string, string>>({});
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
     const { toast } = useToast();
+
+    // Load cached supplier list & custom mappings from localStorage
+    useEffect(() => {
+        try {
+            const savedList = localStorage.getItem('cap_journal_supplier_list');
+            const savedFile = localStorage.getItem('cap_journal_supplier_filename');
+            const savedMappings = localStorage.getItem('cap_journal_supplier_mappings');
+
+            if (savedList) {
+                const parsedList = JSON.parse(savedList);
+                if (Array.isArray(parsedList) && parsedList.length > 0) {
+                    setUploadedSuppliers(parsedList);
+                }
+            }
+            if (savedFile) {
+                setUploadedFileName(savedFile);
+            }
+            if (savedMappings) {
+                const parsedMappings = JSON.parse(savedMappings);
+                if (parsedMappings && typeof parsedMappings === 'object') {
+                    setCustomMappings(parsedMappings);
+                }
+            }
+        } catch (e) {
+            console.error('Error loading cached supplier list:', e);
+        }
+    }, []);
 
     // Fetch all batched/processed invoices with a paymentBatch assigned
     const fetchInvoices = async () => {
@@ -97,6 +140,162 @@ export default function JournalsPage() {
     useEffect(() => {
         fetchInvoices();
     }, []);
+
+    // Handle File Upload (Excel / CSV)
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            try {
+                const data = evt.target?.result;
+                const workbook = XLSX.read(data, { type: 'binary' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const rawRows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                const extractedList: string[] = [];
+                if (rawRows.length > 0) {
+                    // Check header row for "Supplier Name" or "Supplier" or "Name"
+                    const headerRow = rawRows[0] || [];
+                    let targetColIdx = 0;
+                    if (Array.isArray(headerRow)) {
+                        const foundIdx = headerRow.findIndex((cell: any) =>
+                            String(cell || '').toLowerCase().includes('supplier') ||
+                            String(cell || '').toLowerCase().includes('name')
+                        );
+                        if (foundIdx !== -1) targetColIdx = foundIdx;
+                    }
+
+                    // Extract all non-empty strings
+                    for (let i = 1; i < rawRows.length; i++) {
+                        const row = rawRows[i];
+                        if (Array.isArray(row) && row[targetColIdx]) {
+                            const val = String(row[targetColIdx]).trim();
+                            if (val && !extractedList.includes(val)) {
+                                extractedList.push(val);
+                            }
+                        } else if (row && typeof row === 'object') {
+                            const val = String(row['Supplier Name'] || row['Supplier'] || Object.values(row)[0] || '').trim();
+                            if (val && !extractedList.includes(val)) {
+                                extractedList.push(val);
+                            }
+                        }
+                    }
+                }
+
+                if (extractedList.length === 0) {
+                    toast({
+                        title: 'No Suppliers Found',
+                        description: 'Could not extract supplier names from the uploaded file.',
+                        variant: 'destructive',
+                    });
+                    return;
+                }
+
+                extractedList.sort((a, b) => a.localeCompare(b));
+                setUploadedSuppliers(extractedList);
+                setUploadedFileName(file.name);
+
+                // Save to localStorage
+                localStorage.setItem('cap_journal_supplier_list', JSON.stringify(extractedList));
+                localStorage.setItem('cap_journal_supplier_filename', file.name);
+
+                toast({
+                    title: 'Supplier List Loaded',
+                    description: `Loaded ${extractedList.length} suppliers from ${file.name}`,
+                });
+            } catch (err) {
+                console.error('Error parsing supplier excel:', err);
+                toast({
+                    title: 'Upload Error',
+                    description: 'Failed to parse the uploaded spreadsheet file.',
+                    variant: 'destructive',
+                });
+            }
+        };
+        reader.readAsBinaryString(file);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
+    const handleClearSupplierList = () => {
+        setUploadedSuppliers([]);
+        setUploadedFileName('');
+        localStorage.removeItem('cap_journal_supplier_list');
+        localStorage.removeItem('cap_journal_supplier_filename');
+        toast({
+            title: 'Supplier List Cleared',
+            description: 'The uploaded supplier validation list has been removed.',
+        });
+    };
+
+    // Update manual supplier mapping
+    const handleSetCustomMapping = (originalSupplier: string, officialSupplier: string) => {
+        const updated = {
+            ...customMappings,
+            [originalSupplier.trim()]: officialSupplier.trim(),
+        };
+        setCustomMappings(updated);
+        localStorage.setItem('cap_journal_supplier_mappings', JSON.stringify(updated));
+        toast({
+            title: 'Supplier Mapped',
+            description: `"${originalSupplier}" mapped to official name "${officialSupplier}"`,
+        });
+    };
+
+    // Normalization helper for smart fuzzy matching
+    const normalizeName = (name: string): string => {
+        return name
+            .toLowerCase()
+            .replace(/\(pty\)\s*ltd/gi, '')
+            .replace(/pty\s*ltd/gi, '')
+            .replace(/\(pty\)/gi, '')
+            .replace(/pty/gi, '')
+            .replace(/cc\b/gi, '')
+            .replace(/productions?\b/gi, '')
+            .replace(/media\b/gi, '')
+            .replace(/films?\b/gi, '')
+            .replace(/[^a-z0-9]/gi, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    };
+
+    // Match helper
+    const resolveSupplierName = (rawName?: string): { matchedName: string; isMatched: boolean } => {
+        if (!rawName) return { matchedName: 'Unknown Supplier', isMatched: false };
+        const trimmed = rawName.trim();
+
+        // 1. Check custom mapping override
+        if (customMappings[trimmed]) {
+            return { matchedName: customMappings[trimmed], isMatched: true };
+        }
+
+        // If no list uploaded, return raw name
+        if (uploadedSuppliers.length === 0) {
+            return { matchedName: trimmed, isMatched: true };
+        }
+
+        // 2. Exact case-insensitive match
+        const exact = uploadedSuppliers.find(s => s.toLowerCase() === trimmed.toLowerCase());
+        if (exact) {
+            return { matchedName: exact, isMatched: true };
+        }
+
+        // 3. Normalized / Fuzzy Match
+        const normTarget = normalizeName(trimmed);
+        if (normTarget.length >= 3) {
+            const fuzzy = uploadedSuppliers.find(s => {
+                const normS = normalizeName(s);
+                return normS === normTarget || (normS.length > 3 && (normS.startsWith(normTarget) || normTarget.startsWith(normS)));
+            });
+            if (fuzzy) {
+                return { matchedName: fuzzy, isMatched: true };
+            }
+        }
+
+        return { matchedName: trimmed, isMatched: false };
+    };
 
     // Safe number helper
     const toNum = (val: any): number => {
@@ -250,7 +449,8 @@ export default function JournalsPage() {
                 }
 
                 const formattedDate = format(clampedDate, 'dd/MM/yyyy');
-                const supplierName = inv.supplier || 'Unknown Supplier';
+                const rawSupplierName = inv.supplier || 'Unknown Supplier';
+                const { matchedName, isMatched } = resolveSupplierName(rawSupplierName);
 
                 const lineItems = (inv.lineItems && inv.lineItems.length > 0)
                     ? inv.lineItems
@@ -281,7 +481,9 @@ export default function JournalsPage() {
                         date: formattedDate,
                         rawDate: clampedDate,
                         effect: 'Credit',
-                        recipientName: supplierName,
+                        recipientName: matchedName,
+                        originalSupplierName: rawSupplierName,
+                        isSupplierMatched: isMatched,
                         reference: refDesc,
                         description: refDesc,
                         vatType: vatType,
@@ -293,9 +495,11 @@ export default function JournalsPage() {
                     });
 
                     // 2. Debit Row (Decreases supplier liability for PAYE deduction)
+                    // Requirement: Reference and Description is "PAYE Deduction - (Supplier)" e.g. "PAYE Deduction - Erin Bates"
                     if (item.paye) {
                         const payeAmount = incl * 0.25;
                         if (payeAmount > 0) {
+                            const payeRefDesc = `PAYE Deduction - ${matchedName}`;
                             rows.push({
                                 id: `${inv.id}-debit-paye-${itemIdx}`,
                                 invoiceId: inv.id,
@@ -304,9 +508,11 @@ export default function JournalsPage() {
                                 date: formattedDate,
                                 rawDate: clampedDate,
                                 effect: 'Debit',
-                                recipientName: supplierName,
-                                reference: refDesc,
-                                description: refDesc,
+                                recipientName: matchedName,
+                                originalSupplierName: rawSupplierName,
+                                isSupplierMatched: isMatched,
+                                reference: payeRefDesc,
+                                description: payeRefDesc,
                                 vatType: 'No VAT',
                                 amountExcl: payeAmount,
                                 vatAmount: 0,
@@ -321,7 +527,7 @@ export default function JournalsPage() {
         });
 
         return rows;
-    }, [allBatchGroups, selectedBatchIds]);
+    }, [allBatchGroups, selectedBatchIds, uploadedSuppliers, customMappings]);
 
     // Filter rows for search query and effect filter
     const filteredRows = useMemo(() => {
@@ -333,6 +539,7 @@ export default function JournalsPage() {
             const queryLower = searchQuery.toLowerCase();
             return (
                 row.recipientName.toLowerCase().includes(queryLower) ||
+                row.originalSupplierName.toLowerCase().includes(queryLower) ||
                 row.reference.toLowerCase().includes(queryLower) ||
                 row.description.toLowerCase().includes(queryLower) ||
                 row.affectingAccountNumber.toLowerCase().includes(queryLower) ||
@@ -342,14 +549,22 @@ export default function JournalsPage() {
         });
     }, [generatedJournalRows, effectFilter, searchQuery]);
 
-    // Metrics calculations
+    // Metrics calculations & Supplier Matching stats
     const metrics = useMemo(() => {
         let totalCredits = 0;
         let totalDebits = 0;
         let totalExcl = 0;
         let totalVat = 0;
 
+        const uniqueSuppliers = new Set<string>();
+        const matchedSuppliers = new Set<string>();
+
         generatedJournalRows.forEach(row => {
+            uniqueSuppliers.add(row.originalSupplierName);
+            if (row.isSupplierMatched) {
+                matchedSuppliers.add(row.originalSupplierName);
+            }
+
             if (row.effect === 'Credit') {
                 totalCredits += row.amountIncl;
                 totalExcl += row.amountExcl;
@@ -368,6 +583,9 @@ export default function JournalsPage() {
             netPayable,
             totalExcl,
             totalVat,
+            distinctSuppliers: uniqueSuppliers.size,
+            matchedSuppliersCount: matchedSuppliers.size,
+            allMatched: uniqueSuppliers.size > 0 && uniqueSuppliers.size === matchedSuppliers.size,
         };
     }, [generatedJournalRows]);
 
@@ -403,6 +621,15 @@ export default function JournalsPage() {
                 variant: 'destructive',
             });
             return;
+        }
+
+        // Warn if there are unmatched suppliers
+        if (uploadedSuppliers.length > 0 && !metrics.allMatched) {
+            toast({
+                title: 'Unmatched Suppliers Detected',
+                description: 'Some supplier names do not match the official supplier list. Download will proceed with the current names.',
+                variant: 'destructive',
+            });
         }
 
         const csvData = generatedJournalRows.map(row => ({
@@ -446,6 +673,15 @@ export default function JournalsPage() {
 
     return (
         <div className="space-y-6">
+            {/* Hidden File Input for Supplier List Spreadsheet */}
+            <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileUpload}
+                accept=".xlsx,.xls,.csv"
+                className="hidden"
+            />
+
             {/* Header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
@@ -454,18 +690,20 @@ export default function JournalsPage() {
                         Supplier Journals
                     </h1>
                     <p className="text-muted-foreground text-sm mt-1">
-                        Generate and export accounting journals separated by Expense Type (CAP, S39, GO) and Payment Batches.
+                        Generate and export accounting journals separated by Expense Type (CAP, S39, GO) with supplier name validation.
                     </p>
                 </div>
-                <Button
-                    onClick={handleDownloadCSV}
-                    disabled={generatedJournalRows.length === 0}
-                    className="gap-2 shadow-sm"
-                    size="lg"
-                >
-                    <Download className="h-4 w-4" />
-                    Download Excel CSV ({generatedJournalRows.length})
-                </Button>
+                <div className="flex items-center gap-2 flex-wrap">
+                    <Button
+                        onClick={handleDownloadCSV}
+                        disabled={generatedJournalRows.length === 0}
+                        className="gap-2 shadow-sm"
+                        size="lg"
+                    >
+                        <Download className="h-4 w-4" />
+                        Download Excel CSV ({generatedJournalRows.length})
+                    </Button>
+                </div>
             </div>
 
             {/* Batch Selector Card */}
@@ -649,9 +887,9 @@ export default function JournalsPage() {
                 </Card>
             </div>
 
-            {/* Preview Table Card */}
+            {/* Preview Table Card with Supplier List Upload & Matching Status */}
             <Card>
-                <CardHeader>
+                <CardHeader className="space-y-3 pb-4">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                         <div>
                             <CardTitle className="text-lg flex items-center gap-2">
@@ -662,22 +900,78 @@ export default function JournalsPage() {
                                 Exact 10-column layout for Excel CSV export matching Sage import template.
                             </CardDescription>
                         </div>
+
+                        {/* Supplier List Upload Section */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="gap-2 border-primary/40 hover:bg-primary/10 text-xs h-9"
+                            >
+                                <Upload className="h-3.5 w-3.5 text-primary" />
+                                {uploadedSuppliers.length > 0 ? 'Replace Supplier List' : 'Upload Supplier List (Excel)'}
+                            </Button>
+
+                            {uploadedSuppliers.length > 0 && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={handleClearSupplierList}
+                                    className="h-9 px-2 text-xs text-muted-foreground hover:text-destructive"
+                                    title="Remove uploaded supplier list"
+                                >
+                                    <X className="h-3.5 w-3.5" />
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Supplier Validation Status Bar */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-md bg-muted/40 border text-xs">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            {uploadedSuppliers.length > 0 ? (
+                                <>
+                                    <Badge variant="outline" className="font-mono bg-background text-xs py-0.5">
+                                        {uploadedFileName || 'Supplier List'} ({uploadedSuppliers.length} in DB)
+                                    </Badge>
+                                    {metrics.allMatched ? (
+                                        <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
+                                            <CheckCircle2 className="h-3.5 w-3.5" />
+                                            All {metrics.distinctSuppliers} suppliers matched to official names (100%)
+                                        </span>
+                                    ) : (
+                                        <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-medium">
+                                            <AlertCircle className="h-3.5 w-3.5" />
+                                            {metrics.matchedSuppliersCount} of {metrics.distinctSuppliers} suppliers matched ({metrics.distinctSuppliers - metrics.matchedSuppliersCount} need manual mapping)
+                                        </span>
+                                    )}
+                                </>
+                            ) : (
+                                <span className="text-muted-foreground flex items-center gap-1.5">
+                                    <Upload className="h-3.5 w-3.5" />
+                                    Tip: Upload <strong className="font-mono">Supplier_Balances_20260917.xlsx</strong> to validate and match official recipient names.
+                                </span>
+                            )}
+                        </div>
+
+                        {/* Search and Effect Filter Controls */}
                         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                            <div className="relative flex-1 sm:w-64">
-                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <div className="relative flex-1 sm:w-56">
+                                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
                                 <Input
                                     placeholder="Search supplier, ref, acc..."
                                     value={searchQuery}
                                     onChange={e => setSearchQuery(e.target.value)}
-                                    className="pl-9 h-9 text-sm"
+                                    className="pl-8 h-8 text-xs"
                                 />
                             </div>
-                            <div className="flex items-center border rounded-md p-1 bg-muted/40">
+                            <div className="flex items-center border rounded-md p-0.5 bg-background">
                                 <Button
                                     variant={effectFilter === 'ALL' ? 'secondary' : 'ghost'}
                                     size="sm"
                                     onClick={() => setEffectFilter('ALL')}
-                                    className="h-7 text-xs px-2.5"
+                                    className="h-7 text-xs px-2"
                                 >
                                     All ({generatedJournalRows.length})
                                 </Button>
@@ -685,7 +979,7 @@ export default function JournalsPage() {
                                     variant={effectFilter === 'Credit' ? 'secondary' : 'ghost'}
                                     size="sm"
                                     onClick={() => setEffectFilter('Credit')}
-                                    className="h-7 text-xs px-2.5"
+                                    className="h-7 text-xs px-2"
                                 >
                                     Credits
                                 </Button>
@@ -693,7 +987,7 @@ export default function JournalsPage() {
                                     variant={effectFilter === 'Debit' ? 'secondary' : 'ghost'}
                                     size="sm"
                                     onClick={() => setEffectFilter('Debit')}
-                                    className="h-7 text-xs px-2.5 text-destructive"
+                                    className="h-7 text-xs px-2 text-destructive"
                                 >
                                     Debits (PAYE)
                                 </Button>
@@ -701,17 +995,18 @@ export default function JournalsPage() {
                         </div>
                     </div>
                 </CardHeader>
+
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <Table>
                             <TableHeader>
                                 <TableRow className="bg-muted/50 hover:bg-muted/50">
-                                    <TableHead className="w-[110px] font-semibold">Date (DD/MM/YYYY)</TableHead>
-                                    <TableHead className="w-[80px] font-semibold">Type</TableHead>
-                                    <TableHead className="w-[90px] font-semibold">Effect</TableHead>
-                                    <TableHead className="font-semibold">Recipient Name</TableHead>
-                                    <TableHead className="font-semibold">Reference</TableHead>
-                                    <TableHead className="font-semibold">Description</TableHead>
+                                    <TableHead className="w-[105px] font-semibold">Date (DD/MM/YYYY)</TableHead>
+                                    <TableHead className="w-[70px] font-semibold">Type</TableHead>
+                                    <TableHead className="w-[85px] font-semibold">Effect</TableHead>
+                                    <TableHead className="font-semibold min-w-[200px]">Recipient Name</TableHead>
+                                    <TableHead className="font-semibold min-w-[150px]">Reference</TableHead>
+                                    <TableHead className="font-semibold min-w-[150px]">Description</TableHead>
                                     <TableHead className="font-semibold">VAT Type</TableHead>
                                     <TableHead className="text-right font-semibold">Amount (Excl)</TableHead>
                                     <TableHead className="text-right font-semibold">VAT Amount</TableHead>
@@ -747,10 +1042,59 @@ export default function JournalsPage() {
                                                     {row.effect}
                                                 </Badge>
                                             </TableCell>
-                                            <TableCell className="font-medium max-w-[160px] truncate" title={row.recipientName}>
-                                                {row.recipientName}
+
+                                            {/* Recipient Name with Matching Indicator & Manual Mapping Dropdown */}
+                                            <TableCell className="max-w-[220px]">
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                    <span className="font-medium truncate" title={row.recipientName}>
+                                                        {row.recipientName}
+                                                    </span>
+
+                                                    {uploadedSuppliers.length > 0 && (
+                                                        row.isSupplierMatched ? (
+                                                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" title="Matched to official supplier" />
+                                                        ) : (
+                                                            <Popover>
+                                                                <PopoverTrigger asChild>
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        className="h-6 px-1.5 text-[10px] text-amber-600 border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 gap-1"
+                                                                    >
+                                                                        <AlertCircle className="h-3 w-3" />
+                                                                        Map <ChevronDown className="h-3 w-3" />
+                                                                    </Button>
+                                                                </PopoverTrigger>
+                                                                <PopoverContent className="p-0 w-72" align="start">
+                                                                    <Command>
+                                                                        <CommandInput placeholder="Search official supplier..." />
+                                                                        <CommandList className="max-h-60">
+                                                                            <CommandEmpty>No matching supplier found.</CommandEmpty>
+                                                                            {uploadedSuppliers.map(officialName => (
+                                                                                <CommandItem
+                                                                                    key={officialName}
+                                                                                    value={officialName}
+                                                                                    onSelect={() => handleSetCustomMapping(row.originalSupplierName, officialName)}
+                                                                                    className="text-xs cursor-pointer"
+                                                                                >
+                                                                                    {officialName}
+                                                                                </CommandItem>
+                                                                            ))}
+                                                                        </CommandList>
+                                                                    </Command>
+                                                                </PopoverContent>
+                                                            </Popover>
+                                                        )
+                                                    )}
+                                                </div>
+                                                {row.recipientName !== row.originalSupplierName && (
+                                                    <p className="text-[10px] text-muted-foreground truncate" title={`Original: ${row.originalSupplierName}`}>
+                                                        Inv: {row.originalSupplierName}
+                                                    </p>
+                                                )}
                                             </TableCell>
-                                            <TableCell className="font-mono max-w-[140px] truncate" title={row.reference}>
+
+                                            <TableCell className="font-mono max-w-[150px] truncate" title={row.reference}>
                                                 {row.reference}
                                             </TableCell>
                                             <TableCell className="max-w-[180px] truncate" title={row.description}>
