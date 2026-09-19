@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/collapsible";
 import {
   SidebarHeader,
+  SidebarContent,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
@@ -108,9 +109,9 @@ export default function DashboardNav({ user }: { user: UserType }) {
         </div>
       </SidebarHeader>
 
-      <SidebarMenu className="flex-1">
-        
-        {(user.role === 'admin' || user.role === 'staff' || user.role === 'cap_staff' || user.role === 'cap_supervisor' || user.role === 'supplier') && (
+      <SidebarContent className="flex-1 overflow-y-auto px-2 py-1">
+        <SidebarMenu>
+          {(user.role === 'admin' || user.role === 'staff' || user.role === 'cap_staff' || user.role === 'cap_supervisor' || user.role === 'supplier') && (
             <>
             {(user.role === 'admin' || user.role === 'staff' || user.role === 'cap_staff' || user.role === 'cap_supervisor' || isPrivatePaymentsAllowed) && (
                 <Collapsible open={isCapSuppliersOpen} onOpenChange={setIsCapSuppliersOpen}>
@@ -172,8 +173,9 @@ export default function DashboardNav({ user }: { user: UserType }) {
                 </>
             )}
             </>
-        )}
-      </SidebarMenu>
+          )}
+        </SidebarMenu>
+      </SidebarContent>
 
       <SidebarFooter>
         <SidebarMenu>
