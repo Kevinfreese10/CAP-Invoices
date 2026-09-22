@@ -358,6 +358,7 @@ export default function ReviewPage() {
     const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
     const [isAnalyzeDialogOpen, setIsAnalyzeDialogOpen] = useState(false);
     const [isReanalyzing, setIsReanalyzing] = useState(false);
+    const [isApproving, setIsApproving] = useState(false);
     const { toast } = useToast();
     const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
     const [usersMap, setUsersMap] = useState<Record<string, User>>({});
@@ -565,6 +566,38 @@ export default function ReviewPage() {
             fetchInvoicesAndRules(false);
         } catch (error) {
             toast({ title: 'Error', description: 'Could not approve the invoice.', variant: 'destructive'});
+        }
+    };
+
+    const handleApproveSelected = async () => {
+        if (selectedInvoices.length === 0 || !user) return;
+        setIsApproving(true);
+        try {
+            const BATCH_SIZE = 400;
+            for (let i = 0; i < selectedInvoices.length; i += BATCH_SIZE) {
+                const batch = writeBatch(db);
+                const chunk = selectedInvoices.slice(i, i + BATCH_SIZE);
+                chunk.forEach(id => {
+                    const docRef = doc(db, 'extractedInvoices', id);
+                    batch.update(docRef, { status: 'approved', approvedBy: user.uid });
+                });
+                await batch.commit();
+            }
+            toast({
+                title: 'Invoices Approved',
+                description: `${selectedInvoices.length} invoice(s) have been moved to 2nd Review.`,
+            });
+            setSelectedInvoices([]);
+            fetchInvoicesAndRules(false);
+        } catch (error) {
+            console.error("Error approving selected invoices:", error);
+            toast({
+                title: 'Error',
+                description: 'Could not approve the selected invoices.',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsApproving(false);
         }
     };
 
@@ -779,7 +812,29 @@ export default function ReviewPage() {
                         Review, edit, and approve the data extracted from uploaded invoices. Approved invoices will be moved to the control sheet.
                     </CardDescription>
                 </div>
-                 <div className="flex items-center gap-2">
+                 <div className="flex items-center gap-2 flex-wrap">
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button disabled={selectedInvoices.length === 0 || isApproving} className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold">
+                                {isApproving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <FileCheck2 className="mr-2 h-4 w-4"/>}
+                                Approve Selected ({selectedInvoices.length})
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Approve Selected Invoices?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This will approve {selectedInvoices.length} selected invoice(s) and move them to 2nd Review (Control Sheet).
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleApproveSelected}>
+                                    Yes, Approve Selected
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                     <AnalyzeStoryDialog
                         open={isAnalyzeDialogOpen}
                         onOpenChange={setIsAnalyzeDialogOpen}
