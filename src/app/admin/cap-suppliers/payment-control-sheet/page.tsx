@@ -106,7 +106,7 @@ export default function PaymentControlSheetPage() {
             toast({
                 title: `${selectedInvoices.length} Invoice(s) Batched`,
                 description: overrideBatchDate
-                    ? `The selected invoices have been moved to the ${overrideBatchDate} special batch.`
+                    ? `The selected invoices have been moved to the ${overrideBatchDate} batch.`
                     : 'The selected invoices have been moved to the payment batches.',
             });
             setSelectedInvoices([]);
@@ -219,37 +219,11 @@ export default function PaymentControlSheetPage() {
         );
     }
 
-    const todayString = isMounted ? format(new Date(), 'yyyy-MM-dd') : '';
-    const todayFormatted = isMounted ? format(new Date(), 'dd MMM') : '';
-    const todayFullFormatted = isMounted ? format(new Date(), 'dd MMMM yyyy') : '';
-
     return (
         <div className="space-y-8">
             <div className="flex items-center justify-between">
                 <h1 className="text-3xl font-bold tracking-tight">Payment Control Sheet</h1>
                 <div className="flex items-center gap-2 flex-wrap">
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button variant="outline" disabled={selectedInvoices.length === 0} className="border-primary/40 hover:bg-primary/10">
-                                <FileCheck2 className="mr-2 h-4 w-4 text-primary"/>
-                                Special Batch: Today ({todayFormatted || 'Today'})
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Batch for Today ({todayFullFormatted || 'Today'})</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    This will assign {selectedInvoices.length} selected invoice(s) to today&apos;s special payment batch (<strong>{todayString || 'Today'}</strong>) and move them to Payment Batches.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleBatchApproval(todayString || format(new Date(), 'yyyy-MM-dd'))}>
-                                    Confirm Special Batch
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
 
                     <AlertDialog>
                         <AlertDialogTrigger asChild>

@@ -51,40 +51,6 @@ function getUpcomingFridays(currentBatch?: string): { value: string; label: stri
     const fridays: { value: string; label: string }[] = [];
     const today = new Date();
     const currentYear = getYear(today);
-    
-    // Always include today's date first as an option (Special Batch / Today)
-    const todayFormatted = format(today, 'yyyy-MM-dd');
-    const todayLabel = isFriday(today) 
-        ? `${format(today, 'dd MMMM yyyy')}${isLastDayOfMonth(today) ? ' (Month End)' : ' (Today)'}`
-        : `${format(today, 'dd MMMM yyyy')} (Special Batch / Today)`;
-    
-    fridays.push({
-        value: todayFormatted,
-        label: todayLabel,
-    });
-
-    // If current invoice has a custom batch that is not today, ensure it's in the list
-    if (currentBatch && currentBatch !== todayFormatted) {
-        try {
-            const parsed = parseISO(currentBatch);
-            if (!isNaN(parsed.getTime())) {
-                fridays.push({
-                    value: currentBatch,
-                    label: `${format(parsed, 'dd MMMM yyyy')} (Special Batch)`,
-                });
-            } else {
-                fridays.push({
-                    value: currentBatch,
-                    label: `${currentBatch} (Custom Batch)`,
-                });
-            }
-        } catch (e) {
-            fridays.push({
-                value: currentBatch,
-                label: `${currentBatch} (Custom Batch)`,
-            });
-        }
-    }
 
     // Determine the target year for January. If we are already past January, it's next year.
     const targetYear = getMonth(today) > 0 ? currentYear + 1 : currentYear;
@@ -96,10 +62,7 @@ function getUpcomingFridays(currentBatch?: string): { value: string; label: stri
     });
     
     for (const day of days) {
-        const dayYear = getYear(day);
         const dayFormatted = format(day, 'yyyy-MM-dd');
-
-        if (dayFormatted === todayFormatted) continue;
 
         if (isFriday(day)) {
             // Exclude dates within the blackout period
@@ -110,13 +73,35 @@ function getUpcomingFridays(currentBatch?: string): { value: string; label: stri
                 continue; // In January blackout
             }
 
-            const isMonthEndFriday = isLastDayOfMonth(day) || getMonth(addDays(day, 7)) !== getMonth(day);
             if (!fridays.some(f => f.value === dayFormatted)) {
                 fridays.push({
                     value: dayFormatted,
-                    label: `${format(day, 'dd MMMM yyyy')}${isMonthEndFriday ? ' (Month End)' : ''}`,
+                    label: format(day, 'dd MMMM yyyy'),
                 });
             }
+        }
+    }
+
+    // If current invoice has a custom or existing batch not in the upcoming list, include it
+    if (currentBatch && !fridays.some(f => f.value === currentBatch)) {
+        try {
+            const parsed = parseISO(currentBatch);
+            if (!isNaN(parsed.getTime())) {
+                fridays.unshift({
+                    value: currentBatch,
+                    label: format(parsed, 'dd MMMM yyyy'),
+                });
+            } else {
+                fridays.unshift({
+                    value: currentBatch,
+                    label: currentBatch,
+                });
+            }
+        } catch (e) {
+            fridays.unshift({
+                value: currentBatch,
+                label: currentBatch,
+            });
         }
     }
 
