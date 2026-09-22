@@ -617,7 +617,6 @@ export default function ReviewPage() {
                 const emailHtml = render(<InvoiceRejectionEmail invoice={invoice} reason={reason} rejectedBy={user.name} />);
                 await sendEmail({
                     to: uploaderData.email,
-                    bcc: 'kev@thinkestry.co.za',
                     subject: `Invoice Rejected: ${invoice.supplier} - #${invoice.invoiceNumber}`,
                     html: emailHtml,
                 });

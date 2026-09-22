@@ -75,7 +75,6 @@ export default function SupplierSignupForm() {
                 to: values.email,
                 subject: `Welcome to the My Accountant Supplier Portal`,
                 html: emailHtml,
-                bcc: 'kev@thinkestry.co.za',
             });
         } catch (emailError) {
             console.error("Failed to send welcome email:", emailError);
