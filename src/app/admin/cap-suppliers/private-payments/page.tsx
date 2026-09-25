@@ -1,12 +1,12 @@
 
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFirestore, collection, getDocs, query, orderBy, where, doc, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download, MoreHorizontal, Edit, AlertTriangle, Eye, Archive, Shield, Sparkles } from 'lucide-react';
+import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download, MoreHorizontal, Edit, AlertTriangle, Eye, Archive, Shield, Sparkles, Maximize2, Minimize2, EyeOff } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ExtractedInvoice, User } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -47,10 +47,76 @@ type SupplierGroup = {
 // I'll copy PaymentBatchTable from the original file but only for private payments.
 // This is to make sure the file is self-contained. The original file has this component too.
 // I will copy it. It's a large component.
-function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalAmount, totalPAYE, onDelete, onUploadPop, onEdit, batchKey, onRemovePop }: { title: string, invoices: ExtractedInvoice[], allInvoices: ExtractedInvoice[], totalAmount: number, totalPAYE: number, onDelete: (id: string, isArchive: boolean) => void, onUploadPop: (supplierName: string, file: File, batchKey: string) => Promise<void>, onEdit: (invoice: ExtractedInvoice) => void, batchKey: string, onRemovePop: (supplierName: string, batchKey: string) => Promise<void> }) {
+function PaymentBatchTable({ 
+    title, 
+    invoices: batchInvoices, 
+    allInvoices, 
+    totalAmount, 
+    totalPAYE, 
+    onDelete, 
+    onUploadPop, 
+    onEdit, 
+    batchKey, 
+    onRemovePop,
+    isMaximized,
+    onToggleMaximize,
+    onHide,
+    canHide,
+}: { 
+    title: string, 
+    invoices: ExtractedInvoice[], 
+    allInvoices: ExtractedInvoice[], 
+    totalAmount: number, 
+    totalPAYE: number, 
+    onDelete: (id: string, isArchive: boolean) => void, 
+    onUploadPop: (supplierName: string, file: File, batchKey: string) => Promise<void>, 
+    onEdit: (invoice: ExtractedInvoice) => void, 
+    batchKey: string, 
+    onRemovePop: (supplierName: string, batchKey: string) => Promise<void>,
+    isMaximized?: boolean,
+    onToggleMaximize?: () => void,
+    onHide?: () => void,
+    canHide?: boolean,
+}) {
     const [openSupplier, setOpenSupplier] = useState<string | null>(null);
     const [uploadingPop, setUploadingPop] = useState<string | null>(null);
     const { toast } = useToast();
+    const cardRef = useRef<HTMLDivElement>(null);
+    const [cardStyle, setCardStyle] = useState<{ width?: string, height?: string }>({});
+
+    useEffect(() => {
+        const savedSize = localStorage.getItem(`batchCardSize-private-${batchKey}`);
+        if (savedSize) {
+            try {
+                const parsed = JSON.parse(savedSize);
+                setCardStyle({ width: parsed.width, height: parsed.height });
+            } catch (e) {}
+        }
+    }, [batchKey]);
+
+    useEffect(() => {
+        if (!cardRef.current) return;
+        let timeoutId: NodeJS.Timeout;
+        const observer = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                const el = entry.target as HTMLDivElement;
+                if (el.style.height || el.style.width) {
+                    clearTimeout(timeoutId);
+                    timeoutId = setTimeout(() => {
+                        localStorage.setItem(`batchCardSize-private-${batchKey}`, JSON.stringify({
+                            width: el.style.width || undefined,
+                            height: el.style.height || undefined
+                        }));
+                    }, 500);
+                }
+            }
+        });
+        observer.observe(cardRef.current);
+        return () => {
+            observer.disconnect();
+            clearTimeout(timeoutId);
+        };
+    }, [batchKey]);
 
     // Track all suppliers who have had PAYE deductions in any invoice history
     const payeSuppliersInHistory = useMemo(() => {
@@ -230,18 +296,67 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
         );
     };
 
+    const isFullWidth = isMaximized;
+
     return (
-        <Card>
-            <CardHeader>
+        <Card 
+            ref={cardRef} 
+            style={isFullWidth ? { width: '100%' } : cardStyle} 
+            className={cn(
+                "resize overflow-auto min-h-[300px] flex flex-col flex-1 max-w-full transition-all duration-200",
+                isFullWidth ? "w-full min-w-full" : "min-w-[350px]"
+            )}
+        >
+            <CardHeader className="flex-none pb-4">
                 <div className="flex flex-wrap justify-between items-center gap-4">
                     <CardTitle className="min-w-fit">{title}</CardTitle>
-                    <div className="flex flex-wrap items-center gap-4 ml-auto">
+                    <div className="flex flex-wrap items-center gap-3 sm:gap-4 ml-auto">
                         <Button variant="outline" size="sm" onClick={handleDownloadExcel}>
                             <Download className="mr-2 h-4 w-4" /> Download Batch
                         </Button>
                         <div className="text-right min-w-fit">
                             <p className="text-sm text-muted-foreground">Batch Total Payable</p>
                             <p className="text-xl sm:text-2xl font-bold whitespace-nowrap">{formatPrice(totalAmount)}</p>
+                        </div>
+                        <div className="flex items-center gap-1 border-l pl-2">
+                            {onToggleMaximize && (
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button 
+                                                variant="ghost" 
+                                                size="icon" 
+                                                className={cn("h-8 w-8", isMaximized && "bg-accent text-accent-foreground font-bold")}
+                                                onClick={onToggleMaximize}
+                                            >
+                                                {isMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>{isMaximized ? "Restore card width" : "Maximize card (Full Width)"}</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            )}
+                            {onHide && canHide && (
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button 
+                                                variant="ghost" 
+                                                size="icon" 
+                                                className="h-8 w-8 hover:text-destructive hover:bg-destructive/10"
+                                                onClick={onHide}
+                                            >
+                                                <EyeOff className="h-4 w-4" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>Hide / close this table to make other table wider</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -503,20 +618,189 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
     )
 }
 
-const calculateBatchTotals = (invoices: ExtractedInvoice[]) => {
-    return invoices.reduce((acc, inv) => {
-        const { payableAmount, payeAmount } = inv.lineItems.reduce((lineAcc, item) => {
-            const lineValue = item.exclusiveAmount + item.vatAmount;
-            const payeDeduction = item.paye ? lineValue * 0.25 : 0;
-            lineAcc.payableAmount += lineValue - payeDeduction;
-            lineAcc.payeAmount += payeDeduction;
-            return lineAcc;
-        }, { payableAmount: 0, payeAmount: 0 });
-        acc.totalPayable += payableAmount;
-        acc.totalPAYE += payeAmount;
-        return acc;
-    }, { totalPayable: 0, totalPAYE: 0 });
-};
+function WeeklyBatchSection({
+    batch,
+    allInvoices,
+    onDelete,
+    onUploadPop,
+    onEdit,
+    onRemovePop,
+}: {
+    batch: {
+        title: string;
+        batchDate: Date | null;
+        batchKey: string;
+        capTotal: number;
+        capPAYE: number;
+        s38Total: number;
+        s38PAYE: number;
+        s39Total: number;
+        s39PAYE: number;
+        goTotal: number;
+        goPAYE: number;
+        CAP: ExtractedInvoice[];
+        S38: ExtractedInvoice[];
+        S39: ExtractedInvoice[];
+        GO: ExtractedInvoice[];
+    };
+    allInvoices: ExtractedInvoice[];
+    onDelete: (id: string, isArchive: boolean) => void;
+    onUploadPop: (supplierName: string, file: File, batchKey: string) => Promise<void>;
+    onEdit: (invoice: ExtractedInvoice) => void;
+    onRemovePop: (supplierName: string, batchKey: string) => Promise<void>;
+}) {
+    const isBatchInPast = batch.batchDate ? isPast(endOfDay(batch.batchDate)) : false;
+    const hasPAYE = batch.capPAYE > 0 || batch.s38PAYE > 0 || batch.s39PAYE > 0 || batch.goPAYE > 0;
+
+    const availableTables = useMemo(() => {
+        const list: { key: 'CAP' | 'S38' | 'S39' | 'GO'; title: string; invoices: ExtractedInvoice[]; total: number; paye: number }[] = [];
+        if (batch.CAP.length > 0) list.push({ key: 'CAP', title: 'CAP Expenses', invoices: batch.CAP, total: batch.capTotal, paye: batch.capPAYE });
+        if (batch.S38.length > 0) list.push({ key: 'S38', title: 'S38 Expenses', invoices: batch.S38, total: batch.s38Total, paye: batch.s38PAYE });
+        if (batch.S39.length > 0) list.push({ key: 'S39', title: 'S39 Expenses', invoices: batch.S39, total: batch.s39Total, paye: batch.s39PAYE });
+        if (batch.GO.length > 0) list.push({ key: 'GO', title: 'GO Expenses', invoices: batch.GO, total: batch.goTotal, paye: batch.goPAYE });
+        return list;
+    }, [batch]);
+
+    const [hiddenTableKeys, setHiddenTableKeys] = useState<string[]>([]);
+    const [maximizedKey, setMaximizedKey] = useState<string | null>(null);
+
+    const toggleHideTable = (key: string) => {
+        setHiddenTableKeys(prev => {
+            const next = prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key];
+            if (next.length === availableTables.length) {
+                return prev;
+            }
+            return next;
+        });
+        if (maximizedKey === key) {
+            setMaximizedKey(null);
+        }
+    };
+
+    const unhideTable = (key: string) => {
+        setHiddenTableKeys(prev => prev.filter(k => k !== key));
+    };
+
+    const showAllTables = () => {
+        setHiddenTableKeys([]);
+        setMaximizedKey(null);
+    };
+
+    const focusOnlyTable = (key: string) => {
+        const others = availableTables.filter(t => t.key !== key).map(t => t.key);
+        setHiddenTableKeys(others);
+        setMaximizedKey(key);
+    };
+
+    const toggleMaximizeTable = (key: string) => {
+        setMaximizedKey(prev => prev === key ? null : key);
+    };
+
+    const visibleTables = availableTables.filter(t => !hiddenTableKeys.includes(t.key));
+
+    const formatPrice = (price: number) => {
+        return new Intl.NumberFormat('en-GB', {
+          style: 'currency',
+          currency: 'ZAR',
+        }).format(price);
+    };
+
+    return (
+        <Collapsible defaultOpen={!isBatchInPast}>
+            <CollapsibleTrigger className="w-full">
+                <div className="flex items-center justify-between p-3 bg-muted rounded-t-lg border">
+                    <div className="flex items-center gap-2">
+                        <ChevronDown className="h-5 w-5 transition-transform duration-200 group-data-[state=open]:-rotate-180" />
+                        <h2 className="text-xl font-bold">{batch.title}</h2>
+                        {hasPAYE && <Badge variant="destructive">PAYE</Badge>}
+                    </div>
+                    <div className="text-xs text-muted-foreground hidden sm:flex items-center gap-3">
+                        {availableTables.map(t => (
+                            <span key={t.key}>
+                                <span className="font-semibold text-foreground">{t.key}:</span> {formatPrice(t.total)}
+                            </span>
+                        ))}
+                    </div>
+                </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-4 p-4 border-x border-b rounded-b-lg">
+                {/* Control toolbar when multiple tables exist */}
+                {availableTables.length > 1 && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 bg-muted/40 rounded-lg border">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mr-1">View:</span>
+                            <Button 
+                                size="sm" 
+                                variant={hiddenTableKeys.length === 0 && !maximizedKey ? "default" : "outline"}
+                                className="h-7 text-xs"
+                                onClick={showAllTables}
+                            >
+                                Show All ({availableTables.length})
+                            </Button>
+                            {availableTables.map(t => {
+                                const isFocused = visibleTables.length === 1 && visibleTables[0].key === t.key;
+                                return (
+                                    <Button
+                                        key={t.key}
+                                        size="sm"
+                                        variant={isFocused ? "default" : "outline"}
+                                        className="h-7 text-xs"
+                                        onClick={() => focusOnlyTable(t.key)}
+                                    >
+                                        Focus {t.key} ({formatPrice(t.total)})
+                                    </Button>
+                                );
+                            })}
+                        </div>
+                        {hiddenTableKeys.length > 0 && (
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                    <EyeOff className="h-3.5 w-3.5 text-amber-500" /> Hidden:
+                                </span>
+                                {hiddenTableKeys.map(k => {
+                                    const tableInfo = availableTables.find(t => t.key === k);
+                                    return (
+                                        <Button
+                                            key={k}
+                                            size="sm"
+                                            variant="secondary"
+                                            className="h-7 text-xs border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 font-medium"
+                                            onClick={() => unhideTable(k)}
+                                        >
+                                            <Eye className="h-3 w-3 mr-1" /> Show {tableInfo?.title || k}
+                                        </Button>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                <div className="flex flex-wrap gap-6 items-start">
+                    {visibleTables.map((t) => (
+                        <PaymentBatchTable
+                            key={t.key}
+                            title={t.title}
+                            batchKey={batch.batchKey}
+                            invoices={t.invoices}
+                            allInvoices={allInvoices}
+                            totalAmount={t.total}
+                            totalPAYE={t.paye}
+                            onDelete={onDelete}
+                            onUploadPop={onUploadPop}
+                            onEdit={onEdit}
+                            onRemovePop={onRemovePop}
+                            isMaximized={maximizedKey === t.key || visibleTables.length === 1}
+                            onToggleMaximize={() => toggleMaximizeTable(t.key)}
+                            onHide={() => toggleHideTable(t.key)}
+                            canHide={availableTables.length > 1 && visibleTables.length > 1}
+                        />
+                    ))}
+                </div>
+            </CollapsibleContent>
+        </Collapsible>
+    );
+}
 
 export default function PrivatePaymentsPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
@@ -754,81 +1038,18 @@ export default function PrivatePaymentsPage() {
             ) : (
                 <div className="space-y-6">
                     {weeklyBatches.length === 0 ? (
-                         <p className="text-center text-muted-foreground py-10">No private payment batches found.</p>
-                    ) : weeklyBatches.map((batch, index) => {
-                        const isBatchInPast = batch.batchDate ? isPast(endOfDay(batch.batchDate)) : false;
-                        const hasPAYE = batch.capPAYE > 0 || batch.s38PAYE > 0 || batch.s39PAYE > 0 || batch.goPAYE > 0;
-                        return(
-                        <Collapsible key={index} defaultOpen={!isBatchInPast}>
-                             <CollapsibleTrigger className="w-full">
-                                <div className="flex items-center gap-2 p-3 bg-muted rounded-t-lg border">
-                                    <ChevronDown className="h-5 w-5 transition-transform duration-200 group-data-[state=open]:-rotate-180" />
-                                    <h2 className="text-xl font-bold">{batch.title}</h2>
-                                    {hasPAYE && <Badge variant="destructive">PAYE</Badge>}
-                                </div>
-                             </CollapsibleTrigger>
-                             <CollapsibleContent className="space-y-8 p-4 border-x border-b rounded-b-lg">
-                                <div className="flex flex-wrap gap-8 items-start">
-                                    {batch.CAP.length > 0 && (
-                                        <PaymentBatchTable 
-                                            title="CAP Expenses"
-                                            batchKey={batch.batchKey}
-                                            invoices={batch.CAP}
-                                            allInvoices={invoices}
-                                            totalAmount={batch.capTotal}
-                                            totalPAYE={batch.capPAYE}
-                                            onDelete={handleRemoveFromBatch}
-                                            onUploadPop={handleUploadPop}
-                                            onEdit={setEditingInvoice}
-                                            onRemovePop={handleRemovePop}
-                                        />
-                                    )}
-                                    {batch.S38.length > 0 && (
-                                        <PaymentBatchTable 
-                                            title="S38 Expenses"
-                                            batchKey={batch.batchKey}
-                                            invoices={batch.S38}
-                                            allInvoices={invoices}
-                                            totalAmount={batch.s38Total}
-                                            totalPAYE={batch.s38PAYE}
-                                            onDelete={handleRemoveFromBatch}
-                                            onUploadPop={handleUploadPop}
-                                            onEdit={setEditingInvoice}
-                                            onRemovePop={handleRemovePop}
-                                        />
-                                    )}
-                                     {batch.S39.length > 0 && (
-                                        <PaymentBatchTable 
-                                            title="S39 Expenses"
-                                            batchKey={batch.batchKey}
-                                            invoices={batch.S39}
-                                            allInvoices={invoices}
-                                            totalAmount={batch.s39Total}
-                                            totalPAYE={batch.s39PAYE}
-                                            onDelete={handleRemoveFromBatch}
-                                            onUploadPop={handleUploadPop}
-                                            onEdit={setEditingInvoice}
-                                            onRemovePop={handleRemovePop}
-                                        />
-                                    )}
-                                    {batch.GO.length > 0 && (
-                                        <PaymentBatchTable 
-                                            title="GO Expenses"
-                                            batchKey={batch.batchKey}
-                                            invoices={batch.GO}
-                                            allInvoices={invoices}
-                                            totalAmount={batch.goTotal}
-                                            totalPAYE={batch.goPAYE}
-                                            onDelete={handleRemoveFromBatch}
-                                            onUploadPop={handleUploadPop}
-                                            onEdit={setEditingInvoice}
-                                            onRemovePop={handleRemovePop}
-                                        />
-                                    )}
-                                </div>
-                             </CollapsibleContent>
-                        </Collapsible>
-                    )})}
+                        <p className="text-center text-muted-foreground py-10">No private payment batches found.</p>
+                    ) : weeklyBatches.map((batch) => (
+                        <WeeklyBatchSection
+                            key={batch.batchKey}
+                            batch={batch}
+                            allInvoices={invoices}
+                            onDelete={handleRemoveFromBatch}
+                            onUploadPop={handleUploadPop}
+                            onEdit={setEditingInvoice}
+                            onRemovePop={handleRemovePop}
+                        />
+                    ))}
                 </div>
             )}
              <Dialog open={!!editingInvoice} onOpenChange={(isOpen) => !isOpen && setEditingInvoice(null)}>
