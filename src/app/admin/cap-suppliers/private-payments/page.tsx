@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { getFirestore, collection, getDocs, query, orderBy, where, doc, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download, MoreHorizontal, Edit, AlertTriangle, Eye, Archive, Shield } from 'lucide-react';
+import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download, MoreHorizontal, Edit, AlertTriangle, Eye, Archive, Shield, Sparkles } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ExtractedInvoice, User } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,7 @@ import { capChartOfAccounts, s38ChartOfAccounts, s39ChartOfAccounts } from '@/li
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import PrivateSecondReview from '@/components/admin/cap-suppliers/PrivateSecondReview';
 import { AIExtractPrivateUploadDialog, ManualPrivateUploadDialog } from '@/components/admin/cap-suppliers/PrivateUploadDialogs';
 
@@ -40,6 +41,7 @@ type SupplierGroup = {
     invoices: ExtractedInvoice[];
     hasDuplicates: boolean;
     hasPreviousPaye: boolean;
+    isFirstTimeSupplier: boolean;
 };
 
 // I'll copy PaymentBatchTable from the original file but only for private payments.
@@ -61,6 +63,17 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
         return set;
     }, [allInvoices]);
 
+    // Track all suppliers who have had at least one PAID invoice in history before/outside of this batch
+    const paidSuppliersInHistory = useMemo(() => {
+        const set = new Set<string>();
+        (allInvoices || []).forEach(inv => {
+            if (inv.status === 'paid' && inv.paymentBatch !== batchKey) {
+                set.add((inv.supplier || '').toLowerCase().trim());
+            }
+        });
+        return set;
+    }, [allInvoices, batchKey]);
+
     const formatPrice = (price: number) => {
         return new Intl.NumberFormat('en-GB', {
           style: 'currency',
@@ -69,7 +82,7 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
     };
     
     const groupedBySupplier = useMemo(() => {
-        const groups: { [key: string]: Omit<SupplierGroup, 'hasDuplicates' | 'hasPreviousPaye'> & { hasDuplicates?: boolean; hasPreviousPaye?: boolean } } = {};
+        const groups: { [key: string]: Omit<SupplierGroup, 'hasDuplicates' | 'hasPreviousPaye' | 'isFirstTimeSupplier'> & { hasDuplicates?: boolean; hasPreviousPaye?: boolean; isFirstTimeSupplier?: boolean } } = {};
         batchInvoices.forEach(invoice => {
             if (!groups[invoice.supplier]) {
                 groups[invoice.supplier] = {
@@ -93,17 +106,18 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
             groups[invoice.supplier].invoices.push(invoice);
         });
 
-        // Check for duplicates and previous PAYE
+        // Check for duplicates, previous PAYE and first-time status
         Object.values(groups).forEach(group => {
             const invoiceNumbers = group.invoices.map(inv => inv.invoiceNumber);
             group.hasDuplicates = new Set(invoiceNumbers).size !== invoiceNumbers.length;
 
             const normalizedSupplier = (group.supplier || '').toLowerCase().trim();
             group.hasPreviousPaye = payeSuppliersInHistory.has(normalizedSupplier);
+            group.isFirstTimeSupplier = !paidSuppliersInHistory.has(normalizedSupplier);
         });
 
         return Object.values(groups).sort((a, b) => a.supplier.localeCompare(b.supplier));
-    }, [batchInvoices, payeSuppliersInHistory]);
+    }, [batchInvoices, payeSuppliersInHistory, paidSuppliersInHistory]);
 
     const handlePopUpload = async (supplierName: string, event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -285,6 +299,29 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
                                                         </Tooltip>
                                                     </TooltipProvider>
                                                 ) : null}
+                                                {group.isFirstTimeSupplier && (
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Badge 
+                                                                    variant="outline" 
+                                                                    className="ml-2 border-emerald-500/50 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 cursor-help flex items-center gap-1 font-medium text-xs"
+                                                                >
+                                                                    <Sparkles className="h-3 w-3 text-emerald-600" />
+                                                                    1st Payment
+                                                                </Badge>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent className="max-w-xs">
+                                                                <p className="font-bold text-emerald-600 flex items-center gap-1">
+                                                                    <Sparkles className="h-3.5 w-3.5" /> 1st Time Supplier Payment
+                                                                </p>
+                                                                <p className="text-xs mt-1">
+                                                                    This supplier has no prior paid invoices in payment history. Please ensure banking details and vendor verification have been verified.
+                                                                </p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                )}
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-right font-mono font-semibold">{formatPrice(group.totalAmount)}</TableCell>
@@ -385,6 +422,20 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
                                                                                 </Tooltip>
                                                                             </TooltipProvider>
                                                                         ) : null}
+                                                                        {group.isFirstTimeSupplier && (
+                                                                            <TooltipProvider>
+                                                                                <Tooltip>
+                                                                                    <TooltipTrigger asChild>
+                                                                                        <Badge variant="outline" className="border-emerald-500/40 text-emerald-600 bg-emerald-500/10 text-[10px] ml-2 cursor-help">
+                                                                                            1st Payment
+                                                                                        </Badge>
+                                                                                    </TooltipTrigger>
+                                                                                    <TooltipContent className="max-w-xs text-xs">
+                                                                                        First time supplier payment.
+                                                                                    </TooltipContent>
+                                                                                </Tooltip>
+                                                                            </TooltipProvider>
+                                                                        )}
                                                                     </TableCell>
                                                                     <TableCell className="py-1">{invoice.date}</TableCell>
                                                                     <TableCell className="py-1 text-right font-mono">{formatPrice(invoice.invoiceTotal)}</TableCell>

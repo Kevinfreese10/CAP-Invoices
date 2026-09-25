@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { getFirestore, collection, getDocs, query, orderBy, where, doc, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download, MoreHorizontal, Edit, AlertTriangle, Eye, Archive, AlertCircle } from 'lucide-react';
+import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download, MoreHorizontal, Edit, AlertTriangle, Eye, Archive, AlertCircle, Sparkles } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ExtractedInvoice, User } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -40,6 +40,7 @@ type SupplierGroup = {
     hasDuplicates: boolean;
     hasDiscrepancy: boolean;
     hasPreviousPaye: boolean;
+    isFirstTimeSupplier: boolean;
 };
 
 function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalAmount, totalPAYE, onDelete, onUploadPop, onEdit, batchKey, onRemovePop }: { title: string, invoices: ExtractedInvoice[], allInvoices: ExtractedInvoice[], totalAmount: number, totalPAYE: number, onDelete: (id: string, isArchive: boolean) => void, onUploadPop: (supplierName: string, file: File, batchKey: string) => Promise<void>, onEdit: (invoice: ExtractedInvoice) => void, batchKey: string, onRemovePop: (supplierName: string, batchKey: string) => Promise<void> }) {
@@ -59,6 +60,23 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
         });
         return set;
     }, [allInvoices]);
+
+    // Track all suppliers who have had at least one PAID invoice in history before/outside of this batch
+    const paidSuppliersInHistory = useMemo(() => {
+        const set = new Set<string>();
+        (allInvoices || []).forEach(inv => {
+            if (inv.status === 'paid') {
+                if (batchKey && inv.paymentBatch && inv.paymentBatch.match(/^\d{4}-\d{2}-\d{2}$/) && batchKey.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                    if (inv.paymentBatch < batchKey) {
+                        set.add((inv.supplier || '').toLowerCase().trim());
+                    }
+                } else if (inv.paymentBatch !== batchKey) {
+                    set.add((inv.supplier || '').toLowerCase().trim());
+                }
+            }
+        });
+        return set;
+    }, [allInvoices, batchKey]);
 
     useEffect(() => {
         const savedSize = localStorage.getItem(`batchCardSize-${batchKey}`);
@@ -114,6 +132,7 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
                     hasDuplicates: false,
                     hasDiscrepancy: false,
                     hasPreviousPaye: false,
+                    isFirstTimeSupplier: false,
                 };
             }
             
@@ -145,10 +164,13 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
             // Flag if supplier has had PAYE deductions in previous invoices
             const normalizedSupplier = (group.supplier || '').toLowerCase().trim();
             group.hasPreviousPaye = payeSuppliersInHistory.has(normalizedSupplier);
+
+            // Flag if supplier is receiving payment for the first time (no prior paid invoices in history)
+            group.isFirstTimeSupplier = !paidSuppliersInHistory.has(normalizedSupplier);
         });
 
         return Object.values(groups).sort((a, b) => a.supplier.localeCompare(b.supplier));
-    }, [batchInvoices, payeSuppliersInHistory]);
+    }, [batchInvoices, payeSuppliersInHistory, paidSuppliersInHistory]);
 
     const handlePopUpload = async (supplierName: string, event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -347,6 +369,29 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
                                                         </Tooltip>
                                                     </TooltipProvider>
                                                 ) : null}
+                                                {group.isFirstTimeSupplier && (
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Badge 
+                                                                    variant="outline" 
+                                                                    className="ml-2 border-emerald-500/50 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 cursor-help flex items-center gap-1 font-medium text-xs"
+                                                                >
+                                                                    <Sparkles className="h-3 w-3 text-emerald-600" />
+                                                                    1st Payment
+                                                                </Badge>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent className="max-w-xs">
+                                                                <p className="font-bold text-emerald-600 flex items-center gap-1">
+                                                                    <Sparkles className="h-3.5 w-3.5" /> 1st Time Supplier Payment
+                                                                </p>
+                                                                <p className="text-xs mt-1">
+                                                                    This supplier has no prior paid invoices in payment history. Please ensure banking details and vendor verification have been verified.
+                                                                </p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                )}
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-right font-mono font-semibold">{formatPrice(group.totalAmount)}</TableCell>
@@ -451,6 +496,20 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
                                                                                 </Tooltip>
                                                                             </TooltipProvider>
                                                                         ) : null}
+                                                                        {group.isFirstTimeSupplier && (
+                                                                            <TooltipProvider>
+                                                                                <Tooltip>
+                                                                                    <TooltipTrigger asChild>
+                                                                                        <Badge variant="outline" className="border-emerald-500/40 text-emerald-600 bg-emerald-500/10 text-[10px] cursor-help">
+                                                                                            1st Payment
+                                                                                        </Badge>
+                                                                                    </TooltipTrigger>
+                                                                                    <TooltipContent className="max-w-xs text-xs">
+                                                                                        First time supplier payment.
+                                                                                    </TooltipContent>
+                                                                                </Tooltip>
+                                                                            </TooltipProvider>
+                                                                        )}
                                                                         {hasLineDiscrepancy && (
                                                                             <TooltipProvider>
                                                                                 <Tooltip>

@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { getFirestore, collection, getDocs, query, orderBy, where, doc, updateDoc, writeBatch, addDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, CheckCircle, MoreHorizontal, Edit, PlusCircle, FileCheck2, Eye, Shield, Paperclip, FileX2, RotateCcw } from 'lucide-react';
+import { Loader2, CheckCircle, MoreHorizontal, Edit, PlusCircle, FileCheck2, Eye, Shield, Paperclip, FileX2, RotateCcw, Sparkles } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ExtractedInvoice, User } from '@/lib/types';
@@ -33,6 +33,7 @@ const storage = getStorage(firebaseApp);
 
 export default function PaymentControlSheetPage() {
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
+    const [paidSuppliers, setPaidSuppliers] = useState<Set<string>>(new Set());
     const [isLoading, setIsLoading] = useState(true);
     const [supplierFilter, setSupplierFilter] = useState('');
     const { toast } = useToast();
@@ -69,10 +70,21 @@ export default function PaymentControlSheetPage() {
         if (showLoader) setIsLoading(true);
         try {
             const q = query(collection(db, 'extractedInvoices'), where('status', '==', 'approved_for_payment'));
-            const querySnapshot = await getDocs(q);
+            const paidQ = query(collection(db, 'extractedInvoices'), where('status', '==', 'paid'));
+            const [querySnapshot, paidSnapshot] = await Promise.all([
+                getDocs(q),
+                getDocs(paidQ),
+            ]);
             const fetchedInvoices = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExtractedInvoice));
             fetchedInvoices.sort((a, b) => getTime(b.createdAt) - getTime(a.createdAt));
             setInvoices(fetchedInvoices);
+
+            const paidSet = new Set<string>();
+            paidSnapshot.docs.forEach(d => {
+                const s = d.data().supplier;
+                if (s) paidSet.add(s.toLowerCase().trim());
+            });
+            setPaidSuppliers(paidSet);
         } catch (error) {
             console.error("Error fetching approved for payment invoices:", error);
             toast({ title: 'Error', description: 'Could not load payment control sheet.', variant: 'destructive' });
@@ -293,6 +305,15 @@ export default function PaymentControlSheetPage() {
                                                         {invoice.isPrivate && (
                                                             <Badge variant="destructive">
                                                                 <Shield className="mr-1 h-3 w-3" /> Private
+                                                            </Badge>
+                                                        )}
+                                                        {!paidSuppliers.has((invoice.supplier || '').toLowerCase().trim()) && (
+                                                            <Badge 
+                                                                variant="outline" 
+                                                                className="border-emerald-500/50 bg-emerald-500/10 text-emerald-600 flex items-center gap-1 font-medium text-xs"
+                                                            >
+                                                                <Sparkles className="h-3 w-3 text-emerald-600" />
+                                                                1st Payment
                                                             </Badge>
                                                         )}
                                                     </CardTitle>
