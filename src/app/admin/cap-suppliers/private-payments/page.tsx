@@ -40,6 +40,7 @@ type SupplierGroup = {
     totalPAYE: number;
     invoices: ExtractedInvoice[];
     hasDuplicates: boolean;
+    duplicateInvoiceNumbers?: string[];
     hasPreviousPaye: boolean;
     isFirstTimeSupplier: boolean;
 };
@@ -148,7 +149,7 @@ function PaymentBatchTable({
     };
     
     const groupedBySupplier = useMemo(() => {
-        const groups: { [key: string]: Omit<SupplierGroup, 'hasDuplicates' | 'hasPreviousPaye' | 'isFirstTimeSupplier'> & { hasDuplicates?: boolean; hasPreviousPaye?: boolean; isFirstTimeSupplier?: boolean } } = {};
+        const groups: { [key: string]: Omit<SupplierGroup, 'hasDuplicates' | 'hasPreviousPaye' | 'isFirstTimeSupplier'> & { hasDuplicates?: boolean; duplicateInvoiceNumbers?: string[]; hasPreviousPaye?: boolean; isFirstTimeSupplier?: boolean } } = {};
         batchInvoices.forEach(invoice => {
             if (!groups[invoice.supplier]) {
                 groups[invoice.supplier] = {
@@ -174,8 +175,17 @@ function PaymentBatchTable({
 
         // Check for duplicates, previous PAYE and first-time status
         Object.values(groups).forEach(group => {
-            const invoiceNumbers = group.invoices.map(inv => inv.invoiceNumber);
-            group.hasDuplicates = new Set(invoiceNumbers).size !== invoiceNumbers.length;
+            const invoiceNumberCounts = group.invoices.reduce((acc, inv) => {
+                const num = (inv.invoiceNumber || '').trim();
+                if (num) {
+                    acc[num] = (acc[num] || 0) + 1;
+                }
+                return acc;
+            }, {} as Record<string, number>);
+
+            const duplicateNums = Object.keys(invoiceNumberCounts).filter(num => invoiceNumberCounts[num] > 1);
+            group.hasDuplicates = duplicateNums.length > 0;
+            group.duplicateInvoiceNumbers = duplicateNums;
 
             const normalizedSupplier = (group.supplier || '').toLowerCase().trim();
             group.hasPreviousPaye = payeSuppliersInHistory.has(normalizedSupplier);
@@ -388,7 +398,26 @@ function PaymentBatchTable({
                                                     <ChevronDown className={cn("h-4 w-4 mr-2 transition-transform duration-200", isOpen && "-rotate-90")} />
                                                     {group.supplier}
                                                 </Button>
-                                                {group.hasDuplicates && <AlertTriangle className="h-4 w-4 ml-2 text-destructive" />}
+                                                {group.hasDuplicates && (
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Badge variant="destructive" className="ml-2 flex items-center gap-1 cursor-help font-medium text-xs">
+                                                                    <AlertTriangle className="h-3.5 w-3.5" />
+                                                                    Duplicate Inv #
+                                                                </Badge>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent className="max-w-xs">
+                                                                <p className="font-bold text-destructive flex items-center gap-1">
+                                                                    <AlertTriangle className="h-3.5 w-3.5" /> Duplicate Invoice Number Warning
+                                                                </p>
+                                                                <p className="text-xs mt-1">
+                                                                    Multiple invoices in this batch share the exact same invoice number: <strong>{group.duplicateInvoiceNumbers?.join(', ')}</strong>. Please verify if this is a duplicate entry.
+                                                                </p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                )}
                                                 {group.totalPAYE > 0 ? (
                                                     <Badge variant="destructive" className="ml-2">PAYE</Badge>
                                                 ) : group.hasPreviousPaye ? (
@@ -518,6 +547,21 @@ function PaymentBatchTable({
                                                                 <TableRow key={invoice.id} className="text-xs">
                                                                     <TableCell className="py-1 flex items-center">
                                                                         {invoice.invoiceNumber}
+                                                                        {group.duplicateInvoiceNumbers?.includes((invoice.invoiceNumber || '').trim()) && (
+                                                                            <TooltipProvider>
+                                                                                <Tooltip>
+                                                                                    <TooltipTrigger asChild>
+                                                                                        <Badge variant="destructive" className="text-[10px] ml-2 cursor-help flex items-center gap-1">
+                                                                                            <AlertTriangle className="h-3 w-3" /> Duplicate #{invoice.invoiceNumber}
+                                                                                        </Badge>
+                                                                                    </TooltipTrigger>
+                                                                                    <TooltipContent className="max-w-xs text-xs">
+                                                                                        <p className="font-bold">Duplicate Invoice Number</p>
+                                                                                        <p className="mt-1">Invoice number <strong>{invoice.invoiceNumber}</strong> appears more than once for this supplier in this batch.</p>
+                                                                                    </TooltipContent>
+                                                                                </Tooltip>
+                                                                            </TooltipProvider>
+                                                                        )}
                                                                         {isAlreadyPaid(invoice) && (
                                                                             <Badge variant="success" className="ml-2">Paid</Badge>
                                                                         )}
