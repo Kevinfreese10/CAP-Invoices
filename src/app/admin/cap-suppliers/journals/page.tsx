@@ -1052,9 +1052,10 @@ export default function JournalsPage() {
 
                                                     {uploadedSuppliers.length > 0 && (
                                                         row.isSupplierMatched ? (
-                                                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" title="Matched to official supplier" />
+                                                            <span title="Matched to official supplier">
+                                                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                                                            </span>
                                                         ) : (
-                                                            <Popover>
                                                                 <PopoverTrigger asChild>
                                                                     <Button
                                                                         variant="outline"
