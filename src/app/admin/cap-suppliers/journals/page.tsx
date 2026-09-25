@@ -1056,6 +1056,7 @@ export default function JournalsPage() {
                                                                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
                                                             </span>
                                                         ) : (
+                                                            <Popover>
                                                                 <PopoverTrigger asChild>
                                                                     <Button
                                                                         variant="outline"
