@@ -39,6 +39,7 @@ type SupplierGroup = {
     invoices: ExtractedInvoice[];
     hasDuplicates: boolean;
     hasDiscrepancy: boolean;
+    hasPreviousPaye: boolean;
 };
 
 function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalAmount, totalPAYE, onDelete, onUploadPop, onEdit, batchKey, onRemovePop }: { title: string, invoices: ExtractedInvoice[], allInvoices: ExtractedInvoice[], totalAmount: number, totalPAYE: number, onDelete: (id: string, isArchive: boolean) => void, onUploadPop: (supplierName: string, file: File, batchKey: string) => Promise<void>, onEdit: (invoice: ExtractedInvoice) => void, batchKey: string, onRemovePop: (supplierName: string, batchKey: string) => Promise<void> }) {
@@ -47,6 +48,17 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
     const { toast } = useToast();
     const cardRef = useRef<HTMLDivElement>(null);
     const [cardStyle, setCardStyle] = useState<{ width?: string, height?: string }>({});
+
+    // Track all suppliers who have had PAYE deductions in any invoice history
+    const payeSuppliersInHistory = useMemo(() => {
+        const set = new Set<string>();
+        (allInvoices || []).forEach(inv => {
+            if (inv.lineItems && inv.lineItems.some(li => li.paye)) {
+                set.add((inv.supplier || '').toLowerCase().trim());
+            }
+        });
+        return set;
+    }, [allInvoices]);
 
     useEffect(() => {
         const savedSize = localStorage.getItem(`batchCardSize-${batchKey}`);
@@ -101,6 +113,7 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
                     invoices: [],
                     hasDuplicates: false,
                     hasDiscrepancy: false,
+                    hasPreviousPaye: false,
                 };
             }
             
@@ -128,10 +141,14 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
             // Using a small epsilon to account for floating point math
             const calculatedGross = group.totalAmount + group.totalPAYE;
             group.hasDiscrepancy = Math.abs(group.totalInvoiceGross - calculatedGross) > 0.05;
+
+            // Flag if supplier has had PAYE deductions in previous invoices
+            const normalizedSupplier = (group.supplier || '').toLowerCase().trim();
+            group.hasPreviousPaye = payeSuppliersInHistory.has(normalizedSupplier);
         });
 
         return Object.values(groups).sort((a, b) => a.supplier.localeCompare(b.supplier));
-    }, [batchInvoices]);
+    }, [batchInvoices, payeSuppliersInHistory]);
 
     const handlePopUpload = async (supplierName: string, event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -305,7 +322,31 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
                                                         </Tooltip>
                                                     </TooltipProvider>
                                                 )}
-                                                {group.totalPAYE > 0 && <Badge variant="destructive" className="ml-2">PAYE</Badge>}
+                                                {group.totalPAYE > 0 ? (
+                                                    <Badge variant="destructive" className="ml-2">PAYE</Badge>
+                                                ) : group.hasPreviousPaye ? (
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Badge 
+                                                                    variant="outline" 
+                                                                    className="ml-2 border-amber-500/50 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 cursor-help flex items-center gap-1 font-medium text-xs"
+                                                                >
+                                                                    <AlertTriangle className="h-3 w-3 text-amber-600" />
+                                                                    Prev PAYE
+                                                                </Badge>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent className="max-w-xs">
+                                                                <p className="font-bold text-amber-600 flex items-center gap-1">
+                                                                    <AlertTriangle className="h-3.5 w-3.5" /> Historical PAYE Supplier
+                                                                </p>
+                                                                <p className="text-xs mt-1">
+                                                                    This supplier had PAYE deducted on previous invoices, but has <strong>R0.00 PAYE</strong> in this batch. Please verify if PAYE deduction should apply.
+                                                                </p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                ) : null}
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-right font-mono font-semibold">{formatPrice(group.totalAmount)}</TableCell>
@@ -394,9 +435,22 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
                                                                         {isAlreadyPaid(invoice) && (
                                                                             <Badge variant="success">Paid</Badge>
                                                                         )}
-                                                                        {invoiceHasPaye && (
+                                                                        {invoiceHasPaye ? (
                                                                             <Badge variant="destructive">PAYE</Badge>
-                                                                        )}
+                                                                        ) : group.hasPreviousPaye ? (
+                                                                            <TooltipProvider>
+                                                                                <Tooltip>
+                                                                                    <TooltipTrigger asChild>
+                                                                                        <Badge variant="outline" className="border-amber-500/40 text-amber-600 bg-amber-500/10 text-[10px] cursor-help">
+                                                                                            No PAYE (Prev PAYE Supplier)
+                                                                                        </Badge>
+                                                                                    </TooltipTrigger>
+                                                                                    <TooltipContent className="max-w-xs text-xs">
+                                                                                        Supplier has PAYE history, but PAYE is not applied to this invoice.
+                                                                                    </TooltipContent>
+                                                                                </Tooltip>
+                                                                            </TooltipProvider>
+                                                                        ) : null}
                                                                         {hasLineDiscrepancy && (
                                                                             <TooltipProvider>
                                                                                 <Tooltip>

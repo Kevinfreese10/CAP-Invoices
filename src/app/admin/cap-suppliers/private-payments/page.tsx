@@ -39,6 +39,7 @@ type SupplierGroup = {
     totalPAYE: number;
     invoices: ExtractedInvoice[];
     hasDuplicates: boolean;
+    hasPreviousPaye: boolean;
 };
 
 // I'll copy PaymentBatchTable from the original file but only for private payments.
@@ -49,6 +50,17 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
     const [uploadingPop, setUploadingPop] = useState<string | null>(null);
     const { toast } = useToast();
 
+    // Track all suppliers who have had PAYE deductions in any invoice history
+    const payeSuppliersInHistory = useMemo(() => {
+        const set = new Set<string>();
+        (allInvoices || []).forEach(inv => {
+            if (inv.lineItems && inv.lineItems.some(li => li.paye)) {
+                set.add((inv.supplier || '').toLowerCase().trim());
+            }
+        });
+        return set;
+    }, [allInvoices]);
+
     const formatPrice = (price: number) => {
         return new Intl.NumberFormat('en-GB', {
           style: 'currency',
@@ -57,7 +69,7 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
     };
     
     const groupedBySupplier = useMemo(() => {
-        const groups: { [key: string]: Omit<SupplierGroup, 'hasDuplicates'> & { hasDuplicates?: boolean } } = {};
+        const groups: { [key: string]: Omit<SupplierGroup, 'hasDuplicates' | 'hasPreviousPaye'> & { hasDuplicates?: boolean; hasPreviousPaye?: boolean } } = {};
         batchInvoices.forEach(invoice => {
             if (!groups[invoice.supplier]) {
                 groups[invoice.supplier] = {
@@ -81,14 +93,17 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
             groups[invoice.supplier].invoices.push(invoice);
         });
 
-        // Check for duplicates
+        // Check for duplicates and previous PAYE
         Object.values(groups).forEach(group => {
             const invoiceNumbers = group.invoices.map(inv => inv.invoiceNumber);
             group.hasDuplicates = new Set(invoiceNumbers).size !== invoiceNumbers.length;
+
+            const normalizedSupplier = (group.supplier || '').toLowerCase().trim();
+            group.hasPreviousPaye = payeSuppliersInHistory.has(normalizedSupplier);
         });
 
         return Object.values(groups).sort((a, b) => a.supplier.localeCompare(b.supplier));
-    }, [batchInvoices]);
+    }, [batchInvoices, payeSuppliersInHistory]);
 
     const handlePopUpload = async (supplierName: string, event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -245,7 +260,31 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
                                                     {group.supplier}
                                                 </Button>
                                                 {group.hasDuplicates && <AlertTriangle className="h-4 w-4 ml-2 text-destructive" />}
-                                                {group.totalPAYE > 0 && <Badge variant="destructive" className="ml-2">PAYE</Badge>}
+                                                {group.totalPAYE > 0 ? (
+                                                    <Badge variant="destructive" className="ml-2">PAYE</Badge>
+                                                ) : group.hasPreviousPaye ? (
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Badge 
+                                                                    variant="outline" 
+                                                                    className="ml-2 border-amber-500/50 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 cursor-help flex items-center gap-1 font-medium text-xs"
+                                                                >
+                                                                    <AlertTriangle className="h-3 w-3 text-amber-600" />
+                                                                    Prev PAYE
+                                                                </Badge>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent className="max-w-xs">
+                                                                <p className="font-bold text-amber-600 flex items-center gap-1">
+                                                                    <AlertTriangle className="h-3.5 w-3.5" /> Historical PAYE Supplier
+                                                                </p>
+                                                                <p className="text-xs mt-1">
+                                                                    This supplier had PAYE deducted on previous invoices, but has <strong>R0.00 PAYE</strong> in this batch. Please verify if PAYE deduction should apply.
+                                                                </p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                ) : null}
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-right font-mono font-semibold">{formatPrice(group.totalAmount)}</TableCell>
@@ -330,9 +369,22 @@ function PaymentBatchTable({ title, invoices: batchInvoices, allInvoices, totalA
                                                                         {isAlreadyPaid(invoice) && (
                                                                             <Badge variant="success" className="ml-2">Paid</Badge>
                                                                         )}
-                                                                        {invoiceHasPaye && (
+                                                                        {invoiceHasPaye ? (
                                                                             <Badge variant="destructive" className="ml-2">PAYE</Badge>
-                                                                        )}
+                                                                        ) : group.hasPreviousPaye ? (
+                                                                            <TooltipProvider>
+                                                                                <Tooltip>
+                                                                                    <TooltipTrigger asChild>
+                                                                                        <Badge variant="outline" className="border-amber-500/40 text-amber-600 bg-amber-500/10 text-[10px] ml-2 cursor-help">
+                                                                                            No PAYE (Prev PAYE Supplier)
+                                                                                        </Badge>
+                                                                                    </TooltipTrigger>
+                                                                                    <TooltipContent className="max-w-xs text-xs">
+                                                                                        Supplier has PAYE history, but PAYE is not applied to this invoice.
+                                                                                    </TooltipContent>
+                                                                                </Tooltip>
+                                                                            </TooltipProvider>
+                                                                        ) : null}
                                                                     </TableCell>
                                                                     <TableCell className="py-1">{invoice.date}</TableCell>
                                                                     <TableCell className="py-1 text-right font-mono">{formatPrice(invoice.invoiceTotal)}</TableCell>
