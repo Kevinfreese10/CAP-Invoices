@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { getFirestore, collection, getDocs, query, orderBy, where, doc, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseApp } from '@/lib/firebase';
-import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download, MoreHorizontal, Edit, AlertTriangle, Eye, Archive, Shield, Sparkles, Maximize2, Minimize2, EyeOff } from 'lucide-react';
+import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download, MoreHorizontal, Edit, AlertTriangle, AlertCircle, Eye, Archive, Shield, Sparkles, Maximize2, Minimize2, EyeOff } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ExtractedInvoice, User } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -38,9 +38,11 @@ type SupplierGroup = {
     supplier: string;
     totalAmount: number;
     totalPAYE: number;
+    totalInvoiceGross: number;
     invoices: ExtractedInvoice[];
     hasDuplicates: boolean;
     duplicateInvoiceNumbers?: string[];
+    hasDiscrepancy: boolean;
     hasPreviousPaye: boolean;
     isFirstTimeSupplier: boolean;
 };
@@ -149,14 +151,19 @@ function PaymentBatchTable({
     };
     
     const groupedBySupplier = useMemo(() => {
-        const groups: { [key: string]: Omit<SupplierGroup, 'hasDuplicates' | 'hasPreviousPaye' | 'isFirstTimeSupplier'> & { hasDuplicates?: boolean; duplicateInvoiceNumbers?: string[]; hasPreviousPaye?: boolean; isFirstTimeSupplier?: boolean } } = {};
+        const groups: { [key: string]: SupplierGroup } = {};
         batchInvoices.forEach(invoice => {
             if (!groups[invoice.supplier]) {
                 groups[invoice.supplier] = {
                     supplier: invoice.supplier,
                     totalAmount: 0,
                     totalPAYE: 0,
+                    totalInvoiceGross: 0,
                     invoices: [],
+                    hasDuplicates: false,
+                    hasDiscrepancy: false,
+                    hasPreviousPaye: false,
+                    isFirstTimeSupplier: false,
                 };
             }
             
@@ -170,10 +177,11 @@ function PaymentBatchTable({
 
             groups[invoice.supplier].totalAmount += payableAmount;
             groups[invoice.supplier].totalPAYE += payeAmount;
+            groups[invoice.supplier].totalInvoiceGross += (invoice.invoiceTotal || 0);
             groups[invoice.supplier].invoices.push(invoice);
         });
 
-        // Check for duplicates, previous PAYE and first-time status
+        // Check for duplicates, discrepancies, previous PAYE and first-time status
         Object.values(groups).forEach(group => {
             const invoiceNumberCounts = group.invoices.reduce((acc, inv) => {
                 const num = (inv.invoiceNumber || '').trim();
@@ -186,6 +194,14 @@ function PaymentBatchTable({
             const duplicateNums = Object.keys(invoiceNumberCounts).filter(num => invoiceNumberCounts[num] > 1);
             group.hasDuplicates = duplicateNums.length > 0;
             group.duplicateInvoiceNumbers = duplicateNums;
+
+            // Check for discrepancy: Sum of extracted totals vs Calculated totals (Net + PAYE)
+            const calculatedGross = group.totalAmount + group.totalPAYE;
+            const hasIndividualMismatch = group.invoices.some(inv => {
+                const lineSum = (inv.lineItems || []).reduce((s, li) => s + (Number(li.exclusiveAmount) || 0) + (Number(li.vatAmount) || 0), 0);
+                return Math.abs((Number(inv.invoiceTotal) || 0) - lineSum) > 0.01;
+            });
+            group.hasDiscrepancy = hasIndividualMismatch || Math.abs(group.totalInvoiceGross - calculatedGross) > 0.05;
 
             const normalizedSupplier = (group.supplier || '').toLowerCase().trim();
             group.hasPreviousPaye = payeSuppliersInHistory.has(normalizedSupplier);
@@ -443,6 +459,29 @@ function PaymentBatchTable({
                                                         </Tooltip>
                                                     </TooltipProvider>
                                                 ) : null}
+                                                {group.hasDiscrepancy && (
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Badge 
+                                                                    variant="destructive" 
+                                                                    className="ml-2 border-red-500 bg-red-600 hover:bg-red-700 text-white cursor-help flex items-center gap-1 font-semibold text-xs animate-pulse"
+                                                                >
+                                                                    <AlertCircle className="h-3.5 w-3.5 text-white" />
+                                                                    Total Mismatch
+                                                                </Badge>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent className="max-w-xs">
+                                                                <p className="font-bold text-red-500 flex items-center gap-1">
+                                                                    <AlertCircle className="h-3.5 w-3.5" /> Control Total Mismatch
+                                                                </p>
+                                                                <p className="text-xs mt-1">
+                                                                    One or more invoices for this supplier have line items that do not equal the invoice total.
+                                                                </p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                )}
                                                 {group.isFirstTimeSupplier && (
                                                     <TooltipProvider>
                                                         <Tooltip>
@@ -543,6 +582,10 @@ function PaymentBatchTable({
                                                         <TableBody>
                                                             {group.invoices.map(invoice => {
                                                                 const invoiceHasPaye = invoice.lineItems.some(item => item.paye);
+                                                                const lineTotalSum = (invoice.lineItems || []).reduce((s, li) => s + (Number(li.exclusiveAmount) || 0) + (Number(li.vatAmount) || 0), 0);
+                                                                const safeInvoiceTotal = Number(invoice.invoiceTotal) || 0;
+                                                                const hasLineDiscrepancy = Math.abs(safeInvoiceTotal - lineTotalSum) > 0.01;
+
                                                                 return (
                                                                 <TableRow key={invoice.id} className="text-xs">
                                                                     <TableCell className="py-1 flex items-center">
@@ -591,6 +634,25 @@ function PaymentBatchTable({
                                                                                     </TooltipTrigger>
                                                                                     <TooltipContent className="max-w-xs text-xs">
                                                                                         First time supplier payment.
+                                                                                    </TooltipContent>
+                                                                                </Tooltip>
+                                                                            </TooltipProvider>
+                                                                        )}
+                                                                        {hasLineDiscrepancy && (
+                                                                            <TooltipProvider>
+                                                                                <Tooltip>
+                                                                                    <TooltipTrigger asChild>
+                                                                                        <Badge variant="destructive" className="text-[10px] ml-2 cursor-help flex items-center gap-1 bg-red-600 hover:bg-red-700 text-white font-semibold">
+                                                                                            <AlertCircle className="h-3 w-3" /> Total Mismatch (Lines: R{lineTotalSum.toFixed(2)} ≠ Total: R{safeInvoiceTotal.toFixed(2)})
+                                                                                        </Badge>
+                                                                                    </TooltipTrigger>
+                                                                                    <TooltipContent className="max-w-xs text-xs">
+                                                                                        <p className="font-bold text-red-400">Control Total Mismatch</p>
+                                                                                        <p className="mt-1">
+                                                                                            Control Total (Line Items): <strong>R{lineTotalSum.toFixed(2)}</strong><br />
+                                                                                            Invoice Total: <strong>R{safeInvoiceTotal.toFixed(2)}</strong><br />
+                                                                                            Difference: <strong className="text-red-300">R{(safeInvoiceTotal - lineTotalSum).toFixed(2)}</strong>
+                                                                                        </p>
                                                                                     </TooltipContent>
                                                                                 </Tooltip>
                                                                             </TooltipProvider>

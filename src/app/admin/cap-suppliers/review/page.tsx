@@ -559,6 +559,19 @@ export default function ReviewPage() {
     
     const handleApprove = async (id: string) => {
         if (!user) return;
+        const targetInv = invoices.find(inv => inv.id === id);
+        if (targetInv) {
+            const lineSum = (targetInv.lineItems || []).reduce((s, li) => s + (Number(li.exclusiveAmount) || 0) + (Number(li.vatAmount) || 0), 0);
+            const invTotal = Number(targetInv.invoiceTotal) || 0;
+            if (Math.abs(lineSum - invTotal) > 0.01) {
+                toast({
+                    title: 'Control Total Mismatch',
+                    description: `Cannot approve: Sum of line items (${formatPrice(lineSum)}) does not equal Invoice Total (${formatPrice(invTotal)}). Difference: ${formatPrice(Math.abs(invTotal - lineSum))}. Please edit the invoice first.`,
+                    variant: 'destructive'
+                });
+                return;
+            }
+        }
         try {
             const docRef = doc(db, 'extractedInvoices', id);
             await updateDoc(docRef, { status: 'approved', approvedBy: user.uid });
@@ -571,6 +584,24 @@ export default function ReviewPage() {
 
     const handleApproveSelected = async () => {
         if (selectedInvoices.length === 0 || !user) return;
+
+        // Check for any discrepancies in selected invoices
+        const invalidInvoices = invoices.filter(inv => {
+            if (!selectedInvoices.includes(inv.id)) return false;
+            const lineSum = (inv.lineItems || []).reduce((s, li) => s + (Number(li.exclusiveAmount) || 0) + (Number(li.vatAmount) || 0), 0);
+            const invTotal = Number(inv.invoiceTotal) || 0;
+            return Math.abs(lineSum - invTotal) > 0.01;
+        });
+
+        if (invalidInvoices.length > 0) {
+            toast({
+                title: 'Cannot Approve Invoices With Total Mismatches',
+                description: `${invalidInvoices.length} invoice(s) have Control Total discrepancies (e.g. ${invalidInvoices[0].supplier} #${invalidInvoices[0].invoiceNumber}). Please edit and balance them before approving.`,
+                variant: 'destructive',
+            });
+            return;
+        }
+
         setIsApproving(true);
         try {
             const BATCH_SIZE = 400;
@@ -912,7 +943,11 @@ export default function ReviewPage() {
                     </TableHeader>
                     <TableBody>
                         {invoices.map((invoice) => {
-                            const totalVat = invoice.lineItems.reduce((sum, item) => sum + item.vatAmount, 0);
+                            const totalVat = (invoice.lineItems || []).reduce((sum, item) => sum + (Number(item.vatAmount) || 0), 0);
+                            const lineTotalSum = (invoice.lineItems || []).reduce((sum, item) => sum + (Number(item.exclusiveAmount) || 0) + (Number(item.vatAmount) || 0), 0);
+                            const safeInvoiceTotal = Number(invoice.invoiceTotal) || 0;
+                            const hasDiscrepancy = Math.abs(safeInvoiceTotal - lineTotalSum) > 0.01;
+
                             return (
                                 <TableRow key={invoice.id}>
                                     <TableCell>
@@ -923,7 +958,7 @@ export default function ReviewPage() {
                                         />
                                     </TableCell>
                                     <TableCell>
-                                        <div className="flex items-center gap-1.5">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
                                             {invoice.status === 'duplicate' ? (
                                                 <Badge variant={'destructive'}>
                                                     <AlertTriangle className="mr-1 h-3 w-3" />
@@ -934,6 +969,26 @@ export default function ReviewPage() {
                                                     <Hourglass className="mr-1 h-3 w-3" />
                                                     {invoice.status.replace('_', ' ')}
                                                 </Badge>
+                                            )}
+                                            {hasDiscrepancy && (
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Badge variant={'destructive'} className="bg-red-600 hover:bg-red-700 text-white font-semibold flex items-center gap-1 cursor-help animate-pulse text-[10px]">
+                                                                <AlertCircle className="h-3 w-3" />
+                                                                Total Mismatch
+                                                            </Badge>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent className="max-w-xs text-xs">
+                                                            <p className="font-bold text-red-400">Control Total Mismatch</p>
+                                                            <p className="mt-1">
+                                                                Control Total (Line Items): <strong>{formatPrice(lineTotalSum)}</strong><br />
+                                                                Invoice Total: <strong>{formatPrice(safeInvoiceTotal)}</strong><br />
+                                                                Difference: <strong className="text-red-300">{formatPrice(safeInvoiceTotal - lineTotalSum)}</strong>
+                                                            </p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
                                             )}
                                             {invoice.isAudited && (
                                                 <Badge className="bg-green-100 hover:bg-green-100 text-green-800 border border-green-200">
@@ -973,7 +1028,16 @@ export default function ReviewPage() {
                                         )}
                                     </TableCell>
                                     <TableCell className="text-right font-mono">{formatPrice(totalVat)}</TableCell>
-                                    <TableCell className="text-right font-mono">{formatPrice(invoice.invoiceTotal)}</TableCell>
+                                    <TableCell className="text-right font-mono">
+                                        <div className="flex flex-col items-end">
+                                            <span className={cn(hasDiscrepancy && "text-destructive font-bold")}>{formatPrice(invoice.invoiceTotal)}</span>
+                                            {hasDiscrepancy && (
+                                                <span className="text-[10px] text-destructive font-medium">
+                                                    Lines: {formatPrice(lineTotalSum)}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </TableCell>
                                     <TableCell className="text-right">
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>

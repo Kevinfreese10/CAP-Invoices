@@ -199,7 +199,11 @@ function PaymentBatchTable({
             // Check for discrepancy: Sum of extracted totals vs Calculated totals (Net + PAYE)
             // Using a small epsilon to account for floating point math
             const calculatedGross = group.totalAmount + group.totalPAYE;
-            group.hasDiscrepancy = Math.abs(group.totalInvoiceGross - calculatedGross) > 0.05;
+            const hasIndividualMismatch = group.invoices.some(inv => {
+                const lineSum = (inv.lineItems || []).reduce((s, li) => s + (Number(li.exclusiveAmount) || 0) + (Number(li.vatAmount) || 0), 0);
+                return Math.abs((Number(inv.invoiceTotal) || 0) - lineSum) > 0.01;
+            });
+            group.hasDiscrepancy = hasIndividualMismatch || Math.abs(group.totalInvoiceGross - calculatedGross) > 0.05;
 
             // Flag if supplier has had PAYE deductions in previous invoices
             const normalizedSupplier = (group.supplier || '').toLowerCase().trim();
@@ -477,6 +481,29 @@ function PaymentBatchTable({
                                                         </Tooltip>
                                                     </TooltipProvider>
                                                 ) : null}
+                                                {group.hasDiscrepancy && (
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Badge 
+                                                                    variant="destructive" 
+                                                                    className="ml-2 border-red-500 bg-red-600 hover:bg-red-700 text-white cursor-help flex items-center gap-1 font-semibold text-xs animate-pulse"
+                                                                >
+                                                                    <AlertCircle className="h-3.5 w-3.5 text-white" />
+                                                                    Total Mismatch
+                                                                </Badge>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent className="max-w-xs">
+                                                                <p className="font-bold text-red-500 flex items-center gap-1">
+                                                                    <AlertCircle className="h-3.5 w-3.5" /> Control Total Mismatch
+                                                                </p>
+                                                                <p className="text-xs mt-1">
+                                                                    One or more invoices for this supplier have line items that do not equal the invoice total.
+                                                                </p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                )}
                                                 {group.isFirstTimeSupplier && (
                                                     <TooltipProvider>
                                                         <Tooltip>
@@ -637,10 +664,17 @@ function PaymentBatchTable({
                                                                             <TooltipProvider>
                                                                                 <Tooltip>
                                                                                     <TooltipTrigger asChild>
-                                                                                        <AlertCircle className="h-3 w-3 text-destructive" />
+                                                                                        <Badge variant="destructive" className="text-[10px] ml-2 cursor-help flex items-center gap-1 bg-red-600 hover:bg-red-700 text-white font-semibold">
+                                                                                            <AlertCircle className="h-3 w-3" /> Total Mismatch (Lines: R{lineTotalSum.toFixed(2)} ≠ Total: R{safeInvoiceTotal.toFixed(2)})
+                                                                                        </Badge>
                                                                                     </TooltipTrigger>
-                                                                                    <TooltipContent>
-                                                                                        <p>Invoice total (R{safeInvoiceTotal.toFixed(2)}) doesn't match line items (R{lineTotalSum.toFixed(2)})</p>
+                                                                                    <TooltipContent className="max-w-xs text-xs">
+                                                                                        <p className="font-bold text-red-400">Control Total Mismatch</p>
+                                                                                        <p className="mt-1">
+                                                                                            Control Total (Line Items): <strong>R{lineTotalSum.toFixed(2)}</strong><br />
+                                                                                            Invoice Total: <strong>R{safeInvoiceTotal.toFixed(2)}</strong><br />
+                                                                                            Difference: <strong className="text-red-300">R{(safeInvoiceTotal - lineTotalSum).toFixed(2)}</strong>
+                                                                                        </p>
                                                                                     </TooltipContent>
                                                                                 </Tooltip>
                                                                             </TooltipProvider>
