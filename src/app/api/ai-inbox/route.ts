@@ -44,6 +44,7 @@ async function connectToImap() {
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const shouldSync = searchParams.get('sync') === 'true';
+    const view = searchParams.get('view') || 'active'; // 'active' | 'archived' | 'all'
 
     let connection;
     try {
@@ -93,6 +94,7 @@ export async function GET(req: Request) {
                       attachments: attachments,
                       createdAt: FieldValue.serverTimestamp(),
                       processedAction: null,
+                      isArchived: false,
                     };
                     
                     const docRef = adminDb.collection('inboxEmails').doc(String(emailData.uid));
@@ -103,9 +105,29 @@ export async function GET(req: Request) {
         }
 
         const allEmailsSnapshot = await adminDb.collection('inboxEmails').orderBy('date', 'desc').get();
-        const allEmails = allEmailsSnapshot.docs.map(doc => doc.data());
+        const rawDocs = allEmailsSnapshot.docs.map(doc => doc.data());
         
-        return NextResponse.json(allEmails);
+        let activeCount = 0;
+        let archivedCount = 0;
+        rawDocs.forEach((item: any) => {
+            if (item.isArchived === true || item.processedAction === 'archive') {
+                archivedCount++;
+            } else {
+                activeCount++;
+            }
+        });
+
+        let filteredEmails = rawDocs;
+        if (view === 'active') {
+            filteredEmails = rawDocs.filter((item: any) => item.isArchived !== true && item.processedAction !== 'archive');
+        } else if (view === 'archived') {
+            filteredEmails = rawDocs.filter((item: any) => item.isArchived === true || item.processedAction === 'archive');
+        }
+
+        const response = NextResponse.json(filteredEmails);
+        response.headers.set('X-Active-Count', String(activeCount));
+        response.headers.set('X-Archived-Count', String(archivedCount));
+        return response;
 
     } catch (error: any) {
         console.error('AI Inbox API Error:', error);
@@ -147,9 +169,14 @@ export async function POST(req: Request) {
         } else if (action === 'unarchive') {
              uids.forEach((uid: number) => {
                 const docRef = adminDb.collection('inboxEmails').doc(String(uid));
-                batch.update(docRef, { processedAction: null });
+                batch.update(docRef, { isArchived: false, processedAction: null });
             });
-        } else { // process or archive
+        } else if (action === 'archive') {
+             uids.forEach((uid: number) => {
+                const docRef = adminDb.collection('inboxEmails').doc(String(uid));
+                batch.update(docRef, { isArchived: true, processedAction: 'archive', archivedAt: new Date().toISOString() });
+            });
+        } else { // process or other
              uids.forEach((uid: number) => {
                 const docRef = adminDb.collection('inboxEmails').doc(String(uid));
                 batch.update(docRef, { processedAction: action });

@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Inbox, RefreshCw, FileWarning, Plug, Paperclip, CheckCircle2, RotateCw, Trash2, FileSymlink, Eye, CheckCircle, Hourglass, AlertTriangle, FileCheck2, XCircle, FileX2 } from 'lucide-react';
+import { Loader2, Inbox, RefreshCw, FileWarning, Plug, Paperclip, CheckCircle2, RotateCw, Trash2, FileSymlink, Eye, CheckCircle, Hourglass, AlertTriangle, FileCheck2, XCircle, FileX2, Archive, ArchiveRestore } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -40,6 +40,7 @@ interface Email {
     body: string | null;
     attachments: Attachment[];
     isProcessed?: boolean;
+    isArchived?: boolean;
 }
 
 const getInvoiceStatusBadge = (status: ExtractedInvoice['status']) => {
@@ -63,6 +64,9 @@ const getInvoiceStatusBadge = (status: ExtractedInvoice['status']) => {
 export default function InboxPage() {
     const [emails, setEmails] = useState<Email[]>([]);
     const [invoices, setInvoices] = useState<ExtractedInvoice[]>([]);
+    const [currentView, setCurrentView] = useState<'active' | 'archived'>('active');
+    const [activeCount, setActiveCount] = useState<number>(0);
+    const [archivedCount, setArchivedCount] = useState<number>(0);
     const [isLoading, setIsLoading] = useState(true);
     const [isTesting, setIsTesting] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -97,12 +101,12 @@ export default function InboxPage() {
         }
     }, [toast]);
     
-    const fetchEmailsAndInvoices = useCallback(async (showLoader = true) => {
+    const fetchEmailsAndInvoices = useCallback(async (showLoader = true, targetView = currentView, shouldSync = true) => {
         if (showLoader) setIsLoading(true);
         setError(null);
         try {
             // Fetch Emails by syncing with Firestore
-            const response = await fetch('/api/ai-inbox?sync=true');
+            const response = await fetch(`/api/ai-inbox?sync=${shouldSync}&view=${targetView}`);
             if (!response.ok) {
                 const errorText = await response.text();
                  try {
@@ -112,6 +116,12 @@ export default function InboxPage() {
                      throw new Error(errorText || 'Failed to fetch emails');
                 }
             }
+
+            const activeHeader = response.headers.get('X-Active-Count');
+            const archivedHeader = response.headers.get('X-Archived-Count');
+            if (activeHeader !== null) setActiveCount(Number(activeHeader));
+            if (archivedHeader !== null) setArchivedCount(Number(archivedHeader));
+
             const data: Email[] = await response.json();
             
             // isProcessed is now part of the data from Firestore, but we can keep this logic if needed.
@@ -134,7 +144,13 @@ export default function InboxPage() {
         } finally {
             if (showLoader) setIsLoading(false);
         }
-    }, []);
+    }, [currentView]);
+
+    const handleViewChange = (newView: 'active' | 'archived') => {
+        setCurrentView(newView);
+        setSelectedUids(new Set());
+        fetchEmailsAndInvoices(true, newView, false);
+    };
 
     const handleProcessSelected = async (reprocess = false) => {
         const emailsToProcess = emails.filter(email => selectedUids.has(email.uid));
@@ -181,8 +197,58 @@ export default function InboxPage() {
            });
         }
         
-        fetchEmailsAndInvoices(false);
+        fetchEmailsAndInvoices(false, currentView, false);
         setSelectedUids(new Set()); 
+    };
+
+    const handleArchiveSelected = async () => {
+        if (selectedUids.size === 0) return;
+        setIsProcessing(true);
+        try {
+            const response = await fetch('/api/ai-inbox', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ uids: Array.from(selectedUids), action: 'archive' }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to archive emails');
+            }
+
+            toast({ title: 'Emails Archived', description: `${selectedUids.size} email(s) have been archived.` });
+            setSelectedUids(new Set());
+            fetchEmailsAndInvoices(false, currentView, false);
+        } catch (error: any) {
+            toast({ title: 'Error', description: error.message, variant: 'destructive'});
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handleUnarchiveSelected = async () => {
+        if (selectedUids.size === 0) return;
+        setIsProcessing(true);
+        try {
+            const response = await fetch('/api/ai-inbox', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ uids: Array.from(selectedUids), action: 'unarchive' }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to unarchive emails');
+            }
+
+            toast({ title: 'Emails Restored', description: `${selectedUids.size} email(s) restored to active inbox.` });
+            setSelectedUids(new Set());
+            fetchEmailsAndInvoices(false, currentView, false);
+        } catch (error: any) {
+            toast({ title: 'Error', description: error.message, variant: 'destructive'});
+        } finally {
+            setIsProcessing(false);
+        }
     };
 
     const handleDeleteSelected = async () => {
@@ -202,7 +268,7 @@ export default function InboxPage() {
             }
             
             toast({ title: 'Emails Deleted', description: `${selectedUids.size} email(s) have been deleted.` });
-            fetchEmailsAndInvoices(false);
+            fetchEmailsAndInvoices(false, currentView, false);
             setSelectedUids(new Set());
         } catch (error: any) {
             toast({ title: 'Error', description: error.message, variant: 'destructive'});
@@ -354,16 +420,34 @@ export default function InboxPage() {
     return (
         <div className="space-y-8">
             <div className="flex items-center justify-between">
-                <h1 className="text-3xl font-bold tracking-tight">Email Inbox</h1>
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight">Email Inbox</h1>
+                    <p className="text-sm text-muted-foreground mt-1">
+                        Manage supplier invoices received via email.
+                    </p>
+                </div>
                 <div className="flex gap-2">
-                     <Button onClick={() => handleProcessSelected()} disabled={isProcessing || selectedUids.size === 0}>
-                        {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
-                        Process {selectedUids.size > 0 ? `(${selectedUids.size})` : ''} Selected
-                    </Button>
-                     <Button onClick={() => handleProcessSelected(true)} variant="secondary" disabled={isProcessing || selectedUids.size === 0}>
-                        <RotateCw className="mr-2 h-4 w-4"/>
-                        Reprocess {selectedUids.size > 0 ? `(${selectedUids.size})` : ''} Selected
-                    </Button>
+                    {currentView === 'active' ? (
+                        <>
+                            <Button onClick={() => handleProcessSelected()} disabled={isProcessing || selectedUids.size === 0}>
+                                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
+                                Process {selectedUids.size > 0 ? `(${selectedUids.size})` : ''} Selected
+                            </Button>
+                            <Button onClick={() => handleProcessSelected(true)} variant="secondary" disabled={isProcessing || selectedUids.size === 0}>
+                                <RotateCw className="mr-2 h-4 w-4"/>
+                                Reprocess {selectedUids.size > 0 ? `(${selectedUids.size})` : ''} Selected
+                            </Button>
+                            <Button onClick={handleArchiveSelected} variant="outline" disabled={isProcessing || selectedUids.size === 0}>
+                                <Archive className="mr-2 h-4 w-4" />
+                                Archive {selectedUids.size > 0 ? `(${selectedUids.size})` : ''}
+                            </Button>
+                        </>
+                    ) : (
+                        <Button onClick={handleUnarchiveSelected} variant="outline" disabled={isProcessing || selectedUids.size === 0}>
+                            <ArchiveRestore className="mr-2 h-4 w-4" />
+                            Unarchive {selectedUids.size > 0 ? `(${selectedUids.size})` : ''}
+                        </Button>
+                    )}
                      <AlertDialog>
                         <AlertDialogTrigger asChild>
                             <Button variant="destructive" disabled={isProcessing || selectedUids.size === 0}>
@@ -387,19 +471,48 @@ export default function InboxPage() {
                         <Plug className={`mr-2 h-4 w-4 ${isTesting ? 'animate-pulse' : ''}`} />
                         Test Connection
                     </Button>
-                    <Button onClick={() => fetchEmailsAndInvoices()} variant="outline" disabled={isLoading || isProcessing}>
+                    <Button onClick={() => fetchEmailsAndInvoices(true, currentView, true)} variant="outline" disabled={isLoading || isProcessing}>
                         <RefreshCw className={`mr-2 h-4 w-4 ${isLoading || isProcessing ? 'animate-spin' : ''}`} />
                         Refresh
                     </Button>
                 </div>
             </div>
+
+            {/* View Switcher Tabs */}
+            <div className="flex items-center gap-2 border-b pb-3">
+                <Button
+                    variant={currentView === 'active' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => handleViewChange('active')}
+                    className="gap-2"
+                >
+                    <Inbox className="h-4 w-4" />
+                    Active Inbox
+                    <Badge variant={currentView === 'active' ? 'secondary' : 'outline'} className="ml-1 px-1.5 py-0 text-xs">
+                        {activeCount}
+                    </Badge>
+                </Button>
+                <Button
+                    variant={currentView === 'archived' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => handleViewChange('archived')}
+                    className="gap-2"
+                >
+                    <Archive className="h-4 w-4" />
+                    Archived Emails
+                    <Badge variant={currentView === 'archived' ? 'secondary' : 'outline'} className="ml-1 px-1.5 py-0 text-xs">
+                        {archivedCount}
+                    </Badge>
+                </Button>
+            </div>
+
             <Card>
                 <CardHeader>
                     <div className="flex justify-between items-center">
                         <div>
                             <CardTitle>{process.env.IMAP_USER || 'invoices2@myacc.co.za'}</CardTitle>
                             <CardDescription>
-                                {isLoading ? 'Loading messages...' : `Showing ${emails.length} messages.`}
+                                {isLoading ? 'Loading messages...' : `Showing ${emails.length} ${currentView} messages.`}
                             </CardDescription>
                         </div>
                     </div>
