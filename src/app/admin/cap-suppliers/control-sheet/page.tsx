@@ -221,18 +221,18 @@ export default function SecondReviewPage() {
     };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 pb-20 sm:pb-8">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">2nd Review</h1>
       </div>
-      <Card>
+      <Card className="overflow-hidden shadow-xs">
         <CardHeader>
           <CardTitle>Approved Invoices</CardTitle>
           <CardDescription>
             These invoices have been reviewed and approved.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0 sm:p-6">
             {isLoading ? (
                 <div className="flex justify-center items-center h-64">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -240,7 +240,7 @@ export default function SecondReviewPage() {
             ) : invoices.length === 0 ? (
                 <p className="text-center text-muted-foreground py-10">No approved invoices yet.</p>
             ) : (
-                <Table>
+                <Table className="min-w-[880px]">
                     <TableHeader>
                         <TableRow>
                             <TableHead>Status</TableHead>

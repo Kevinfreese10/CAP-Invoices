@@ -408,7 +408,7 @@ export default function AccountReviewPage() {
     };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 pb-20 sm:pb-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <h1 className="text-3xl font-bold tracking-tight">Account Review</h1>
         <div className="flex flex-wrap items-center gap-2">
@@ -570,7 +570,7 @@ export default function AccountReviewPage() {
                             </div>
                         </CardHeader>
                         <CardContent className="p-0">
-                            <Table>
+                            <Table className="min-w-[650px]">
                                 <TableHeader>
                                     <TableRow>
                                         <TableHead>Line Description</TableHead>

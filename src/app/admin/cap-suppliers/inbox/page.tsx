@@ -1,23 +1,23 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Inbox, RefreshCw, FileWarning, Plug, Paperclip, CheckCircle2, RotateCw, Trash2, FileSymlink, Eye, CheckCircle, Hourglass, AlertTriangle, FileCheck2, XCircle, FileX2, Archive, ArchiveRestore } from 'lucide-react';
+import { 
+    Loader2, Inbox, RefreshCw, FileWarning, Plug, Paperclip, 
+    CheckCircle2, RotateCw, Trash2, FileSymlink, Eye, CheckCircle, 
+    Hourglass, AlertTriangle, FileCheck2, XCircle, FileX2, Archive, 
+    ArchiveRestore, ChevronDown 
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { getFirestore, collection, getDocs, deleteDoc, doc, writeBatch, query, where, orderBy } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
-import { sendEmail } from '@/lib/email';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { ExtractedInvoice } from '@/lib/types';
-import { Input } from '@/components/ui/input';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -45,18 +45,18 @@ interface Email {
 
 const getInvoiceStatusBadge = (status: ExtractedInvoice['status']) => {
     switch(status) {
-        case 'approved': return <Badge variant={'success'}><CheckCircle className="mr-1 h-3 w-3" />Approved</Badge>;
-        case 'approved_for_payment': return <Badge variant={'payment'}><FileCheck2 className="mr-1 h-3 w-3" />Approved for Payment</Badge>;
-        case 'batched_for_payment': return <Badge variant={'payment'}><FileCheck2 className="mr-1 h-3 w-3" />Batched</Badge>;
-        case 'paid': return <Badge variant={'success'}><CheckCircle className="mr-1 h-3 w-3" />Paid</Badge>;
-        case 'rejected': return <Badge variant={'destructive'}><XCircle className="mr-1 h-3 w-3" />Rejected</Badge>;
-        case 'duplicate': return <Badge variant={'destructive'}><AlertTriangle className="mr-1 h-3 w-3" />Duplicate</Badge>;
-        case 'extraction_failed': return <Badge variant={'destructive'}><AlertTriangle className="mr-1 h-3 w-3" />Extraction Failed</Badge>;
-        case 'pending_review': return <Badge variant={'warning'}><Hourglass className="mr-1 h-3 w-3" />Pending Review</Badge>;
-        case 'pending_account_review': return <Badge variant={'warning'}><Hourglass className="mr-1 h-3 w-3" />Pending Account Review</Badge>;
-        case 'pending_third_review': return <Badge variant={'third_review'}><Hourglass className="mr-1 h-3 w-3" />Pending 3rd Review</Badge>;
-        case 'archived': return <Badge variant={'secondary'}><XCircle className="mr-1 h-3 w-3" />Archived</Badge>;
-        default: return <Badge>{(status as string).replace(/_/g, ' ')}</Badge>;
+        case 'approved': return <Badge variant={'success'} className="whitespace-nowrap shrink-0"><CheckCircle className="mr-1 h-3 w-3" />Approved</Badge>;
+        case 'approved_for_payment': return <Badge variant={'payment'} className="whitespace-nowrap shrink-0"><FileCheck2 className="mr-1 h-3 w-3" />Approved for Payment</Badge>;
+        case 'batched_for_payment': return <Badge variant={'payment'} className="whitespace-nowrap shrink-0"><FileCheck2 className="mr-1 h-3 w-3" />Batched</Badge>;
+        case 'paid': return <Badge variant={'success'} className="whitespace-nowrap shrink-0"><CheckCircle className="mr-1 h-3 w-3" />Paid</Badge>;
+        case 'rejected': return <Badge variant={'destructive'} className="whitespace-nowrap shrink-0"><XCircle className="mr-1 h-3 w-3" />Rejected</Badge>;
+        case 'duplicate': return <Badge variant={'destructive'} className="whitespace-nowrap shrink-0"><AlertTriangle className="mr-1 h-3 w-3" />Duplicate</Badge>;
+        case 'extraction_failed': return <Badge variant={'destructive'} className="whitespace-nowrap shrink-0"><AlertTriangle className="mr-1 h-3 w-3"/>Extraction Failed</Badge>;
+        case 'pending_review': return <Badge variant={'warning'} className="whitespace-nowrap shrink-0"><Hourglass className="mr-1 h-3 w-3" />Pending Review</Badge>;
+        case 'pending_account_review': return <Badge variant={'warning'} className="whitespace-nowrap shrink-0"><Hourglass className="mr-1 h-3 w-3" />Pending Account Review</Badge>;
+        case 'pending_third_review': return <Badge variant={'third_review'} className="whitespace-nowrap shrink-0"><Hourglass className="mr-1 h-3 w-3" />Pending 3rd Review</Badge>;
+        case 'archived': return <Badge variant={'secondary'} className="whitespace-nowrap shrink-0"><XCircle className="mr-1 h-3 w-3" />Archived</Badge>;
+        default: return <Badge className="whitespace-nowrap shrink-0">{(status as string).replace(/_/g, ' ')}</Badge>;
     }
 }
 
@@ -73,7 +73,6 @@ export default function InboxPage() {
     const [reprocessingFile, setReprocessingFile] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [selectedUids, setSelectedUids] = useState<Set<number>>(new Set());
-    const [openEmail, setOpenEmail] = useState<number | null>(null);
     const { toast } = useToast();
     const { user } = useAuth();
     
@@ -99,13 +98,12 @@ export default function InboxPage() {
                 variant: "destructive",
             });
         }
-    }, [toast]);
+    }, [toast, user?.email]);
     
     const fetchEmailsAndInvoices = useCallback(async (showLoader = true, targetView = currentView, shouldSync = true) => {
         if (showLoader) setIsLoading(true);
         setError(null);
         try {
-            // Fetch Emails by syncing with Firestore
             const response = await fetch(`/api/ai-inbox?sync=${shouldSync}&view=${targetView}`);
             if (!response.ok) {
                 const errorText = await response.text();
@@ -124,7 +122,6 @@ export default function InboxPage() {
 
             const data: Email[] = await response.json();
             
-            // isProcessed is now part of the data from Firestore, but we can keep this logic if needed.
             const processedSnapshot = await getDocs(collection(db, 'processedEmails'));
             const processedUids = new Set(processedSnapshot.docs.map(doc => doc.data().uid));
              const emailsWithStatus = data.map(email => ({
@@ -133,7 +130,6 @@ export default function InboxPage() {
             }));
             setEmails(emailsWithStatus);
 
-            // Fetch all related invoices
             const invoiceQuery = query(collection(db, 'extractedInvoices'), orderBy('createdAt', 'desc'));
             const invoiceSnapshot = await getDocs(invoiceQuery);
             setInvoices(invoiceSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as ExtractedInvoice)));
@@ -153,52 +149,36 @@ export default function InboxPage() {
     };
 
     const handleProcessSelected = async (reprocess = false) => {
-        const emailsToProcess = emails.filter(email => selectedUids.has(email.uid));
-        if (emailsToProcess.length === 0) {
-            toast({ title: 'No Emails Selected', description: 'Please select at least one email to process.' });
-            return;
-        }
-        
-        if (!reprocess && emailsToProcess.every(e => e.isProcessed)) {
-             toast({ title: 'No Unprocessed Emails', description: 'All selected emails have already been processed. Use "Reprocess" to process them again.' });
-             return;
-        }
-
+        if (selectedUids.size === 0) return;
         setIsProcessing(true);
-        toast({ title: `Processing ${emailsToProcess.length} email(s)...`, description: 'This may take a moment.' });
-        
-        for (const email of emailsToProcess) {
-            // Only process if it's unprocessed, OR if reprocess is true
-            if (!email.isProcessed || reprocess) {
-               await handleProcessAttachments(email, reprocess);
+        toast({
+            title: reprocess ? "Reprocessing Emails..." : "Processing Emails...",
+            description: `Starting for ${selectedUids.size} selected email(s).`,
+        });
+
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const uid of selectedUids) {
+            const email = emails.find(e => e.uid === uid);
+            if (email) {
+                try {
+                    await handleProcessAttachments(email, reprocess);
+                    successCount++;
+                } catch (error) {
+                    failCount++;
+                }
             }
         }
 
-        setIsProcessing(false);
-        toast({ title: 'Processing Complete', description: `${emailsToProcess.length} email(s) have been submitted for processing.` });
+        toast({
+            title: "Batch Processing Complete",
+            description: `Processed: ${successCount}, Failed: ${failCount}.`,
+        });
 
-        try {
-            await sendEmail({
-               to: 'zizipho@combinedartists.co.za',
-               subject: 'New Invoices Ready for Review',
-               html: `
-                   <p>Hi Zizipho,</p>
-                   <p>${emailsToProcess.length} new email(s) have been processed, and the invoices are now ready for your review.</p>
-                   <p><a href="${window.location.origin}/admin/cap-suppliers/review">Click here to review them</a>.</p>
-                   <p>Thanks,<br/>The My Accountant Automated System</p>
-               `
-            });
-        } catch (emailError) {
-           console.error("Failed to send review notification email:", emailError);
-           toast({
-               title: "Email Notification Failed",
-               description: "Could not send the 'ready for review' email notification.",
-               variant: 'destructive',
-           });
-        }
-        
-        fetchEmailsAndInvoices(false, currentView, false);
-        setSelectedUids(new Set()); 
+        setIsProcessing(false);
+        setSelectedUids(new Set());
+        fetchEmailsAndInvoices(false);
     };
 
     const handleArchiveSelected = async () => {
@@ -216,7 +196,7 @@ export default function InboxPage() {
                 throw new Error(errorData.error || 'Failed to archive emails');
             }
 
-            toast({ title: 'Emails Archived', description: `${selectedUids.size} email(s) have been archived.` });
+            toast({ title: 'Emails Archived', description: `${selectedUids.size} email(s) moved to archive.` });
             setSelectedUids(new Set());
             fetchEmailsAndInvoices(false, currentView, false);
         } catch (error: any) {
@@ -284,7 +264,7 @@ export default function InboxPage() {
         try {
             await handleProcessAttachments(email, true, filename);
             toast({ title: 'Reprocessing complete!', description: 'The attachment has been submitted for processing again.' });
-            fetchEmailsAndInvoices(false); // Refresh all data
+            fetchEmailsAndInvoices(false);
         } catch (err: any) {
              toast({
                 title: `Reprocessing Failed for ${filename}`,
@@ -295,7 +275,6 @@ export default function InboxPage() {
             setReprocessingFile(null);
         }
     };
-
 
     const handleSelectAll = (checked: boolean) => {
         if (checked) {
@@ -342,12 +321,12 @@ export default function InboxPage() {
         } finally {
             setIsTesting(false);
         }
-    }
+    };
 
     useEffect(() => {
         fetchEmailsAndInvoices();
     }, [fetchEmailsAndInvoices]);
-    
+
     const invoicesByEmail = useMemo(() => {
         return invoices.reduce((acc, invoice) => {
             if (invoice.sourceEmailUid) {
@@ -366,7 +345,7 @@ export default function InboxPage() {
         );
 
         if (processableAttachments.length === 0) {
-            return <Badge variant="destructive"><FileSymlink className="mr-1 h-3 w-3"/>No Invoice File</Badge>;
+            return <Badge variant="destructive" className="whitespace-nowrap shrink-0"><FileSymlink className="mr-1 h-3 w-3"/>No Invoice File</Badge>;
         }
 
         const processedInvoicesForEmail = invoicesByEmail[email.uid] || [];
@@ -376,12 +355,11 @@ export default function InboxPage() {
             return foundInvoice?.status;
         });
 
-        // Priority 1: Handle explicit failure states first
         if (attachmentStatuses.some(s => s === 'rejected')) {
-             return <Badge variant={'destructive'}><FileX2 className="mr-1 h-3 w-3" />Rejected</Badge>;
+             return <Badge variant={'destructive'} className="whitespace-nowrap shrink-0"><FileX2 className="mr-1 h-3 w-3" />Rejected</Badge>;
         }
         if (attachmentStatuses.some(s => s === 'extraction_failed')) {
-            return <Badge variant="destructive"><AlertTriangle className="mr-1 h-3 w-3"/>Extraction Failed</Badge>;
+            return <Badge variant="destructive" className="whitespace-nowrap shrink-0"><AlertTriangle className="mr-1 h-3 w-3"/>Extraction Failed</Badge>;
         }
         
         const handledStates = [
@@ -396,7 +374,7 @@ export default function InboxPage() {
         });
 
         if (allAttachmentsHandled) {
-            return <Badge variant="success"><CheckCircle2 className="mr-1 h-3 w-3"/>Processed</Badge>;
+            return <Badge variant="success" className="whitespace-nowrap shrink-0"><CheckCircle2 className="mr-1 h-3 w-3"/>Processed</Badge>;
         }
         
         const anyAttachmentHandled = processableAttachments.some(att => {
@@ -405,56 +383,83 @@ export default function InboxPage() {
         });
 
         if (anyAttachmentHandled) {
-            return <Badge variant="warning"><Hourglass className="mr-1 h-3 w-3" />Partially Processed</Badge>;
+            return <Badge variant="warning" className="whitespace-nowrap shrink-0"><Hourglass className="mr-1 h-3 w-3" />Partially Processed</Badge>;
         }
         
-        // Fallback: Unprocessed
-        return <Badge variant="outline">Unprocessed</Badge>;
-    }
+        return <Badge variant="outline" className="whitespace-nowrap shrink-0">Unprocessed</Badge>;
+    };
     
     const isReprocessable = (status: ExtractedInvoice['status'] | undefined) => {
         return !status || status === 'duplicate' || status === 'extraction_failed' || status === 'rejected';
-    }
-
+    };
 
     return (
-        <div className="space-y-8">
-            <div className="flex items-center justify-between">
+        <div className="space-y-6 pb-20 sm:pb-8">
+            {/* Header & Batch Actions */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Email Inbox</h1>
-                    <p className="text-sm text-muted-foreground mt-1">
+                    <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Email Inbox</h1>
+                    <p className="text-xs sm:text-sm text-muted-foreground mt-1">
                         Manage supplier invoices received via email.
                     </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                     {currentView === 'active' ? (
                         <>
-                            <Button onClick={() => handleProcessSelected()} disabled={isProcessing || selectedUids.size === 0}>
-                                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
-                                Process {selectedUids.size > 0 ? `(${selectedUids.size})` : ''} Selected
+                            <Button 
+                                onClick={() => handleProcessSelected()} 
+                                disabled={isProcessing || selectedUids.size === 0}
+                                size="sm"
+                                className="h-9 text-xs sm:text-sm"
+                            >
+                                {isProcessing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin"/> : null}
+                                Process {selectedUids.size > 0 ? `(${selectedUids.size})` : ''}
                             </Button>
-                            <Button onClick={() => handleProcessSelected(true)} variant="secondary" disabled={isProcessing || selectedUids.size === 0}>
-                                <RotateCw className="mr-2 h-4 w-4"/>
-                                Reprocess {selectedUids.size > 0 ? `(${selectedUids.size})` : ''} Selected
+                            <Button 
+                                onClick={() => handleProcessSelected(true)} 
+                                variant="secondary" 
+                                disabled={isProcessing || selectedUids.size === 0}
+                                size="sm"
+                                className="h-9 text-xs sm:text-sm"
+                            >
+                                <RotateCw className="mr-1.5 h-3.5 w-3.5"/>
+                                Reprocess {selectedUids.size > 0 ? `(${selectedUids.size})` : ''}
                             </Button>
-                            <Button onClick={handleArchiveSelected} variant="outline" disabled={isProcessing || selectedUids.size === 0}>
-                                <Archive className="mr-2 h-4 w-4" />
+                            <Button 
+                                onClick={handleArchiveSelected} 
+                                variant="outline" 
+                                disabled={isProcessing || selectedUids.size === 0}
+                                size="sm"
+                                className="h-9 text-xs sm:text-sm"
+                            >
+                                <Archive className="mr-1.5 h-3.5 w-3.5" />
                                 Archive {selectedUids.size > 0 ? `(${selectedUids.size})` : ''}
                             </Button>
                         </>
                     ) : (
-                        <Button onClick={handleUnarchiveSelected} variant="outline" disabled={isProcessing || selectedUids.size === 0}>
-                            <ArchiveRestore className="mr-2 h-4 w-4" />
+                        <Button 
+                            onClick={handleUnarchiveSelected} 
+                            variant="outline" 
+                            disabled={isProcessing || selectedUids.size === 0}
+                            size="sm"
+                            className="h-9 text-xs sm:text-sm"
+                        >
+                            <ArchiveRestore className="mr-1.5 h-3.5 w-3.5" />
                             Unarchive {selectedUids.size > 0 ? `(${selectedUids.size})` : ''}
                         </Button>
                     )}
-                     <AlertDialog>
+                    <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <Button variant="destructive" disabled={isProcessing || selectedUids.size === 0}>
-                                <Trash2 className="mr-2 h-4 w-4"/> Delete {selectedUids.size > 0 ? `(${selectedUids.size})` : ''}
+                            <Button 
+                                variant="destructive" 
+                                disabled={isProcessing || selectedUids.size === 0}
+                                size="sm"
+                                className="h-9 text-xs sm:text-sm"
+                            >
+                                <Trash2 className="mr-1.5 h-3.5 w-3.5"/> Delete {selectedUids.size > 0 ? `(${selectedUids.size})` : ''}
                             </Button>
                         </AlertDialogTrigger>
-                        <AlertDialogContent>
+                        <AlertDialogContent className="max-w-[90vw] sm:max-w-lg rounded-xl">
                             <AlertDialogHeader>
                                 <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                 <AlertDialogDescription>
@@ -466,25 +471,38 @@ export default function InboxPage() {
                                 <AlertDialogAction onClick={handleDeleteSelected}>Yes, Delete</AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>
-                     </AlertDialog>
-                     <Button onClick={handleTestConnection} variant="outline" disabled={isTesting}>
-                        <Plug className={`mr-2 h-4 w-4 ${isTesting ? 'animate-pulse' : ''}`} />
-                        Test Connection
+                    </AlertDialog>
+                    <Button 
+                        onClick={handleTestConnection} 
+                        variant="outline" 
+                        disabled={isTesting}
+                        size="sm"
+                        className="h-9 text-xs sm:text-sm"
+                    >
+                        <Plug className={`mr-1.5 h-3.5 w-3.5 ${isTesting ? 'animate-pulse' : ''}`} />
+                        <span className="hidden sm:inline">Test Connection</span>
+                        <span className="sm:hidden">Test</span>
                     </Button>
-                    <Button onClick={() => fetchEmailsAndInvoices(true, currentView, true)} variant="outline" disabled={isLoading || isProcessing}>
-                        <RefreshCw className={`mr-2 h-4 w-4 ${isLoading || isProcessing ? 'animate-spin' : ''}`} />
-                        Refresh
+                    <Button 
+                        onClick={() => fetchEmailsAndInvoices(true, currentView, true)} 
+                        variant="outline" 
+                        disabled={isLoading || isProcessing}
+                        size="sm"
+                        className="h-9 text-xs sm:text-sm"
+                    >
+                        <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isLoading || isProcessing ? 'animate-spin' : ''}`} />
+                        <span className="hidden sm:inline">Refresh</span>
                     </Button>
                 </div>
             </div>
 
             {/* View Switcher Tabs */}
-            <div className="flex items-center gap-2 border-b pb-3">
+            <div className="flex items-center gap-2 border-b pb-3 overflow-x-auto touch-scroll">
                 <Button
                     variant={currentView === 'active' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => handleViewChange('active')}
-                    className="gap-2"
+                    className="gap-2 shrink-0"
                 >
                     <Inbox className="h-4 w-4" />
                     Active Inbox
@@ -496,7 +514,7 @@ export default function InboxPage() {
                     variant={currentView === 'archived' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => handleViewChange('archived')}
-                    className="gap-2"
+                    className="gap-2 shrink-0"
                 >
                     <Archive className="h-4 w-4" />
                     Archived Emails
@@ -506,18 +524,18 @@ export default function InboxPage() {
                 </Button>
             </div>
 
-            <Card>
-                <CardHeader>
-                    <div className="flex justify-between items-center">
+            <Card className="overflow-hidden shadow-xs">
+                <CardHeader className="p-4 sm:p-6 bg-muted/10 border-b">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                         <div>
-                            <CardTitle>{process.env.IMAP_USER || 'invoices2@myacc.co.za'}</CardTitle>
-                            <CardDescription>
+                            <CardTitle className="text-lg sm:text-xl font-bold">{process.env.IMAP_USER || 'invoices2@myacc.co.za'}</CardTitle>
+                            <CardDescription className="text-xs sm:text-sm">
                                 {isLoading ? 'Loading messages...' : `Showing ${emails.length} ${currentView} messages.`}
                             </CardDescription>
                         </div>
                     </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-0 sm:p-6">
                     {isLoading ? (
                         <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div>
                     ) : error ? (
@@ -525,110 +543,259 @@ export default function InboxPage() {
                     ) : emails.length === 0 ? (
                         <div className="p-4 text-center text-muted-foreground"><Inbox className="mx-auto h-12 w-12" /><p className="mt-4">The inbox is empty.</p></div>
                     ) : (
-                        <div className="border rounded-lg">
-                            <div className="grid grid-cols-[auto_2fr_3fr_1fr_1fr_1fr] items-center font-medium text-muted-foreground text-sm border-b">
-                                <div className="px-4 py-3">
-                                    <Checkbox 
-                                        id="select-all" 
-                                        onCheckedChange={(checked) => handleSelectAll(!!checked)}
-                                        checked={emails.length > 0 && selectedUids.size === emails.length}
-                                    />
+                        <div className="border-0 sm:border rounded-none sm:rounded-lg overflow-hidden">
+                            {/* MOBILE VIEW (< md) */}
+                            <div className="md:hidden">
+                                {/* Mobile Select All Bar */}
+                                <div className="flex items-center justify-between px-4 py-2.5 bg-muted/40 border-b text-xs text-muted-foreground font-medium">
+                                    <div className="flex items-center gap-2.5" onClick={(e) => e.stopPropagation()}>
+                                        <Checkbox 
+                                            id="mobile-select-all" 
+                                            onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                                            checked={emails.length > 0 && selectedUids.size === emails.length}
+                                            className="h-4 w-4"
+                                        />
+                                        <label htmlFor="mobile-select-all" className="cursor-pointer select-none">
+                                            {selectedUids.size > 0 ? `${selectedUids.size} selected` : 'Select All'}
+                                        </label>
+                                    </div>
+                                    <span>{emails.length} message{emails.length === 1 ? '' : 's'}</span>
                                 </div>
-                                <div className="px-4 py-3">From</div>
-                                <div className="px-4 py-3">Subject</div>
-                                <div className="px-4 py-3">Attachments</div>
-                                <div className="px-4 py-3">Date</div>
-                                <div className="px-4 py-3">Status</div>
-                            </div>
-                            <div className="divide-y">
-                            {emails.map((email) => {
-                                const displayableAttachments = email.attachments.filter(att => att.contentType === 'application/pdf');
-                                const attachmentsWithStatus = displayableAttachments.map(att => {
-                                    const foundInvoice = invoices.find(inv => inv.fileName === att.filename && inv.sourceEmailUid === email.uid);
-                                    return {
-                                        ...att,
-                                        status: foundInvoice?.status,
-                                        fileUrl: foundInvoice?.fileUrl,
-                                        rejectionReason: foundInvoice?.rejectionReason,
-                                    }
-                                });
-                                return (
-                                <Collapsible key={email.uid}>
-                                    <CollapsibleTrigger asChild>
-                                        <div className="grid grid-cols-[auto_2fr_3fr_1fr_1fr_1fr] items-center cursor-pointer hover:bg-muted/50 text-sm">
-                                            <div className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                                                <Checkbox
-                                                    id={`select-${email.uid}`} 
-                                                    onCheckedChange={(checked) => handleSelectOne(email.uid, !!checked)}
-                                                    checked={selectedUids.has(email.uid)}
-                                                />
-                                            </div>
-                                            <div className="px-4 py-3 font-medium truncate" title={email.from}>{email.from}</div>
-                                            <div className="px-4 py-3 truncate" title={email.subject}>{email.subject}</div>
-                                            <div className="px-4 py-3">
-                                                {displayableAttachments.length > 0 ? (
-                                                    <div className="flex items-center gap-1 text-primary">
-                                                        <Paperclip className="h-4 w-4"/>
-                                                        <span>{displayableAttachments.length}</span>
+
+                                {/* Mobile Email Cards */}
+                                <div className="divide-y divide-border">
+                                    {emails.map((email) => {
+                                        const displayableAttachments = email.attachments.filter(att => att.contentType === 'application/pdf');
+                                        const attachmentsWithStatus = displayableAttachments.map(att => {
+                                            const foundInvoice = invoices.find(inv => inv.fileName === att.filename && inv.sourceEmailUid === email.uid);
+                                            return {
+                                                ...att,
+                                                status: foundInvoice?.status,
+                                                fileUrl: foundInvoice?.fileUrl,
+                                                rejectionReason: foundInvoice?.rejectionReason,
+                                            };
+                                        });
+                                        const isSelected = selectedUids.has(email.uid);
+
+                                        return (
+                                            <Collapsible key={`mobile-${email.uid}`}>
+                                                <div className={cn("p-3.5 transition-colors", isSelected ? "bg-primary/5" : "hover:bg-muted/40")}>
+                                                    {/* Row 1: Checkbox, Sender, Date */}
+                                                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                                                        <div className="flex items-center gap-2.5 min-w-0 flex-1" onClick={(e) => e.stopPropagation()}>
+                                                            <Checkbox 
+                                                                id={`mobile-select-${email.uid}`} 
+                                                                onCheckedChange={(checked) => handleSelectOne(email.uid, !!checked)}
+                                                                checked={isSelected}
+                                                                className="h-4 w-4 shrink-0"
+                                                            />
+                                                            <span className="font-semibold text-sm text-foreground truncate" title={email.from}>
+                                                                {email.from}
+                                                            </span>
+                                                        </div>
+                                                        <span className="text-xs text-muted-foreground shrink-0 font-medium whitespace-nowrap">
+                                                            {format(new Date(email.date), 'dd MMM, HH:mm')}
+                                                        </span>
                                                     </div>
-                                                ) : "None"}
-                                            </div>
-                                            <div className="px-4 py-3 whitespace-nowrap">{format(new Date(email.date), 'dd MMM, HH:mm')}</div>
-                                            <div className="px-4 py-3">{getStatusBadge(email)}</div>
+
+                                                    {/* Row 2: Subject */}
+                                                    <CollapsibleTrigger asChild>
+                                                        <div className="cursor-pointer group">
+                                                            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed mb-2.5 group-hover:text-foreground">
+                                                                {email.subject || '(No subject)'}
+                                                            </p>
+
+                                                            {/* Row 3: Status Badge + Attachments Pill + Expand Indicator */}
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                                    {getStatusBadge(email)}
+                                                                    {displayableAttachments.length > 0 && (
+                                                                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full whitespace-nowrap">
+                                                                            <Paperclip className="h-3 w-3" />
+                                                                            {displayableAttachments.length} PDF{displayableAttachments.length > 1 ? 's' : ''}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <span className="text-xs text-muted-foreground/70 flex items-center gap-0.5 group-hover:text-primary">
+                                                                    <span>Attachments</span>
+                                                                    <ChevronDown className="h-3.5 w-3.5 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </CollapsibleTrigger>
+                                                </div>
+
+                                                {/* Mobile Collapsible Attachment Details */}
+                                                <CollapsibleContent>
+                                                    <div className="p-3 bg-muted/20 border-t space-y-2">
+                                                        <h4 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider">
+                                                            Attachments ({attachmentsWithStatus.length})
+                                                        </h4>
+                                                        {attachmentsWithStatus.length > 0 ? (
+                                                            <div className="space-y-2">
+                                                                {attachmentsWithStatus.map((att, idx) => {
+                                                                    const isProcessingThis = reprocessingFile === `${email.uid}-${att.filename}`;
+                                                                    return (
+                                                                        <div key={idx} className="bg-background border rounded-lg p-2.5 space-y-2 shadow-2xs">
+                                                                            <div className="flex items-start justify-between gap-2">
+                                                                                <div className="min-w-0 flex-1">
+                                                                                    <p className="text-xs font-medium text-foreground truncate" title={att.filename}>
+                                                                                        {att.filename}
+                                                                                    </p>
+                                                                                    <div className="mt-1">
+                                                                                        {att.status ? getInvoiceStatusBadge(att.status) : <Badge variant="secondary" className="whitespace-nowrap shrink-0">Not Processed</Badge>}
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div className="flex items-center gap-1 shrink-0">
+                                                                                    {isReprocessable(att.status) && (
+                                                                                        <Button 
+                                                                                            variant="outline" 
+                                                                                            size="sm" 
+                                                                                            className="h-7 text-xs px-2"
+                                                                                            onClick={() => handleReprocessOne(email, att.filename!)} 
+                                                                                            disabled={isProcessingThis}
+                                                                                        >
+                                                                                            {isProcessingThis ? <Loader2 className="mr-1 h-3 w-3 animate-spin"/> : <RotateCw className="mr-1 h-3 w-3" />}
+                                                                                            Reprocess
+                                                                                        </Button>
+                                                                                    )}
+                                                                                    {att.fileUrl && (
+                                                                                        <Button asChild variant="ghost" size="icon" className="h-7 w-7">
+                                                                                            <a href={att.fileUrl} target="_blank" rel="noopener noreferrer">
+                                                                                                <Eye className="h-3.5 w-3.5" />
+                                                                                            </a>
+                                                                                        </Button>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                            {att.rejectionReason && (
+                                                                                <p className="text-[11px] text-destructive bg-destructive/10 p-1.5 rounded break-words">
+                                                                                    Reason: {att.rejectionReason}
+                                                                                </p>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        ) : (
+                                                            <p className="text-xs text-muted-foreground text-center py-2">This email has no processable attachments.</p>
+                                                        )}
+                                                    </div>
+                                                </CollapsibleContent>
+                                            </Collapsible>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* DESKTOP VIEW (>= md) */}
+                            <div className="hidden md:block overflow-x-auto touch-scroll">
+                                <div className="min-w-[780px]">
+                                    <div className="grid grid-cols-[auto_2fr_3fr_1fr_1fr_1fr] items-center font-medium text-muted-foreground text-sm border-b bg-muted/20">
+                                        <div className="px-4 py-3">
+                                            <Checkbox 
+                                                id="select-all" 
+                                                onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                                                checked={emails.length > 0 && selectedUids.size === emails.length}
+                                            />
                                         </div>
-                                    </CollapsibleTrigger>
-                                     <CollapsibleContent>
-                                        <div className="p-4 bg-muted/20 border-t">
-                                            <h4 className="font-semibold mb-2">Attachment Status</h4>
-                                            {attachmentsWithStatus.length > 0 ? (
-                                            <Table>
-                                                <TableHeader>
-                                                    <TableRow>
-                                                        <TableHead>Filename</TableHead>
-                                                        <TableHead>Status</TableHead>
-                                                        <TableHead className="text-right">Actions</TableHead>
-                                                    </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                    {attachmentsWithStatus.map((att, idx) => {
-                                                        const isProcessingThis = reprocessingFile === `${email.uid}-${att.filename}`;
-                                                        return (
-                                                            <TableRow key={idx}>
-                                                                <TableCell className="truncate" title={att.filename || 'No filename'}>{att.filename}</TableCell>
-                                                                <TableCell>
-                                                                    {att.status ? getInvoiceStatusBadge(att.status) : <Badge variant="secondary">Not Processed</Badge>}
-                                                                    {att.rejectionReason && (
-                                                                        <p className="text-xs text-muted-foreground mt-1 max-w-xs break-words">Reason: {att.rejectionReason}</p>
-                                                                    )}
-                                                                </TableCell>
-                                                                <TableCell className="text-right">
-                                                                     {isReprocessable(att.status) && (
-                                                                        <Button variant="outline" size="sm" onClick={() => handleReprocessOne(email, att.filename!)} disabled={isProcessingThis}>
-                                                                            {isProcessingThis ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RotateCw className="mr-2 h-4 w-4" />}
-                                                                            Reprocess
-                                                                        </Button>
-                                                                    )}
-                                                                    {att.fileUrl && (
-                                                                        <Button asChild variant="ghost" size="icon">
-                                                                            <a href={att.fileUrl} target="_blank" rel="noopener noreferrer">
-                                                                                <Eye className="h-4 w-4" />
-                                                                            </a>
-                                                                        </Button>
-                                                                    )}
-                                                                </TableCell>
+                                        <div className="px-4 py-3">From</div>
+                                        <div className="px-4 py-3">Subject</div>
+                                        <div className="px-4 py-3">Attachments</div>
+                                        <div className="px-4 py-3">Date</div>
+                                        <div className="px-4 py-3">Status</div>
+                                    </div>
+                                    <div className="divide-y">
+                                    {emails.map((email) => {
+                                        const displayableAttachments = email.attachments.filter(att => att.contentType === 'application/pdf');
+                                        const attachmentsWithStatus = displayableAttachments.map(att => {
+                                            const foundInvoice = invoices.find(inv => inv.fileName === att.filename && inv.sourceEmailUid === email.uid);
+                                            return {
+                                                ...att,
+                                                status: foundInvoice?.status,
+                                                fileUrl: foundInvoice?.fileUrl,
+                                                rejectionReason: foundInvoice?.rejectionReason,
+                                            }
+                                        });
+                                        return (
+                                        <Collapsible key={`desktop-${email.uid}`}>
+                                            <CollapsibleTrigger asChild>
+                                                <div className="grid grid-cols-[auto_2fr_3fr_1fr_1fr_1fr] items-center cursor-pointer hover:bg-muted/50 text-sm">
+                                                    <div className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                                        <Checkbox
+                                                            id={`select-${email.uid}`} 
+                                                            onCheckedChange={(checked) => handleSelectOne(email.uid, !!checked)}
+                                                            checked={selectedUids.has(email.uid)}
+                                                        />
+                                                    </div>
+                                                    <div className="px-4 py-3 font-medium truncate" title={email.from}>{email.from}</div>
+                                                    <div className="px-4 py-3 truncate" title={email.subject}>{email.subject}</div>
+                                                    <div className="px-4 py-3">
+                                                        {displayableAttachments.length > 0 ? (
+                                                            <div className="flex items-center gap-1 text-primary">
+                                                                <Paperclip className="h-4 w-4"/>
+                                                                <span>{displayableAttachments.length}</span>
+                                                            </div>
+                                                        ) : "None"}
+                                                    </div>
+                                                    <div className="px-4 py-3 whitespace-nowrap">{format(new Date(email.date), 'dd MMM, HH:mm')}</div>
+                                                    <div className="px-4 py-3">{getStatusBadge(email)}</div>
+                                                </div>
+                                            </CollapsibleTrigger>
+                                             <CollapsibleContent>
+                                                <div className="p-4 bg-muted/20 border-t">
+                                                    <h4 className="font-semibold mb-2 text-sm">Attachment Status</h4>
+                                                    {attachmentsWithStatus.length > 0 ? (
+                                                    <Table>
+                                                        <TableHeader>
+                                                            <TableRow>
+                                                                <TableHead>Filename</TableHead>
+                                                                <TableHead>Status</TableHead>
+                                                                <TableHead className="text-right">Actions</TableHead>
                                                             </TableRow>
-                                                        );
-                                                    })}
-                                                </TableBody>
-                                            </Table>
-                                            ) : (
-                                                <p className="text-sm text-muted-foreground text-center py-4">This email has no processable attachments.</p>
-                                            )}
-                                        </div>
-                                     </CollapsibleContent>
-                                </Collapsible>
-                                )
-                            })}
+                                                        </TableHeader>
+                                                        <TableBody>
+                                                            {attachmentsWithStatus.map((att, idx) => {
+                                                                const isProcessingThis = reprocessingFile === `${email.uid}-${att.filename}`;
+                                                                return (
+                                                                    <TableRow key={idx}>
+                                                                        <TableCell className="truncate" title={att.filename || 'No filename'}>{att.filename}</TableCell>
+                                                                        <TableCell>
+                                                                            {att.status ? getInvoiceStatusBadge(att.status) : <Badge variant="secondary" className="whitespace-nowrap shrink-0">Not Processed</Badge>}
+                                                                            {att.rejectionReason && (
+                                                                                <p className="text-xs text-muted-foreground mt-1 max-w-xs break-words">Reason: {att.rejectionReason}</p>
+                                                                            )}
+                                                                        </TableCell>
+                                                                        <TableCell className="text-right">
+                                                                             {isReprocessable(att.status) && (
+                                                                                <Button variant="outline" size="sm" onClick={() => handleReprocessOne(email, att.filename!)} disabled={isProcessingThis}>
+                                                                                    {isProcessingThis ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RotateCw className="mr-2 h-4 w-4" />}
+                                                                                    Reprocess
+                                                                                </Button>
+                                                                            )}
+                                                                            {att.fileUrl && (
+                                                                                <Button asChild variant="ghost" size="icon">
+                                                                                    <a href={att.fileUrl} target="_blank" rel="noopener noreferrer">
+                                                                                        <Eye className="h-4 w-4" />
+                                                                                    </a>
+                                                                                </Button>
+                                                                            )}
+                                                                        </TableCell>
+                                                                    </TableRow>
+                                                                );
+                                                            })}
+                                                        </TableBody>
+                                                    </Table>
+                                                    ) : (
+                                                        <p className="text-sm text-muted-foreground text-center py-4">This email has no processable attachments.</p>
+                                                    )}
+                                                </div>
+                                             </CollapsibleContent>
+                                        </Collapsible>
+                                        )
+                                    })}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}
