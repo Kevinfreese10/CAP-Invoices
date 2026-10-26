@@ -10,7 +10,7 @@ export default function MobileHeader({ title }: { title?: string }) {
   const { user } = useAuth();
 
   return (
-    <header className="sticky top-0 z-30 flex md:hidden items-center justify-between h-14 px-3 sm:px-4 bg-background/95 backdrop-blur-md border-b border-border shadow-2xs pt-safe">
+    <header className="sticky top-0 z-30 flex md:hidden items-center justify-between min-h-[3.5rem] px-3 sm:px-4 bg-background/95 backdrop-blur-md border-b border-border shadow-xs pt-safe pb-1">
       <div className="flex items-center gap-2 sm:gap-3">
         <SidebarTrigger className="h-10 w-10 p-2 touch-manipulation hover:bg-muted rounded-md focus-visible:ring-2 flex items-center justify-center" />
         <Link href="/" className="flex items-center gap-2">

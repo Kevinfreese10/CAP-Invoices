@@ -25,6 +25,7 @@ import {
   Database,
   Shield,
   BookOpen,
+  X,
 } from 'lucide-react';
 
 import {
@@ -101,10 +102,15 @@ export default function DashboardNav({ user }: { user: UserType }) {
              <Button
                 variant="ghost"
                 size="icon"
-                className="h-9 w-9 touch-manipulation"
+                className="h-9 w-9 touch-manipulation hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                 onClick={toggleSidebar}
+                aria-label={isMobile ? "Close navigation" : "Toggle sidebar"}
             >
-                <PanelLeft className={cn("transition-transform", state === 'collapsed' && 'rotate-180')} />
+                {isMobile ? (
+                  <X className="h-5 w-5" />
+                ) : (
+                  <PanelLeft className={cn("transition-transform", state === 'collapsed' && 'rotate-180')} />
+                )}
             </Button>
         </div>
       </SidebarHeader>
