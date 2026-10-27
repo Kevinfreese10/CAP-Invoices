@@ -359,6 +359,10 @@ export default function ReviewPage() {
     const [isAnalyzeDialogOpen, setIsAnalyzeDialogOpen] = useState(false);
     const [isReanalyzing, setIsReanalyzing] = useState(false);
     const [isApproving, setIsApproving] = useState(false);
+    const [rejectingInvoice, setRejectingInvoice] = useState<ExtractedInvoice | null>(null);
+    const [rejectionReason, setRejectionReason] = useState<string>('');
+    const [deletingInvoice, setDeletingInvoice] = useState<ExtractedInvoice | null>(null);
+    const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
     const { toast } = useToast();
     const [globalRules, setGlobalRules] = useState<AllocationRule[]>([]);
     const [usersMap, setUsersMap] = useState<Record<string, User>>({});
@@ -654,6 +658,8 @@ export default function ReviewPage() {
             }
 
             toast({ title: 'Invoice Rejected', description: 'The invoice has been marked as rejected.' });
+            setRejectingInvoice(null);
+            setRejectionReason('');
             fetchInvoicesAndRules(false);
         } catch (error) {
             toast({ title: 'Error', description: 'Could not reject the invoice or send notification.', variant: 'destructive'});
@@ -666,6 +672,7 @@ export default function ReviewPage() {
             const docRef = doc(db, 'extractedInvoices', id);
             await updateDoc(docRef, { status: 'archived', deletedBy: user.uid, deletedAt: serverTimestamp() });
             toast({ title: 'Invoice Deleted', description: 'The invoice has been moved to the deleted list.'});
+            setDeletingInvoice(null);
             fetchInvoicesAndRules(false);
         } catch (error) {
             toast({ title: 'Error', description: 'Could not delete the invoice.', variant: 'destructive'});
@@ -831,18 +838,121 @@ export default function ReviewPage() {
     const formatPrice = (price: number) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(price);
 
   return (
-    <div className="space-y-8">
-      <h1 className="text-3xl font-bold tracking-tight">Review Invoices</h1>
+    <div className="space-y-4 md:space-y-8 pb-24 sm:pb-8">
+      <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Review Invoices</h1>
       <Card>
-        <CardHeader>
-            <div className="flex justify-between items-center">
+        <CardHeader className="p-4 sm:p-6">
+            <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
                  <div>
-                    <CardTitle>Extracted Invoices for Review</CardTitle>
-                    <CardDescription>
+                    <CardTitle className="text-xl sm:text-2xl">Extracted Invoices for Review</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm mt-1">
                         Review, edit, and approve the data extracted from uploaded invoices. Approved invoices will be moved to the control sheet.
                     </CardDescription>
                 </div>
-                 <div className="flex items-center gap-2 flex-wrap">
+
+                {/* Mobile Bulk Action Bar (Visible only on < md) */}
+                <div className="flex md:hidden flex-col gap-2.5 w-full pt-1">
+                    <div className="flex items-center justify-between bg-muted/40 p-2.5 rounded-lg border">
+                        <div className="flex items-center gap-2">
+                            <Checkbox
+                                id="select-all-mobile"
+                                onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                                checked={invoices.length > 0 && selectedInvoices.length === invoices.length}
+                                aria-label="Select all"
+                            />
+                            <label htmlFor="select-all-mobile" className="text-xs font-medium cursor-pointer">
+                                Select All ({invoices.length})
+                            </label>
+                        </div>
+                        {selectedInvoices.length > 0 && (
+                            <Badge variant="secondary" className="text-xs font-normal">
+                                {selectedInvoices.length} selected
+                            </Badge>
+                        )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button 
+                                    disabled={selectedInvoices.length === 0 || isApproving} 
+                                    className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold h-10 text-xs w-full"
+                                >
+                                    {isApproving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin"/> : <FileCheck2 className="mr-1.5 h-4 w-4"/>}
+                                    Approve ({selectedInvoices.length})
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent className="w-[92vw] max-w-md rounded-xl">
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Approve Selected Invoices?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This will approve {selectedInvoices.length} selected invoice(s) and move them to 2nd Review (Control Sheet).
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleApproveSelected}>
+                                        Yes, Approve Selected
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" className="h-10 text-xs w-full gap-1.5 justify-between">
+                                    <span>More Actions</span>
+                                    <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-56">
+                                <DropdownMenuLabel>Bulk Actions</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem 
+                                    disabled={selectedInvoices.length === 0}
+                                    onSelect={() => setIsAnalyzeDialogOpen(true)}
+                                >
+                                    <Brain className="mr-2 h-4 w-4 text-primary" />
+                                    Analyze Selected ({selectedInvoices.length})
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                    disabled={selectedInvoices.length === 0 || isReanalyzing}
+                                    onSelect={handleReanalyzeSelected}
+                                >
+                                    {isReanalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                                    Reanalyze Selected ({selectedInvoices.length})
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                    disabled={selectedInvoices.length === 0}
+                                    onSelect={() => setIsBulkDeleteDialogOpen(true)}
+                                    className="text-destructive focus:text-destructive"
+                                >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Delete Selected ({selectedInvoices.length})
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuLabel>Export & Downloads</DropdownMenuLabel>
+                                <DropdownMenuItem 
+                                    disabled={invoices.length === 0 || isDownloading}
+                                    onSelect={handleDownloadAll}
+                                >
+                                    {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                                    Download All
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                    disabled={invoices.length === 0}
+                                    onSelect={handleDownloadExcel}
+                                >
+                                    <Download className="mr-2 h-4 w-4 text-emerald-600" />
+                                    Export to Excel
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
+                </div>
+
+                {/* Desktop Bulk Action Bar (Hidden on mobile) */}
+                 <div className="hidden md:flex items-center gap-2 flex-wrap">
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
                             <Button disabled={selectedInvoices.length === 0 || isApproving} className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold">
@@ -871,28 +981,10 @@ export default function ReviewPage() {
                         invoices={invoices.filter(i => selectedInvoices.includes(i.id))}
                         onAnalyzeComplete={() => fetchInvoicesAndRules(false)}
                     />
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button variant="destructive" disabled={selectedInvoices.length === 0}>
-                                <Trash2 className="mr-2 h-4 w-4"/>
-                                Delete ({selectedInvoices.length})
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    This will delete {selectedInvoices.length} invoice(s). You can view them later in the Deleted page.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleArchiveSelected}>
-                                    Yes, Delete
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
+                    <Button variant="destructive" disabled={selectedInvoices.length === 0} onClick={() => setIsBulkDeleteDialogOpen(true)}>
+                        <Trash2 className="mr-2 h-4 w-4"/>
+                        Delete ({selectedInvoices.length})
+                    </Button>
                     <Button onClick={handleReanalyzeSelected} variant="outline" disabled={selectedInvoices.length === 0 || isReanalyzing}>
                         {isReanalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-2 h-4 w-4" />}
                         Reanalyze ({selectedInvoices.length})
@@ -912,7 +1004,7 @@ export default function ReviewPage() {
                  </div>
             </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-3 sm:p-6">
             {isLoading ? (
                 <div className="flex justify-center items-center h-64">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -920,189 +1012,364 @@ export default function ReviewPage() {
             ) : invoices.length === 0 ? (
                 <p className="text-center text-muted-foreground py-10">No invoices are pending review.</p>
             ) : (
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead className="w-10">
-                                <Checkbox
-                                    onCheckedChange={(checked) => handleSelectAll(!!checked)}
-                                    checked={invoices.length > 0 && selectedInvoices.length === invoices.length}
-                                    aria-label="Select all"
-                                />
-                            </TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Origin</TableHead>
-                            <TableHead>Supplier</TableHead>
-                            <TableHead>Invoice #</TableHead>
-                            <TableHead>Commission #</TableHead>
-                            <TableHead>File</TableHead>
-                            <TableHead className="text-right">VAT Amount</TableHead>
-                            <TableHead className="text-right">Total</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
+                <>
+                    {/* Mobile Card View (md:hidden) */}
+                    <div className="md:hidden space-y-3">
                         {invoices.map((invoice) => {
                             const totalVat = (invoice.lineItems || []).reduce((sum, item) => sum + (Number(item.vatAmount) || 0), 0);
+                            const exclusiveSum = (invoice.lineItems || []).reduce((sum, item) => sum + (Number(item.exclusiveAmount) || 0), 0);
                             const lineTotalSum = (invoice.lineItems || []).reduce((sum, item) => sum + (Number(item.exclusiveAmount) || 0) + (Number(item.vatAmount) || 0), 0);
                             const safeInvoiceTotal = Number(invoice.invoiceTotal) || 0;
                             const hasDiscrepancy = Math.abs(safeInvoiceTotal - lineTotalSum) > 0.01;
+                            const isSelected = selectedInvoices.includes(invoice.id);
 
                             return (
-                                <TableRow key={invoice.id}>
-                                    <TableCell>
+                                <div 
+                                    key={invoice.id} 
+                                    className={cn(
+                                        "rounded-xl border bg-card text-card-foreground shadow-sm p-3.5 space-y-3 transition-colors",
+                                        isSelected ? "border-primary/60 bg-primary/[0.02]" : "border-border"
+                                    )}
+                                >
+                                    {/* Top Row: Checkbox + Supplier + Status Badges */}
+                                    <div className="flex items-start gap-2.5">
                                         <Checkbox
-                                            checked={selectedInvoices.includes(invoice.id)}
+                                            checked={isSelected}
                                             onCheckedChange={() => handleToggleSelect(invoice.id)}
                                             aria-label={`Select invoice ${invoice.id}`}
+                                            className="mt-1 shrink-0"
                                         />
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                            {invoice.status === 'duplicate' ? (
-                                                <Badge variant={'destructive'}>
-                                                    <AlertTriangle className="mr-1 h-3 w-3" />
-                                                    Duplicate
-                                                </Badge>
-                                            ) : (
-                                                <Badge variant={'warning'}>
-                                                    <Hourglass className="mr-1 h-3 w-3" />
-                                                    {invoice.status.replace('_', ' ')}
-                                                </Badge>
-                                            )}
-                                            {hasDiscrepancy && (
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Badge variant={'destructive'} className="bg-red-600 hover:bg-red-700 text-white font-semibold flex items-center gap-1 cursor-help animate-pulse text-[10px]">
-                                                                <AlertCircle className="h-3 w-3" />
-                                                                Total Mismatch
-                                                            </Badge>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent className="max-w-xs text-xs">
-                                                            <p className="font-bold text-red-400">Control Total Mismatch</p>
-                                                            <p className="mt-1">
-                                                                Control Total (Line Items): <strong>{formatPrice(lineTotalSum)}</strong><br />
-                                                                Invoice Total: <strong>{formatPrice(safeInvoiceTotal)}</strong><br />
-                                                                Difference: <strong className="text-red-300">{formatPrice(safeInvoiceTotal - lineTotalSum)}</strong>
-                                                            </p>
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
-                                            )}
-                                            {invoice.isAudited && (
-                                                <Badge className="bg-green-100 hover:bg-green-100 text-green-800 border border-green-200">
-                                                    <FileCheck2 className="mr-1 h-3.5 w-3.5 text-green-600" />
-                                                    Audited
-                                                </Badge>
-                                            )}
+                                        <div className="space-y-1 min-w-0 flex-1">
+                                            <div className="font-semibold text-base text-foreground leading-snug break-words">
+                                                {invoice.supplier}
+                                            </div>
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                {invoice.status === 'duplicate' ? (
+                                                    <Badge variant={'destructive'} className="text-[10px] px-1.5 py-0 whitespace-nowrap shrink-0">
+                                                        <AlertTriangle className="mr-1 h-3 w-3" />
+                                                        Duplicate
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge variant={'warning'} className="text-[10px] px-1.5 py-0 capitalize whitespace-nowrap shrink-0">
+                                                        <Hourglass className="mr-1 h-3 w-3" />
+                                                        {invoice.status.replace('_', ' ')}
+                                                    </Badge>
+                                                )}
+                                                {invoice.isAudited && (
+                                                    <Badge className="bg-green-100 hover:bg-green-100 text-green-800 border border-green-200 text-[10px] px-1.5 py-0 whitespace-nowrap shrink-0">
+                                                        <FileCheck2 className="mr-1 h-3 w-3 text-green-600" />
+                                                        Audited
+                                                    </Badge>
+                                                )}
+                                                {renderInvoiceOriginBadge(invoice, usersMap)}
+                                            </div>
                                         </div>
-                                    </TableCell>
-                                    <TableCell>
-                                        {renderInvoiceOriginBadge(invoice, usersMap)}
-                                    </TableCell>
-                                    <TableCell className="font-medium">{invoice.supplier}</TableCell>
-                                    <TableCell>{invoice.invoiceNumber}</TableCell>
-                                    <TableCell>{invoice.commissionNumber || 'N/A'}</TableCell>
-                                    <TableCell className="flex items-center gap-2">
-                                        <Button asChild variant="link" className="p-0 h-auto">
-                                          <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer">View Invoice</a>
-                                        </Button>
-                                        {invoice.supportingDocuments && invoice.supportingDocuments.length > 0 && (
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-6 w-6">
-                                                        <Paperclip className="h-4 w-4" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent>
-                                                    <DropdownMenuLabel>Supporting Docs</DropdownMenuLabel>
-                                                    <DropdownMenuSeparator />
-                                                    {invoice.supportingDocuments.map((doc, i) => (
-                                                        <DropdownMenuItem key={i} asChild>
-                                                            <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer">{doc.fileName}</a>
-                                                        </DropdownMenuItem>
-                                                    ))}
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
+                                    </div>
+
+                                    {/* Invoice Details Grid */}
+                                    <div className="grid grid-cols-2 gap-2 text-xs bg-muted/30 p-2.5 rounded-lg border border-border/60">
+                                        <div>
+                                            <span className="text-muted-foreground block text-[11px]">Invoice #</span>
+                                            <span className="font-mono font-medium text-foreground break-all">{invoice.invoiceNumber || '—'}</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground block text-[11px]">Invoice Date</span>
+                                            <span className="font-medium text-foreground">{invoice.date || '—'}</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground block text-[11px]">Commission #</span>
+                                            <span className="font-medium text-foreground">{invoice.commissionNumber || 'N/A'}</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground block text-[11px]">Documents</span>
+                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                <Button asChild variant="outline" size="sm" className="h-6 px-2 text-[11px] gap-1">
+                                                    <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer">
+                                                        <Eye className="h-3 w-3" />
+                                                        PDF
+                                                    </a>
+                                                </Button>
+                                                {invoice.supportingDocuments && invoice.supportingDocuments.length > 0 && (
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <Button variant="ghost" size="icon" className="h-6 w-6">
+                                                                <Paperclip className="h-3.5 w-3.5" />
+                                                            </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent>
+                                                            <DropdownMenuLabel>Supporting Docs</DropdownMenuLabel>
+                                                            <DropdownMenuSeparator />
+                                                            {invoice.supportingDocuments.map((doc, i) => (
+                                                                <DropdownMenuItem key={i} asChild>
+                                                                    <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer">{doc.fileName}</a>
+                                                                </DropdownMenuItem>
+                                                            ))}
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Financial Breakdown Box */}
+                                    <div className="rounded-lg bg-muted/40 p-3 border border-border/80 space-y-1.5">
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-muted-foreground">Exclusive Amount</span>
+                                            <span className="font-mono font-medium text-foreground">{formatPrice(exclusiveSum)}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-muted-foreground">VAT Amount</span>
+                                            <span className="font-mono font-medium text-foreground">{formatPrice(totalVat)}</span>
+                                        </div>
+                                        <div className="border-t border-border/60 pt-1.5 flex justify-between items-baseline">
+                                            <span className="text-xs font-semibold text-foreground">Total Payable</span>
+                                            <span className={cn("text-base font-bold font-mono", hasDiscrepancy ? "text-destructive" : "text-foreground")}>
+                                                {formatPrice(safeInvoiceTotal)}
+                                            </span>
+                                        </div>
+
+                                        {hasDiscrepancy && (
+                                            <div className="mt-2 rounded-md bg-red-50 dark:bg-red-950/40 p-2.5 text-xs border border-red-200 dark:border-red-900 text-red-800 dark:text-red-300 space-y-1">
+                                                <div className="font-semibold flex items-center gap-1.5 text-red-700 dark:text-red-400">
+                                                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                                    Control Total Mismatch
+                                                </div>
+                                                <div className="flex justify-between text-[11px]">
+                                                    <span>Sum of Line Items:</span>
+                                                    <span className="font-mono font-semibold">{formatPrice(lineTotalSum)}</span>
+                                                </div>
+                                                <div className="flex justify-between text-[11px]">
+                                                    <span>Difference:</span>
+                                                    <span className="font-mono font-bold text-red-600 dark:text-red-400">
+                                                        {formatPrice(Math.abs(safeInvoiceTotal - lineTotalSum))}
+                                                    </span>
+                                                </div>
+                                                <p className="text-[10px] text-red-600 dark:text-red-400 italic pt-0.5">
+                                                    Please edit line items before approving.
+                                                </p>
+                                            </div>
                                         )}
-                                    </TableCell>
-                                    <TableCell className="text-right font-mono">{formatPrice(totalVat)}</TableCell>
-                                    <TableCell className="text-right font-mono">
-                                        <div className="flex flex-col items-end">
-                                            <span className={cn(hasDiscrepancy && "text-destructive font-bold")}>{formatPrice(invoice.invoiceTotal)}</span>
-                                            {hasDiscrepancy && (
-                                                <span className="text-[10px] text-destructive font-medium">
-                                                    Lines: {formatPrice(lineTotalSum)}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="text-right">
+                                    </div>
+
+                                    {/* Action Buttons */}
+                                    <div className="flex items-center gap-2 pt-1">
+                                        <Button 
+                                            onClick={() => handleApprove(invoice.id)}
+                                            disabled={hasDiscrepancy}
+                                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium h-9 text-xs gap-1.5"
+                                        >
+                                            <FileCheck2 className="h-4 w-4" />
+                                            Approve
+                                        </Button>
+                                        <Button 
+                                            variant="outline" 
+                                            size="sm" 
+                                            onClick={() => setEditingInvoice(invoice)}
+                                            className="h-9 px-3 text-xs gap-1.5"
+                                        >
+                                            <Edit className="h-3.5 w-3.5" />
+                                            Edit
+                                        </Button>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                                                <Button variant="outline" size="icon" className="h-9 w-9 shrink-0">
+                                                    <MoreHorizontal className="h-4 w-4" />
+                                                </Button>
                                             </DropdownMenuTrigger>
-                                            <DropdownMenuContent>
-                                                <DropdownMenuItem onSelect={() => handleApprove(invoice.id)}>
-                                                    <FileCheck2 className="mr-2 h-4 w-4" /> Approve
-                                                </DropdownMenuItem>
+                                            <DropdownMenuContent align="end" className="w-48">
                                                 <DropdownMenuItem onSelect={() => handleReanalyzeSingle(invoice.id)} disabled={isReanalyzing}>
                                                     <RefreshCw className="mr-2 h-4 w-4" /> Reanalyze
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem onSelect={() => setEditingInvoice(invoice)}>
-                                                    <Edit className="mr-2 h-4 w-4" /> Edit
+                                                <DropdownMenuItem 
+                                                    onSelect={() => {
+                                                        setRejectingInvoice(invoice);
+                                                        setRejectionReason('');
+                                                    }} 
+                                                    className="text-destructive focus:text-destructive"
+                                                >
+                                                    <Mail className="mr-2 h-4 w-4" /> Reject & Notify
                                                 </DropdownMenuItem>
-                                                <AlertDialog>
-                                                    <AlertDialogTrigger asChild>
-                                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
-                                                             <Mail className="mr-2 h-4 w-4" /> Reject & Notify
-                                                        </DropdownMenuItem>
-                                                    </AlertDialogTrigger>
-                                                    <AlertDialogContent>
-                                                        <AlertDialogHeader>
-                                                            <AlertDialogTitle>Reject Invoice?</AlertDialogTitle>
-                                                            <AlertDialogDescription>Please provide a reason for rejection. This will be sent to the user who uploaded the invoice.</AlertDialogDescription>
-                                                        </AlertDialogHeader>
-                                                         <Textarea placeholder="e.g., Invoice is not legible." id="rejection-reason" />
-                                                        <AlertDialogFooter>
-                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                            <AlertDialogAction onClick={() => {
-                                                                const reason = (document.getElementById('rejection-reason') as HTMLTextAreaElement).value;
-                                                                if(reason) handleReject(invoice.id, reason);
-                                                                else toast({title: 'Reason Required', description: 'Please provide a reason for rejection.', variant: 'destructive'});
-                                                            }}>Reject</AlertDialogAction>
-                                                        </AlertDialogFooter>
-                                                    </AlertDialogContent>
-                                                </AlertDialog>
-                                                <AlertDialog>
-                                                    <AlertDialogTrigger asChild>
-                                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
-                                                            <Trash2 className="mr-2 h-4 w-4" /> Delete
-                                                        </DropdownMenuItem>
-                                                    </AlertDialogTrigger>
-                                                    <AlertDialogContent>
-                                                        <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This action will delete the invoice for {invoice.supplier}. You can view it later in the Deleted page.</AlertDialogDescription></AlertDialogHeader>
-                                                        <AlertDialogFooter>
-                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                            <AlertDialogAction onClick={() => handleArchive(invoice.id)}>Delete</AlertDialogAction>
-                                                        </AlertDialogFooter>
-                                                    </AlertDialogContent>
-                                                </AlertDialog>
+                                                <DropdownMenuItem 
+                                                    onSelect={() => setDeletingInvoice(invoice)} 
+                                                    className="text-destructive focus:text-destructive"
+                                                >
+                                                    <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                                </DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
-                                    </TableCell>
-                                </TableRow>
-                            )
+                                    </div>
+                                </div>
+                            );
                         })}
-                    </TableBody>
-                </Table>
+                    </div>
+
+                    {/* Desktop Table View (hidden md:block) */}
+                    <div className="hidden md:block overflow-x-auto">
+                        <Table className="min-w-[950px]">
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="w-10">
+                                        <Checkbox
+                                            onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                                            checked={invoices.length > 0 && selectedInvoices.length === invoices.length}
+                                            aria-label="Select all"
+                                        />
+                                    </TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead>Origin</TableHead>
+                                    <TableHead>Supplier</TableHead>
+                                    <TableHead>Invoice #</TableHead>
+                                    <TableHead>Commission #</TableHead>
+                                    <TableHead>File</TableHead>
+                                    <TableHead className="text-right">VAT Amount</TableHead>
+                                    <TableHead className="text-right">Total</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {invoices.map((invoice) => {
+                                    const totalVat = (invoice.lineItems || []).reduce((sum, item) => sum + (Number(item.vatAmount) || 0), 0);
+                                    const lineTotalSum = (invoice.lineItems || []).reduce((sum, item) => sum + (Number(item.exclusiveAmount) || 0) + (Number(item.vatAmount) || 0), 0);
+                                    const safeInvoiceTotal = Number(invoice.invoiceTotal) || 0;
+                                    const hasDiscrepancy = Math.abs(safeInvoiceTotal - lineTotalSum) > 0.01;
+
+                                    return (
+                                        <TableRow key={invoice.id}>
+                                            <TableCell>
+                                                <Checkbox
+                                                    checked={selectedInvoices.includes(invoice.id)}
+                                                    onCheckedChange={() => handleToggleSelect(invoice.id)}
+                                                    aria-label={`Select invoice ${invoice.id}`}
+                                                />
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                    {invoice.status === 'duplicate' ? (
+                                                        <Badge variant={'destructive'}>
+                                                            <AlertTriangle className="mr-1 h-3 w-3" />
+                                                            Duplicate
+                                                        </Badge>
+                                                    ) : (
+                                                        <Badge variant={'warning'}>
+                                                            <Hourglass className="mr-1 h-3 w-3" />
+                                                            {invoice.status.replace('_', ' ')}
+                                                        </Badge>
+                                                    )}
+                                                    {hasDiscrepancy && (
+                                                        <TooltipProvider>
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <Badge variant={'destructive'} className="bg-red-600 hover:bg-red-700 text-white font-semibold flex items-center gap-1 cursor-help animate-pulse text-[10px]">
+                                                                        <AlertCircle className="h-3 w-3" />
+                                                                        Total Mismatch
+                                                                    </Badge>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent className="max-w-xs text-xs">
+                                                                    <p className="font-bold text-red-400">Control Total Mismatch</p>
+                                                                    <p className="mt-1">
+                                                                        Control Total (Line Items): <strong>{formatPrice(lineTotalSum)}</strong><br />
+                                                                        Invoice Total: <strong>{formatPrice(safeInvoiceTotal)}</strong><br />
+                                                                        Difference: <strong className="text-red-300">{formatPrice(safeInvoiceTotal - lineTotalSum)}</strong>
+                                                                    </p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        </TooltipProvider>
+                                                    )}
+                                                    {invoice.isAudited && (
+                                                        <Badge className="bg-green-100 hover:bg-green-100 text-green-800 border border-green-200">
+                                                            <FileCheck2 className="mr-1 h-3.5 w-3.5 text-green-600" />
+                                                            Audited
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                {renderInvoiceOriginBadge(invoice, usersMap)}
+                                            </TableCell>
+                                            <TableCell className="font-medium">{invoice.supplier}</TableCell>
+                                            <TableCell>{invoice.invoiceNumber}</TableCell>
+                                            <TableCell>{invoice.commissionNumber || 'N/A'}</TableCell>
+                                            <TableCell className="flex items-center gap-2">
+                                                <Button asChild variant="link" className="p-0 h-auto">
+                                                  <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer">View Invoice</a>
+                                                </Button>
+                                                {invoice.supportingDocuments && invoice.supportingDocuments.length > 0 && (
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <Button variant="ghost" size="icon" className="h-6 w-6">
+                                                                <Paperclip className="h-4 w-4" />
+                                                            </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent>
+                                                            <DropdownMenuLabel>Supporting Docs</DropdownMenuLabel>
+                                                            <DropdownMenuSeparator />
+                                                            {invoice.supportingDocuments.map((doc, i) => (
+                                                                <DropdownMenuItem key={i} asChild>
+                                                                    <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer">{doc.fileName}</a>
+                                                                </DropdownMenuItem>
+                                                            ))}
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                )}
+                                            </TableCell>
+                                            <TableCell className="text-right font-mono">{formatPrice(totalVat)}</TableCell>
+                                            <TableCell className="text-right font-mono">
+                                                <div className="flex flex-col items-end">
+                                                    <span className={cn(hasDiscrepancy && "text-destructive font-bold")}>{formatPrice(invoice.invoiceTotal)}</span>
+                                                    {hasDiscrepancy && (
+                                                        <span className="text-[10px] text-destructive font-medium">
+                                                            Lines: {formatPrice(lineTotalSum)}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuItem onSelect={() => handleApprove(invoice.id)}>
+                                                            <FileCheck2 className="mr-2 h-4 w-4" /> Approve
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem onSelect={() => handleReanalyzeSingle(invoice.id)} disabled={isReanalyzing}>
+                                                            <RefreshCw className="mr-2 h-4 w-4" /> Reanalyze
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem onSelect={() => setEditingInvoice(invoice)}>
+                                                            <Edit className="mr-2 h-4 w-4" /> Edit
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem 
+                                                            onSelect={() => {
+                                                                setRejectingInvoice(invoice);
+                                                                setRejectionReason('');
+                                                            }} 
+                                                            className="text-destructive focus:text-destructive"
+                                                        >
+                                                            <Mail className="mr-2 h-4 w-4" /> Reject & Notify
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem 
+                                                            onSelect={() => setDeletingInvoice(invoice)} 
+                                                            className="text-destructive focus:text-destructive"
+                                                        >
+                                                            <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </>
             )}
         </CardContent>
       </Card>
       
+      {/* Edit Invoice Dialog */}
       <Dialog open={!!editingInvoice} onOpenChange={(isOpen) => !isOpen && setEditingInvoice(null)}>
-        <DialogContent className="sm:max-w-4xl">
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
                 <DialogTitle>Edit Invoice: {editingInvoice?.supplier}</DialogTitle>
                 <DialogDescription>Review and correct the extracted data.</DialogDescription>
@@ -1114,7 +1381,77 @@ export default function ReviewPage() {
             />
         </DialogContent>
       </Dialog>
-      
+
+      {/* Reject & Notify Dialog */}
+      <AlertDialog open={!!rejectingInvoice} onOpenChange={(open) => !open && setRejectingInvoice(null)}>
+        <AlertDialogContent className="w-[92vw] max-w-md rounded-xl">
+            <AlertDialogHeader>
+                <AlertDialogTitle>Reject Invoice?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Please provide a reason for rejecting the invoice for {rejectingInvoice?.supplier}. This will be sent to the user who uploaded the invoice.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <Textarea 
+                placeholder="e.g., Invoice is not legible, or incorrect VAT." 
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                className="min-h-[100px]"
+            />
+            <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setRejectingInvoice(null)}>Cancel</AlertDialogCancel>
+                <AlertDialogAction 
+                    onClick={() => {
+                        if (rejectingInvoice && rejectionReason.trim()) {
+                            handleReject(rejectingInvoice.id, rejectionReason.trim());
+                        } else {
+                            toast({title: 'Reason Required', description: 'Please provide a reason for rejection.', variant: 'destructive'});
+                        }
+                    }}
+                >
+                    Reject
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Single Delete Confirmation Dialog */}
+      <AlertDialog open={!!deletingInvoice} onOpenChange={(open) => !open && setDeletingInvoice(null)}>
+        <AlertDialogContent className="w-[92vw] max-w-md rounded-xl">
+            <AlertDialogHeader>
+                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This action will delete the invoice for {deletingInvoice?.supplier}. You can view it later in the Deleted page.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setDeletingInvoice(null)}>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => deletingInvoice && handleArchive(deletingInvoice.id)}>
+                    Delete
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <AlertDialog open={isBulkDeleteDialogOpen} onOpenChange={setIsBulkDeleteDialogOpen}>
+        <AlertDialogContent className="w-[92vw] max-w-md rounded-xl">
+            <AlertDialogHeader>
+                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This will delete {selectedInvoices.length} selected invoice(s). You can view them later in the Deleted page.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setIsBulkDeleteDialogOpen(false)}>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => {
+                    handleArchiveSelected();
+                    setIsBulkDeleteDialogOpen(false);
+                }}>
+                    Yes, Delete
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
     </div>
   );
