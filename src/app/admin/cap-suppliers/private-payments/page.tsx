@@ -10,6 +10,7 @@ import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download, MoreHorizonta
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ExtractedInvoice, User } from '@/lib/types';
 import { BankBeneficiaryCell } from '@/components/admin/cap-suppliers/BankBeneficiaryCell';
+import { CopyableAmount } from '@/components/admin/cap-suppliers/CopyableAmount';
 import { getBankBeneficiary } from '@/lib/bank-beneficiaries';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -515,7 +516,9 @@ function PaymentBatchTable({
                                         <TableCell>
                                             <BankBeneficiaryCell supplierName={group.supplier} />
                                         </TableCell>
-                                        <TableCell className="text-right font-mono font-semibold">{formatPrice(group.totalAmount)}</TableCell>
+                                        <TableCell className="text-right font-mono font-semibold">
+                                            <CopyableAmount amount={group.totalAmount} formattedAmount={formatPrice(group.totalAmount)} />
+                                        </TableCell>
                                         <TableCell className="text-right">
                                              <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>
@@ -667,7 +670,9 @@ function PaymentBatchTable({
                                                                         )}
                                                                     </TableCell>
                                                                     <TableCell className="py-1">{invoice.date}</TableCell>
-                                                                    <TableCell className="py-1 text-right font-mono">{formatPrice(invoice.invoiceTotal)}</TableCell>
+                                                                    <TableCell className="py-1 text-right font-mono">
+                                                                        <CopyableAmount amount={invoice.invoiceTotal} formattedAmount={formatPrice(invoice.invoiceTotal)} />
+                                                                    </TableCell>
                                                                     <TableCell className="py-1 text-right">
                                                                         <Button variant="ghost" size="icon" className="h-6 w-6" asChild>
                                                                             <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer"><Eye className="h-3 w-3" /></a>
