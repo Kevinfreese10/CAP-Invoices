@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { INVESTEC_BENEFICIARIES, normalizeSupplierKey } from '@/lib/bank-beneficiaries';
+import { INVESTEC_BENEFICIARIES, UNTRUNCATED_EXPANSIONS, normalizeSupplierKey } from '@/lib/bank-beneficiaries';
 import { useBankBeneficiaries } from '@/lib/use-bank-beneficiaries';
 import { getFirestore, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { firebaseApp } from '@/lib/firebase';
@@ -32,7 +32,10 @@ export function BankBeneficiaryCell({
   const { toast } = useToast();
   const { getBeneficiary } = useBankBeneficiaries();
 
-  const beneficiaryName = getBeneficiary(supplierName);
+  const rawBeneficiaryName = getBeneficiary(supplierName);
+  const beneficiaryName = rawBeneficiaryName
+    ? (UNTRUNCATED_EXPANSIONS[rawBeneficiaryName.trim()] || rawBeneficiaryName.replace(/\.\.\.+$/, '').trim())
+    : null;
 
   const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -105,9 +108,9 @@ export function BankBeneficiaryCell({
     <div className={cn("flex items-center gap-1.5 group/ben min-w-[170px]", className)}>
       {beneficiaryName ? (
         <>
-          <div className="flex items-center gap-1.5 min-w-0 max-w-[240px]">
+          <div className="flex items-center gap-1.5 min-w-0">
             <span
-              className="font-mono text-xs font-medium text-foreground/90 truncate cursor-pointer hover:underline"
+              className="font-mono text-xs font-medium text-foreground/90 cursor-pointer hover:underline whitespace-normal break-words leading-tight"
               title={`Click to copy: ${beneficiaryName}`}
               onClick={handleCopy}
             >
