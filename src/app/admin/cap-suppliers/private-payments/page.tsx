@@ -9,6 +9,8 @@ import { firebaseApp } from '@/lib/firebase';
 import { Loader2, Banknote, ChevronDown, Trash2, Upload, Download, MoreHorizontal, Edit, AlertTriangle, AlertCircle, Eye, Archive, Shield, Sparkles, Maximize2, Minimize2, EyeOff } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ExtractedInvoice, User } from '@/lib/types';
+import { BankBeneficiaryCell } from '@/components/admin/cap-suppliers/BankBeneficiaryCell';
+import { getBankBeneficiary } from '@/lib/bank-beneficiaries';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -256,7 +258,7 @@ function PaymentBatchTable({
     const handleDownloadExcel = () => {
         const dataToExport = [];
         const header = [
-            "Date", "Invoice Number", "Commission Number", "Supplier", "Line Description", "Exclusive Amount", 
+            "Date", "Invoice Number", "Commission Number", "Supplier", "Bank Beneficiary", "Line Description", "Exclusive Amount", 
             "VAT", "Line Total", "PAYE Deduction", "Final Payment", 
             "Account Allocation Number", "Account Allocation Description", "Invoice Link"
         ];
@@ -269,11 +271,13 @@ function PaymentBatchTable({
                 const finalPayment = lineTotal - payeDeduction;
                 const account = allAccounts.find(acc => acc.accountNumber === item.accountId);
                 
+                const beneficiaryName = getBankBeneficiary(invoice.supplier) || '';
                 const row = [
                     invoice.date,
                     invoice.invoiceNumber,
                     invoice.commissionNumber || 'N/A',
                     invoice.supplier,
+                    beneficiaryName,
                     item.ledgerDescription || item.description,
                     item.exclusiveAmount,
                     item.vatAmount,
@@ -290,14 +294,14 @@ function PaymentBatchTable({
 
         const worksheet = XLSX.utils.aoa_to_sheet(dataToExport);
         worksheet['!cols'] = [
-            { wch: 12 }, { wch: 15 }, { wch: 20 }, { wch: 30 }, { wch: 40 }, { wch: 15 }, 
+            { wch: 12 }, { wch: 15 }, { wch: 20 }, { wch: 30 }, { wch: 25 }, { wch: 40 }, { wch: 15 }, 
             { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 20 },
             { wch: 30 }, { wch: 50 }
         ];
 
         const currencyFormat = 'R #,##0.00';
         for (let i = 2; i <= dataToExport.length; i++) {
-            ['F', 'G', 'H', 'I', 'J'].forEach(col => {
+            ['G', 'H', 'I', 'J', 'K'].forEach(col => {
                 const cellRef = `${col}${i}`;
                 if (worksheet[cellRef] && typeof worksheet[cellRef].v === 'number') {
                     worksheet[cellRef].z = currencyFormat;
@@ -395,6 +399,7 @@ function PaymentBatchTable({
                     <TableHeader>
                         <TableRow>
                             <TableHead>Supplier</TableHead>
+                            <TableHead>Bank Beneficiary</TableHead>
                             <TableHead className="text-right">Total Amount Due</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -507,6 +512,9 @@ function PaymentBatchTable({
                                                 )}
                                             </div>
                                         </TableCell>
+                                        <TableCell>
+                                            <BankBeneficiaryCell supplierName={group.supplier} />
+                                        </TableCell>
                                         <TableCell className="text-right font-mono font-semibold">{formatPrice(group.totalAmount)}</TableCell>
                                         <TableCell className="text-right">
                                              <DropdownMenu>
@@ -568,7 +576,7 @@ function PaymentBatchTable({
                                     </TableRow>
                                     {isOpen && (
                                         <TableRow>
-                                            <TableCell colSpan={3} className="p-0">
+                                            <TableCell colSpan={4} className="p-0">
                                                 <div className="p-4 bg-muted/50">
                                                     <Table>
                                                         <TableHeader>
