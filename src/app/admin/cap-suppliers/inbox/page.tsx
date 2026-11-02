@@ -86,17 +86,26 @@ export default function InboxPage() {
         }
 
         try {
-            await fetch('/api/emails/process-attachments', {
+            const res = await fetch('/api/emails/process-attachments', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, reprocess, attachmentFilename, assignedToEmail: user?.email }),
             });
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.error || `Server responded with ${res.status}`);
+            }
+            const data = await res.json();
+            if (data.failedCount > 0 && data.processedCount === 0) {
+                throw new Error('AI extraction failed to extract required details.');
+            }
         } catch (err: any) {
              toast({
                 title: `Processing Failed for email from ${email.from}`,
                 description: err.message,
                 variant: "destructive",
             });
+            throw err;
         }
     }, [toast, user?.email]);
     

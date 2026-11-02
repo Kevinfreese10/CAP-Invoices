@@ -132,9 +132,17 @@ export async function POST(req: Request) {
 
         const result = await extractInvoiceData({ invoiceImage: attachment.dataUrl });
 
-        if (!result || !result.supplier || !result.invoiceNumber) {
-          throw new Error('AI could not read the required details from the invoice.');
+        if (!result || !result.supplier) {
+          throw new Error('AI could not read the required supplier details from the invoice.');
         }
+
+        // Handle cases where the document has no explicit invoice number (e.g., freelancer invoices, fee letters)
+        let effectiveInvoiceNumber = (result.invoiceNumber || '').trim();
+        if (!effectiveInvoiceNumber || effectiveInvoiceNumber.toUpperCase() === 'N/A' || effectiveInvoiceNumber.toUpperCase() === 'NONE' || effectiveInvoiceNumber.toUpperCase() === 'ILLEGIBLE') {
+          const cleanFileName = attachment.filename ? attachment.filename.replace(/\.pdf$/i, '').replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 20) : '';
+          effectiveInvoiceNumber = cleanFileName ? `${cleanFileName}-${Date.now().toString().slice(-4)}` : `NO-INV-${Date.now().toString().slice(-6)}`;
+        }
+        result.invoiceNumber = effectiveInvoiceNumber;
 
         const bucket = adminStorage.bucket();
         const file = bucket.file(`invoices/email-${emailStub.uid}/${Date.now()}-${attachment.filename}`);
