@@ -82,8 +82,8 @@ function getUpcomingFridays(currentBatch?: string): { value: string; label: stri
         }
     }
 
-    // If current invoice has a custom or existing batch not in the upcoming list, include it
-    if (currentBatch && !fridays.some(f => f.value === currentBatch)) {
+    // If current invoice has a custom or existing batch not in the upcoming list, include it (excluding 'private')
+    if (currentBatch && currentBatch.toLowerCase() !== 'private' && !fridays.some(f => f.value === currentBatch)) {
         try {
             const parsed = parseISO(currentBatch);
             if (!isNaN(parsed.getTime())) {
@@ -105,7 +105,7 @@ function getUpcomingFridays(currentBatch?: string): { value: string; label: stri
         }
     }
 
-    return fridays;
+    return fridays.filter(f => f.value.toLowerCase() !== 'private');
 }
 
 interface EditInvoiceFormProps {
@@ -138,9 +138,11 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel, onSaveAndAp
             })) || [],
             invoiceTotal: invoice?.invoiceTotal || 0,
             expenseType: invoice?.expenseType || undefined,
-            paymentBatch: invoice?.paymentBatch || upcomingFridays[0]?.value,
+            paymentBatch: (invoice?.paymentBatch && invoice.paymentBatch.toLowerCase() !== 'private') 
+                ? invoice.paymentBatch 
+                : upcomingFridays[0]?.value,
             note: invoice?.note || '',
-            isPrivate: invoice?.isPrivate || false,
+            isPrivate: invoice?.isPrivate || invoice?.paymentBatch === 'private' || false,
         }
     });
 
@@ -352,15 +354,21 @@ export default function EditInvoiceForm({ invoice, onSave, onCancel, onSaveAndAp
                                 <FormItem className="space-y-3">
                                 <FormLabel>Payment Batch</FormLabel>
                                 <FormControl>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <Select 
+                                        onValueChange={field.onChange} 
+                                        defaultValue={field.value}
+                                        value={field.value && field.value.toLowerCase() !== 'private' ? field.value : undefined}
+                                    >
                                         <SelectTrigger>
                                             <SelectValue placeholder="Select a payment date" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {upcomingFridays.map(friday => (
-                                                <SelectItem key={friday.value} value={friday.value}>
-                                                    {friday.label}
-                                                </SelectItem>
+                                            {upcomingFridays
+                                                .filter(friday => friday.value.toLowerCase() !== 'private')
+                                                .map(friday => (
+                                                    <SelectItem key={friday.value} value={friday.value}>
+                                                        {friday.label}
+                                                    </SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
